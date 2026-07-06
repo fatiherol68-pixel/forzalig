@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -152,6 +153,8 @@ const mailIzinli = (email)=> HERKESE_ACIK || IZINLI_MAILLER.map(m=>m.toLowerCase
 /* Paylaşılan lig linki: ...?lig=SLUG → salt-okunur public görünüm */
 const PAYLASIM_SLUG = (()=>{ try{ return new URLSearchParams(window.location.search).get('lig')||null; }catch(e){ return null; } })();
 const PAYLASIM_URL = (slug)=>{ try{ return window.location.origin + window.location.pathname + '?lig=' + slug; }catch(e){ return '?lig='+slug; } };
+/* QR kod (paylaşım linki için) — data:image döner, kütüphane yoksa boş */
+const qrData = (url)=>{ try{ if(typeof qrcode==="undefined"||!url) return ""; const qr=qrcode(0,"M"); qr.addData(url); qr.make(); return qr.createDataURL(5,10); }catch(e){ return ""; } };
 
 /* Bulut veri — tüm uygulama durumu, kullanıcı başına tek JSON satırı */
 const Bulut = {
@@ -1416,12 +1419,23 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
     {sag!=null && <span style={{fontSize:11,color:T.textMut,marginRight:4}}>{sag}</span>}<span style={{fontSize:12,color:T.textMut}}>›</span>
   </div>;
 
+  const kullaniciAd = oturum ? ((oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email.split("@")[0]) : "Misafir";
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
-    <div style={{padding:"16px 14px 4px"}}>
-      <div style={{fontSize:20,fontWeight:800,color:T.text}}>👤 Profil</div>
+    {/* KİŞİSEL HERO */}
+    <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"20px 16px 18px",background:"linear-gradient(120deg,"+T.accent+"3a,"+T.bg0+" 45%,"+(T.accent2||T.accent)+"22 75%,"+T.bg0+")"}}>
+      <div className="vav-supurme"/>
+      <div style={{position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:13}}>
+        <div className="vav-suzul" style={{width:60,height:60,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.accent,flexShrink:0,boxShadow:"0 0 18px "+T.accent+"55"}} dangerouslySetInnerHTML={{__html:svgAvatar(kullaniciAd,60)}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,color:T.textSoft}}>{oturum?"Merhaba 👋":"Hoş geldin"}</div>
+          <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{kullaniciAd}</div>
+          <div style={{fontSize:10,color:oturum?T.accent:T.textMut,marginTop:2}}>{oturum?"☁ giriş yapıldı · bulutta":"giriş yapılmadı"}</div>
+        </div>
+        {!oturum && kapiAc && <button onClick={()=>kapiAc("tanitim")} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:20,padding:"8px 14px",fontSize:12,fontWeight:800,whiteSpace:"nowrap"}}>Giriş</button>}
+      </div>
     </div>
     {/* özet kart */}
-    <div style={{margin:"10px 14px",background:"linear-gradient(160deg,"+T.accent+"18,"+T.bg1+")",border:"0.5px solid "+T.line,borderRadius:16,padding:16}}>
+    <div style={{margin:"12px 14px",background:"linear-gradient(160deg,"+T.accent+"18,"+T.bg1+")",border:"0.5px solid "+T.line,borderRadius:16,padding:16}}>
       <div style={{fontSize:12,color:T.textSoft,marginBottom:12}}>Takip ettiklerin ve istatistiklerin burada.</div>
       <div style={{display:"flex",justifyContent:"space-around",textAlign:"center"}}>
         <div><div style={{fontSize:22,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>{toplamTakip}</div><div style={{fontSize:9,color:T.textMut}}>takip</div></div>
@@ -2393,6 +2407,9 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
         {paylasYuk ? <div style={{textAlign:"center",padding:20,color:T.textMut,fontSize:13}}>⚽ Yayınlanıyor…</div> :
          paylasHata ? <div style={{fontSize:12,color:T.danger,background:T.danger+"18",borderRadius:10,padding:12,marginBottom:12}}>{paylasHata}</div> :
          <>
+          {(()=>{ const d=qrData(paylasUrl); return d ? <div style={{display:"flex",justifyContent:"center",marginBottom:12}}>
+            <div style={{background:"#fff",padding:10,borderRadius:12}}><img src={d} alt="QR" style={{width:150,height:150,display:"block",imageRendering:"pixelated"}}/></div>
+          </div> : null; })()}
           <div style={{display:"flex",gap:8,alignItems:"center",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:11,padding:"11px 12px",marginBottom:12}}>
             <span style={{flex:1,fontSize:12,color:T.textSoft,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{paylasUrl}</span>
             <button onClick={kopyala} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{kopyalandi?"Kopyalandı ✓":"Kopyala"}</button>
@@ -3990,6 +4007,11 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     {ikon:"💎",ad:"Efsane",aclk:"90+ reyting",k:o.ovr>=90},
     {ikon:"🛡️",ad:"Centilmen",aclk:"Temiz sicil",k:(o.sari+o.kirmizi)===0},
     {ikon:"⚡",ad:"Enerjik",aclk:"Enerjik oyuncu",k:o.enerjik>=1},
+    {ikon:"🎖️",ad:"Veteran",aclk:"50+ maç oynadı",k:(o.mac||0)>=50},
+    {ikon:"🐐",ad:"Golcü Efsane",aclk:"50 gole ulaştı",k:(o.gol||0)>=50},
+    {ikon:"🎯",ad:"Asist Kralı",aclk:"20 asist yaptı",k:(o.asist||0)>=20},
+    {ikon:"🧱",ad:"Aşılmaz",aclk:"30 kurtarış",k:(o.kurtaris||0)>=30},
+    {ikon:"⭐",ad:"MVP Ustası",aclk:"5 kez MVP",k:(o.mvp||0)>=5},
   ];
   const kazanilan=rozetler.filter(r=>r.k).length;
 
@@ -8011,17 +8033,40 @@ function App(){
   // bildirim akışı (takip edilenlere göre üretilir)
   const bildirimler=useMemo(()=>{
     const b=[];
+    const tumO=Motor.tumOyuncular(turnuvalar);
+    // takip edilen ligler: son maç + lider
     turnuvalar.forEach(t=>{
       if(takipLig.includes(t.id)){
-        const sonMac=t.maclar[t.maclar.length-1];
+        const oynanan=t.maclar.filter(m=>m.oynandi);
+        const sonMac=oynanan[oynanan.length-1];
         if(sonMac) b.push({ikon:"⚽",metin:`${t.ad}: ${sonMac.takimA} ${sonMac.skorA}-${sonMac.skorB} ${sonMac.takimB}`,renk:T.accent});
+        const lider=[...t.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
+        if(lider && oynanan.length>0) b.push({ikon:"📈",metin:`${t.ad}: ${lider.ad} zirvede (${lider.puan} puan)`,renk:T.accent2});
       }
     });
-    Motor.tumOyuncular(turnuvalar).forEach(o=>{
-      if(takipOyuncu.includes(o.id) && o.gol>0) b.push({ikon:"🔥",metin:`${o.ad} bu sezon ${o.gol} gol attı`,renk:T.gold});
+    // takip edilen takımlar: son maç sonucu
+    turnuvalar.forEach(t=> t.takimlar.forEach(tk=>{
+      if(takipTakim.includes(tk.id)){
+        const mac=t.maclar.filter(m=>m.oynandi && (m.takimA===tk.ad||m.takimB===tk.ad)).slice(-1)[0];
+        if(mac){ const kendiA=mac.takimA===tk.ad; const at=kendiA?mac.skorA:mac.skorB, ye=kendiA?mac.skorB:mac.skorA;
+          const sonuc=at>ye?"kazandı 🎉":at<ye?"kaybetti":"berabere kaldı";
+          b.push({ikon:"🛡️",metin:`${tk.ad} ${sonuc}: ${mac.takimA} ${mac.skorA}-${mac.skorB} ${mac.takimB}`,renk:at>ye?T.accent:at<ye?T.danger:T.textMut}); }
+      }
+    }));
+    // takip edilen oyuncular: MVP / gol
+    tumO.forEach(o=>{
+      if(takipOyuncu.includes(o.id)){
+        if((o.mvp||0)>0) b.push({ikon:"⭐",metin:`${o.ad} ${o.mvp} kez maçın adamı seçildi`,renk:T.gold});
+        else if((o.gol||0)>0) b.push({ikon:"🔥",metin:`${o.ad} bu sezon ${o.gol} gol attı`,renk:T.gold});
+      }
     });
-    return b.slice(0,8);
-  },[turnuvalar,takipLig,takipOyuncu,temaKey]);
+    // kariyerim
+    if(sahiplenme){
+      const benim=tumO.find(o=>o.id===sahiplenme.oyuncu_id||o.ad===sahiplenme.oyuncu_ad);
+      if(benim) b.push({ikon:"👤",metin:`Kariyerin: ${benim.ad} — ${benim.gol||0} gol, ${benim.asist||0} asist`,renk:T.accent});
+    }
+    return b.slice(0,12);
+  },[turnuvalar,takipLig,takipOyuncu,takipTakim,sahiplenme,temaKey]);
 
   useEffect(()=>{
     const r=document.documentElement.style;
