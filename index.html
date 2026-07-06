@@ -181,15 +181,15 @@ function slugUret(ad){
 const Paylas = {
   // ligi herkese aç (yayınla) — slug döner
   async yayinla(userId, turnuva){
-    if(!sb) return null;
+    if(!sb) return {hata:"Bağlantı yok"};
     const slug = (turnuva.paylasimSlug) || (slugUret(turnuva.ad)+'-'+String(turnuva.id||0));
     try{
       const {error}=await sb.from('paylasilan_ligler').upsert({
         slug, sahip_id:userId, ad:turnuva.ad, sehir:turnuva.sehir||'', veri:turnuva, guncelleme:new Date().toISOString()
       });
-      if(error){ console.warn('Paylas.yayinla:',error.message); return null; }
-      return slug;
-    }catch(e){ console.warn('Paylas.yayinla:',e); return null; }
+      if(error){ console.warn('Paylas.yayinla:',error.message); return {hata:error.message}; }
+      return {slug};
+    }catch(e){ console.warn('Paylas.yayinla:',e); return {hata:String(e&&e.message||e)}; }
   },
   async kaldir(slug){
     if(!sb||!slug) return false;
@@ -7846,10 +7846,17 @@ function App(){
   // FAZ 9 — ligi herkese aç / paylaş / kaldır
   const paylasLig=async(turnuva)=>{
     if(!oturum) return {hata:"Paylaşmak için önce giriş yapmalısın."};
-    const slug=await Paylas.yayinla(oturum.id, turnuva);
-    if(!slug) return {hata:"Yayınlanamadı. İnternetini kontrol edip tekrar dene."};
-    turnuva.paylasimSlug=slug; setTurnuvalar(p=>[...p]);
-    return {url:PAYLASIM_URL(slug), slug};
+    const r=await Paylas.yayinla(oturum.id, turnuva);
+    if(!r || !r.slug){
+      let m=(r&&r.hata)||"";
+      if(/schema cache|does not exist|find the table/i.test(m)) m="Sunucu tabloları yeni fark ediyor — 1 dakika bekleyip tekrar dene.";
+      else if(/row-level security|violates/i.test(m)) m="Yetki hatası (RLS). Bana haber ver.";
+      else if(m) m="Yayınlanamadı: "+m;
+      else m="Yayınlanamadı. İnternetini kontrol edip tekrar dene.";
+      return {hata:m};
+    }
+    turnuva.paylasimSlug=r.slug; setTurnuvalar(p=>[...p]);
+    return {url:PAYLASIM_URL(r.slug), slug:r.slug};
   };
   const paylasKaldir=async(turnuva)=>{
     if(turnuva.paylasimSlug){ await Paylas.kaldir(turnuva.paylasimSlug); }
