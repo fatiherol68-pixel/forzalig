@@ -3,7 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ForzaLig</title>
+<title>ForzaLig — Halı Saha Liginin Dijital Merkezi</title>
+<meta name="description" content="ForzaLig: halı saha ligini yönet, puan durumu, fikstür, kral listeleri, FIFA tarzı oyuncu kartları ve canlı skorlar. Ligini link/QR ile paylaş, herkes görsün.">
+<meta name="theme-color" content="#070B12">
+<meta name="keywords" content="halı saha, lig, fikstür, puan durumu, gol kralı, futbol, turnuva, forzalig">
+<link rel="canonical" href="https://fatiherol68-pixel.github.io/forzalig/">
+<!-- Open Graph (WhatsApp/Facebook önizleme) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ForzaLig">
+<meta property="og:title" content="ForzaLig — Halı Saha Liginin Dijital Merkezi">
+<meta property="og:description" content="Ligini yönet, paylaş, herkes görsün. Puan durumu, kral listeleri, FIFA tarzı kartlar ve daha fazlası.">
+<meta property="og:url" content="https://fatiherol68-pixel.github.io/forzalig/">
+<meta property="og:image" content="https://fatiherol68-pixel.github.io/forzalig/og.png">
+<meta property="og:locale" content="tr_TR">
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ForzaLig — Halı Saha Ligi">
+<meta name="twitter:description" content="Ligini yönet, paylaş, herkes görsün.">
+<meta name="twitter:image" content="https://fatiherol68-pixel.github.io/forzalig/og.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -6700,7 +6717,7 @@ function TakipLigIcerik({turnuva, ligTab, T, git}){
 }
 
 /* AYARLAR — tema + stres testi */
-function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMod, setAdminMod, yedekle, yukleDosya, kayitDurum}){
+function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMod, setAdminMod, yedekle, yukleDosya, kayitDurum, git}){
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     {/* VAV HERO BAŞLIK */}
     <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"22px 18px 18px",background:"linear-gradient(120deg,"+T.accent+"40 0%,"+T.bg0+" 38%,"+T.accent+"22 66%,"+T.bg0+")"}}>
@@ -6766,11 +6783,17 @@ function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMo
           Şu an: {turnuvalar.length} turnuva, {turnuvalar.reduce((s,t)=>s+t.takimlar.length,0)} takım, {Motor.tumOyuncular(turnuvalar).length} futbolcu, {turnuvalar.reduce((s,t)=>s+t.maclar.length,0)} maç.
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>veriUret(3,9,12)} className="tap" style={{flex:1,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,borderRadius:10,padding:"11px",fontSize:13,fontWeight:600}}>Normal veri</button>
-          <button onClick={()=>veriUret(8,16,18)} className="tap" style={{flex:1,background:T.accent2,color:"#fff",borderRadius:10,padding:"11px",fontSize:13,fontWeight:600}}>Bol veri</button>
+          <button onClick={()=>veriUret(3,9,12)} className="tap" style={{flex:1,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,borderRadius:10,padding:"11px",fontSize:13,fontWeight:600}}>Normal</button>
+          <button onClick={()=>veriUret(8,16,18)} className="tap" style={{flex:1,background:T.accent2,color:"#fff",borderRadius:10,padding:"11px",fontSize:13,fontWeight:600}}>Bol</button>
+          <button onClick={()=>{ if(confirm("Aşırı yük: 15 lig, ~300 takım, ~5000 oyuncu üretilecek. Cihazı zorlar. Devam?")) veriUret(15,20,20); }} className="tap" style={{flex:1,background:T.danger,color:"#fff",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700}}>🔥 Aşırı</button>
         </div>
         <button onClick={veriSil} className="tap" style={{width:"100%",marginTop:8,background:"transparent",color:T.danger,borderRadius:10,padding:"11px",fontSize:13,fontWeight:600,border:"0.5px solid "+T.danger+"55"}}>🗑 Tüm veriyi sil</button>
       </div>
+
+      <div style={{display:"flex",alignItems:"center",gap:8,margin:"18px 4px 8px"}}><span style={{width:28,height:28,borderRadius:8,background:T.textMut+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>⚖️</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Yasal</span></div>
+      <div onClick={()=>git({sayfa:"yasal",tip:"gizlilik"})} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"12px 13px",marginBottom:6}}><span style={{fontSize:16}}>🔒</span><span style={{flex:1,fontSize:13,color:T.text}}>Gizlilik / KVKK</span><span style={{fontSize:12,color:T.textMut}}>›</span></div>
+      <div onClick={()=>git({sayfa:"yasal",tip:"kosul"})} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"12px 13px",marginBottom:6}}><span style={{fontSize:16}}>📜</span><span style={{flex:1,fontSize:13,color:T.text}}>Kullanım Koşulları</span><span style={{fontSize:12,color:T.textMut}}>›</span></div>
+      <div style={{fontSize:9,color:T.textMut,textAlign:"center",margin:"16px 0",lineHeight:1.6}}>ForzaLig · forzalig.com<br/>Halı saha liginin dijital merkezi</div>
     </div>
   </div>;
 }
@@ -8070,6 +8093,51 @@ function GirisAuth({T, mod, kapiGit, tamamla}){
   </div>;
 }
 
+/* Yasal — KVKK/Gizlilik + Kullanım Koşulları (şablon, hukukçu onayı önerilir) */
+function YasalSayfa({T, git, tip}){
+  const [sekme,setSekme]=useState(tip==="kosul"?"kosul":"gizlilik");
+  const P=({children})=><p style={{fontSize:12.5,color:T.textSoft,lineHeight:1.75,marginBottom:12}}>{children}</p>;
+  const H=({children})=><div style={{fontSize:13.5,color:T.text,fontWeight:800,margin:"16px 0 8px",fontFamily:T.fontDisplay}}>{children}</div>;
+  return <div className="fade-in" style={{paddingBottom:90}}>
+    <Baslik ust="YASAL" ana="Gizlilik & Koşullar" T={T}/>
+    <div style={{display:"flex",gap:6,padding:"6px 14px 0"}}>
+      {[["gizlilik","🔒 Gizlilik / KVKK"],["kosul","📜 Kullanım Koşulları"]].map(([k,l])=>
+        <button key={k} onClick={()=>setSekme(k)} className="tap" style={{flex:1,fontSize:11.5,padding:"9px",borderRadius:9,fontWeight:700,background:sekme===k?T.accent:T.bg1,color:sekme===k?T.bg0:T.textMut,border:"0.5px solid "+(sekme===k?T.accent:T.line)}}>{l}</button>
+      )}
+    </div>
+    <div style={{padding:"14px 16px"}}>
+      <div style={{fontSize:10,color:T.gold,background:T.gold+"14",border:"0.5px solid "+T.gold+"40",borderRadius:9,padding:9,marginBottom:14,lineHeight:1.5}}>ℹ️ Bu metin bir taslaktır. Yayına almadan önce bir hukukçuya kontrol ettirmen önerilir.</div>
+      {sekme==="gizlilik" ? <div>
+        <P>ForzaLig ("uygulama") olarak gizliliğine önem veriyoruz. Bu metin, 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) kapsamında hangi verileri, neden ve nasıl işlediğimizi açıklar.</P>
+        <H>Toplanan Veriler</H>
+        <P>• Hesap bilgileri: e-posta adresi, ad (üyelik için).<br/>• Uygulama içi veriler: oluşturduğun lig, takım, oyuncu, maç ve istatistik bilgileri.<br/>• Teknik: oturum bilgisi (giriş yapabilmen için).</P>
+        <H>Verilerin Kullanımı</H>
+        <P>Verilerin yalnızca uygulamanın çalışması (hesabın, liglerin, bulut senkronu) için işlenir. Verilerin başka kişilerle paylaşılmaz; yalnızca <b>senin "herkese açık" yaptığın ligler</b> herkes tarafından görüntülenebilir.</P>
+        <H>Saklama ve Güvenlik</H>
+        <P>Veriler güvenli altyapıda (Supabase) saklanır ve erişim güvenlik kurallarıyla (RLS) korunur; her kullanıcı yalnızca kendi verisine erişebilir.</P>
+        <H>Haklarının</H>
+        <P>Dilediğin zaman verilerine erişebilir, düzeltebilir veya hesabının silinmesini talep edebilirsin. İletişim: uygulama üzerinden.</P>
+        <H>Çerezler</H>
+        <P>Uygulama, oturumun açık kalması için tarayıcı depolamasını (localStorage) kullanır; reklam/izleme çerezi kullanmaz.</P>
+      </div> : <div>
+        <P>Bu uygulamayı kullanarak aşağıdaki koşulları kabul etmiş olursun.</P>
+        <H>1. Hizmet</H>
+        <P>ForzaLig, halı saha liglerini yönetmen, paylaşman ve istatistik tutman için sunulan bir uygulamadır. Hizmet "olduğu gibi" sunulur.</P>
+        <H>2. Kullanıcı Sorumluluğu</H>
+        <P>Girdiğin bilgilerden (lig, oyuncu, skor) sen sorumlusun. Başkalarının haklarını ihlal eden, hakaret/uygunsuz içerik girmemeyi kabul edersin.</P>
+        <H>3. İçerik ve Paylaşım</H>
+        <P>"Herkese açık" yaptığın ligler herkes tarafından görüntülenebilir. Uygunsuz içerik yönetim tarafından kaldırılabilir.</P>
+        <H>4. Hesap</H>
+        <P>Hesabının güvenliğinden sen sorumlusun. Kötüye kullanım durumunda hesap askıya alınabilir.</P>
+        <H>5. Sorumluluk Reddi</H>
+        <P>Uygulama, veri kaybı veya kesintilerden doğabilecek zararlardan sorumlu tutulamaz. Önemli verilerini yedeklemen önerilir.</P>
+        <H>6. Değişiklikler</H>
+        <P>Bu koşullar zaman zaman güncellenebilir. Güncel sürüm uygulamada yayınlanır.</P>
+      </div>}
+    </div>
+  </div>;
+}
+
 /* FAZ 13 — Süper Admin Paneli (sadece yetkili) */
 function AdminPanel({T, git, oturum, turnuvalar}){
   const [sekme,setSekme]=useState("ozet");
@@ -8264,10 +8332,33 @@ function App(){
         try{ turnuvaHesapla(lig); }catch(e){}
         setTurnuvalar([lig]);
         setNav({sayfa:"turnuva", turnuva:lig});
+        // dinamik SEO/sosyal başlık
+        try{
+          const bas=lig.ad+" · ForzaLig";
+          const acik=(lig.sehir?lig.sehir+" · ":"")+lig.takimlar.length+" takım · puan durumu ve kral listeleri ForzaLig'de";
+          document.title=bas;
+          const setMeta=(sel,val)=>{ const el=document.querySelector(sel); if(el) el.setAttribute("content",val); };
+          setMeta('meta[property="og:title"]',bas); setMeta('meta[name="twitter:title"]',bas);
+          setMeta('meta[name="description"]',acik); setMeta('meta[property="og:description"]',acik); setMeta('meta[name="twitter:description"]',acik);
+        }catch(e){}
       } else { setPaylasimHata(true); }
       setPaylasimYuk(false);
     })();
     return ()=>{ aktif=false; };
+  },[]);
+
+  // FAZ 14 — CANLI: paylaşılan ligi izleyen kişi periyodik yenilesin
+  useEffect(()=>{
+    if(!PAYLASIM_SLUG || !saltOkunur) return;
+    const iv=setInterval(async()=>{
+      const lig=await Paylas.getir(PAYLASIM_SLUG);
+      if(lig && Array.isArray(lig.takimlar)){
+        try{ turnuvaHesapla(lig); }catch(e){}
+        setTurnuvalar([lig]);
+        setNav(n=> n.sayfa==="turnuva" ? {...n, turnuva:lig} : n);
+      }
+    }, 25000);
+    return ()=>clearInterval(iv);
   },[]);
 
   // FAZ 8 — Supabase oturumunu izle (açılışta + değişince)
@@ -8333,6 +8424,15 @@ function App(){
     },1400);
     return ()=>clearTimeout(t);
   },[turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, oturum]);
+
+  // FAZ 14 — CANLI: yayınlı ligler değişince otomatik yeniden yayınla (izleyiciler görsün)
+  useEffect(()=>{
+    if(!sb || !oturum || saltOkunur) return;
+    const yayinli=turnuvalar.filter(t=>t.paylasimSlug);
+    if(!yayinli.length) return;
+    const t=setTimeout(()=>{ yayinli.forEach(tt=>{ try{ Paylas.yayinla(oturum.id, tt); }catch(e){} }); }, 2000);
+    return ()=>clearTimeout(t);
+  },[turnuvalar, oturum]);
 
   // FAZ 8 — çıkış yap
   const cikisYap=async()=>{
@@ -8659,7 +8759,8 @@ function App(){
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
       case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak}/>; break;
       case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar}/>; break;
-      case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum}/>; break;
+      case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
+      case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
     }
   }
