@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>FatihPro</title>
+<title>ForzaLig</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -113,7 +113,22 @@
   @keyframes vavAltin { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
   /* Progress bar (stat çubuğu) */
   .prem-bar-track { height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; }
-  .prem-bar-fill { height:100%; border-radius:3px; }</style>
+  .prem-bar-fill { height:100%; border-radius:3px; }
+  /* ===== FAZ 7 — Açılış (splash) animasyonları ===== */
+  @keyframes fzCizil { from{stroke-dashoffset:900;} to{stroke-dashoffset:0;} }
+  .fz-saha line, .fz-saha rect, .fz-saha circle { stroke-dasharray:900; stroke-dashoffset:900; animation:fzCizil 1.3s ease-out .3s forwards; }
+  @keyframes fzTopGel { 0%{opacity:0;transform:translateY(-90px) rotate(-50deg);} 60%{opacity:1;} 100%{opacity:1;transform:translateY(0) rotate(0);} }
+  .fz-top { animation:fzTopGel 1s cubic-bezier(.3,1.4,.5,1) 1.15s both; }
+  @keyframes fzMarka { 0%{opacity:0;letter-spacing:16px;filter:blur(7px);} 100%{opacity:1;letter-spacing:1px;filter:blur(0);} }
+  .fz-marka { animation:fzMarka .8s ease-out 1.9s both; }
+  @keyframes fzDoldur { from{width:0;} to{width:100%;} }
+  .fz-fill { animation:fzDoldur 1.5s ease-in-out 2.4s both; }
+  @keyframes fzYukGor { from{opacity:0;} to{opacity:1;} }
+  .fz-yuk { animation:fzYukGor .5s ease 2.3s both; }
+  @keyframes fzSplashKapan { from{opacity:1;transform:scale(1);} to{opacity:0;transform:scale(1.18);visibility:hidden;} }
+  .fz-splash-kapan { animation:fzSplashKapan .7s ease-in .1s forwards; }
+  @keyframes fzGiris { from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:none;} }
+  .fz-giris { animation:fzGiris .5s ease both; }</style>
 </head>
 <body>
 <div id="root"></div>
@@ -1258,7 +1273,7 @@ function EnKart({et, o, deg, br, renk, T, takim, onClick}){
   </div>;
 }
 
-function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git}){
+function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc}){
   const tumOyuncular=useMemo(()=>Motor.tumOyuncular(turnuvalar),[turnuvalar]);
   // takip edilen oyuncu/takım/lig sayıları
   const takipOyuncuList = tumOyuncular.filter(o=> (takipOyuncu||[]).includes(o.id));
@@ -1298,6 +1313,9 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git}){
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"16px 2px 8px"}}>KEŞFET</div>
       <Sat ik="🏆" metin="Tüm Enler" onClick={()=>git({sayfa:"tumenler"})}/>
       <Sat ik="🔍" metin="Ligler, Takımlar, Oyuncular" onClick={()=>git({sayfa:"ligler"})}/>
+
+      <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"16px 2px 8px"}}>HESAP</div>
+      <Sat ik="🔑" metin="Giriş Yap / Üye Ol" sag="önizleme" onClick={()=>kapiAc&&kapiAc("tanitim")}/>
 
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"16px 2px 8px"}}>AYARLAR</div>
       <Sat ik="⚙️" metin="Uygulama Ayarları" onClick={()=>git({sayfa:"ayar"})}/>
@@ -3691,7 +3709,7 @@ function LisansKarti({o, turnuva, T}){
         <span style={{fontSize:12,color:rolRenk,fontWeight:800,fontFamily:T.fontDisplay,letterSpacing:.5,flex:1}}>{o.lisNo||"—"}</span>
         <span style={{fontSize:9,color:kopya?"#34D399":T.textMut}}>{kopya?"✓ kopyalandı":"📋 kopyala"}</span>
       </div>
-      <div style={{background:rolRenk+"14",padding:"6px",textAlign:"center",fontSize:9,color:T.textMut}}>⚽ FatihPro</div>
+      <div style={{background:rolRenk+"14",padding:"6px",textAlign:"center",fontSize:9,color:T.textMut}}>⚽ ForzaLig</div>
     </div>
     <div style={{fontSize:9,color:T.textMut,textAlign:"center",marginTop:12,lineHeight:1.6}}>
       Bu kart oyuncunun kimlik bilgilerini gösterir.<br/>Gerçek fotoğraf ve dijital doğrulama online sürümde eklenecek.
@@ -7294,6 +7312,149 @@ function BosDurum({T, git}){
   </div>;
 }
 
+/* ============================================================
+   FAZ 7 (ONLINE) — Açılış / Tanıtım / Giriş-Üye Ol ekranları
+   NOT: Sadece görünüm. Gerçek üyelik/veritabanı sonraki adımda.
+   ============================================================ */
+
+/* Atmosfer ışık lekeleri (overlay içinde) */
+function KapiGlow({T}){
+  return <>
+    <div style={{position:"absolute",top:"-12%",right:"-28%",width:"80%",height:"46%",background:`radial-gradient(circle, ${T.accent}28, transparent 70%)`,pointerEvents:"none",zIndex:0}}/>
+    <div style={{position:"absolute",bottom:"-10%",left:"-28%",width:"80%",height:"46%",background:`radial-gradient(circle, ${(T.accent2||T.accent)}20, transparent 70%)`,pointerEvents:"none",zIndex:0}}/>
+  </>;
+}
+
+/* 1) AÇILIŞ SPLASH — saha çizilir → top düşer → logo parlar → çubuk dolar → ekran açılır */
+function AcilisSplash({T, onBitti}){
+  const [kapan,setKapan]=useState(false);
+  useEffect(()=>{
+    const t1=setTimeout(()=>setKapan(true), 3900);
+    const t2=setTimeout(()=>{ if(onBitti)onBitti(); }, 4550);
+    return ()=>{ clearTimeout(t1); clearTimeout(t2); };
+  },[]);
+  const atla=()=>{ setKapan(true); setTimeout(()=>{ if(onBitti)onBitti(); }, 480); };
+  return <div className={kapan?"fz-splash-kapan":""} style={{position:"fixed",inset:0,zIndex:2000,background:T.bg0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <KapiGlow T={T}/>
+    <svg className="fz-saha" viewBox="0 0 220 300" style={{position:"absolute",width:220,height:300,top:"50%",left:"50%",transform:"translate(-50%,-50%)",opacity:.45,zIndex:1}}>
+      <rect x="8" y="8" width="204" height="284" rx="5" style={{stroke:T.accent,fill:"none"}}/>
+      <line x1="8" y1="150" x2="212" y2="150" style={{stroke:T.accent}}/>
+      <circle cx="110" cy="150" r="34" style={{stroke:T.accent,fill:"none"}}/>
+      <rect x="58" y="8" width="104" height="46" style={{stroke:T.accent,fill:"none"}}/>
+      <rect x="58" y="246" width="104" height="46" style={{stroke:T.accent,fill:"none"}}/>
+    </svg>
+    <div className="fz-top" style={{position:"absolute",top:"calc(50% - 80px)",fontSize:46,zIndex:2}}>⚽</div>
+    <div className="fz-marka" style={{position:"absolute",top:"calc(50% + 14px)",fontFamily:T.fontDisplay,fontSize:34,fontWeight:800,color:T.accent,letterSpacing:1,textShadow:`0 0 22px ${T.accent}`,zIndex:2}}>ForzaLig</div>
+    <div className="fz-yuk" style={{position:"absolute",top:"calc(50% + 72px)",display:"flex",flexDirection:"column",alignItems:"center",gap:9,zIndex:2}}>
+      <div style={{width:160,height:5,background:"rgba(255,255,255,.08)",borderRadius:3,overflow:"hidden"}}>
+        <div className="fz-fill" style={{height:"100%",width:0,background:`linear-gradient(90deg, ${T.accent}, ${T.accent2||T.accent})`,borderRadius:3}}/>
+      </div>
+      <div style={{fontSize:10,color:T.textMut,letterSpacing:1.5}}>YÜKLENİYOR...</div>
+    </div>
+    <button onClick={atla} style={{position:"absolute",top:16,right:18,fontSize:12,color:T.textMut,background:"none",border:0,zIndex:3}}>Atla</button>
+    <div style={{position:"absolute",bottom:"calc(22px + env(safe-area-inset-bottom))",fontSize:11,color:T.textMut,letterSpacing:2,zIndex:2}}>forzalig.com</div>
+  </div>;
+}
+
+/* 2) TANITIM (Landing) */
+function Tanitim({T, kapiGit, tamamla}){
+  const beyaz = T.renkCifti && T.renkCifti[1]==="#FFFFFF";
+  const ozellikler=[
+    ["🏆",T.accent,"Ligler & Puan Durumu","Fikstür, gruplar ve tablolar otomatik"],
+    ["🃏",T.gold,"FIFA Tarzı Oyuncu Kartları","Reyting, radar ve istatistikler"],
+    ["📊",T.accent2||T.accent,"Krallar & Ödüller","Gol, asist, kurtarış liderleri"],
+    ["📱",T.accent,"Canlı Skor & Paylaşım","Ligini QR ile herkesle paylaş"],
+  ];
+  return <div className="fz-giris" style={{position:"fixed",inset:0,zIndex:2000,background:T.bg0,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+    <KapiGlow T={T}/>
+    <div style={{position:"relative",zIndex:1,flex:1,overflowY:"auto",padding:"46px 22px 26px",display:"flex",flexDirection:"column"}}>
+      <div style={{textAlign:"center"}}>
+        <div className="vav-suzul" style={{width:74,height:74,borderRadius:22,margin:"0 auto 16px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:38,background:`linear-gradient(135deg, ${T.accent}, ${T.accent2||T.accent})`,boxShadow:`0 12px 34px ${T.accent}66`}}>⚽</div>
+        <div className="vav-parla" style={{fontFamily:T.fontDisplay,fontSize:30,fontWeight:800,color:T.accent,letterSpacing:.5}}>ForzaLig</div>
+        <div style={{color:T.textSoft,fontSize:12.5,lineHeight:1.6,margin:"9px 6px 22px"}}>Halı saha liginin dijital merkezi.<br/>Fikstür, puan durumu, kral listeleri, FIFA kartları ve canlı skorlar — hepsi tek yerde.</div>
+      </div>
+      <div style={{flex:1}}>
+        {ozellikler.map(([ik,renk,bas,alt],i)=>
+          <div key={i} style={{display:"flex",alignItems:"center",gap:12,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:13,padding:"11px 13px",marginBottom:9}}>
+            <div style={{width:38,height:38,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0,background:renk+"22",color:renk}}>{ik}</div>
+            <div><b style={{fontFamily:T.fontDisplay,fontSize:13,fontWeight:700,color:T.text,display:"block"}}>{bas}</b><span style={{fontSize:10.5,color:T.textMut}}>{alt}</span></div>
+          </div>
+        )}
+      </div>
+      <div style={{marginTop:14}}>
+        <button onClick={()=>kapiGit("uyeol")} className="tap vav-bar" style={{width:"100%",border:"none",borderRadius:13,padding:15,fontFamily:T.fontDisplay,fontSize:14.5,fontWeight:800,background:T.accent,color:beyaz?"#fff":T.bg0,boxShadow:`0 8px 22px ${T.accent}52`}}>Üye Ol</button>
+        <button onClick={()=>kapiGit("giris")} className="tap" style={{width:"100%",border:"0.5px solid "+T.line,borderRadius:13,padding:14,marginTop:9,fontSize:13,fontWeight:600,background:"transparent",color:T.textSoft}}>Giriş Yap</button>
+        <button onClick={tamamla} className="tap" style={{display:"block",width:"100%",textAlign:"center",background:"none",border:"none",color:T.textMut,fontSize:12,marginTop:16}}>Giriş yapmadan keşfet →</button>
+      </div>
+    </div>
+  </div>;
+}
+
+/* 3) GİRİŞ / ÜYE OL (tek bileşen, mod ile) */
+function GirisAuth({T, mod, kapiGit, tamamla}){
+  const uyeol = mod==="uyeol";
+  const beyaz = T.renkCifti && T.renkCifti[1]==="#FFFFFF";
+  const [rol,setRol]=useState("oyuncu");
+  const [kvkk,setKvkk]=useState(true);
+  const inpStil={width:"100%",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:13,color:T.text,fontSize:13.5,fontFamily:"inherit",outline:"none",marginBottom:15,boxSizing:"border-box"};
+  const etStil={fontSize:11,color:T.textMut,fontWeight:700,marginBottom:6};
+  return <div className="fz-giris" style={{position:"fixed",inset:0,zIndex:2000,background:T.bg0,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+    <KapiGlow T={T}/>
+    <button onClick={()=>kapiGit("tanitim")} className="tap" style={{position:"absolute",top:18,left:16,zIndex:5,fontSize:22,color:T.textSoft,background:"none",border:0}}>‹</button>
+    <div style={{position:"relative",zIndex:1,flex:1,overflowY:"auto",padding:"56px 22px 26px"}}>
+      {!uyeol && <div className="vav-suzul" style={{width:56,height:56,borderRadius:16,marginBottom:20,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,background:`linear-gradient(135deg, ${T.accent}, ${T.accent2||T.accent})`,boxShadow:`0 12px 30px ${T.accent}55`}}>⚽</div>}
+      <div style={{fontFamily:T.fontDisplay,fontSize:22,fontWeight:800,color:T.text,marginBottom:4}}>{uyeol?"Hesap oluştur":"Tekrar hoş geldin 👋"}</div>
+      <div style={{color:T.textMut,fontSize:12.5,marginBottom:22}}>{uyeol?"Dakikalar içinde ligine başla.":"Hesabına giriş yap, ligine devam et."}</div>
+
+      {uyeol && <>
+        <div style={etStil}>SEN KİMSİN?</div>
+        <div style={{display:"flex",gap:9,marginBottom:16}}>
+          {[["oyuncu","⚽","Oyuncu"],["yonetici","🛠️","Lig Yöneticisi"]].map(([k,ik,ad])=>{
+            const aktif=rol===k;
+            return <div key={k} onClick={()=>setRol(k)} className="tap" style={{flex:1,borderRadius:12,padding:"12px 8px",textAlign:"center",fontSize:12,fontWeight:700,cursor:"pointer",
+              background:aktif?T.accent+"22":T.bg1,border:"1px solid "+(aktif?T.accent:T.line),color:aktif?T.accent:T.textSoft}}>
+              <span style={{fontSize:20,display:"block",marginBottom:5}}>{ik}</span>{ad}</div>;
+          })}
+        </div>
+        <div style={etStil}>AD SOYAD</div>
+        <input placeholder="Örn: Fatih Erol" style={inpStil}/>
+      </>}
+
+      <div style={etStil}>{uyeol?"E-POSTA":"E-POSTA VEYA TELEFON"}</div>
+      <input placeholder="ornek@mail.com" style={inpStil}/>
+      <div style={etStil}>ŞİFRE</div>
+      <input type="password" placeholder={uyeol?"En az 6 karakter":"••••••••"} style={{...inpStil,marginBottom:uyeol?15:8}}/>
+
+      {!uyeol && <div style={{textAlign:"right",margin:"0 0 16px"}}><span className="tap" style={{color:T.accent,fontSize:11.5,fontWeight:600}}>Şifremi unuttum</span></div>}
+
+      {uyeol && <div onClick={()=>setKvkk(v=>!v)} className="tap" style={{display:"flex",gap:9,alignItems:"flex-start",fontSize:11,color:T.textMut,lineHeight:1.5,margin:"4px 0 18px",cursor:"pointer"}}>
+        <span style={{width:18,height:18,borderRadius:5,border:"1.5px solid "+T.accent,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",color:T.accent,fontSize:12,fontWeight:800,background:kvkk?T.accent+"22":"transparent"}}>{kvkk?"✓":""}</span>
+        <span>Kullanım koşullarını ve gizlilik politikasını okudum, kabul ediyorum.</span>
+      </div>}
+
+      <button onClick={tamamla} className="tap vav-bar" style={{width:"100%",border:"none",borderRadius:12,padding:14,fontFamily:T.fontDisplay,fontSize:14,fontWeight:800,background:T.accent,color:beyaz?"#fff":T.bg0,boxShadow:`0 8px 22px ${T.accent}52`}}>{uyeol?"Üye Ol":"Giriş Yap"}</button>
+
+      {!uyeol && <>
+        <div style={{display:"flex",alignItems:"center",gap:12,margin:"18px 0"}}>
+          <hr style={{flex:1,border:0,borderTop:"0.5px solid "+T.line}}/>
+          <span style={{fontSize:10.5,color:T.textMut}}>veya</span>
+          <hr style={{flex:1,border:0,borderTop:"0.5px solid "+T.line}}/>
+        </div>
+        <div style={{display:"flex",gap:10,marginBottom:16}}>
+          <button className="tap" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:12,color:T.textSoft,fontSize:12.5,fontWeight:600}}>🟦 Google</button>
+          <button className="tap" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:12,color:T.textSoft,fontSize:12.5,fontWeight:600}}>⚫ Apple</button>
+        </div>
+      </>}
+
+      <div style={{textAlign:"center",fontSize:12,color:T.textMut,marginTop:uyeol?14:6}}>
+        {uyeol?"Zaten üye misin? ":"Hesabın yok mu? "}
+        <b onClick={()=>kapiGit(uyeol?"giris":"uyeol")} className="tap" style={{color:T.accent,fontWeight:700,cursor:"pointer"}}>{uyeol?"Giriş Yap":"Üye Ol"}</b>
+      </div>
+      <div style={{textAlign:"center",fontSize:10,color:T.gold,background:T.gold+"1a",border:"0.5px solid "+T.gold+"4d",borderRadius:10,padding:8,marginTop:18}}>🔒 Görünüm önizlemesi — gerçek {uyeol?"kayıt":"giriş"} sonraki adımda</div>
+    </div>
+  </div>;
+}
+
 function App(){
   // localStorage yardımcıları
   const KAYIT="fatihpro_veri_v1";
@@ -7324,6 +7485,10 @@ function App(){
   const [turnuvalar,setTurnuvalar]=useState(()=> (ilk&&ilk.turnuvalar)||uretVeri(5,9,12));
   const [nav,setNav]=useState({sayfa:"ana"});
   const [navGecmis,setNavGecmis]=useState([]); // geri navigasyonu için yığın
+  // FAZ 7 — açılış kapısı: "splash" | "tanitim" | "giris" | "uyeol" | null(uygulama)
+  const GIRIS_FLAG="forzalig_giris_v1";
+  const [kapi,setKapi]=useState(()=>{ try{ return localStorage.getItem(GIRIS_FLAG) ? null : "splash"; }catch(e){ return "splash"; } });
+  const kapiTamamla=()=>{ try{ localStorage.setItem(GIRIS_FLAG,"1"); }catch(e){} setKapi(null); };
   const [tab,setTab]=useState("ana");
   const [aramaAcik,setAramaAcik]=useState(false); // arama overlay
   const [aramaMetin,setAramaMetin]=useState("");
@@ -7398,7 +7563,7 @@ function App(){
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
     const tarih=new Date().toISOString().slice(0,10);
-    a.href=url; a.download=`fatihpro-yedek-${tarih}.json`; a.click();
+    a.href=url; a.download=`forzalig-yedek-${tarih}.json`; a.click();
     URL.revokeObjectURL(url);
     setKayitDurum("İndirildi ✓"); setTimeout(()=>setKayitDurum(""),2500);
   };
@@ -7592,7 +7757,7 @@ function App(){
       case "sihirbaz": icerik=<MacSihirbaz mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} sihirbazKaydet={sihirbazKaydet}/>; break;
       case "istatistik": icerik=<MacIstatistik mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} onKaydet={(mac,ist)=>{ mac.istatistik=ist; }}/>; break;
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
-      case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git}/>; break;
+      case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")}/>; break;
       case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
     }
@@ -7605,12 +7770,16 @@ function App(){
   const menuGit=(k)=>{ setNavGecmis([]); if(k==="ana")setNav({sayfa:"ana"}); if(k==="lig")setNav({sayfa:"ligler"}); if(k==="profil")setNav({sayfa:"profil"}); if(k==="ayar")setNav({sayfa:"ayar"}); window.scrollTo(0,0); };
 
   return <div style={{minHeight:"100vh",background:T.bg0,fontFamily:T.fontBody}}>
+    {/* FAZ 7 — Açılış / Tanıtım / Giriş kapısı (uygulamanın üstünde overlay) */}
+    {kapi==="splash" && <AcilisSplash T={T} onBitti={()=>setKapi("tanitim")}/>}
+    {kapi==="tanitim" && <Tanitim T={T} kapiGit={setKapi} tamamla={kapiTamamla}/>}
+    {(kapi==="giris"||kapi==="uyeol") && <GirisAuth T={T} mod={kapi} kapiGit={setKapi} tamamla={kapiTamamla}/>}
     <div className="wrap">
       {/* üst bar */}
       <div style={{position:"sticky",top:0,zIndex:10,background:T.bg0,borderBottom:"0.5px solid "+T.line,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           {geriVar && <button onClick={geri} className="tap" style={{fontSize:20,color:T.textSoft}}>‹</button>}
-          <span style={{fontWeight:800,fontSize:17,color:T.accent,fontFamily:T.fontDisplay,letterSpacing:.5}}>FatihPro</span>
+          <span style={{fontWeight:800,fontSize:17,color:T.accent,fontFamily:T.fontDisplay,letterSpacing:.5}}>ForzaLig</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <button onClick={()=>{setAramaAcik(true);setAramaMetin("");}} className="tap" style={{fontSize:18,background:"none",border:0,color:T.textSoft}}>🔍</button>
