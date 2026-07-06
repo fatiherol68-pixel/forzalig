@@ -684,6 +684,55 @@ function fikstürUret(turnuva, cift){
   return roundRobin(tk, cift, mid, 0).maclar;
 }
 
+/* ===== KUPA (tek maç eleme) ===== */
+function byeMac(id, A, tur){ return {id, tur, hafta:tur, takimA:A.ad, takimB:"(bay)", renkA:A.renk, renkB:"#334155", takimAId:A.id, takimBId:null, skorA:1, skorB:0, oynandi:true, bye:true, olaylar:[], mvp:null, mvpTakim:null, tarih:"", saat:"", stad:"" }; }
+function kupaGalip(m){
+  if(m.bye) return {ad:m.takimA, id:m.takimAId, renk:m.renkA};
+  if(m.skorA==null || m.skorB==null) return null;
+  if(m.skorA>m.skorB) return {ad:m.takimA, id:m.takimAId, renk:m.renkA};
+  if(m.skorB>m.skorA) return {ad:m.takimB, id:m.takimBId, renk:m.renkB};
+  if(m.penGalip){ return m.penGalip===m.takimA ? {ad:m.takimA,id:m.takimAId,renk:m.renkA} : {ad:m.takimB,id:m.takimBId,renk:m.renkB}; }
+  return null; // beraberlik, penaltı galibi seçilmemiş
+}
+function kupaFikstur(turnuva){
+  let mid = (turnuva.maclar.reduce((m,x)=>Math.max(m,x.id),0))+1;
+  const kar=[...turnuva.takimlar].sort(()=>Math.random()-0.5);
+  if(kar.length<2) return [];
+  const maclar=[];
+  for(let i=0;i<kar.length;i+=2){
+    const A=kar[i], B=kar[i+1];
+    if(A&&B){ const mc=yeniMac(mid++, A, B, 1); mc.tur=1; maclar.push(mc); }
+    else if(A){ maclar.push(byeMac(mid++, A, 1)); }
+  }
+  return maclar;
+}
+function kupaSonrakiTur(turnuva){
+  const turlar=turnuva.maclar.map(m=>m.tur||1);
+  if(!turlar.length) return {hata:"Önce kupa fikstürü oluştur."};
+  const sonTur=Math.max(...turlar);
+  const buTur=turnuva.maclar.filter(m=>(m.tur||1)===sonTur);
+  const galipler=buTur.map(kupaGalip);
+  if(galipler.some(g=>!g)) return {hata:"Bu turdaki tüm maçlar bitmeli (beraberlikte penaltı galibini seç)."};
+  if(galipler.length<2) return {bitti:true, sampiyon:galipler[0]};
+  let mid=(turnuva.maclar.reduce((m,x)=>Math.max(m,x.id),0))+1;
+  const yeni=[];
+  for(let i=0;i<galipler.length;i+=2){
+    const A=galipler[i], B=galipler[i+1];
+    if(A&&B){ const tkA=turnuva.takimlar.find(t=>t.id===A.id)||A, tkB=turnuva.takimlar.find(t=>t.id===B.id)||B; const mc=yeniMac(mid++, tkA, tkB, sonTur+1); mc.tur=sonTur+1; yeni.push(mc); }
+    else if(A){ const tkA=turnuva.takimlar.find(t=>t.id===A.id)||A; yeni.push(byeMac(mid++, tkA, sonTur+1)); }
+  }
+  turnuva.maclar.push(...yeni);
+  return {ok:true, tur:sonTur+1};
+}
+function kupaTurAd(macSayi){
+  if(macSayi<=1) return "🏆 Final";
+  if(macSayi===2) return "Yarı Final";
+  if(macSayi<=4) return "Çeyrek Final";
+  if(macSayi<=8) return "Son 16";
+  if(macSayi<=16) return "Son 32";
+  return "Eleme Turu";
+}
+
 // Bir takım listesinden round-robin maçları üret. grupNo: maça yazılır
 function roundRobin(tk, cift, midBasla, grupNo){
   let mid=midBasla;
@@ -2311,6 +2360,63 @@ function LigGenel({turnuva, T, git}){
   </div>;
 }
 
+/* KUPA — eleme şeması (bracket) */
+function KupaBracket({turnuva, T, git, yonetim}){
+  const maclar=turnuva.maclar||[];
+  if(maclar.length===0){
+    return <div style={{padding:"30px 24px",textAlign:"center"}}>
+      <div style={{fontSize:38,marginBottom:10}}>🏆</div>
+      <div style={{fontSize:15,color:T.text,fontWeight:700,marginBottom:6}}>Kupa henüz başlamadı</div>
+      <div style={{fontSize:12,color:T.textMut,lineHeight:1.6,maxWidth:300,margin:"0 auto"}}>Takımları ekle, sonra <b style={{color:T.accent}}>Yönet</b> sekmesinden <b>fikstür oluştur</b> — eşleşmeler burada çıkar.</div>
+    </div>;
+  }
+  const turlar={}; maclar.forEach(m=>{ const t=m.tur||1; (turlar[t]=turlar[t]||[]).push(m); });
+  const turNolar=Object.keys(turlar).map(Number).sort((a,b)=>a-b);
+  const sonTurNo=turNolar[turNolar.length-1];
+  const sonMac=turlar[sonTurNo];
+  const sonGalip=sonMac.map(kupaGalip);
+  const tumBitti=sonGalip.every(g=>g);
+  const sampiyon=(sonMac.length===1 && tumBitti)?sonGalip[0]:null;
+  const sonrakiOlur=tumBitti && sonGalip.length>1;
+
+  return <div className="fade-in" style={{padding:"12px 14px 20px"}}>
+    {sampiyon && <div className="vav-hero" style={{position:"relative",overflow:"hidden",textAlign:"center",background:"linear-gradient(120deg,"+T.gold+"3a,"+T.bg1+" 55%,"+T.gold+"26)",border:"1px solid "+T.gold+"66",borderRadius:16,padding:"18px 14px",marginBottom:16}}>
+      <div className="vav-supurme"/>
+      <div style={{position:"relative",zIndex:1}}>
+        <div style={{fontSize:30,marginBottom:4}}>🏆</div>
+        <div style={{fontSize:10,color:T.gold,fontWeight:800,letterSpacing:1}}>ŞAMPİYON</div>
+        <div className="vav-parla" style={{fontSize:22,fontWeight:800,color:T.gold,fontFamily:T.fontDisplay}}>{sampiyon.ad}</div>
+      </div>
+    </div>}
+    {turNolar.slice().reverse().map(tn=>{
+      const ms=turlar[tn];
+      return <div key={tn} style={{marginBottom:16}}>
+        <div style={{fontSize:11,color:T.gold,fontWeight:800,marginBottom:8,letterSpacing:.5}}>{kupaTurAd(ms.length)}</div>
+        {ms.map(m=>{
+          const g=kupaGalip(m);
+          const beraber=!m.bye && m.oynandi && m.skorA===m.skorB;
+          const aKazandi=g&&g.id===m.takimAId, bKazandi=g&&g.id===m.takimBId;
+          return <div key={m.id} style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"9px 11px",marginBottom:7}}>
+            <div onClick={()=>!m.bye&&git({sayfa:"mac",mac:m,turnuva})} className={m.bye?"":"tap"} style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{flex:1,fontWeight:aKazandi?800:500,color:aKazandi?T.accent:T.text,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{aKazandi?"✓ ":""}{m.takimA}</span>
+              <span style={{fontFamily:T.fontDisplay,fontWeight:800,fontSize:14,color:m.oynandi?T.text:T.textMut,minWidth:46,textAlign:"center",background:T.bg2,borderRadius:7,padding:"3px 0"}}>{m.bye?"BAY":m.oynandi?`${m.skorA}-${m.skorB}`:"– : –"}</span>
+              <span style={{flex:1,textAlign:"right",fontWeight:bKazandi?800:500,color:bKazandi?T.accent:T.text,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.takimB}{bKazandi?" ✓":""}</span>
+            </div>
+            {beraber && <div style={{marginTop:8,paddingTop:8,borderTop:"0.5px solid "+T.line}}>
+              <div style={{fontSize:10,color:T.gold,marginBottom:6,textAlign:"center"}}>⚽ Beraberlik — penaltı galibi kim?</div>
+              <div style={{display:"flex",gap:6}}>
+                {[m.takimA,m.takimB].map(ad=><button key={ad} onClick={()=>yonetim&&yonetim.penGalipSec&&yonetim.penGalipSec(turnuva,m,ad)} disabled={!yonetim} className="tap" style={{flex:1,padding:"8px",borderRadius:8,fontSize:11,fontWeight:700,background:m.penGalip===ad?T.accent:T.bg2,color:m.penGalip===ad?T.bg0:T.textSoft,border:"0.5px solid "+(m.penGalip===ad?T.accent:T.line),opacity:yonetim?1:.6}}>{ad}</button>)}
+              </div>
+            </div>}
+          </div>;
+        })}
+      </div>;
+    })}
+    {yonetim && sonrakiOlur && <button onClick={()=>yonetim.kupaSonraki(turnuva)} className="tap vav-bar" style={{width:"100%",background:T.gold,color:T.bg0,border:0,borderRadius:12,padding:13,fontSize:14,fontWeight:800,marginTop:4}}>Sonraki Turu Oluştur →</button>}
+    {yonetim && !tumBitti && !sampiyon && <div style={{fontSize:11,color:T.textMut,textAlign:"center",marginTop:8}}>Bu turdaki maçları bitirince "sonraki tur" açılır.</div>}
+  </div>;
+}
+
 function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, saltOkunur, onPaylas, onPaylasKaldir}){
   const [tab,setTab]=useState("genel");
   const [paylasAcik,setPaylasAcik]=useState(false);
@@ -2374,8 +2480,12 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   const pozKisa=(p)=>p==="Kaleci"?"K":p==="Defans"?"D":p==="OrtaSaha"?"O":"F";
   const ist=useMemo(()=>Motor.ligIstatistik(turnuva),[turnuva.id, oynanan]);
 
-  const sekmeler=[["genel","Genel"],["akis","Akış"],["puan","Puan Durumu"],["fikstur","Fikstür"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]];
+  const kupaMi = turnuva.format==="kupa";
+  const sekmeler = kupaMi
+    ? [["kupa","🏆 Kupa"],["genel","Genel"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]]
+    : [["genel","Genel"],["akis","Akış"],["puan","Puan Durumu"],["fikstur","Fikstür"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]];
   if(yonetim) sekmeler.push(["yonet","⚙️ Yönet"]);
+  useEffect(()=>{ if(kupaMi) setTab("kupa"); },[]);
 
   // ödüller (krallar alt sekmesi için)
   const ODULLER=[["altin","🥇 Altın Top"],["gumus","🥈 Gümüş Top"],["forvet","⚡ En İyi Forvet"],["ortasaha","⚙️ En İyi Orta Saha"],["defans","🛡️ En İyi Defans"],["kaleci","🧤 En İyi Kaleci"],["macinGolu","🎯 Maçın Golü"],["centilmen","🤝 Centilmen"],["enerjik","🔥 Enerjik"]];
@@ -2425,6 +2535,13 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
       <div style={{fontSize:11,color:T.textMut}}>📍 {turnuva.sehir}{turnuva.ilce?" · "+turnuva.ilce:""} · ⚽ {turnuva.kisi} kişi · {formatAd}</div>
     </div>
 
+    {/* SPONSOR BARI */}
+    {turnuva.sponsorAd && <div style={{margin:"6px 14px 2px",display:"flex",alignItems:"center",gap:10,background:"linear-gradient(120deg,"+T.gold+"1f,"+T.bg1+")",border:"1px solid "+T.gold+"44",borderRadius:12,padding:"9px 12px"}}>
+      <div style={{width:34,height:34,borderRadius:9,background:T.gold+"2a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{turnuva.sponsorEmoji||"🏟️"}</div>
+      <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.sponsorAd}</div><div style={{fontSize:9.5,color:T.textMut}}>bu ligin sponsoru</div></div>
+      <span style={{fontSize:9,color:T.gold,fontWeight:800,letterSpacing:.5}}>SPONSOR</span>
+    </div>}
+
     <div style={{display:"flex",padding:"8px 8px 0",borderBottom:"1px solid "+T.line,overflowX:"auto"}}>
       {sekmeler.map(([k,l])=>
         <button key={k} onClick={()=>setTab(k)} className="tap" style={{background:"none",border:0,padding:"9px 11px",color:tab===k?T.accent:T.textMut,borderBottom:"2px solid "+(tab===k?T.accent:"transparent"),fontWeight:tab===k?700:600,fontSize:12,whiteSpace:"nowrap"}}>{l}</button>
@@ -2432,6 +2549,8 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
     </div>
 
     {/* ===== GENEL (zengin özet) ===== */}
+    {tab==="kupa" && <KupaBracket turnuva={turnuva} T={T} git={git} yonetim={yonetim}/>}
+
     {tab==="genel" && (turnuva.takimlar.length>0 ? <LigGenel turnuva={turnuva} T={T} git={git}/> : <BosUyari T={T} metin="Henüz takım yok. Yönet sekmesinden takım ekle." />)}
 
     {/* ===== AKIŞ ===== */}
@@ -2644,9 +2763,11 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
   const [lBaslangic,setLBaslangic]=useState(turnuva.baslangic||"");
   const [lHedef,setLHedef]=useState(turnuva.hedefTakim||0);
   const [lKisi,setLKisi]=useState(turnuva.kisi||7);
+  const [lSponsor,setLSponsor]=useState(turnuva.sponsorAd||"");
+  const [lSponsorE,setLSponsorE]=useState(turnuva.sponsorEmoji||"🏟️");
   const ligKaydet=()=>{
     if(!lAd.trim())return;
-    yonetim.ligGuncelle(turnuva, {ad:lAd.trim(), sehir:lSehir.trim(), ilce:lIlce.trim(), renk:lRenk, baslangic:lBaslangic, hedefTakim:lHedef, kisi:lKisi});
+    yonetim.ligGuncelle(turnuva, {ad:lAd.trim(), sehir:lSehir.trim(), ilce:lIlce.trim(), renk:lRenk, baslangic:lBaslangic, hedefTakim:lHedef, kisi:lKisi, sponsorAd:lSponsor.trim(), sponsorEmoji:lSponsorE});
     setLigAcik(false);
   };
   const tk=turnuva.takimlar;
@@ -2725,6 +2846,16 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
           )}
         </div>
         <div style={{fontSize:9,color:T.textMut,marginBottom:12,marginTop:-8}}>ℹ️ Tüm maçlarda iki takım da bu sayıda olur.</div>
+
+        <div style={{fontSize:11,color:T.gold,fontWeight:700,marginBottom:6}}>💰 SPONSOR <span style={{color:T.textMut,fontWeight:400}}>(opsiyonel)</span></div>
+        <div style={{display:"flex",gap:8,marginBottom:6}}>
+          <div style={{display:"flex",gap:4,flexShrink:0}}>
+            {["🏟️","⚽","🥤","🍕","🏢","👕"].map(e=><button key={e} onClick={()=>setLSponsorE(e)} className="tap" style={{width:36,height:40,borderRadius:9,fontSize:17,background:lSponsorE===e?T.gold+"33":T.bg2,border:"0.5px solid "+(lSponsorE===e?T.gold:T.line)}}>{e}</button>)}
+          </div>
+          <input value={lSponsor} onChange={e=>setLSponsor(e.target.value)} placeholder="Örn: Kartal Halı Saha" style={{flex:1,minWidth:0,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"10px",color:T.text,fontSize:13,fontWeight:600,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{fontSize:9,color:T.textMut,marginBottom:14}}>Lig sayfasında "bu ligin sponsoru" olarak görünür. Boş bırakırsan çıkmaz.</div>
+
         <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:6}}>LOGO RENGİ</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
           {RENKLER.slice(0,8).map(r=>
@@ -6573,8 +6704,9 @@ function LigKur({T, git, ligKur}){
     ["tek","Tek Devre","Herkes herkesle 1 kez (oto fikstür)"],
     ["cift","Çift Devre","Ev-deplasman, herkes 2 kez"],
     ["gruplu","Gruplu","Gruplara böl, her grup kendi içinde"],
+    ["kupa","🏆 Kupa (Eleme)","Tek maç eleme — kaybeden elenir, kazanan tura çıkar"],
   ];
-  const formatAd={serbest:"Serbest",tek:"Tek Devre",cift:"Çift Devre",gruplu:"Gruplu"}[format];
+  const formatAd={serbest:"Serbest",tek:"Tek Devre",cift:"Çift Devre",gruplu:"Gruplu",kupa:"Kupa"}[format];
   const kur=()=>{ if(!ad.trim()){return;} ligKur({ad:ad.trim(), sehir, ilce:ilce.trim(), renk, kisi, format, grupSayi:format==="gruplu"?grupSayi:0, baslangic, hedefTakim}); };
 
   return <div className="fade-in" style={{paddingBottom:100}}>
@@ -7779,6 +7911,14 @@ function GirisAuth({T, mod, kapiGit, tamamla}){
     try{ await sb.auth.resetPasswordForEmail(e); setBilgi("Şifre sıfırlama linki e-postana gönderildi."); }
     catch(err){ setHata("Gönderilemedi, tekrar dene."); }
   };
+  const sosyalGiris = async (provider)=>{
+    setHata(""); setBilgi("");
+    if(!sb){ setHata("Sunucuya bağlanılamadı."); return; }
+    try{
+      const {error}=await sb.auth.signInWithOAuth({ provider, options:{ redirectTo: window.location.origin+window.location.pathname } });
+      if(error) setHata((provider==="apple"?"Apple":"Google")+" girişi henüz açık değil. (Ayar gerekiyor)");
+    }catch(e){ setHata("Giriş başlatılamadı."); }
+  };
 
   return <div className="fz-giris" style={{position:"fixed",inset:0,zIndex:2000,background:T.bg0,overflow:"hidden",display:"flex",flexDirection:"column"}}>
     <KapiGlow T={T}/>
@@ -7826,8 +7966,8 @@ function GirisAuth({T, mod, kapiGit, tamamla}){
           <hr style={{flex:1,border:0,borderTop:"0.5px solid "+T.line}}/>
         </div>
         <div style={{display:"flex",gap:10,marginBottom:16}}>
-          <button onClick={()=>setBilgi("Google ile giriş çok yakında.")} className="tap" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:12,color:T.textSoft,fontSize:12.5,fontWeight:600}}>🟦 Google</button>
-          <button onClick={()=>setBilgi("Apple ile giriş çok yakında.")} className="tap" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:12,color:T.textSoft,fontSize:12.5,fontWeight:600}}>⚫ Apple</button>
+          <button onClick={()=>sosyalGiris("google")} className="tap" style={{flex:1,background:"#fff",border:"0.5px solid "+T.line,borderRadius:12,padding:12,color:"#1a1a1a",fontSize:12.5,fontWeight:700}}>🟦 Google</button>
+          <button onClick={()=>sosyalGiris("apple")} className="tap" style={{flex:1,background:"#000",border:"0.5px solid #333",borderRadius:12,padding:12,color:"#fff",fontSize:12.5,fontWeight:700}}> Apple</button>
         </div>
       </>}
 
@@ -7934,15 +8074,26 @@ function App(){
   useEffect(()=>{
     if(!sb || saltOkunur) return;
     let aktif=true;
+    // test modunda izinsiz e-posta (ör. Google/Apple) girerse çıkışa at
+    const kapiKontrol=(u)=>{
+      if(u && !mailIzinli(u.email)){
+        try{ sb.auth.signOut(); }catch(e){}
+        setOturum(null);
+        alert("🚧 ForzaLig şu an test modunda. Çok yakında herkese açılacak!");
+        return null;
+      }
+      return u;
+    };
     sb.auth.getSession().then(({data})=>{
       if(!aktif) return;
-      const u=data.session?data.session.user:null;
+      const u=kapiKontrol(data.session?data.session.user:null);
       setOturum(u);
       if(u) setKapi(null); // zaten girişli → açılış kapısını atla
     }).catch(()=>{});
     const {data:sub}=sb.auth.onAuthStateChange((_ev,session)=>{
-      setOturum(session?session.user:null);
-      if(!session) bulutHazir.current=false;
+      const u=kapiKontrol(session?session.user:null);
+      setOturum(u);
+      if(!u) bulutHazir.current=false;
     });
     return ()=>{ aktif=false; try{ sub.subscription.unsubscribe(); }catch(e){} };
   },[]);
@@ -8227,9 +8378,13 @@ function App(){
   };
   // Fikstür üret (otomatik) — gruplu ise grup grup
   const fikstürYap=(turnuva, cift)=>{
-    turnuva.maclar = turnuva.format==="gruplu" ? gruplufikstürUret(turnuva, cift) : fikstürUret(turnuva, cift);
+    turnuva.maclar = turnuva.format==="kupa" ? kupaFikstur(turnuva)
+      : turnuva.format==="gruplu" ? gruplufikstürUret(turnuva, cift) : fikstürUret(turnuva, cift);
     turnuvaHesapla(turnuva); guncelle();
   };
+  // KUPA — sonraki turu oluştur / penaltı galibi seç
+  const kupaSonraki=(turnuva)=>{ const r=kupaSonrakiTur(turnuva); if(r.hata){ alert(r.hata); } else if(r.bitti){ alert("🏆 Şampiyon: "+(r.sampiyon?r.sampiyon.ad:"?")); } turnuvaHesapla(turnuva); guncelle(); return r; };
+  const penGalipSec=(turnuva, mac, takimAd)=>{ mac.penGalip=takimAd; guncelle(); };
   // Gruplara dağıt
   const dagit=(turnuva, yontem)=>{ gruplaraDagit(turnuva, yontem); turnuvaHesapla(turnuva); guncelle(); };
   // Takımı başka gruba taşı
@@ -8284,7 +8439,7 @@ function App(){
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={()=>git({sayfa:"ligkur"})} saltOkunur={saltOkunur}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur}/>; break;
-      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={saltOkunur?null:{takimEkle,takimSil,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle}} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
+      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={saltOkunur?null:{takimEkle,takimSil,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec}} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} saltOkunur={saltOkunur}/>; break;
