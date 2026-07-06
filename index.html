@@ -3,7 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ForzaLig</title>
+<title>ForzaLig — Halı Saha Liginin Dijital Merkezi</title>
+<meta name="description" content="ForzaLig: halı saha ligini yönet, puan durumu, fikstür, kral listeleri, FIFA tarzı oyuncu kartları ve canlı skorlar. Ligini link/QR ile paylaş, herkes görsün.">
+<meta name="theme-color" content="#070B12">
+<meta name="keywords" content="halı saha, lig, fikstür, puan durumu, gol kralı, futbol, turnuva, forzalig">
+<link rel="canonical" href="https://fatiherol68-pixel.github.io/forzalig/">
+<!-- Open Graph (WhatsApp/Facebook önizleme) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ForzaLig">
+<meta property="og:title" content="ForzaLig — Halı Saha Liginin Dijital Merkezi">
+<meta property="og:description" content="Ligini yönet, paylaş, herkes görsün. Puan durumu, kral listeleri, FIFA tarzı kartlar ve daha fazlası.">
+<meta property="og:url" content="https://fatiherol68-pixel.github.io/forzalig/">
+<meta property="og:image" content="https://fatiherol68-pixel.github.io/forzalig/og.png">
+<meta property="og:locale" content="tr_TR">
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ForzaLig — Halı Saha Ligi">
+<meta name="twitter:description" content="Ligini yönet, paylaş, herkes görsün.">
+<meta name="twitter:image" content="https://fatiherol68-pixel.github.io/forzalig/og.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -22140,7 +22157,8 @@ function Ayarlar({
   setAdminMod,
   yedekle,
   yukleDosya,
-  kayitDurum
+  kayitDurum,
+  git
 }) {
   return React.createElement("div", {
     className: "fade-in main-area",
@@ -22519,7 +22537,7 @@ function Ayarlar({
       fontSize: 13,
       fontWeight: 600
     }
-  }, "Normal veri"), React.createElement("button", {
+  }, "Normal"), React.createElement("button", {
     onClick: () => veriUret(8, 16, 18),
     className: "tap",
     style: {
@@ -22531,7 +22549,21 @@ function Ayarlar({
       fontSize: 13,
       fontWeight: 600
     }
-  }, "Bol veri")), React.createElement("button", {
+  }, "Bol"), React.createElement("button", {
+    onClick: () => {
+      if (confirm("Aşırı yük: 15 lig, ~300 takım, ~5000 oyuncu üretilecek. Cihazı zorlar. Devam?")) veriUret(15, 20, 20);
+    },
+    className: "tap",
+    style: {
+      flex: 1,
+      background: T.danger,
+      color: "#fff",
+      borderRadius: 10,
+      padding: "11px",
+      fontSize: 13,
+      fontWeight: 700
+    }
+  }, "\uD83D\uDD25 A\u015F\u0131r\u0131")), React.createElement("button", {
     onClick: veriSil,
     className: "tap",
     style: {
@@ -22545,7 +22577,101 @@ function Ayarlar({
       fontWeight: 600,
       border: "0.5px solid " + T.danger + "55"
     }
-  }, "\uD83D\uDDD1 T\xFCm veriyi sil"))));
+  }, "\uD83D\uDDD1 T\xFCm veriyi sil")), React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      margin: "18px 4px 8px"
+    }
+  }, React.createElement("span", {
+    style: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      background: T.textMut + "22",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 15
+    }
+  }, "\u2696\uFE0F"), React.createElement("span", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: T.text
+    }
+  }, "Yasal")), React.createElement("div", {
+    onClick: () => git({
+      sayfa: "yasal",
+      tip: "gizlilik"
+    }),
+    className: "tap satir-hover",
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 11,
+      background: T.bg1,
+      border: "0.5px solid " + T.line,
+      borderRadius: 11,
+      padding: "12px 13px",
+      marginBottom: 6
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 16
+    }
+  }, "\uD83D\uDD12"), React.createElement("span", {
+    style: {
+      flex: 1,
+      fontSize: 13,
+      color: T.text
+    }
+  }, "Gizlilik / KVKK"), React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: T.textMut
+    }
+  }, "\u203A")), React.createElement("div", {
+    onClick: () => git({
+      sayfa: "yasal",
+      tip: "kosul"
+    }),
+    className: "tap satir-hover",
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 11,
+      background: T.bg1,
+      border: "0.5px solid " + T.line,
+      borderRadius: 11,
+      padding: "12px 13px",
+      marginBottom: 6
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 16
+    }
+  }, "\uD83D\uDCDC"), React.createElement("span", {
+    style: {
+      flex: 1,
+      fontSize: 13,
+      color: T.text
+    }
+  }, "Kullan\u0131m Ko\u015Fullar\u0131"), React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: T.textMut
+    }
+  }, "\u203A")), React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: T.textMut,
+      textAlign: "center",
+      margin: "16px 0",
+      lineHeight: 1.6
+    }
+  }, "ForzaLig \xB7 forzalig.com", React.createElement("br", null), "Hal\u0131 saha liginin dijital merkezi")));
 }
 function LigKur({
   T,
@@ -27702,6 +27828,79 @@ function GirisAuth({
     }
   }, "\uD83D\uDD12 Test modu \u2014 \u015Fimdilik sadece yetkili hesaplar girebilir")));
 }
+function YasalSayfa({
+  T,
+  git,
+  tip
+}) {
+  const [sekme, setSekme] = useState(tip === "kosul" ? "kosul" : "gizlilik");
+  const P = ({
+    children
+  }) => React.createElement("p", {
+    style: {
+      fontSize: 12.5,
+      color: T.textSoft,
+      lineHeight: 1.75,
+      marginBottom: 12
+    }
+  }, children);
+  const H = ({
+    children
+  }) => React.createElement("div", {
+    style: {
+      fontSize: 13.5,
+      color: T.text,
+      fontWeight: 800,
+      margin: "16px 0 8px",
+      fontFamily: T.fontDisplay
+    }
+  }, children);
+  return React.createElement("div", {
+    className: "fade-in",
+    style: {
+      paddingBottom: 90
+    }
+  }, React.createElement(Baslik, {
+    ust: "YASAL",
+    ana: "Gizlilik & Ko\u015Fullar",
+    T: T
+  }), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      padding: "6px 14px 0"
+    }
+  }, [["gizlilik", "🔒 Gizlilik / KVKK"], ["kosul", "📜 Kullanım Koşulları"]].map(([k, l]) => React.createElement("button", {
+    key: k,
+    onClick: () => setSekme(k),
+    className: "tap",
+    style: {
+      flex: 1,
+      fontSize: 11.5,
+      padding: "9px",
+      borderRadius: 9,
+      fontWeight: 700,
+      background: sekme === k ? T.accent : T.bg1,
+      color: sekme === k ? T.bg0 : T.textMut,
+      border: "0.5px solid " + (sekme === k ? T.accent : T.line)
+    }
+  }, l))), React.createElement("div", {
+    style: {
+      padding: "14px 16px"
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: T.gold,
+      background: T.gold + "14",
+      border: "0.5px solid " + T.gold + "40",
+      borderRadius: 9,
+      padding: 9,
+      marginBottom: 14,
+      lineHeight: 1.5
+    }
+  }, "\u2139\uFE0F Bu metin bir taslakt\u0131r. Yay\u0131na almadan \xF6nce bir hukuk\xE7uya kontrol ettirmen \xF6nerilir."), sekme === "gizlilik" ? React.createElement("div", null, React.createElement(P, null, "ForzaLig (\"uygulama\") olarak gizlili\u011Fine \xF6nem veriyoruz. Bu metin, 6698 say\u0131l\u0131 Ki\u015Fisel Verilerin Korunmas\u0131 Kanunu (KVKK) kapsam\u0131nda hangi verileri, neden ve nas\u0131l i\u015Fledi\u011Fimizi a\xE7\u0131klar."), React.createElement(H, null, "Toplanan Veriler"), React.createElement(P, null, "\u2022 Hesap bilgileri: e-posta adresi, ad (\xFCyelik i\xE7in).", React.createElement("br", null), "\u2022 Uygulama i\xE7i veriler: olu\u015Fturdu\u011Fun lig, tak\u0131m, oyuncu, ma\xE7 ve istatistik bilgileri.", React.createElement("br", null), "\u2022 Teknik: oturum bilgisi (giri\u015F yapabilmen i\xE7in)."), React.createElement(H, null, "Verilerin Kullan\u0131m\u0131"), React.createElement(P, null, "Verilerin yaln\u0131zca uygulaman\u0131n \xE7al\u0131\u015Fmas\u0131 (hesab\u0131n, liglerin, bulut senkronu) i\xE7in i\u015Flenir. Verilerin ba\u015Fka ki\u015Filerle payla\u015F\u0131lmaz; yaln\u0131zca ", React.createElement("b", null, "senin \"herkese a\xE7\u0131k\" yapt\u0131\u011F\u0131n ligler"), " herkes taraf\u0131ndan g\xF6r\xFCnt\xFClenebilir."), React.createElement(H, null, "Saklama ve G\xFCvenlik"), React.createElement(P, null, "Veriler g\xFCvenli altyap\u0131da (Supabase) saklan\u0131r ve eri\u015Fim g\xFCvenlik kurallar\u0131yla (RLS) korunur; her kullan\u0131c\u0131 yaln\u0131zca kendi verisine eri\u015Febilir."), React.createElement(H, null, "Haklar\u0131n\u0131n"), React.createElement(P, null, "Diledi\u011Fin zaman verilerine eri\u015Febilir, d\xFCzeltebilir veya hesab\u0131n\u0131n silinmesini talep edebilirsin. \u0130leti\u015Fim: uygulama \xFCzerinden."), React.createElement(H, null, "\xC7erezler"), React.createElement(P, null, "Uygulama, oturumun a\xE7\u0131k kalmas\u0131 i\xE7in taray\u0131c\u0131 depolamas\u0131n\u0131 (localStorage) kullan\u0131r; reklam/izleme \xE7erezi kullanmaz.")) : React.createElement("div", null, React.createElement(P, null, "Bu uygulamay\u0131 kullanarak a\u015Fa\u011F\u0131daki ko\u015Fullar\u0131 kabul etmi\u015F olursun."), React.createElement(H, null, "1. Hizmet"), React.createElement(P, null, "ForzaLig, hal\u0131 saha liglerini y\xF6netmen, payla\u015Fman ve istatistik tutman i\xE7in sunulan bir uygulamad\u0131r. Hizmet \"oldu\u011Fu gibi\" sunulur."), React.createElement(H, null, "2. Kullan\u0131c\u0131 Sorumlulu\u011Fu"), React.createElement(P, null, "Girdi\u011Fin bilgilerden (lig, oyuncu, skor) sen sorumlusun. Ba\u015Fkalar\u0131n\u0131n haklar\u0131n\u0131 ihlal eden, hakaret/uygunsuz i\xE7erik girmemeyi kabul edersin."), React.createElement(H, null, "3. \u0130\xE7erik ve Payla\u015F\u0131m"), React.createElement(P, null, "\"Herkese a\xE7\u0131k\" yapt\u0131\u011F\u0131n ligler herkes taraf\u0131ndan g\xF6r\xFCnt\xFClenebilir. Uygunsuz i\xE7erik y\xF6netim taraf\u0131ndan kald\u0131r\u0131labilir."), React.createElement(H, null, "4. Hesap"), React.createElement(P, null, "Hesab\u0131n\u0131n g\xFCvenli\u011Finden sen sorumlusun. K\xF6t\xFCye kullan\u0131m durumunda hesap ask\u0131ya al\u0131nabilir."), React.createElement(H, null, "5. Sorumluluk Reddi"), React.createElement(P, null, "Uygulama, veri kayb\u0131 veya kesintilerden do\u011Fabilecek zararlardan sorumlu tutulamaz. \xD6nemli verilerini yedeklemen \xF6nerilir."), React.createElement(H, null, "6. De\u011Fi\u015Fiklikler"), React.createElement(P, null, "Bu ko\u015Fullar zaman zaman g\xFCncellenebilir. G\xFCncel s\xFCr\xFCm uygulamada yay\u0131nlan\u0131r."))));
+}
 function AdminPanel({
   T,
   git,
@@ -28249,6 +28448,20 @@ function App() {
           sayfa: "turnuva",
           turnuva: lig
         });
+        try {
+          const bas = lig.ad + " · ForzaLig";
+          const acik = (lig.sehir ? lig.sehir + " · " : "") + lig.takimlar.length + " takım · puan durumu ve kral listeleri ForzaLig'de";
+          document.title = bas;
+          const setMeta = (sel, val) => {
+            const el = document.querySelector(sel);
+            if (el) el.setAttribute("content", val);
+          };
+          setMeta('meta[property="og:title"]', bas);
+          setMeta('meta[name="twitter:title"]', bas);
+          setMeta('meta[name="description"]', acik);
+          setMeta('meta[property="og:description"]', acik);
+          setMeta('meta[name="twitter:description"]', acik);
+        } catch (e) {}
       } else {
         setPaylasimHata(true);
       }
@@ -28257,6 +28470,23 @@ function App() {
     return () => {
       aktif = false;
     };
+  }, []);
+  useEffect(() => {
+    if (!PAYLASIM_SLUG || !saltOkunur) return;
+    const iv = setInterval(async () => {
+      const lig = await Paylas.getir(PAYLASIM_SLUG);
+      if (lig && Array.isArray(lig.takimlar)) {
+        try {
+          turnuvaHesapla(lig);
+        } catch (e) {}
+        setTurnuvalar([lig]);
+        setNav(n => n.sayfa === "turnuva" ? {
+          ...n,
+          turnuva: lig
+        } : n);
+      }
+    }, 25000);
+    return () => clearInterval(iv);
   }, []);
   useEffect(() => {
     if (!sb || saltOkunur) return;
@@ -28351,6 +28581,19 @@ function App() {
     }, 1400);
     return () => clearTimeout(t);
   }, [turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, oturum]);
+  useEffect(() => {
+    if (!sb || !oturum || saltOkunur) return;
+    const yayinli = turnuvalar.filter(t => t.paylasimSlug);
+    if (!yayinli.length) return;
+    const t = setTimeout(() => {
+      yayinli.forEach(tt => {
+        try {
+          Paylas.yayinla(oturum.id, tt);
+        } catch (e) {}
+      });
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [turnuvalar, oturum]);
   const cikisYap = async () => {
     if (sb) {
       try {
@@ -29140,6 +29383,13 @@ function App() {
           turnuvalar: turnuvalar
         });
         break;
+      case "yasal":
+        icerik = React.createElement(YasalSayfa, {
+          T: T,
+          git: git,
+          tip: nav.tip
+        });
+        break;
       case "ayar":
         icerik = React.createElement(Ayarlar, {
           T: T,
@@ -29152,7 +29402,8 @@ function App() {
           setAdminMod: setAdminMod,
           yedekle: yedekle,
           yukleDosya: yukleDosya,
-          kayitDurum: kayitDurum
+          kayitDurum: kayitDurum,
+          git: git
         });
         break;
       default:
