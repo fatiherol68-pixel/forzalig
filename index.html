@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -134,6 +135,50 @@
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect, useMemo, useRef } = React;
+
+/* ============================================================
+   FAZ 8 (ONLINE) — Supabase yapılandırması
+   TEST MODU: sadece IZINLI_MAILLER giriş yapabilir.
+   Herkese açmak için: HERKESE_ACIK = true yap.
+   ============================================================ */
+const SB_URL = "https://crkestykdsnmfcmamxav.supabase.co";
+const SB_ANAHTAR = "sb_publishable_sjfSVp0CmfnB4g8GecB0eA_BCHZheFB";
+const IZINLI_MAILLER = ["fatiherol68@gmail.com"]; // test: sadece bunlar
+const HERKESE_ACIK = false; // true → herkes üye olup girebilir
+let sb = null;
+try { if (typeof supabase !== "undefined" && supabase.createClient) sb = supabase.createClient(SB_URL, SB_ANAHTAR); }
+catch(e){ console.warn("Supabase başlatılamadı:", e); }
+const mailIzinli = (email)=> HERKESE_ACIK || IZINLI_MAILLER.map(m=>m.toLowerCase()).includes((email||"").trim().toLowerCase());
+
+/* Bulut veri — tüm uygulama durumu, kullanıcı başına tek JSON satırı */
+const Bulut = {
+  async yukle(userId){
+    if(!sb) return null;
+    try{
+      const {data,error}=await sb.from('kullanici_veri').select('veri').eq('user_id',userId).maybeSingle();
+      if(error){ console.warn('Bulut.yukle:',error.message); return null; }
+      return data ? data.veri : null;
+    }catch(e){ console.warn('Bulut.yukle:',e); return null; }
+  },
+  async kaydet(userId, veri){
+    if(!sb) return false;
+    try{
+      const {error}=await sb.from('kullanici_veri').upsert({user_id:userId, veri, updated_at:new Date().toISOString()});
+      if(error){ console.warn('Bulut.kaydet:',error.message); return false; }
+      return true;
+    }catch(e){ console.warn('Bulut.kaydet:',e); return false; }
+  },
+};
+/* Supabase hata mesajlarını Türkçeye çevir */
+const authHata = (m)=>{ m=(m||"").toLowerCase();
+  if(m.includes("invalid login")) return "E-posta veya şifre hatalı.";
+  if(m.includes("already registered")||m.includes("already been registered")) return "Bu e-posta zaten kayıtlı. Giriş yapmayı dene.";
+  if(m.includes("email not confirmed")) return "E-postanı onaylaman gerekiyor (gelen kutunu kontrol et).";
+  if(m.includes("password should be")||m.includes("at least 6")) return "Şifre en az 6 karakter olmalı.";
+  if(m.includes("rate limit")||m.includes("too many")) return "Çok fazla deneme. Biraz sonra tekrar dene.";
+  if(m.includes("unable to validate email")||m.includes("invalid email")) return "Geçerli bir e-posta gir.";
+  return "İşlem başarısız oldu. Tekrar dene.";
+};
 
 /* ============================================================
    TEMALAR — renk + font birlikte değişir
@@ -1273,7 +1318,7 @@ function EnKart({et, o, deg, br, renk, T, takim, onClick}){
   </div>;
 }
 
-function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc}){
+function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap}){
   const tumOyuncular=useMemo(()=>Motor.tumOyuncular(turnuvalar),[turnuvalar]);
   // takip edilen oyuncu/takım/lig sayıları
   const takipOyuncuList = tumOyuncular.filter(o=> (takipOyuncu||[]).includes(o.id));
@@ -1315,7 +1360,16 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
       <Sat ik="🔍" metin="Ligler, Takımlar, Oyuncular" onClick={()=>git({sayfa:"ligler"})}/>
 
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"16px 2px 8px"}}>HESAP</div>
-      <Sat ik="🔑" metin="Giriş Yap / Üye Ol" sag="önizleme" onClick={()=>kapiAc&&kapiAc("tanitim")}/>
+      {oturum ? <>
+        <div style={{display:"flex",alignItems:"center",gap:11,background:T.accent+"12",border:"0.5px solid "+T.accent+"44",borderRadius:11,padding:"12px 13px",marginBottom:6}}>
+          <span style={{fontSize:18}}>✅</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email}</div>
+            <div style={{fontSize:10,color:T.accent}}>Giriş yapıldı · veriler buluta kaydediliyor</div>
+          </div>
+        </div>
+        <Sat ik="🚪" metin="Çıkış Yap" onClick={()=>cikisYap&&cikisYap()}/>
+      </> : <Sat ik="🔑" metin="Giriş Yap / Üye Ol" sag="online" onClick={()=>kapiAc&&kapiAc("tanitim")}/>}
 
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"16px 2px 8px"}}>AYARLAR</div>
       <Sat ik="⚙️" metin="Uygulama Ayarları" onClick={()=>git({sayfa:"ayar"})}/>
@@ -7396,8 +7450,46 @@ function GirisAuth({T, mod, kapiGit, tamamla}){
   const beyaz = T.renkCifti && T.renkCifti[1]==="#FFFFFF";
   const [rol,setRol]=useState("oyuncu");
   const [kvkk,setKvkk]=useState(true);
+  const [ad,setAd]=useState("");
+  const [email,setEmail]=useState("");
+  const [sifre,setSifre]=useState("");
+  const [hata,setHata]=useState("");
+  const [bilgi,setBilgi]=useState("");
+  const [yuk,setYuk]=useState(false);
   const inpStil={width:"100%",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:13,color:T.text,fontSize:13.5,fontFamily:"inherit",outline:"none",marginBottom:15,boxSizing:"border-box"};
   const etStil={fontSize:11,color:T.textMut,fontWeight:700,marginBottom:6};
+
+  const gonder = async ()=>{
+    setHata(""); setBilgi("");
+    const e=email.trim().toLowerCase();
+    if(!e || !sifre){ setHata("E-posta ve şifre gerekli."); return; }
+    if(uyeol && sifre.length<6){ setHata("Şifre en az 6 karakter olmalı."); return; }
+    if(uyeol && !kvkk){ setHata("Devam etmek için koşulları kabul et."); return; }
+    if(!mailIzinli(e)){ setHata("🚧 Uygulama şu an test modunda. Çok yakında herkese açılacak!"); return; }
+    if(!sb){ setHata("Sunucuya bağlanılamadı. İnternetini kontrol edip tekrar dene."); return; }
+    setYuk(true);
+    try{
+      if(uyeol){
+        const {data,error}=await sb.auth.signUp({ email:e, password:sifre, options:{ data:{ ad:ad.trim(), rol } } });
+        if(error){ setHata(authHata(error.message)); setYuk(false); return; }
+        if(data && data.session){ tamamla(); }          // e-posta onayı kapalıysa direkt girer
+        else { setBilgi("Hesabın oluşturuldu! E-postana gelen onay linkine tıkla, sonra giriş yap."); setYuk(false); }
+      } else {
+        const {error}=await sb.auth.signInWithPassword({ email:e, password:sifre });
+        if(error){ setHata(authHata(error.message)); setYuk(false); return; }
+        tamamla();
+      }
+    }catch(err){ setHata("Beklenmedik bir hata oldu. Tekrar dene."); setYuk(false); }
+  };
+  const sifremiUnuttum = async ()=>{
+    setHata(""); setBilgi("");
+    const e=email.trim().toLowerCase();
+    if(!e){ setHata("Önce e-posta adresini yaz."); return; }
+    if(!sb){ setHata("Sunucuya bağlanılamadı."); return; }
+    try{ await sb.auth.resetPasswordForEmail(e); setBilgi("Şifre sıfırlama linki e-postana gönderildi."); }
+    catch(err){ setHata("Gönderilemedi, tekrar dene."); }
+  };
+
   return <div className="fz-giris" style={{position:"fixed",inset:0,zIndex:2000,background:T.bg0,overflow:"hidden",display:"flex",flexDirection:"column"}}>
     <KapiGlow T={T}/>
     <button onClick={()=>kapiGit("tanitim")} className="tap" style={{position:"absolute",top:18,left:16,zIndex:5,fontSize:22,color:T.textSoft,background:"none",border:0}}>‹</button>
@@ -7409,30 +7501,33 @@ function GirisAuth({T, mod, kapiGit, tamamla}){
       {uyeol && <>
         <div style={etStil}>SEN KİMSİN?</div>
         <div style={{display:"flex",gap:9,marginBottom:16}}>
-          {[["oyuncu","⚽","Oyuncu"],["yonetici","🛠️","Lig Yöneticisi"]].map(([k,ik,ad])=>{
+          {[["oyuncu","⚽","Oyuncu"],["yonetici","🛠️","Lig Yöneticisi"]].map(([k,ik,adet])=>{
             const aktif=rol===k;
             return <div key={k} onClick={()=>setRol(k)} className="tap" style={{flex:1,borderRadius:12,padding:"12px 8px",textAlign:"center",fontSize:12,fontWeight:700,cursor:"pointer",
               background:aktif?T.accent+"22":T.bg1,border:"1px solid "+(aktif?T.accent:T.line),color:aktif?T.accent:T.textSoft}}>
-              <span style={{fontSize:20,display:"block",marginBottom:5}}>{ik}</span>{ad}</div>;
+              <span style={{fontSize:20,display:"block",marginBottom:5}}>{ik}</span>{adet}</div>;
           })}
         </div>
         <div style={etStil}>AD SOYAD</div>
-        <input placeholder="Örn: Fatih Erol" style={inpStil}/>
+        <input value={ad} onChange={ev=>setAd(ev.target.value)} placeholder="Örn: Fatih Erol" style={inpStil}/>
       </>}
 
-      <div style={etStil}>{uyeol?"E-POSTA":"E-POSTA VEYA TELEFON"}</div>
-      <input placeholder="ornek@mail.com" style={inpStil}/>
+      <div style={etStil}>E-POSTA</div>
+      <input value={email} onChange={ev=>setEmail(ev.target.value)} type="email" autoCapitalize="none" autoCorrect="off" placeholder="ornek@mail.com" style={inpStil}/>
       <div style={etStil}>ŞİFRE</div>
-      <input type="password" placeholder={uyeol?"En az 6 karakter":"••••••••"} style={{...inpStil,marginBottom:uyeol?15:8}}/>
+      <input value={sifre} onChange={ev=>setSifre(ev.target.value)} onKeyDown={ev=>{ if(ev.key==="Enter") gonder(); }} type="password" placeholder={uyeol?"En az 6 karakter":"••••••••"} style={{...inpStil,marginBottom:uyeol?15:8}}/>
 
-      {!uyeol && <div style={{textAlign:"right",margin:"0 0 16px"}}><span className="tap" style={{color:T.accent,fontSize:11.5,fontWeight:600}}>Şifremi unuttum</span></div>}
+      {!uyeol && <div style={{textAlign:"right",margin:"0 0 16px"}}><span onClick={sifremiUnuttum} className="tap" style={{color:T.accent,fontSize:11.5,fontWeight:600,cursor:"pointer"}}>Şifremi unuttum</span></div>}
 
       {uyeol && <div onClick={()=>setKvkk(v=>!v)} className="tap" style={{display:"flex",gap:9,alignItems:"flex-start",fontSize:11,color:T.textMut,lineHeight:1.5,margin:"4px 0 18px",cursor:"pointer"}}>
         <span style={{width:18,height:18,borderRadius:5,border:"1.5px solid "+T.accent,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",color:T.accent,fontSize:12,fontWeight:800,background:kvkk?T.accent+"22":"transparent"}}>{kvkk?"✓":""}</span>
         <span>Kullanım koşullarını ve gizlilik politikasını okudum, kabul ediyorum.</span>
       </div>}
 
-      <button onClick={tamamla} className="tap vav-bar" style={{width:"100%",border:"none",borderRadius:12,padding:14,fontFamily:T.fontDisplay,fontSize:14,fontWeight:800,background:T.accent,color:beyaz?"#fff":T.bg0,boxShadow:`0 8px 22px ${T.accent}52`}}>{uyeol?"Üye Ol":"Giriş Yap"}</button>
+      {hata && <div style={{fontSize:12,color:T.danger,background:T.danger+"18",border:"0.5px solid "+T.danger+"55",borderRadius:10,padding:"10px 12px",marginBottom:12,lineHeight:1.5}}>{hata}</div>}
+      {bilgi && <div style={{fontSize:12,color:T.accent,background:T.accent+"14",border:"0.5px solid "+T.accent+"55",borderRadius:10,padding:"10px 12px",marginBottom:12,lineHeight:1.5}}>{bilgi}</div>}
+
+      <button onClick={gonder} disabled={yuk} className="tap vav-bar" style={{width:"100%",border:"none",borderRadius:12,padding:14,fontFamily:T.fontDisplay,fontSize:14,fontWeight:800,background:T.accent,color:beyaz?"#fff":T.bg0,boxShadow:`0 8px 22px ${T.accent}52`,opacity:yuk?.7:1}}>{yuk?"Lütfen bekle...":(uyeol?"Üye Ol":"Giriş Yap")}</button>
 
       {!uyeol && <>
         <div style={{display:"flex",alignItems:"center",gap:12,margin:"18px 0"}}>
@@ -7441,16 +7536,16 @@ function GirisAuth({T, mod, kapiGit, tamamla}){
           <hr style={{flex:1,border:0,borderTop:"0.5px solid "+T.line}}/>
         </div>
         <div style={{display:"flex",gap:10,marginBottom:16}}>
-          <button className="tap" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:12,color:T.textSoft,fontSize:12.5,fontWeight:600}}>🟦 Google</button>
-          <button className="tap" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:12,color:T.textSoft,fontSize:12.5,fontWeight:600}}>⚫ Apple</button>
+          <button onClick={()=>setBilgi("Google ile giriş çok yakında.")} className="tap" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:12,color:T.textSoft,fontSize:12.5,fontWeight:600}}>🟦 Google</button>
+          <button onClick={()=>setBilgi("Apple ile giriş çok yakında.")} className="tap" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:12,color:T.textSoft,fontSize:12.5,fontWeight:600}}>⚫ Apple</button>
         </div>
       </>}
 
       <div style={{textAlign:"center",fontSize:12,color:T.textMut,marginTop:uyeol?14:6}}>
         {uyeol?"Zaten üye misin? ":"Hesabın yok mu? "}
-        <b onClick={()=>kapiGit(uyeol?"giris":"uyeol")} className="tap" style={{color:T.accent,fontWeight:700,cursor:"pointer"}}>{uyeol?"Giriş Yap":"Üye Ol"}</b>
+        <b onClick={()=>{ setHata("");setBilgi(""); kapiGit(uyeol?"giris":"uyeol"); }} className="tap" style={{color:T.accent,fontWeight:700,cursor:"pointer"}}>{uyeol?"Giriş Yap":"Üye Ol"}</b>
       </div>
-      <div style={{textAlign:"center",fontSize:10,color:T.gold,background:T.gold+"1a",border:"0.5px solid "+T.gold+"4d",borderRadius:10,padding:8,marginTop:18}}>🔒 Görünüm önizlemesi — gerçek {uyeol?"kayıt":"giriş"} sonraki adımda</div>
+      {!HERKESE_ACIK && <div style={{textAlign:"center",fontSize:10,color:T.gold,background:T.gold+"1a",border:"0.5px solid "+T.gold+"4d",borderRadius:10,padding:8,marginTop:18}}>🔒 Test modu — şimdilik sadece yetkili hesaplar girebilir</div>}
     </div>
   </div>;
 }
@@ -7489,6 +7584,10 @@ function App(){
   const GIRIS_FLAG="forzalig_giris_v1";
   const [kapi,setKapi]=useState(()=>{ try{ return localStorage.getItem(GIRIS_FLAG) ? null : "splash"; }catch(e){ return "splash"; } });
   const kapiTamamla=()=>{ try{ localStorage.setItem(GIRIS_FLAG,"1"); }catch(e){} setKapi(null); };
+  // FAZ 8 — online oturum & bulut senkron
+  const [oturum,setOturum]=useState(null);      // supabase kullanıcı (null=çıkış)
+  const [bulutDurum,setBulutDurum]=useState(""); // kısa senkron göstergesi
+  const bulutHazir=useRef(false);                // ilk bulut yüklemesi bitti mi
   const [tab,setTab]=useState("ana");
   const [aramaAcik,setAramaAcik]=useState(false); // arama overlay
   const [aramaMetin,setAramaMetin]=useState("");
@@ -7518,6 +7617,66 @@ function App(){
     turnuvalar.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
     setTurnuvalar(p=>[...p]);
   },[]);
+
+  // FAZ 8 — Supabase oturumunu izle (açılışta + değişince)
+  useEffect(()=>{
+    if(!sb) return;
+    let aktif=true;
+    sb.auth.getSession().then(({data})=>{
+      if(!aktif) return;
+      const u=data.session?data.session.user:null;
+      setOturum(u);
+      if(u) setKapi(null); // zaten girişli → açılış kapısını atla
+    }).catch(()=>{});
+    const {data:sub}=sb.auth.onAuthStateChange((_ev,session)=>{
+      setOturum(session?session.user:null);
+      if(!session) bulutHazir.current=false;
+    });
+    return ()=>{ aktif=false; try{ sub.subscription.unsubscribe(); }catch(e){} };
+  },[]);
+
+  // FAZ 8 — giriş yapınca buluttan veriyi çek (yoksa mevcut yereli buluta yaz)
+  useEffect(()=>{
+    if(!sb || !oturum) return;
+    let aktif=true;
+    (async()=>{
+      const v=await Bulut.yukle(oturum.id);
+      if(!aktif) return;
+      if(v && Array.isArray(v.turnuvalar)){
+        setTurnuvalar(v.turnuvalar);
+        if(v.temaKey) setTemaKey(v.temaKey);
+        if(Array.isArray(v.takipLig)) setTakipLig(v.takipLig);
+        if(Array.isArray(v.takipOyuncu)) setTakipOyuncu(v.takipOyuncu);
+        if(Array.isArray(v.takipTakim)) setTakipTakim(v.takipTakim);
+        setBulutDurum("Buluttan yüklendi ✓");
+      } else {
+        await Bulut.kaydet(oturum.id, {turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1});
+        setBulutDurum("Buluta kaydedildi ✓");
+      }
+      bulutHazir.current=true;
+      setTimeout(()=>{ if(aktif) setBulutDurum(""); },2500);
+    })();
+    return ()=>{ aktif=false; };
+  },[oturum]);
+
+  // FAZ 8 — girişliyken her değişikliği buluta yaz (gecikmeli)
+  useEffect(()=>{
+    if(!sb || !oturum || !bulutHazir.current) return;
+    const t=setTimeout(async()=>{
+      const ok=await Bulut.kaydet(oturum.id, {turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1});
+      if(ok){ setBulutDurum("Senkron ✓"); setTimeout(()=>setBulutDurum(""),1500); }
+    },1400);
+    return ()=>clearTimeout(t);
+  },[turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, oturum]);
+
+  // FAZ 8 — çıkış yap
+  const cikisYap=async()=>{
+    if(sb){ try{ await sb.auth.signOut(); }catch(e){} }
+    bulutHazir.current=false;
+    setOturum(null);
+    try{ localStorage.removeItem(GIRIS_FLAG); }catch(e){}
+    setKapi("giris");
+  };
 
   const ligTakip=(id)=> setTakipLig(p=> p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const oyuncuTakip=(id)=> setTakipOyuncu(p=> p.includes(id)?p.filter(x=>x!==id):[...p,id]);
@@ -7757,7 +7916,7 @@ function App(){
       case "sihirbaz": icerik=<MacSihirbaz mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} sihirbazKaydet={sihirbazKaydet}/>; break;
       case "istatistik": icerik=<MacIstatistik mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} onKaydet={(mac,ist)=>{ mac.istatistik=ist; }}/>; break;
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
-      case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")}/>; break;
+      case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap}/>; break;
       case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
     }
@@ -7783,6 +7942,8 @@ function App(){
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <button onClick={()=>{setAramaAcik(true);setAramaMetin("");}} className="tap" style={{fontSize:18,background:"none",border:0,color:T.textSoft}}>🔍</button>
+          {bulutDurum ? <span style={{fontSize:10,color:T.accent,fontWeight:600,whiteSpace:"nowrap"}}>☁ {bulutDurum}</span>
+            : oturum ? <span title="Buluta bağlı" style={{fontSize:12,color:T.accent}}>☁</span> : null}
           <span className="live-dot" style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:T.accent}}><span style={{width:7,height:7,borderRadius:"50%",background:T.accent}}/>Canlı</span>
           <button onClick={()=>git({sayfa:"takip"})} className="tap" style={{position:"relative",fontSize:18}}>🔔
             {bildirimler.length>0 && <span style={{position:"absolute",top:-4,right:-6,background:T.danger,color:"#fff",fontSize:9,fontWeight:700,borderRadius:8,padding:"1px 5px"}}>{bildirimler.length}</span>}
