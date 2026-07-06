@@ -178,11 +178,29 @@ const Bulut = {
   async yukle(userId){
     if(!sb) return null;
     try{
-      const {data,error}=await sb.from('kullanici_veri').select('veri').eq('user_id',userId).maybeSingle();
+      const {data,error}=await sb.from('kullanici_veri').select('veri,updated_at').eq('user_id',userId).maybeSingle();
       if(error){ console.warn('Bulut.yukle:',error.message); return null; }
-      return data ? data.veri : null;
+      return data ? {veri:data.veri, zaman:data.updated_at} : {veri:null, zaman:null};
     }catch(e){ console.warn('Bulut.yukle:',e); return null; }
   },
+  async buluttakiZaman(userId){
+    if(!sb) return null;
+    try{ const {data}=await sb.from('kullanici_veri').select('updated_at').eq('user_id',userId).maybeSingle(); return data?data.updated_at:null; }
+    catch(e){ return null; }
+  },
+  // güvenli kaydet: beklenen zamanla bulut zamanı uyuşmuyorsa ÇAKIŞMA döner (üzerine yazma!)
+  async kaydetGuvenli(userId, veri, beklenen){
+    if(!sb) return {hata:"bağlantı yok"};
+    try{
+      const suanki = await this.buluttakiZaman(userId);
+      if(beklenen && suanki && suanki !== beklenen) return {catisma:true, suankiZaman:suanki};
+      const zaman = new Date().toISOString();
+      const {error}=await sb.from('kullanici_veri').upsert({user_id:userId, veri, updated_at:zaman});
+      if(error){ console.warn('Bulut.kaydet:',error.message); return {hata:error.message}; }
+      return {ok:true, zaman};
+    }catch(e){ return {hata:String(e)}; }
+  },
+  // koşulsuz kaydet ("benimkini yaz" seçilince)
   async kaydet(userId, veri){
     if(!sb) return false;
     try{
@@ -198,6 +216,15 @@ function slugUret(ad){
   let s=(ad||'lig').split('').map(c=>tr[c]||c).join('').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
   return (s||'lig');
 }
+/* Paylaşımda kişisel/gizli alanları temizle (KVKK) — dışarıya sadece futbol verisi */
+function paylasimIcinTemizle(turnuva){
+  let k; try{ k=JSON.parse(JSON.stringify(turnuva)); }catch(e){ return turnuva; }
+  (k.takimlar||[]).forEach(tk=>{
+    delete tk.lisNo;
+    (tk.oyuncular||[]).forEach(o=>{ delete o.dogum; delete o.lisNo; delete o.boy; delete o.kilo; delete o.uyruk; });
+  });
+  return k;
+}
 const Paylas = {
   // ligi herkese aç (yayınla) — slug döner
   async yayinla(userId, turnuva){
@@ -205,7 +232,7 @@ const Paylas = {
     const slug = (turnuva.paylasimSlug) || (slugUret(turnuva.ad)+'-'+String(turnuva.id||0));
     try{
       const {error}=await sb.from('paylasilan_ligler').upsert({
-        slug, sahip_id:userId, ad:turnuva.ad, sehir:turnuva.sehir||'', veri:turnuva, guncelleme:new Date().toISOString()
+        slug, sahip_id:userId, ad:turnuva.ad, sehir:turnuva.sehir||'', veri:paylasimIcinTemizle(turnuva), guncelleme:new Date().toISOString()
       });
       if(error){ console.warn('Paylas.yayinla:',error.message); return {hata:error.message}; }
       return {slug};
@@ -8280,6 +8307,8 @@ function App(){
   const [oturum,setOturum]=useState(null);      // supabase kullanıcı (null=çıkış)
   const [bulutDurum,setBulutDurum]=useState(""); // kısa senkron göstergesi
   const bulutHazir=useRef(false);                // ilk bulut yüklemesi bitti mi
+  const bulutZaman=useRef(null);                 // son bilinen bulut zamanı (çakışma tespiti)
+  const [catisma,setCatisma]=useState(false);    // başka cihaz veriyi değiştirdi
   // FAZ 9 — paylaşılan lig (salt-okunur public görünüm)
   const [saltOkunur]=useState(()=> !!PAYLASIM_SLUG);
   const [paylasimYuk,setPaylasimYuk]=useState(()=> !!PAYLASIM_SLUG);
@@ -8394,8 +8423,10 @@ function App(){
     if(!sb || !oturum || saltOkunur) return;
     let aktif=true;
     (async()=>{
-      const v=await Bulut.yukle(oturum.id);
+      const r=await Bulut.yukle(oturum.id);
       if(!aktif) return;
+      const v = r ? r.veri : null;
+      bulutZaman.current = r ? r.zaman : null;
       if(v && Array.isArray(v.turnuvalar)){
         let gelen=v.turnuvalar;
         if(!gelen.some(t=>t.id===990001)){ try{ gelen=[demoKupa(), ...gelen]; }catch(e){} }
@@ -8406,7 +8437,8 @@ function App(){
         if(Array.isArray(v.takipTakim)) setTakipTakim(v.takipTakim);
         setBulutDurum("Buluttan yüklendi ✓");
       } else {
-        await Bulut.kaydet(oturum.id, {turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1});
+        const sr=await Bulut.kaydetGuvenli(oturum.id, {turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1}, null);
+        if(sr.ok) bulutZaman.current=sr.zaman;
         setBulutDurum("Buluta kaydedildi ✓");
       }
       bulutHazir.current=true;
@@ -8415,15 +8447,36 @@ function App(){
     return ()=>{ aktif=false; };
   },[oturum]);
 
-  // FAZ 8 — girişliyken her değişikliği buluta yaz (gecikmeli)
+  // FAZ 8 — girişliyken her değişikliği buluta yaz (gecikmeli, ÇAKIŞMA korumalı)
   useEffect(()=>{
-    if(!sb || !oturum || !bulutHazir.current || saltOkunur) return;
+    if(!sb || !oturum || !bulutHazir.current || saltOkunur || catisma) return;
     const t=setTimeout(async()=>{
-      const ok=await Bulut.kaydet(oturum.id, {turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1});
-      if(ok){ setBulutDurum("Senkron ✓"); setTimeout(()=>setBulutDurum(""),1500); }
+      const r=await Bulut.kaydetGuvenli(oturum.id, {turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1}, bulutZaman.current);
+      if(r.catisma){ setCatisma(true); }                       // başka cihaz değiştirmiş → SESSİZCE EZME, sor
+      else if(r.ok){ bulutZaman.current=r.zaman; setBulutDurum("Senkron ✓"); setTimeout(()=>setBulutDurum(""),1500); }
     },1400);
     return ()=>clearTimeout(t);
-  },[turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, oturum]);
+  },[turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, oturum, catisma]);
+
+  // ÇAKIŞMA çözümü — kullanıcı seçer
+  const catismaOnlariniYukle=async()=>{
+    const r=await Bulut.yukle(oturum.id);
+    if(r && r.veri && Array.isArray(r.veri.turnuvalar)){
+      let gelen=r.veri.turnuvalar; if(!gelen.some(t=>t.id===990001)){ try{ gelen=[demoKupa(),...gelen]; }catch(e){} }
+      setTurnuvalar(gelen);
+      if(r.veri.temaKey)setTemaKey(r.veri.temaKey);
+      if(Array.isArray(r.veri.takipLig))setTakipLig(r.veri.takipLig);
+      if(Array.isArray(r.veri.takipOyuncu))setTakipOyuncu(r.veri.takipOyuncu);
+      if(Array.isArray(r.veri.takipTakim))setTakipTakim(r.veri.takipTakim);
+      bulutZaman.current=r.zaman;
+    }
+    setCatisma(false);
+  };
+  const catismaBenimkiniYaz=async()=>{
+    const ok=await Bulut.kaydet(oturum.id, {turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1});
+    if(ok){ bulutZaman.current=await Bulut.buluttakiZaman(oturum.id); }
+    setCatisma(false);
+  };
 
   // FAZ 14 — CANLI: yayınlı ligler değişince otomatik yeniden yayınla (izleyiciler görsün)
   useEffect(()=>{
@@ -8776,6 +8829,19 @@ function App(){
     {kapi==="splash" && <AcilisSplash T={T} onBitti={()=>setKapi("tanitim")}/>}
     {kapi==="tanitim" && <Tanitim T={T} kapiGit={setKapi} tamamla={kapiTamamla}/>}
     {(kapi==="giris"||kapi==="uyeol") && <GirisAuth T={T} mod={kapi} kapiGit={setKapi} tamamla={kapiTamamla}/>}
+
+    {/* ÇAKIŞMA UYARISI — başka cihaz veriyi değiştirdi */}
+    {catisma && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:1800,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div className="fade-in" style={{width:"100%",maxWidth:400,background:T.bg1,border:"1px solid "+T.gold+"55",borderRadius:16,padding:20}}>
+        <div style={{fontSize:30,textAlign:"center",marginBottom:8}}>⚠️</div>
+        <div style={{fontFamily:T.fontDisplay,fontSize:17,fontWeight:800,color:T.text,textAlign:"center",marginBottom:6}}>Veriler başka cihazda değişti</div>
+        <div style={{fontSize:12.5,color:T.textSoft,textAlign:"center",lineHeight:1.6,marginBottom:16}}>Bu hesabı başka bir cihazda da kullanmışsın ve orada değişiklik yapılmış. Hangisini tutalım?</div>
+        <button onClick={catismaOnlariniYukle} className="tap" style={{width:"100%",background:T.accent,color:T.bg0,border:0,borderRadius:12,padding:13,fontSize:13.5,fontWeight:800,marginBottom:8}}>☁ Diğer cihazdakini al (önerilen)</button>
+        <button onClick={catismaBenimkiniYaz} className="tap" style={{width:"100%",background:"transparent",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:12,padding:12,fontSize:12.5,fontWeight:600}}>Bu cihazdakini yaz (diğeri silinir)</button>
+        <div style={{fontSize:9.5,color:T.textMut,textAlign:"center",marginTop:10,lineHeight:1.5}}>Emin değilsen "Diğer cihazdakini al" — böylece hiçbir şey kaybolmaz.</div>
+      </div>
+    </div>}
+
     <div className="wrap">
       {/* üst bar */}
       <div style={{position:"sticky",top:0,zIndex:10,background:T.bg0,borderBottom:"0.5px solid "+T.line,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px"}}>
