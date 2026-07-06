@@ -224,6 +224,25 @@ const Paylas = {
     try{ const {error}=await sb.from('sahiplenmeler').delete().eq('user_id',userId); return !error; }catch(e){ return false; }
   },
 };
+/* FAZ 10 — Maçın Adamı (MVP) oylaması */
+const Oy = {
+  async oyla(ligSlug, macId, oyverenId, secilen){
+    if(!sb) return {hata:"Bağlantı yok"};
+    try{
+      const {error}=await sb.from('mac_oylari').upsert(
+        {lig_slug:ligSlug, mac_id:macId, oyveren_id:oyverenId, secilen_id:secilen.id, secilen_ad:secilen.ad, created:new Date().toISOString()},
+        {onConflict:'lig_slug,mac_id,oyveren_id'});
+      if(error){ console.warn('Oy.oyla:',error.message); return {hata:error.message}; }
+      return {ok:true};
+    }catch(e){ return {hata:String(e&&e.message||e)}; }
+  },
+  async oylar(ligSlug, macId){
+    if(!sb) return [];
+    try{ const {data,error}=await sb.from('mac_oylari').select('secilen_id,secilen_ad,oyveren_id').eq('lig_slug',ligSlug).eq('mac_id',macId);
+      if(error){ console.warn('Oy.oylar:',error.message); return []; } return data||[]; }
+    catch(e){ return []; }
+  },
+};
 /* Supabase hata mesajlarını Türkçeye çevir */
 const authHata = (m)=>{ m=(m||"").toLowerCase();
   if(m.includes("invalid login")) return "E-posta veya şifre hatalı.";
@@ -4440,7 +4459,102 @@ function StatDuzeltModal({o, d, setD, T, kaydet, kapat, otomatikYap}){
 }
 
 /* MAÇ SAYFASI */
-function MacSayfa({mac:m, turnuva, T, git}){
+/* FAZ 10 — Maçın Adamı oylaması (B+C hibrit) */
+function MvpOylama({m, turnuva, kadro, T, oturum, sahiplenme}){
+  const slug = turnuva && turnuva.paylasimSlug;
+  const [oylar,setOylar]=useState([]);
+  const [benimOyum,setBenimOyum]=useState(null);
+  const [yuk,setYuk]=useState(!!slug);
+  const [gonder,setGonder]=useState(false);
+  const [mesaj,setMesaj]=useState("");
+  const benId = sahiplenme && sahiplenme.oyuncu_id;
+  const kadromda = benId!=null && kadro.some(o=>o.id===benId);
+  const oyVerebilir = !!(slug && oturum && kadromda);
+
+  useEffect(()=>{
+    if(!slug){ setYuk(false); return; }
+    let a=true;
+    (async()=>{
+      const list=await Oy.oylar(slug, m.id);
+      if(!a) return;
+      setOylar(list);
+      if(oturum){ const b=list.find(x=>x.oyveren_id===oturum.id); setBenimOyum(b?b.secilen_id:null); }
+      setYuk(false);
+    })();
+    return ()=>{ a=false; };
+  },[slug, m.id, oturum]);
+
+  const oyla=async(sec)=>{
+    if(!oyVerebilir || gonder) return;
+    if(benId===sec.id){ setMesaj("Kendine oy veremezsin."); return; }
+    setGonder(true); setMesaj("");
+    const r=await Oy.oyla(slug, m.id, oturum.id, sec);
+    setGonder(false);
+    if(r.ok){ const list=await Oy.oylar(slug, m.id); setOylar(list); setBenimOyum(sec.id); setMesaj("Oyun kaydedildi ✓"); }
+    else { let e=r.hata||""; if(/schema cache|find the table|does not exist/i.test(e)) e="Sunucu tabloyu yeni fark ediyor — 1 dk sonra dene."; else if(/permission denied/i.test(e)) e="İzin hatası — bana haber ver."; setMesaj("Olmadı: "+e); }
+  };
+
+  // sayım + sıralama
+  const sayim={}; oylar.forEach(o=>{ sayim[o.secilen_id]=(sayim[o.secilen_id]||0)+1; });
+  const sirali=kadro.map(o=>({o, oy:sayim[o.id]||0})).sort((a,b)=>b.oy-a.oy);
+  const toplam=oylar.length;
+  const ESIK=2;
+  let mvp=null, otomatik=false;
+  if(toplam>=ESIK && sirali[0] && sirali[0].oy>0){ mvp=sirali[0].o; }
+  else { otomatik=true; mvp = kadro.find(o=>o.ad===m.mvp) || [...kadro].sort((a,b)=>(b.ovr||0)-(a.ovr||0))[0] || null; }
+  const mvpOy = mvp ? (sayim[mvp.id]||0) : 0;
+
+  if(!slug){
+    // yayınlanmamış lig → oylama yok, sadece bilgi
+    return <div style={{padding:"10px 14px 0"}}>
+      <div style={{background:T.bg1,border:"0.5px dashed "+T.line,borderRadius:12,padding:12,fontSize:11,color:T.textMut,textAlign:"center",lineHeight:1.6}}>
+        ⭐ <b style={{color:T.textSoft}}>Maçın Adamı oylaması</b> için ligi <b style={{color:T.accent}}>herkese açık</b> yap (lig sayfası → 🔗 Paylaş). Sonra o maçta oynayanlar oy verebilir.
+      </div>
+    </div>;
+  }
+
+  return <div style={{padding:"10px 14px 0"}}>
+    <div style={{background:`linear-gradient(135deg, ${T.gold}1a, ${T.bg1})`,borderRadius:14,padding:14,border:"0.5px solid "+T.gold+"44"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <span style={{fontSize:15}}>⭐</span>
+        <span style={{fontFamily:T.fontDisplay,fontSize:14,fontWeight:800,color:T.text}}>Maçın Adamı</span>
+        <span style={{marginLeft:"auto",fontSize:10,color:T.textMut}}>{toplam} oy</span>
+      </div>
+
+      {yuk ? <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:10}}>Yükleniyor…</div> : <>
+        {/* MVP kartı */}
+        {mvp && <div style={{display:"flex",alignItems:"center",gap:11,background:T.gold+"14",borderRadius:11,padding:10,marginBottom:10}}>
+          <div style={{width:42,height:42,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.gold,flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(mvp.ad,42)}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:9,color:T.gold,fontWeight:800,letterSpacing:.5}}>🏆 ÖNDE</div>
+            <div style={{fontSize:14,fontWeight:800,color:T.text}}>{mvp.ad}</div>
+            <div style={{fontSize:10,color:T.textMut}}>{otomatik?"otomatik (yeterli oy yok) · istatistik lideri":mvpOy+" oy"}</div>
+          </div>
+        </div>}
+
+        {/* oy verme */}
+        {oyVerebilir ? <>
+          <div style={{fontSize:10,color:T.textMut,fontWeight:700,margin:"2px 0 7px"}}>{benimOyum?"OYUNU DEĞİŞTİREBİLİRSİN":"KİMİ SEÇİYORSUN?"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+            {kadro.map(o=>{ const ben=o.id===benId; const secili=benimOyum===o.id;
+              return <div key={o.id} onClick={()=>!ben&&oyla(o)} className={ben?"":"tap"} style={{display:"flex",alignItems:"center",gap:7,background:secili?T.accent+"22":T.bg0,border:"1px solid "+(secili?T.accent:T.line),borderRadius:9,padding:"7px 8px",opacity:ben?.4:1,cursor:ben?"default":"pointer"}}>
+                <div style={{width:24,height:24,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,24)}}/>
+                <span style={{fontSize:11,color:T.text,flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ben?"Sen":o.ad.split(" ")[0]} {ben?"":( sayim[o.id]?"· "+sayim[o.id]:"")}</span>
+                {secili && <span style={{fontSize:11,color:T.accent}}>✓</span>}
+              </div>;
+            })}
+          </div>
+          {mesaj && <div style={{fontSize:11,color:/kaydedildi|✓/.test(mesaj)?T.accent:T.danger,textAlign:"center",marginTop:9}}>{mesaj}</div>}
+          <div style={{fontSize:9,color:T.textMut,textAlign:"center",marginTop:9,lineHeight:1.5}}>🔒 1 kişi 1 oy · kendine veremezsin · yönetici düzeltebilir</div>
+        </> : <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:"4px 0",lineHeight:1.6}}>
+          {!oturum ? "Oy vermek için giriş yap." : !sahiplenme ? "Oy vermek için bu maçtaki oyuncunu sahiplen (oyuncu sayfası → ⭐ bu oyuncu benim)." : !kadromda ? "Bu maçta oynamadığın için sadece sonucu görebilirsin." : "Sonuç görünüyor."}
+        </div>}
+      </>}
+    </div>
+  </div>;
+}
+
+function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme}){
   const kadroVar = m.kadroA || m.kadroB;
   const goller = m.olaylar.filter(o=>o.tip==="gol");
   const aGol=m.skorA, bGol=m.skorB;
@@ -4503,6 +4617,14 @@ function MacSayfa({mac:m, turnuva, T, git}){
   const takimA = turnuva && (turnuva.takimlar.find(t=>t.id===m.takimAId)||turnuva.takimlar.find(t=>t.ad===m.takimA));
   const takimB = turnuva && (turnuva.takimlar.find(t=>t.id===m.takimBId)||turnuva.takimlar.find(t=>t.ad===m.takimB));
   const ilk11 = (kadro,takim)=>{ if(!kadro||!takim) return []; return kadro.yerlesim.filter(x=>x!=null).map(id=>takim.oyuncular.find(o=>o.id===id)).filter(Boolean); };
+  // MVP oylaması için maç kadrosu (dizilişte varsa ilk11, yoksa takım kadrosu)
+  const oylamaKadro = useMemo(()=>{
+    let arr=[];
+    if(m.kadroA && takimA) arr=arr.concat(ilk11(m.kadroA,takimA)); else if(takimA) arr=arr.concat(takimA.oyuncular||[]);
+    if(m.kadroB && takimB) arr=arr.concat(ilk11(m.kadroB,takimB)); else if(takimB) arr=arr.concat(takimB.oyuncular||[]);
+    // benzersiz
+    const gor={}; return arr.filter(o=>o&&!gor[o.id]&&(gor[o.id]=1));
+  },[m.id]);
 
   // --- sekme ---
   const [macTab,setMacTab]=useState("ozet");
@@ -4668,6 +4790,9 @@ function MacSayfa({mac:m, turnuva, T, git}){
           <div style={{flex:1}}><div style={{fontSize:10,color:T.gold,fontWeight:700,letterSpacing:.5}}>MAÇIN YILDIZI</div><div style={{fontSize:15,fontWeight:700,color:T.text}}>{m.mvp}</div><div style={{fontSize:11,color:T.textMut}}>{m.mvpTakim}</div></div>
         </div>
       </div>}
+
+      {/* MVP OYLAMASI (maç oynandıysa) */}
+      {oynandi && oylamaKadro.length>0 && <MvpOylama m={m} turnuva={turnuva} kadro={oylamaKadro} T={T} oturum={oturum} sahiplenme={sahiplenme}/>}
 
       {/* GOL DAKİKALARI */}
       {goller.length>0 && <div style={{padding:"10px 14px 0"}}>
@@ -8118,7 +8243,7 @@ function App(){
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} saltOkunur={saltOkunur}/>; break;
-      case "mac": icerik=<MacSayfa mac={nav.mac} turnuva={nav.turnuva} T={T} git={git}/>; break;
+      case "mac": icerik=<MacSayfa mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} oturum={oturum} sahiplenme={sahiplenme}/>; break;
       case "skorgir": icerik=<SkorGir mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} skorKaydet={skorKaydet}/>; break;
       case "gazete": icerik=<MacGazete mac={nav.mac} turnuva={nav.turnuva} T={T} git={git}/>; break;
       case "afis": icerik=<MacAfis mac={nav.mac} turnuva={nav.turnuva} T={T} git={git}/>; break;
