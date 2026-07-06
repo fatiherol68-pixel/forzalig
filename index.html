@@ -937,6 +937,244 @@ function uretVeri(turnuvaSayisi = 5, takimPerTurnuva = 9, oyuncuPerTakim = 12) {
   }
   return turnuvalar;
 }
+function demoKupa() {
+  let oid = 900000,
+    tid = 90000,
+    mid = 900000;
+  const takimSayisi = 8,
+    oyuncuSay = 10;
+  const takimlar = [];
+  const kupaTakimAd = ["Kartal Yıldızları", "Anadolu Fırtınası", "Boğaziçi FK", "Marmara Kartalları", "Efe Gücü", "Şahin Spor", "Yıldırım United", "Toros Kaplanları"];
+  for (let k = 0; k < takimSayisi; k++) {
+    const renk = RENKLER[k % RENKLER.length];
+    const oyuncular = [];
+    for (let o = 0; o < oyuncuSay; o++) {
+      const ovr = 60 + rnd(38),
+        yas = 18 + rnd(20);
+      oyuncular.push({
+        id: oid++,
+        ad: pick(ADLAR) + " " + pick(SOYADLAR),
+        poz: pick(POZISYONLAR),
+        no: o + 1,
+        ovr,
+        pac: 55 + rnd(45),
+        sho: 55 + rnd(45),
+        pas: 55 + rnd(45),
+        dri: 55 + rnd(45),
+        def: 55 + rnd(45),
+        phy: 55 + rnd(45),
+        renk,
+        yas,
+        boy: 168 + rnd(26),
+        kilo: 62 + rnd(26),
+        ayak: pick(["Sağ", "Sağ", "Sol", "Çift"]),
+        dogum: `${String(1 + rnd(28)).padStart(2, "0")}.${String(1 + rnd(12)).padStart(2, "0")}.${2026 - yas}`,
+        saglik: Math.random() > 0.85 ? "Sakat" : "Sağlam",
+        deger: Math.round(ovr * ovr * ovr / 180) / 10,
+        lisNo: lisansUret("oyuncu"),
+        gol: 0,
+        asist: 0,
+        mac: 0,
+        kurtaris: 0,
+        sari: 0,
+        kirmizi: 0,
+        mvp: 0,
+        altin: 0,
+        gumus: 0,
+        forvet: 0,
+        ortasaha: 0,
+        defans: 0,
+        kaleci: 0,
+        centilmen: 0,
+        enerjik: 0,
+        macinGolu: 0,
+        formaRenk: renk
+      });
+    }
+    takimlar.push({
+      id: tid++,
+      ad: kupaTakimAd[k] || "Takım " + (k + 1),
+      renk,
+      oyuncular,
+      o: 0,
+      g: 0,
+      b: 0,
+      m: 0,
+      ag: 0,
+      yg: 0,
+      puan: 0,
+      form: [],
+      lisNo: lisansUret("takim")
+    });
+  }
+  const turnuva = {
+    id: 990001,
+    ad: "⭐ Şampiyonlar Kupası (Demo)",
+    renk: "#E5B84B",
+    takimlar,
+    maclar: [],
+    format: "kupa",
+    grupSayi: 0,
+    sehir: "İstanbul",
+    ilce: "Kartal",
+    kisi: 8,
+    sponsorAd: "Kartal Halı Saha",
+    sponsorEmoji: "🏟️"
+  };
+  const oynat = m => {
+    if (m.bye) return;
+    const A = takimlar.find(t => t.id === m.takimAId),
+      B = takimlar.find(t => t.id === m.takimBId);
+    if (!A || !B) return;
+    let sA = rnd(5),
+      sB = rnd(5);
+    if (sA === sB) {
+      if (Math.random() > 0.5) sA++;else sB++;
+    }
+    const olaylar = [];
+    const golciler = (tk, adet) => {
+      for (let g = 0; g < adet; g++) {
+        const sc = pick(tk.oyuncular.filter(p => p.poz !== "Kaleci")) || tk.oyuncular[0];
+        sc.gol++;
+        const as = pick(tk.oyuncular.filter(p => p.id !== sc.id));
+        const asistVar = Math.random() > 0.4;
+        if (asistVar && as) as.asist++;
+        olaylar.push({
+          oyuncu: sc.ad,
+          takim: tk.ad,
+          tip: "gol",
+          asist: asistVar && as ? as.ad : null,
+          dk: 1 + rnd(59)
+        });
+      }
+    };
+    golciler(A, sA);
+    golciler(B, sB);
+    [A, B].forEach(tk => {
+      if (Math.random() > 0.55) {
+        const p = pick(tk.oyuncular);
+        p.sari++;
+        olaylar.push({
+          oyuncu: p.ad,
+          takim: tk.ad,
+          tip: "sari",
+          dk: 5 + rnd(55)
+        });
+      }
+      if (Math.random() > 0.85) {
+        const p = pick(tk.oyuncular);
+        p.kirmizi++;
+        olaylar.push({
+          oyuncu: p.ad,
+          takim: tk.ad,
+          tip: "kirmizi",
+          dk: 20 + rnd(40)
+        });
+      }
+    });
+    [A, B].forEach(tk => {
+      const k = tk.oyuncular.find(p => p.poz === "Kaleci");
+      if (k) k.kurtaris += rnd(6);
+    });
+    const mvpTk = sA > sB ? A : B;
+    const mvpAday = mvpTk.oyuncular.filter(p => p.gol > 0).length ? mvpTk.oyuncular.filter(p => p.gol > 0) : mvpTk.oyuncular;
+    const mvpO = pickWeighted(mvpAday, p => p.gol * 3 + p.asist * 2 + p.ovr / 40);
+    if (mvpO) mvpO.mvp++;
+    const tumO = [...A.oyuncular, ...B.oyuncular];
+    const forv = tumO.filter(p => p.poz === "Forvet"),
+      orta = tumO.filter(p => p.poz === "OrtaSaha"),
+      def = tumO.filter(p => p.poz === "Defans"),
+      kal = tumO.filter(p => p.poz === "Kaleci");
+    const od = {};
+    od.mvp = mvpO ? mvpO.ad : null;
+    {
+      const o = pickWeighted(forv.length ? forv : tumO, p => p.gol + p.sho / 20);
+      if (o) {
+        o.forvet++;
+        od.forvet = o.ad;
+      }
+    }
+    {
+      const o = pickWeighted(orta.length ? orta : tumO, p => p.asist + p.pas / 20);
+      if (o) {
+        o.ortasaha++;
+        od.ortasaha = o.ad;
+      }
+    }
+    {
+      const o = pickWeighted(def.length ? def : tumO, p => p.def / 15);
+      if (o) {
+        o.defans++;
+        od.defans = o.ad;
+      }
+    }
+    {
+      const o = pickWeighted(kal.length ? kal : tumO, p => p.kurtaris + p.def / 20);
+      if (o) {
+        o.kaleci++;
+        od.kaleci = o.ad;
+      }
+    }
+    {
+      const o = pickWeighted(tumO, p => (p.ovr - 50) / 12);
+      if (o) {
+        o.altin++;
+        od.altin = o.ad;
+      }
+    }
+    {
+      const o = pickWeighted(tumO, p => (p.ovr - 50) / 15);
+      if (o) {
+        o.gumus++;
+        od.gumus = o.ad;
+      }
+    }
+    {
+      const o = pickWeighted(tumO, p => p.gol + p.sho / 25);
+      if (o) {
+        o.macinGolu++;
+        od.macinGolu = o.ad;
+      }
+    }
+    {
+      const o = pick(tumO);
+      o.enerjik++;
+      od.enerjik = o.ad;
+    }
+    {
+      const o = pick(tumO);
+      o.centilmen++;
+      od.centilmen = o.ad;
+    }
+    A.oyuncular.forEach(p => p.mac++);
+    B.oyuncular.forEach(p => p.mac++);
+    m.skorA = sA;
+    m.skorB = sB;
+    m.olaylar = olaylar;
+    m.mvp = mvpO ? mvpO.ad : null;
+    m.mvpTakim = mvpTk.ad;
+    m.oduller = od;
+    m.istatistik = istatistikUret(sA, sB);
+    m.oynandi = true;
+    m.sure = 60;
+    try {
+      m.ratingler = ratingHesapla(m, A, B);
+    } catch (e) {}
+  };
+  turnuva.maclar = kupaFikstur(turnuva);
+  turnuva.maclar.forEach(oynat);
+  let guard = 0;
+  while (guard++ < 12) {
+    const r = kupaSonrakiTur(turnuva);
+    if (r.hata || r.bitti) break;
+    const sonTur = Math.max(...turnuva.maclar.map(x => x.tur || 1));
+    turnuva.maclar.filter(x => (x.tur || 1) === sonTur).forEach(oynat);
+  }
+  try {
+    turnuvaHesapla(turnuva);
+  } catch (e) {}
+  return turnuva;
+}
 function yeniId(turnuvalar, tip) {
   let max = 0;
   turnuvalar.forEach(t => {
@@ -27428,6 +27666,16 @@ function App() {
     setTurnuvalar(p => [...p]);
   }, []);
   useEffect(() => {
+    if (saltOkunur) return;
+    setTurnuvalar(p => p.some(t => t.id === 990001) ? p : (() => {
+      try {
+        return [demoKupa(), ...p];
+      } catch (e) {
+        return p;
+      }
+    })());
+  }, []);
+  useEffect(() => {
     if (!PAYLASIM_SLUG) return;
     let aktif = true;
     (async () => {
@@ -27494,7 +27742,13 @@ function App() {
       const v = await Bulut.yukle(oturum.id);
       if (!aktif) return;
       if (v && Array.isArray(v.turnuvalar)) {
-        setTurnuvalar(v.turnuvalar);
+        let gelen = v.turnuvalar;
+        if (!gelen.some(t => t.id === 990001)) {
+          try {
+            gelen = [demoKupa(), ...gelen];
+          } catch (e) {}
+        }
+        setTurnuvalar(gelen);
         if (v.temaKey) setTemaKey(v.temaKey);
         if (Array.isArray(v.takipLig)) setTakipLig(v.takipLig);
         if (Array.isArray(v.takipOyuncu)) setTakipOyuncu(v.takipOyuncu);
