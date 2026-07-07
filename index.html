@@ -1667,6 +1667,38 @@ const Db = {
       return null;
     }
   },
+  async testVerisiSil(yoneticiId) {
+    if (!sb) return {
+      hata: "bağlantı yok"
+    };
+    try {
+      const {
+        data
+      } = await sb.from('ligler').select('id').eq('yonetici_id', yoneticiId);
+      for (const l of data || []) {
+        await sb.from('ligler').delete().eq('id', l.id);
+      }
+      const [{
+        data: oy
+      }, {
+        data: ot
+      }] = await Promise.all([sb.from('oyuncular').select('player_id'), sb.from('oyuncu_takim').select('player_id')]);
+      const aktif = new Set((ot || []).map(x => x.player_id));
+      const oksuz = (oy || []).filter(o => !aktif.has(o.player_id)).map(o => o.player_id);
+      for (let i = 0; i < oksuz.length; i += 100) {
+        await sb.from('oyuncular').delete().in('player_id', oksuz.slice(i, i + 100));
+      }
+      return {
+        ok: true,
+        lig: (data || []).length,
+        oyuncu: oksuz.length
+      };
+    } catch (e) {
+      return {
+        hata: String(e && e.message || e)
+      };
+    }
+  },
   async liglerYukle(yoneticiId, hepsi) {
     if (!sb) return [];
     try {
@@ -29244,6 +29276,15 @@ function AdminPanel({
     setStresYuk(false);
     setStresLog("✅ " + n + " lig yüklendi. Ana sayfada görebilirsin.");
   };
+  const testTemizleFn = async () => {
+    if (!oturum || !oturum.id) return;
+    if (!confirm("İlişkisel veritabanındaki TÜM test liglerini (ve öksüz oyuncuları) silmek istediğine emin misin? Bu geri alınamaz.")) return;
+    setStresYuk(true);
+    setStresLog("Test verisi siliniyor…");
+    const r = await Db.testVerisiSil(oturum.id);
+    setStresYuk(false);
+    if (r.ok) setStresLog("🗑️ Silindi: " + r.lig + " lig, " + r.oyuncu + " oyuncu. Artık yeniden üretebilirsin.");else setStresLog("❌ " + (r.hata || "silinemedi"));
+  };
   const hakVerFn = async () => {
     const e = (hakMail || "").trim().toLowerCase();
     const say = Math.max(0, parseInt(hakSayi) || 0);
@@ -30000,7 +30041,22 @@ function AdminPanel({
       fontSize: 12.5,
       fontWeight: 800
     }
-  }, "⬇️ İlişkiselden Yükle")), stresLog && React.createElement("div", {
+  }, "⬇️ İlişkiselden Yükle")), React.createElement("button", {
+    onClick: testTemizleFn,
+    disabled: stresYuk,
+    className: "tap",
+    style: {
+      width: "100%",
+      marginTop: 8,
+      background: "none",
+      color: T.danger,
+      border: "0.5px solid " + T.danger + "44",
+      borderRadius: 10,
+      padding: "9px",
+      fontSize: 11.5,
+      fontWeight: 700
+    }
+  }, "🗑️ İlişkisel test verisini temizle (yeniden üretmek için)"), stresLog && React.createElement("div", {
     style: {
       fontSize: 11,
       color: T.text,
