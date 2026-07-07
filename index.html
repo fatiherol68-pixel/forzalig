@@ -162,7 +162,7 @@ const { useState, useEffect, useMemo, useRef } = React;
 const SB_URL = "https://crkestykdsnmfcmamxav.supabase.co";
 const SB_ANAHTAR = "sb_publishable_sjfSVp0CmfnB4g8GecB0eA_BCHZheFB";
 const IZINLI_MAILLER = ["fatiherol68@gmail.com"]; // test: sadece bunlar
-const HERKESE_ACIK = false; // true → herkes üye olup girebilir
+const HERKESE_ACIK = true; // 🌍 YAYINDA — herkes üye olup girebilir
 let sb = null;
 try { if (typeof supabase !== "undefined" && supabase.createClient) sb = supabase.createClient(SB_URL, SB_ANAHTAR); }
 catch(e){ console.warn("Supabase başlatılamadı:", e); }
