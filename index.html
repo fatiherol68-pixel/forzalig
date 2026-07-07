@@ -303,6 +303,81 @@ const Admin = {
   async yetkiEkle(email, tip){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('yetkiler').upsert({email:(email||"").trim().toLowerCase(), tip:tip||"onayli", created:new Date().toISOString()},{onConflict:'email'}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async yetkiSil(email){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('yetkiler').delete().eq('email',email); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
 };
+/* ============================================================
+   FAZ 14 (İLİŞKİSEL) — Db: yeni tablolarla konuşan veri katmanı
+   supabase/01_sema.sql ... 04_ilk_admin.sql çalıştırılınca aktif olur.
+   Tüm yetki SUNUCUDA (RLS) kontrol edilir; burası sadece çağırır.
+   ============================================================ */
+const Db = {
+  hazir(){ return !!sb; },
+  // ---- Admin & Yetki ----
+  async adminMi(userId){
+    if(!sb||!userId) return false;
+    try{ const {data}=await sb.from('adminler').select('user_id').eq('user_id',userId).maybeSingle(); return !!data; }
+    catch(e){ return false; }
+  },
+  async adminListe(){ if(!sb) return []; try{ const {data}=await sb.from('adminler').select('user_id,eklenme'); return data||[]; }catch(e){ return []; } },
+  // ---- Lig hakları (K3/K4) ----
+  async hakGetir(userId){
+    if(!sb||!userId) return {toplam:0,kullanilan:0,kalan:0};
+    try{ const {data}=await sb.from('lig_haklari').select('toplam,kullanilan').eq('user_id',userId).maybeSingle();
+      const t=data?data.toplam:0, k=data?data.kullanilan:0; return {toplam:t,kullanilan:k,kalan:Math.max(0,t-k)}; }
+    catch(e){ return {toplam:0,kullanilan:0,kalan:0}; }
+  },
+  async haklariListe(){ if(!sb) return []; try{ const {data}=await sb.from('lig_haklari').select('*').order('guncelleme',{ascending:false}); return data||[]; }catch(e){ return []; } },
+  async hakVer(userId, toplam, not_){ // sadece admin (RLS korur)
+    if(!sb) return {hata:"bağlantı yok"};
+    try{ const {error}=await sb.from('lig_haklari').upsert({user_id:userId, toplam, not_:not_||null, guncelleme:new Date().toISOString()},{onConflict:'user_id'});
+      return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; }
+  },
+  // ---- Ligler ----
+  async ligOlustur(userId, lig){ // {ad,ulke,sehir,logo,puan_sistemi,averaj_tipi,fikstur_tipi,hedef_takim,bitis_tarihi}
+    if(!sb) return {hata:"bağlantı yok"};
+    try{ const {data,error}=await sb.from('ligler').insert({yonetici_id:userId, ...lig}).select('id').single();
+      return error?{hata:error.message}:{ok:true, id:data.id}; }catch(e){ return {hata:String(e)}; }
+  },
+  async ligGuncelle(id, alanlar){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('ligler').update(alanlar).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async ligSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('ligler').delete().eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async ligArsivle(id, arsiv){ return this.ligGuncelle(id, {durum: arsiv?'arsiv':'aktif'}); },
+  async ligGetir(id){ if(!sb) return null; try{ const {data}=await sb.from('ligler').select('*').eq('id',id).maybeSingle(); return data||null; }catch(e){ return null; } },
+  async liglerim(userId){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('*').eq('yonetici_id',userId).order('olusturma',{ascending:false}); return data||[]; }catch(e){ return []; } },
+  async ligKesfet(ulke){ if(!sb) return []; try{ let q=sb.from('ligler').select('id,ad,ulke,sehir,logo,durum,olusturma').eq('durum','aktif').order('olusturma',{ascending:false}).limit(200); if(ulke) q=q.eq('ulke',ulke); const {data}=await q; return data||[]; }catch(e){ return []; } },
+  // ---- Takımlar ----
+  async takimEkle(ligId, ad){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('takimlar').insert({lig_id:ligId, ad}).select('id').single(); return error?{hata:error.message}:{ok:true,id:data.id}; }catch(e){ return {hata:String(e)}; } },
+  async takimGuncelle(id, alanlar){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('takimlar').update(alanlar).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async takimSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('takimlar').delete().eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async takimlar(ligId){ if(!sb) return []; try{ const {data}=await sb.from('takimlar').select('*').eq('lig_id',ligId).order('olusturma'); return data||[]; }catch(e){ return []; } },
+  // ---- Oyuncular (hassas tablo) + açık görünüm ----
+  async oyuncuOlustur(o){ // {ad_soyad,takma_ad,forma_no,dogum,ayak,boy,kilo,telefon,email,tc_pasaport,uyruk,sahip_user_id}
+    if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('oyuncular').insert(o).select('player_id').single(); return error?{hata:error.message}:{ok:true, player_id:data.player_id}; }catch(e){ return {hata:String(e)}; }
+  },
+  async oyuncuGuncelle(pid, alanlar){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('oyuncular').update(alanlar).eq('player_id',pid); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async oyuncuSahiplen(pid, userId){ return this.oyuncuGuncelle(pid, {sahip_user_id:userId}); },
+  async oyunculariAcik(pidler){ // KVKK açık görünüm (yaş, ad, forma, boy, ayak) — ziyaretçi de görür
+    if(!sb) return []; try{ let q=sb.from('oyuncular_acik').select('*'); if(pidler&&pidler.length) q=q.in('player_id',pidler); const {data}=await q; return data||[]; }catch(e){ return []; }
+  },
+  // ---- Oyuncu ↔ Takım (kadro) ----
+  async kadroEkle(pid, takimId, ligId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('oyuncu_takim').insert({player_id:pid, takim_id:takimId, lig_id:ligId, aktif:true}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async kadro(takimId){ if(!sb) return []; try{ const {data}=await sb.from('oyuncu_takim').select('*').eq('takim_id',takimId).eq('aktif',true); return data||[]; }catch(e){ return []; } },
+  async kadrodanCikar(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('oyuncu_takim').update({aktif:false, ayrilma:new Date().toISOString()}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  // ---- Transfer (madde 13: 3 adımlı zincir) ----
+  async transferTalep(pid, ligId, eskiTakim, yeniTakim, talepEden){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('transferler').insert({player_id:pid, lig_id:ligId, eski_takim_id:eskiTakim||null, yeni_takim_id:yeniTakim, talep_eden:talepEden, asama:'talep'}).select('id').single(); return error?{hata:error.message}:{ok:true,id:data.id}; }catch(e){ return {hata:String(e)}; } },
+  async transferOyuncuKabul(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('transferler').update({asama:'oyuncu_kabul', oyuncu_kabul_t:new Date().toISOString()}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async transferYoneticiOnay(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('transferler').update({asama:'tamam', yonetici_onay_t:new Date().toISOString()}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async transferIptal(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('transferler').update({asama:'iptal'}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async transferler(ligId){ if(!sb) return []; try{ const {data}=await sb.from('transferler').select('*').eq('lig_id',ligId).order('talep_tarihi',{ascending:false}); return data||[]; }catch(e){ return []; } },
+  // ---- Maçlar + sonuç (madde 17/18: log otomatik) ----
+  async macOlustur(m){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('maclar').insert(m).select('id').single(); return error?{hata:error.message}:{ok:true,id:data.id}; }catch(e){ return {hata:String(e)}; } },
+  async macSonuc(id, evSkor, depSkor){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('maclar').update({ev_skor:evSkor, dep_skor:depSkor, oynandi:true}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async maclar(ligId){ if(!sb) return []; try{ const {data}=await sb.from('maclar').select('*').eq('lig_id',ligId).order('hafta',{nullsFirst:true}); return data||[]; }catch(e){ return []; } },
+  async macLog(macId){ if(!sb) return []; try{ const {data}=await sb.from('mac_sonuc_log').select('*').eq('mac_id',macId).order('zaman',{ascending:false}); return data||[]; }catch(e){ return []; } },
+  // ---- Olaylar (gol/asist/kart) ----
+  async olayEkle(macId, pid, takimId, tip, dakika){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('mac_olaylari').insert({mac_id:macId, player_id:pid, takim_id:takimId||null, tip, dakika:dakika||null}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async macOlaylari(macId){ if(!sb) return []; try{ const {data}=await sb.from('mac_olaylari').select('*').eq('mac_id',macId); return data||[]; }catch(e){ return []; } },
+  // ---- Katılım (madde 20) ----
+  async katilimIsaretle(macId, pid, durum){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('katilim').upsert({mac_id:macId, player_id:pid, durum, guncelleme:new Date().toISOString()},{onConflict:'mac_id,player_id'}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async katilim(macId){ if(!sb) return []; try{ const {data}=await sb.from('katilim').select('*').eq('mac_id',macId); return data||[]; }catch(e){ return []; } },
+};
 /* Supabase hata mesajlarını Türkçeye çevir */
 const authHata = (m)=>{ m=(m||"").toLowerCase();
   if(m.includes("invalid login")) return "E-posta veya şifre hatalı.";
