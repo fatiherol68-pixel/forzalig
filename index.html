@@ -14825,7 +14825,7 @@ function LisansKarti({
     v: (o.ad || "").toLocaleUpperCase("tr")
   }), (o.yas || o.dogum) && React.createElement(Sat, {
     k: "YAŞ",
-    v: (o.yas || yasHesap(o.dogum) || "—") + " yaş"
+    v: String(o.yas || yasHesap(o.dogum) || "—")
   }), React.createElement(Sat, {
     k: "MEVKİ",
     v: pozGoster(o.poz) + (o.no ? " · No " + o.no : "")
@@ -16433,7 +16433,7 @@ function OyuncuSayfa({
       fontWeight: 700,
       marginBottom: 10
     }
-  }, "📋 POZİSYON & DURUM"), [["Mevki", o.poz], ["Kullandığı Ayak", o.ayak || "—"], ["Oynadığı Bölge", o.bolge], ["Yaş", (o.yas || yasHesap(o.dogum) || "—") + " yaş"], ["Sağlık", o.saglik === "Sağlam" ? "💚 Sağlam" : "🤕 Sakat"], ["Forma No", "#" + o.no], ["Lisans No", o.lisNo || "—"]].map(([k, v], i, arr) => React.createElement("div", {
+  }, "📋 POZİSYON & DURUM"), [["Mevki", o.poz], ["Kullandığı Ayak", o.ayak || "—"], ["Oynadığı Bölge", o.bolge], ["Yaş", String(o.yas || yasHesap(o.dogum) || "—")], ["Sağlık", o.saglik === "Sağlam" ? "💚 Sağlam" : "🤕 Sakat"], ["Forma No", "#" + o.no], ["Lisans No", o.lisNo || "—"]].map(([k, v], i, arr) => React.createElement("div", {
     key: k,
     style: {
       display: "flex",
