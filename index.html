@@ -502,6 +502,20 @@ const Db = {
         sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, iliskisel:true };
     }catch(e){ console.warn('ligYukle',e); return null; }
   },
+  // Test verisini temizle: kullanıcının tüm ligleri + öksüz oyuncular (admin)
+  async testVerisiSil(yoneticiId){
+    if(!sb) return {hata:"bağlantı yok"};
+    try{
+      const {data}=await sb.from('ligler').select('id').eq('yonetici_id',yoneticiId);
+      for(const l of (data||[])){ await sb.from('ligler').delete().eq('id',l.id); }
+      // üyeliği kalmayan (öksüz) oyuncuları sil
+      const [{data:oy},{data:ot}]=await Promise.all([ sb.from('oyuncular').select('player_id'), sb.from('oyuncu_takim').select('player_id') ]);
+      const aktif=new Set((ot||[]).map(x=>x.player_id));
+      const oksuz=(oy||[]).filter(o=>!aktif.has(o.player_id)).map(o=>o.player_id);
+      for(let i=0;i<oksuz.length;i+=100){ await sb.from('oyuncular').delete().in('player_id',oksuz.slice(i,i+100)); }
+      return {ok:true, lig:(data||[]).length, oyuncu:oksuz.length};
+    }catch(e){ return {hata:String(e&&e.message||e)}; }
+  },
   // Bir yöneticinin (veya admin ise herkesin) tüm liglerini turnuva dizisi olarak yükle
   async liglerYukle(yoneticiId, hepsi){
     if(!sb) return [];
@@ -8444,6 +8458,15 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
     const n=await onIliskiselYukle();
     setStresYuk(false); setStresLog("✅ "+n+" lig yüklendi. Ana sayfada görebilirsin.");
   };
+  const testTemizleFn=async()=>{
+    if(!oturum||!oturum.id) return;
+    if(!confirm("İlişkisel veritabanındaki TÜM test liglerini (ve öksüz oyuncuları) silmek istediğine emin misin? Bu geri alınamaz.")) return;
+    setStresYuk(true); setStresLog("Test verisi siliniyor…");
+    const r=await Db.testVerisiSil(oturum.id);
+    setStresYuk(false);
+    if(r.ok) setStresLog("🗑️ Silindi: "+r.lig+" lig, "+r.oyuncu+" oyuncu. Artık yeniden üretebilirsin.");
+    else setStresLog("❌ "+(r.hata||"silinemedi"));
+  };
   // K3/K4 — lig hakkı ver (e-postadan bul → hak ata)
   const hakVerFn=async()=>{
     const e=(hakMail||"").trim().toLowerCase(); const say=Math.max(0,parseInt(hakSayi)||0);
@@ -8593,6 +8616,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
             <button onClick={stresTestOlustur} disabled={stresYuk} className="tap" style={{flex:1,minWidth:130,background:stresYuk?T.line:T.accent2,color:stresYuk?T.textMut:"#04070C",border:0,borderRadius:10,padding:"11px",fontSize:12.5,fontWeight:800}}>{stresYuk?"⏳ Çalışıyor…":"🧪 Stres Testi Üret + Kaydet"}</button>
             <button onClick={iliskiselYukleFn} disabled={stresYuk} className="tap" style={{flex:1,minWidth:130,background:T.gold+"22",color:T.gold,border:"0.5px solid "+T.gold+"55",borderRadius:10,padding:"11px",fontSize:12.5,fontWeight:800}}>⬇️ İlişkiselden Yükle</button>
           </div>
+          <button onClick={testTemizleFn} disabled={stresYuk} className="tap" style={{width:"100%",marginTop:8,background:"none",color:T.danger,border:"0.5px solid "+T.danger+"44",borderRadius:10,padding:"9px",fontSize:11.5,fontWeight:700}}>🗑️ İlişkisel test verisini temizle (yeniden üretmek için)</button>
           {stresLog && <div style={{fontSize:11,color:T.text,marginTop:9,background:T.bg0,borderRadius:8,padding:"8px 10px",lineHeight:1.5}}>{stresLog}</div>}
         </div>
         <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14,marginBottom:10}}>
