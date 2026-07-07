@@ -8429,9 +8429,13 @@ function TurnuvaSayfa({
   };
   const grupFiltrele = liste => kralGrup < 0 ? liste : liste.filter(o => oyuncuGrubu(o) === kralGrup);
   const [onbirTip, setOnbirTip] = useState("altin");
-  const golK = Motor.turnuvaGolKrallari(turnuva, 5);
-  const asistK = Motor.turnuvaAsist(turnuva, 5);
-  const kurtarisK = Motor.turnuvaKurtaris(turnuva, 5);
+  const kralTurnuva = gruplu && kralGrup >= 0 ? {
+    ...turnuva,
+    takimlar: turnuva.takimlar.filter(t => (t.grup || 0) === kralGrup)
+  } : turnuva;
+  const golK = Motor.turnuvaGolKrallari(kralTurnuva, 5);
+  const asistK = Motor.turnuvaAsist(kralTurnuva, 5);
+  const kurtarisK = Motor.turnuvaKurtaris(kralTurnuva, 5);
   const takipte = takipLig && takipLig.includes(turnuva.id);
   const oynanan = turnuva.maclar.filter(m => m.oynandi).length;
   const toplamMac = turnuva.maclar.length;
@@ -9070,28 +9074,28 @@ function TurnuvaSayfa({
       border: "0.5px solid " + T.line
     }
   }, l))), kralTab === "gol" && React.createElement(KralListe, {
-    liste: grupFiltrele(golK),
+    liste: golK,
     alan: "gol",
     birim: "gol",
     T: T,
     git: git,
-    turnuva: turnuva
+    turnuva: kralTurnuva
   }), kralTab === "asist" && React.createElement(KralListe, {
-    liste: grupFiltrele(asistK),
+    liste: asistK,
     alan: "asist",
     birim: "asist",
     T: T,
     git: git,
-    turnuva: turnuva
+    turnuva: kralTurnuva
   }), kralTab === "kurtaris" && React.createElement(KralListe, {
-    liste: grupFiltrele(kurtarisK),
+    liste: kurtarisK,
     alan: "kurtaris",
     birim: "kurtarış",
     T: T,
     git: git,
-    turnuva: turnuva
+    turnuva: kralTurnuva
   }), kralTab === "odul" && React.createElement("div", null, ODULLER.map(([alan, ad]) => {
-    const lider = Motor.turnuvaOdulKrali(turnuva, alan, 1)[0];
+    const lider = Motor.turnuvaOdulKrali(kralTurnuva, alan, 1)[0];
     return lider ? React.createElement("div", {
       key: alan,
       onClick: () => git({
@@ -9141,7 +9145,7 @@ function TurnuvaSayfa({
         flexShrink: 0
       }
     }, lider[alan])) : null;
-  }), ODULLER.every(([alan]) => !Motor.turnuvaOdulKrali(turnuva, alan, 1)[0]) && React.createElement(BosUyari, {
+  }), ODULLER.every(([alan]) => !Motor.turnuvaOdulKrali(kralTurnuva, alan, 1)[0]) && React.createElement(BosUyari, {
     T: T,
     metin: "Henüz ödül verilmedi. Maçlarda ödül seçtikçe burada görünür."
   }))), tab === "enler" && React.createElement("div", {
