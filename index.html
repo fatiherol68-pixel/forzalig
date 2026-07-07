@@ -2778,9 +2778,11 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   const oyuncuGrubu=(oy)=>{ const tk=turnuva.takimlar.find(t=>t.oyuncular.some(p=>p.id===oy.id)); return tk?(tk.grup||0):-1; };
   const grupFiltrele=(liste)=> kralGrup<0 ? liste : liste.filter(o=>oyuncuGrubu(o)===kralGrup);
   const [onbirTip,setOnbirTip]=useState("altin");
-  const golK=Motor.turnuvaGolKrallari(turnuva,5);
-  const asistK=Motor.turnuvaAsist(turnuva,5);
-  const kurtarisK=Motor.turnuvaKurtaris(turnuva,5);
+  // Krallar/ödül grup filtresi: grup seçiliyse SADECE o grubun takımlarından hesapla
+  const kralTurnuva = (gruplu && kralGrup>=0) ? {...turnuva, takimlar: turnuva.takimlar.filter(t=>(t.grup||0)===kralGrup)} : turnuva;
+  const golK=Motor.turnuvaGolKrallari(kralTurnuva,5);
+  const asistK=Motor.turnuvaAsist(kralTurnuva,5);
+  const kurtarisK=Motor.turnuvaKurtaris(kralTurnuva,5);
   const takipte = takipLig && takipLig.includes(turnuva.id);
 
   // durum hesabı
@@ -2932,19 +2934,19 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
           <button key={k} onClick={()=>setKralTab(k)} className="tap" style={{flex:1,padding:"7px 2px",borderRadius:8,fontSize:11,fontWeight:700,background:kralTab===k?T.accent:T.bg1,color:kralTab===k?T.bg0:T.textMut,border:"0.5px solid "+T.line}}>{l}</button>
         )}
       </div>
-      {kralTab==="gol" && <KralListe liste={grupFiltrele(golK)} alan="gol" birim="gol" T={T} git={git} turnuva={turnuva}/>}
-      {kralTab==="asist" && <KralListe liste={grupFiltrele(asistK)} alan="asist" birim="asist" T={T} git={git} turnuva={turnuva}/>}
-      {kralTab==="kurtaris" && <KralListe liste={grupFiltrele(kurtarisK)} alan="kurtaris" birim="kurtarış" T={T} git={git} turnuva={turnuva}/>}
+      {kralTab==="gol" && <KralListe liste={golK} alan="gol" birim="gol" T={T} git={git} turnuva={kralTurnuva}/>}
+      {kralTab==="asist" && <KralListe liste={asistK} alan="asist" birim="asist" T={T} git={git} turnuva={kralTurnuva}/>}
+      {kralTab==="kurtaris" && <KralListe liste={kurtarisK} alan="kurtaris" birim="kurtarış" T={T} git={git} turnuva={kralTurnuva}/>}
       {kralTab==="odul" && <div>
         {ODULLER.map(([alan,ad])=>{
-          const lider=Motor.turnuvaOdulKrali(turnuva, alan, 1)[0];
+          const lider=Motor.turnuvaOdulKrali(kralTurnuva, alan, 1)[0];
           return lider ? <div key={alan} onClick={()=>git({sayfa:"oyuncu",oyuncu:{...lider,turnuva:turnuva.ad}})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,borderRadius:11,padding:11,marginBottom:7,border:"0.5px solid "+T.line}}>
             <span style={{fontSize:20}}>{ad.split(" ")[0]}</span>
             <div style={{flex:1,minWidth:0}}><div style={{fontSize:10,color:T.textMut}}>{ad.slice(ad.indexOf(" ")+1)}</div><div style={{fontSize:13,color:T.text,fontWeight:600}}>{lider.ad}</div></div>
             <span style={{fontSize:20,fontWeight:800,color:T.gold,fontFamily:T.fontDisplay,flexShrink:0}}>{lider[alan]}</span>
           </div> : null;
         })}
-        {ODULLER.every(([alan])=>!Motor.turnuvaOdulKrali(turnuva,alan,1)[0]) && <BosUyari T={T} metin="Henüz ödül verilmedi. Maçlarda ödül seçtikçe burada görünür." />}
+        {ODULLER.every(([alan])=>!Motor.turnuvaOdulKrali(kralTurnuva,alan,1)[0]) && <BosUyari T={T} metin="Henüz ödül verilmedi. Maçlarda ödül seçtikçe burada görünür." />}
       </div>}
     </div>}
 
