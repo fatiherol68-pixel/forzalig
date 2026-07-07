@@ -325,6 +325,9 @@ const Db = {
     catch(e){ return {toplam:0,kullanilan:0,kalan:0}; }
   },
   async haklariListe(){ if(!sb) return []; try{ const {data}=await sb.from('lig_haklari').select('*').order('guncelleme',{ascending:false}); return data||[]; }catch(e){ return []; } },
+  // ---- Profiller (email ↔ user_id köprüsü) ----
+  async profilBul(email){ if(!sb||!email) return null; try{ const {data}=await sb.from('profiller').select('user_id,email,ad').ilike('email',(email||'').trim()).maybeSingle(); return data||null; }catch(e){ return null; } },
+  async profillerHepsi(){ if(!sb) return []; try{ const {data}=await sb.from('profiller').select('user_id,email,ad'); return data||[]; }catch(e){ return []; } },
   async hakVer(userId, toplam, not_){ // sadece admin (RLS korur)
     if(!sb) return {hata:"bağlantı yok"};
     try{ const {error}=await sb.from('lig_haklari').upsert({user_id:userId, toplam, not_:not_||null, guncelleme:new Date().toISOString()},{onConflict:'user_id'});
@@ -8248,11 +8251,31 @@ function AdminPanel({T, git, oturum, turnuvalar}){
   const [yuk,setYuk]=useState(true);
   const [yeniMail,setYeniMail]=useState("");
   const [mesaj,setMesaj]=useState("");
-  const yenile=async()=>{ setYuk(true); const [l,y]=await Promise.all([Admin.ligler(), Admin.yetkiListe()]); setLigler(l); setYetkiler(y); setYuk(false); };
+  const [haklar,setHaklar]=useState([]);      // lig_haklari + email
+  const [hakMail,setHakMail]=useState("");
+  const [hakSayi,setHakSayi]=useState(1);
+  const [hakNot,setHakNot]=useState("");
+  const yenile=async()=>{ setYuk(true);
+    const [l,y,h,p]=await Promise.all([Admin.ligler(), Admin.yetkiListe(), Db.haklariListe(), Db.profillerHepsi()]);
+    setLigler(l); setYetkiler(y);
+    const epostaHarita={}; (p||[]).forEach(pr=>{ epostaHarita[pr.user_id]=pr.email; });
+    setHaklar((h||[]).map(x=>({...x, email:epostaHarita[x.user_id]||x.user_id})));
+    setYuk(false);
+  };
   useEffect(()=>{ yenile(); },[]);
   const ligSil=async(slug)=>{ if(!confirm("Bu ligi yayından kaldır? (moderasyon)")) return; const r=await Admin.ligSil(slug); if(r.ok){ setLigler(p=>p.filter(x=>x.slug!==slug)); } else setMesaj("Silinemedi: "+(r.hata||"")); };
   const yetkiEkle=async()=>{ const e=yeniMail.trim().toLowerCase(); if(!e){return;} const r=await Admin.yetkiEkle(e,"onayli"); if(r.ok){ setYeniMail(""); setMesaj("Eklendi ✓"); yenile(); } else setMesaj("Olmadı: "+(r.hata||"")); };
   const yetkiSil=async(email)=>{ const r=await Admin.yetkiSil(email); if(r.ok) setYetkiler(p=>p.filter(x=>x.email!==email)); };
+  // K3/K4 — lig hakkı ver (e-postadan bul → hak ata)
+  const hakVerFn=async()=>{
+    const e=(hakMail||"").trim().toLowerCase(); const say=Math.max(0,parseInt(hakSayi)||0);
+    if(!e){ setMesaj("E-posta gir."); return; }
+    const prof=await Db.profilBul(e);
+    if(!prof){ setMesaj("⚠️ Bu e-posta üye değil. Önce uygulamaya üye olsun, sonra hak ver."); return; }
+    const r=await Db.hakVer(prof.user_id, say, hakNot||null);
+    if(r.ok){ setHakMail(""); setHakSayi(1); setHakNot(""); setMesaj("✓ "+e+" → "+say+" lig hakkı verildi"); yenile(); }
+    else setMesaj("Olmadı: "+(r.hata||""));
+  };
 
   const toplamTakim=turnuvalar.reduce((s,t)=>s+t.takimlar.length,0);
   const toplamOyuncu=turnuvalar.reduce((s,t)=>s+t.takimlar.reduce((a,tk)=>a+tk.oyuncular.length,0),0);
@@ -8279,7 +8302,7 @@ function AdminPanel({T, git, oturum, turnuvalar}){
     </div>
 
     <div style={{display:"flex",gap:6,padding:"10px 14px 0"}}>
-      {[["ozet","Özet"],["ligler","🌍 Açık Ligler"],["yetki","✅ Yetkiler"],["sistem","⚙️ Sistem"]].map(([k,l])=>
+      {[["ozet","Özet"],["hak","🎟️ Lig Hakkı"],["ligler","🌍 Açık Ligler"],["yetki","✅ Yetkiler"],["sistem","⚙️ Sistem"]].map(([k,l])=>
         <button key={k} onClick={()=>setSekme(k)} className="tap" style={{fontSize:11,padding:"7px 11px",borderRadius:9,fontWeight:700,background:sekme===k?T.accent:T.bg1,color:sekme===k?T.bg0:T.textMut,border:"0.5px solid "+(sekme===k?T.accent:T.line)}}>{l}</button>
       )}
     </div>
@@ -8296,6 +8319,39 @@ function AdminPanel({T, git, oturum, turnuvalar}){
           🕹️ Senin verinde: {turnuvalar.length} lig · {toplamTakim} takım · {toplamOyuncu} oyuncu · {toplamMac} oynanmış maç<br/>
           🔒 Mod: <b style={{color:HERKESE_ACIK?T.accent:T.gold}}>{HERKESE_ACIK?"HERKESE AÇIK":"TEST (sadece yetkili)"}</b>
         </div>
+      </div>}
+
+      {!yuk && sekme==="hak" && <div>
+        <div style={{fontSize:11,color:T.textMut,lineHeight:1.6,marginBottom:10}}>IBAN ödemesini gördüğün kişiye lig açma hakkı ver. Kişi <b style={{color:T.text}}>önce uygulamaya üye olmalı</b> (yoksa e-posta bulunamaz).</div>
+        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:12,marginBottom:12}}>
+          <input value={hakMail} onChange={e=>setHakMail(e.target.value)} placeholder="kisi@mail.com" style={{width:"100%",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:11,color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:8}}/>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <div style={{flex:"0 0 110px"}}>
+              <div style={{fontSize:9.5,color:T.textMut,marginBottom:3}}>Toplam lig hakkı</div>
+              <input type="number" min="0" value={hakSayi} onChange={e=>setHakSayi(e.target.value)} style={{width:"100%",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:11,color:T.text,fontSize:15,fontWeight:800,textAlign:"center",outline:"none",fontFamily:"inherit"}}/>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:9.5,color:T.textMut,marginBottom:3}}>Not (ör. ödeme tarihi)</div>
+              <input value={hakNot} onChange={e=>setHakNot(e.target.value)} placeholder="IBAN 12.07 geldi" style={{width:"100%",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:11,color:T.text,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+            </div>
+          </div>
+          <button onClick={hakVerFn} className="tap" style={{width:"100%",background:T.gold,color:"#04070C",border:0,borderRadius:10,padding:"11px",fontSize:13.5,fontWeight:800}}>🎟️ Hak Ver / Güncelle</button>
+        </div>
+        <div style={{fontSize:10.5,color:T.textMut,fontWeight:700,margin:"4px 2px 8px"}}>HAK VERİLEN HESAPLAR ({haklar.length})</div>
+        {haklar.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Henüz kimseye hak verilmedi.</div>}
+        {haklar.map(h=>{ const kalan=Math.max(0,(h.toplam||0)-(h.kullanilan||0)); return (
+          <div key={h.user_id} style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"10px 12px",marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:14}}>🎟️</span>
+              <span style={{flex:1,fontSize:12.5,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{h.email}</span>
+              <span style={{fontSize:11,fontWeight:800,color:kalan>0?T.accent:T.textMut}}>{kalan} boş</span>
+            </div>
+            <div style={{display:"flex",gap:6,marginTop:7,fontSize:10}}>
+              <span style={{background:T.gold+"1f",color:T.gold,borderRadius:6,padding:"3px 8px",fontWeight:700}}>Toplam {h.toplam||0}</span>
+              <span style={{background:T.accent2+"1f",color:T.accent2,borderRadius:6,padding:"3px 8px",fontWeight:700}}>Kullanılan {h.kullanilan||0}</span>
+              {h.not_ && <span style={{color:T.textMut,padding:"3px 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>📝 {h.not_}</span>}
+            </div>
+          </div> ); })}
       </div>}
 
       {!yuk && sekme==="ligler" && <div>
