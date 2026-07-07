@@ -308,6 +308,10 @@ const Admin = {
    supabase/01_sema.sql ... 04_ilk_admin.sql çalıştırılınca aktif olur.
    Tüm yetki SUNUCUDA (RLS) kontrol edilir; burası sadece çağırır.
    ============================================================ */
+/* "GG.AA.YYYY" -> "YYYY-MM-DD" (SQL date) */
+function tarihISO(d){ if(!d||typeof d!=="string") return null; const p=d.split("."); if(p.length!==3) return null; const [g,a,y]=p; if(!y||y.length<4) return null; return y+"-"+String(a).padStart(2,"0")+"-"+String(g).padStart(2,"0"); }
+/* ISO/tarih -> yaş */
+function yasHesap(d){ if(!d) return null; try{ const t=new Date(d); if(isNaN(t)) return null; const f=new Date(); let y=f.getFullYear()-t.getFullYear(); const m=f.getMonth()-t.getMonth(); if(m<0||(m===0&&f.getDate()<t.getDate())) y--; return y; }catch(e){ return null; } }
 const Db = {
   hazir(){ return !!sb; },
   // ---- Admin & Yetki ----
@@ -380,6 +384,123 @@ const Db = {
   // ---- Katılım (madde 20) ----
   async katilimIsaretle(macId, pid, durum){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('katilim').upsert({mac_id:macId, player_id:pid, durum, guncelleme:new Date().toISOString()},{onConflict:'mac_id,player_id'}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async katilim(macId){ if(!sb) return []; try{ const {data}=await sb.from('katilim').select('*').eq('mac_id',macId); return data||[]; }catch(e){ return []; } },
+  // ================= KAYDEDİCİ: turnuva nesnesi -> ilişkisel tablolar =================
+  async ligKaydet(turnuva, yoneticiId){
+    if(!sb) return {hata:"bağlantı yok"};
+    const T=turnuva;
+    try{
+      const {data:ligRow,error:e1}=await sb.from('ligler').insert({
+        yonetici_id:yoneticiId, ad:T.ad, ulke:'TR', sehir:T.sehir||'', ilce:T.ilce||null,
+        renk:T.renk||null, format:T.format||'tek', grup_sayi:T.grupSayi||0, kisi:T.kisi||8,
+        sponsor_ad:T.sponsorAd||null, sponsor_emoji:T.sponsorEmoji||null, fikstur_tipi:T.format||'tek'
+      }).select('id').single();
+      if(e1) return {hata:e1.message};
+      const ligId=ligRow.id;
+      const takimIdMap={}, oyAdMap={}, oyAdGlobal={};
+      for(const tk of (T.takimlar||[])){
+        const {data:tRow,error:e2}=await sb.from('takimlar').insert({
+          lig_id:ligId, ad:tk.ad, renk:tk.renk||null, grup:tk.grup||0, lis_no:tk.lisNo||null
+        }).select('id').single();
+        if(e2) return {hata:e2.message};
+        takimIdMap[tk.id]=tRow.id;
+        const oyKayit=(tk.oyuncular||[]).map(o=>({
+          ad_soyad:o.ad, forma_no:(o.no??null), dogum:tarihISO(o.dogum), ayak:o.ayak||null,
+          boy:(o.boy??null), kilo:(o.kilo??null), uyruk:o.uyruk||null, poz:o.poz||null, ovr:(o.ovr??null),
+          nitelik:{pac:o.pac,sho:o.sho,pas:o.pas,dri:o.dri,def:o.def,phy:o.phy},
+          deger:(o.deger??null), saglik:o.saglik||null, bolge:o.bolge||null, renk:o.renk||o.formaRenk||null
+        }));
+        let eklenen=[];
+        if(oyKayit.length){ const {data:oRows,error:e3}=await sb.from('oyuncular').insert(oyKayit).select('player_id'); if(e3) return {hata:e3.message}; eklenen=oRows||[]; }
+        const uyelik=[];
+        (tk.oyuncular||[]).forEach((o,i)=>{ const pid=eklenen[i]?eklenen[i].player_id:null; if(pid){ oyAdMap[tRow.id+'|'+o.ad]=pid; oyAdGlobal[o.ad]=pid; uyelik.push({player_id:pid,takim_id:tRow.id,lig_id:ligId,aktif:true}); } });
+        if(uyelik.length){ const {error:e4}=await sb.from('oyuncu_takim').insert(uyelik); if(e4) return {hata:e4.message}; }
+      }
+      const takimUuidByAd={}; (T.takimlar||[]).forEach(tk=>{ takimUuidByAd[tk.ad]=takimIdMap[tk.id]; });
+      const cozPid=(takimAd,oyAd)=>{ const tu=takimUuidByAd[takimAd]; if(tu&&oyAdMap[tu+'|'+oyAd]) return oyAdMap[tu+'|'+oyAd]; return oyAdGlobal[oyAd]||null; };
+      for(const mc of (T.maclar||[])){
+        const evId=takimIdMap[mc.takimAId], depId=takimIdMap[mc.takimBId];
+        if(!evId||!depId) continue;
+        const mvpPid=mc.mvp?cozPid(mc.mvpTakim,mc.mvp):null;
+        const {data:mRow,error:e5}=await sb.from('maclar').insert({
+          lig_id:ligId, ev_takim_id:evId, dep_takim_id:depId, hafta:(mc.hafta??null), tur:(mc.tur??null),
+          grup:(mc.grup??null), bye:!!mc.bye, pen_galip:mc.penGalip||null,
+          ev_skor:(mc.skorA==null?null:mc.skorA), dep_skor:(mc.skorB==null?null:mc.skorB),
+          oynandi:!!mc.oynandi, sure:mc.sure||60, dizilis_ev:mc.dizilisA||null, dizilis_dep:mc.dizilisB||null,
+          kadro_ev:mc.kadroA||null, kadro_dep:mc.kadroB||null, istatistik:mc.istatistik||null,
+          ratingler:mc.ratingler||null, olaylar:mc.olaylar||null, kaleciler:mc.kaleciler||null,
+          oduller:mc.oduller||null, mvp:mc.mvp||null, mvp_takim:mc.mvpTakim||null, mvp_player:mvpPid,
+          stad:mc.stad||mc.stadyum||null, hakem:mc.hakem||null
+        }).select('id').single();
+        if(e5) return {hata:e5.message};
+        const macId=mRow.id;
+        const olayK=[];
+        (mc.olaylar||[]).forEach(ol=>{ const tu=takimUuidByAd[ol.takim]||null;
+          if(ol.tip==='gol'){ const p=cozPid(ol.takim,ol.oyuncu); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:'gol',dakika:(ol.dk??null),adet:1});
+            if(ol.asist){ const a=cozPid(ol.takim,ol.asist); if(a) olayK.push({mac_id:macId,player_id:a,takim_id:tu,tip:'asist',dakika:(ol.dk??null),adet:1}); } }
+          else if(ol.tip==='sari'||ol.tip==='kirmizi'){ const p=cozPid(ol.takim,ol.oyuncu); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:ol.tip,dakika:(ol.dk??null),adet:1}); }
+          else if(ol.tip==='degisik'){ const p=cozPid(ol.takim,ol.giren)||cozPid(ol.takim,ol.cikan); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:'degisik',dakika:(ol.dk??null),adet:1,ekstra:{cikan:ol.cikan,giren:ol.giren}}); }
+        });
+        (mc.kaleciler||[]).forEach(k=>{ const p=oyAdGlobal[k.ad]; if(p&&k.kurtaris) olayK.push({mac_id:macId,player_id:p,takim_id:null,tip:'kurtaris',dakika:null,adet:k.kurtaris}); });
+        if(olayK.length) await sb.from('mac_olaylari').insert(olayK);
+        const odulK=[]; const od=mc.oduller||{};
+        ['forvet','ortasaha','defans','kaleci','altin','gumus','centilmen','enerjik','macinGolu'].forEach(k=>{ if(od[k]){ const p=oyAdGlobal[od[k]]; if(p) odulK.push({mac_id:macId,player_id:p,odul_tip:k}); } });
+        if(mvpPid) odulK.push({mac_id:macId,player_id:mvpPid,odul_tip:'mvp'});
+        if(odulK.length) await sb.from('mac_odulleri').insert(odulK);
+      }
+      return {ok:true, ligId};
+    }catch(e){ return {hata:String(e&&e.message||e)}; }
+  },
+  // ================= YÜKLEYİCİ: ilişkisel tablolar -> turnuva nesnesi =================
+  async ligYukle(ligId){
+    if(!sb) return null;
+    try{
+      const {data:L}=await sb.from('ligler').select('*').eq('id',ligId).maybeSingle();
+      if(!L) return null;
+      const [tkR,otR,mcR]=await Promise.all([
+        sb.from('takimlar').select('*').eq('lig_id',ligId),
+        sb.from('oyuncu_takim').select('*').eq('lig_id',ligId).eq('aktif',true),
+        sb.from('maclar').select('*').eq('lig_id',ligId)
+      ]);
+      const tk=tkR.data||[], ot=otR.data||[], mc=mcR.data||[];
+      const pidler=[...new Set(ot.map(x=>x.player_id))];
+      let oyList=[]; if(pidler.length){ const {data:oy}=await sb.from('oyuncular').select('*').in('player_id',pidler); oyList=oy||[]; }
+      const oyById={}; oyList.forEach(o=>{ oyById[o.player_id]=o; });
+      const takimlar=tk.map(t=>{
+        const oyuncular=ot.filter(x=>x.takim_id===t.id).map(u=>{ const o=oyById[u.player_id]||{}; const n=o.nitelik||{};
+          return { id:u.player_id, player_id:u.player_id, lisNo:o.lis_no||null, ad:o.ad_soyad, poz:o.poz, no:o.forma_no,
+            ovr:o.ovr, pac:n.pac,sho:n.sho,pas:n.pas,dri:n.dri,def:n.def,phy:n.phy,
+            renk:o.renk, formaRenk:o.renk, yas:yasHesap(o.dogum), boy:o.boy, kilo:o.kilo, ayak:o.ayak,
+            dogum:o.dogum, bolge:o.bolge, uyruk:o.uyruk, saglik:o.saglik, deger:o.deger,
+            gol:0,asist:0,mac:0,kurtaris:0,sari:0,kirmizi:0,mvp:0,dk:0,
+            altin:0,gumus:0,forvet:0,ortasaha:0,defans:0,kaleci:0,centilmen:0,enerjik:0,macinGolu:0 };
+        });
+        return { id:t.id, lisNo:t.lis_no, ad:t.ad, renk:t.renk, oyuncular, grup:t.grup||0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0,form:[] };
+      });
+      const maclar=mc.map(m=>{ const evT=takimlar.find(x=>x.id===m.ev_takim_id), depT=takimlar.find(x=>x.id===m.dep_takim_id);
+        return { id:m.id, hafta:m.hafta, tur:m.tur, grup:m.grup, bye:m.bye, penGalip:m.pen_galip,
+          takimA:evT?evT.ad:'', takimB:depT?depT.ad:'', takimAId:m.ev_takim_id, takimBId:m.dep_takim_id,
+          renkA:evT?evT.renk:null, renkB:depT?depT.renk:null, skorA:m.ev_skor, skorB:m.dep_skor,
+          oynandi:m.oynandi, sure:m.sure, olaylar:m.olaylar||[], kaleciler:m.kaleciler||[], oduller:m.oduller||{},
+          mvp:m.mvp, mvpTakim:m.mvp_takim, istatistik:m.istatistik, ratingler:m.ratingler,
+          dizilisA:m.dizilis_ev, dizilisB:m.dizilis_dep, kadroA:m.kadro_ev, kadroB:m.kadro_dep,
+          stad:m.stad, hakem:m.hakem, tarih:m.tarih||'' };
+      });
+      return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', takimlar, maclar, format:L.format||'tek',
+        grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
+        sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, iliskisel:true };
+    }catch(e){ console.warn('ligYukle',e); return null; }
+  },
+  // Bir yöneticinin (veya admin ise herkesin) tüm liglerini turnuva dizisi olarak yükle
+  async liglerYukle(yoneticiId, hepsi){
+    if(!sb) return [];
+    try{
+      let q=sb.from('ligler').select('id').order('olusturma',{ascending:false}).limit(300);
+      if(!hepsi && yoneticiId) q=q.eq('yonetici_id',yoneticiId);
+      const {data}=await q; const idler=(data||[]).map(x=>x.id);
+      const sonuc=[]; for(const id of idler){ const t=await this.ligYukle(id); if(t) sonuc.push(t); }
+      return sonuc;
+    }catch(e){ return []; }
+  },
 };
 /* Supabase hata mesajlarını Türkçeye çevir */
 const authHata = (m)=>{ m=(m||"").toLowerCase();
@@ -8244,7 +8365,7 @@ function YasalSayfa({T, git, tip}){
 }
 
 /* FAZ 13 — Süper Admin Paneli (sadece yetkili) */
-function AdminPanel({T, git, oturum, turnuvalar}){
+function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const [sekme,setSekme]=useState("ozet");
   const [ligler,setLigler]=useState([]);
   const [yetkiler,setYetkiler]=useState([]);
@@ -8266,6 +8387,46 @@ function AdminPanel({T, git, oturum, turnuvalar}){
   const ligSil=async(slug)=>{ if(!confirm("Bu ligi yayından kaldır? (moderasyon)")) return; const r=await Admin.ligSil(slug); if(r.ok){ setLigler(p=>p.filter(x=>x.slug!==slug)); } else setMesaj("Silinemedi: "+(r.hata||"")); };
   const yetkiEkle=async()=>{ const e=yeniMail.trim().toLowerCase(); if(!e){return;} const r=await Admin.yetkiEkle(e,"onayli"); if(r.ok){ setYeniMail(""); setMesaj("Eklendi ✓"); yenile(); } else setMesaj("Olmadı: "+(r.hata||"")); };
   const yetkiSil=async(email)=>{ const r=await Admin.yetkiSil(email); if(r.ok) setYetkiler(p=>p.filter(x=>x.email!==email)); };
+  const [stresYuk,setStresYuk]=useState(false);
+  const [stresLog,setStresLog]=useState("");
+  // 🧪 STRES TESTİ — dolu ligler üret + ilişkisel veritabanına kaydet
+  const stresTestOlustur=async()=>{
+    if(!oturum||!oturum.id){ setStresLog("Önce giriş yap."); return; }
+    if(!Db.hazir()){ setStresLog("Supabase bağlantısı yok."); return; }
+    setStresYuk(true); setStresLog("Üretiliyor…");
+    const konfig=[
+      {ad:"Cuma Akşamı Ligi", format:"tek",     tk:8,  oy:12, sehir:"İstanbul", ilce:"Kartal"},
+      {ad:"Kadıköy Süper Lig", format:"cift",    tk:6,  oy:11, sehir:"İstanbul", ilce:"Kadıköy"},
+      {ad:"Ankara Kurumsal Lig",format:"gruplu", tk:8,  oy:11, sehir:"Ankara",   grup:2},
+      {ad:"İzmir Serbest Lig",  format:"serbest", tk:10, oy:12, sehir:"İzmir"},
+      {ad:"Bursa Dostluk Ligi", format:"tek",     tk:5,  oy:10, sehir:"Bursa"},
+    ];
+    const olan=[];
+    try{
+      for(let i=0;i<konfig.length;i++){ const c=konfig[i];
+        const T2=uretVeri(1, c.tk, c.oy)[0];
+        T2.ad=c.ad; T2.format=c.format; T2.sehir=c.sehir; if(c.ilce) T2.ilce=c.ilce;
+        if(c.grup){ T2.grupSayi=c.grup; T2.takimlar.forEach((tk,idx)=>{ tk.grup=idx%c.grup; }); }
+        setStresLog("Kaydediliyor "+(i+1)+"/"+(konfig.length+1)+": "+c.ad+" …");
+        const r=await Db.ligKaydet(T2, oturum.id);
+        if(!r.ok){ setStresLog("❌ Hata ("+c.ad+"): "+(r.hata||"")); setStresYuk(false); return; }
+        olan.push(c.ad);
+      }
+      // Kupa (eleme)
+      setStresLog("Kaydediliyor "+(konfig.length+1)+"/"+(konfig.length+1)+": Kupa …");
+      const kupa=demoKupa(); kupa.ad="⭐ Şampiyonlar Kupası (Stres)";
+      const rk=await Db.ligKaydet(kupa, oturum.id);
+      if(rk.ok) olan.push(kupa.ad);
+      setStresLog("✅ "+olan.length+" lig ilişkisel veritabanına kaydedildi. Şimdi 'İlişkiselden Yükle' ile görüntüle.");
+    }catch(e){ setStresLog("❌ "+String(e&&e.message||e)); }
+    setStresYuk(false);
+  };
+  const iliskiselYukleFn=async()=>{
+    if(!onIliskiselYukle) return;
+    setStresYuk(true); setStresLog("İlişkiselden yükleniyor…");
+    const n=await onIliskiselYukle();
+    setStresYuk(false); setStresLog("✅ "+n+" lig yüklendi. Ana sayfada görebilirsin.");
+  };
   // K3/K4 — lig hakkı ver (e-postadan bul → hak ata)
   const hakVerFn=async()=>{
     const e=(hakMail||"").trim().toLowerCase(); const say=Math.max(0,parseInt(hakSayi)||0);
@@ -8386,6 +8547,15 @@ function AdminPanel({T, git, oturum, turnuvalar}){
       </div>}
 
       {!yuk && sekme==="sistem" && <div style={{fontSize:12.5,color:T.textSoft,lineHeight:1.8}}>
+        <div style={{background:"linear-gradient(120deg,"+T.accent2+"18,"+T.bg1+")",border:"0.5px solid "+T.accent2+"44",borderRadius:12,padding:14,marginBottom:10}}>
+          <b style={{color:T.text}}>🧪 Stres Testi (ilişkisel veritabanı)</b>
+          <div style={{fontSize:11,color:T.textMut,margin:"5px 0 10px",lineHeight:1.6}}>Her lig tipinde (tek/çift/gruplu/serbest/kupa) dolu ligler üretir → yeni ilişkisel tablolara kaydeder. Oyuncular, istatistikler, kadrolar, maç olayları, kurtarışlar, ödüller — hepsi dolu. Sonra "İlişkiselden Yükle" ile görüntüle.</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button onClick={stresTestOlustur} disabled={stresYuk} className="tap" style={{flex:1,minWidth:130,background:stresYuk?T.line:T.accent2,color:stresYuk?T.textMut:"#04070C",border:0,borderRadius:10,padding:"11px",fontSize:12.5,fontWeight:800}}>{stresYuk?"⏳ Çalışıyor…":"🧪 Stres Testi Üret + Kaydet"}</button>
+            <button onClick={iliskiselYukleFn} disabled={stresYuk} className="tap" style={{flex:1,minWidth:130,background:T.gold+"22",color:T.gold,border:"0.5px solid "+T.gold+"55",borderRadius:10,padding:"11px",fontSize:12.5,fontWeight:800}}>⬇️ İlişkiselden Yükle</button>
+          </div>
+          {stresLog && <div style={{fontSize:11,color:T.text,marginTop:9,background:T.bg0,borderRadius:8,padding:"8px 10px",lineHeight:1.5}}>{stresLog}</div>}
+        </div>
         <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14,marginBottom:10}}>
           <b style={{color:T.text}}>Yayın durumu</b><br/>
           Mod: <b style={{color:HERKESE_ACIK?T.accent:T.gold}}>{HERKESE_ACIK?"🌍 HERKESE AÇIK":"🔒 TEST MODU"}</b><br/>
@@ -8942,7 +9112,7 @@ function App(){
       case "istatistik": icerik=<MacIstatistik mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} onKaydet={(mac,ist)=>{ mac.istatistik=ist; }}/>; break;
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
       case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak}/>; break;
-      case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar}/>; break;
+      case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async()=>{ const gelen=await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
       case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
