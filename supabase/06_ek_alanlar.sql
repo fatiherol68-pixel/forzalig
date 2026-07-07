@@ -77,7 +77,9 @@ grant select on public.mac_odulleri to anon, authenticated;
 grant select, insert, update, delete on public.mac_odulleri to authenticated;
 
 -- ---- KVKK açık görünümü genişlet: pozisyon, ovr, değer de görünür (hassas değil) ----
-create or replace view public.oyuncular_acik as
+--  (önce sil: sütun sırası değiştiği için 'create or replace' hata verir)
+drop view if exists public.oyuncular_acik;
+create view public.oyuncular_acik as
   select
     player_id,
     coalesce(nullif(takma_ad,''), ad_soyad) as gorunen_ad,
