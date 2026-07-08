@@ -15230,11 +15230,36 @@ function OyuncuSayfa({
   oturum,
   sahiplenme,
   onSahiplen,
+  onTransfer,
   saltOkunur
 }) {
   const [duzenle, setDuzenle] = useState(false);
   const [sahipYuk, setSahipYuk] = useState(false);
   const [sahipMesaj, setSahipMesaj] = useState("");
+  const [transferAcik, setTransferAcik] = useState(false);
+  const [transferHedef, setTransferHedef] = useState("");
+  const [transferMesaj, setTransferMesaj] = useState("");
+  const oyLig = (turnuvalar || []).find(t => t.takimlar.some(tk => tk.oyuncular.some(p => p.id === o.id)));
+  const oyTakim = oyLig ? oyLig.takimlar.find(tk => tk.oyuncular.some(p => p.id === o.id)) : null;
+  const transferHedefler = oyLig ? oyLig.takimlar.filter(tk => tk.id !== (oyTakim && oyTakim.id)) : [];
+  const transferYapilabilir = !saltOkunur && oturum && oyLig && oyLig.iliskisel && transferHedefler.length > 0 && onTransfer;
+  const transferYap = async () => {
+    if (!transferHedef) {
+      setTransferMesaj("Hedef takım seç.");
+      return;
+    }
+    setTransferMesaj("Transfer ediliyor…");
+    const r = await onTransfer(o, transferHedef);
+    if (r && r.ok) {
+      setTransferMesaj("✅ " + r.yeniTakim + " takımına transfer edildi.");
+      setTimeout(() => {
+        setTransferAcik(false);
+        git({
+          sayfa: "ana"
+        });
+      }, 1200);
+    } else setTransferMesaj("❌ " + (r && r.hata || "olmadı"));
+  };
   const benimMi = sahiplenme && (sahiplenme.oyuncu_id === o.id || sahiplenme.oyuncu_ad === o.ad);
   const sahiplen = async () => {
     if (!oturum) {
@@ -15770,7 +15795,106 @@ function OyuncuSayfa({
       fontSize: 12,
       fontWeight: 700
     }
-  }, takipte ? "✓ Takipte" : "+ Takip et")), oturum && !benimMi && React.createElement("div", {
+  }, takipte ? "✓ Takipte" : "+ Takip et")), transferYapilabilir && React.createElement("div", {
+    style: {
+      padding: "10px 14px 0"
+    }
+  }, !transferAcik ? React.createElement("button", {
+    onClick: () => {
+      setTransferAcik(true);
+      setTransferMesaj("");
+      setTransferHedef("");
+    },
+    className: "tap",
+    style: {
+      width: "100%",
+      background: T.accent2 + "18",
+      color: T.accent2,
+      border: "1px solid " + T.accent2 + "66",
+      borderRadius: 12,
+      padding: 12,
+      fontSize: 13,
+      fontWeight: 800
+    }
+  }, "🔄 Transfer et (", oyTakim ? oyTakim.ad : "", " → ?)") : React.createElement("div", {
+    style: {
+      background: T.bg1,
+      border: "0.5px solid " + T.accent2 + "55",
+      borderRadius: 12,
+      padding: 13
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: T.text,
+      fontWeight: 700,
+      marginBottom: 8
+    }
+  }, "🔄 ", o.ad, " → hangi takıma?"), React.createElement("select", {
+    value: transferHedef,
+    onChange: e => setTransferHedef(e.target.value),
+    style: {
+      width: "100%",
+      background: T.bg0,
+      border: "0.5px solid " + T.line,
+      borderRadius: 10,
+      padding: 11,
+      color: T.text,
+      fontSize: 13,
+      outline: "none",
+      fontFamily: "inherit",
+      marginBottom: 9
+    }
+  }, React.createElement("option", {
+    value: ""
+  }, "— Hedef takım seç —"), transferHedefler.map(tk => React.createElement("option", {
+    key: tk.id,
+    value: tk.id
+  }, tk.ad))), React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: T.textMut,
+      marginBottom: 10,
+      lineHeight: 1.5
+    }
+  }, "Eski takımdaki golleri/istatistikleri orada kalır, kariyer toplamına eklenmeye devam eder."), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, React.createElement("button", {
+    onClick: transferYap,
+    className: "tap",
+    style: {
+      flex: 1,
+      background: T.accent2,
+      color: "#04070C",
+      border: 0,
+      borderRadius: 10,
+      padding: 11,
+      fontSize: 13,
+      fontWeight: 800
+    }
+  }, "Transferi Onayla"), React.createElement("button", {
+    onClick: () => setTransferAcik(false),
+    className: "tap",
+    style: {
+      background: T.bg2,
+      color: T.textMut,
+      border: "0.5px solid " + T.line,
+      borderRadius: 10,
+      padding: "11px 14px",
+      fontSize: 13,
+      fontWeight: 700
+    }
+  }, "Vazgeç")), transferMesaj && React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: /✅/.test(transferMesaj) ? T.accent : /❌/.test(transferMesaj) ? T.danger : T.textSoft,
+      textAlign: "center",
+      marginTop: 8
+    }
+  }, transferMesaj))), oturum && !benimMi && React.createElement("div", {
     style: {
       padding: "10px 14px 0"
     }
@@ -31240,6 +31364,52 @@ function App() {
       sayfa: "ana"
     });
   };
+  const transferEt = async (oyuncu, yeniTakimId) => {
+    let trn, eski;
+    for (const t of turnuvalar) {
+      for (const tk of t.takimlar) {
+        if (tk.oyuncular.some(o => o.id === oyuncu.id)) {
+          trn = t;
+          eski = tk;
+          break;
+        }
+      }
+      if (trn) break;
+    }
+    if (!trn || !eski) return {
+      hata: "oyuncu bulunamadı"
+    };
+    const yeni = trn.takimlar.find(t => t.id === yeniTakimId);
+    if (!yeni || yeni.id === eski.id) return {
+      hata: "geçersiz hedef"
+    };
+    if (iliskiselMi(trn) && typeof oyuncu.id === "string") {
+      const t = await Db.transferTalep(oyuncu.id, trn.id, eski.id, yeniTakimId, oturum && oturum.id);
+      if (t.hata) return {
+        hata: t.hata
+      };
+      if (t.id) {
+        await Db.transferOyuncuKabul(t.id);
+        const r = await Db.transferYoneticiOnay(t.id);
+        if (r.hata) return {
+          hata: r.hata
+        };
+      }
+    }
+    const oyRef = eski.oyuncular.find(o => o.id === oyuncu.id);
+    eski.oyuncular = eski.oyuncular.filter(o => o.id !== oyuncu.id);
+    if (oyRef) {
+      oyRef.takimAd = yeni.ad;
+      oyRef.renk = yeni.renk;
+      yeni.oyuncular.push(oyRef);
+    }
+    turnuvaHesapla(trn);
+    guncelle();
+    return {
+      ok: true,
+      yeniTakim: yeni.ad
+    };
+  };
   const takimEkle = async (turnuva, ad, bos) => {
     const tid = yeniId(turnuvalar, "takim");
     const oid = yeniId(turnuvalar, "oyuncu");
@@ -31713,6 +31883,7 @@ function App() {
           oturum: oturum,
           sahiplenme: sahiplenme,
           onSahiplen: oyuncuSahiplen,
+          onTransfer: transferEt,
           saltOkunur: saltOkunur
         });
         break;
