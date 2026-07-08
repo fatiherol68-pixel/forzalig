@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://fatiherol68-pixel.github.io/forzalig/sitemap.xml

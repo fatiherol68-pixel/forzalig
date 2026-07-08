@@ -841,6 +841,105 @@ const Db = {
       };
     }
   },
+  async logla(oturum, islem, detay) {
+    if (!sb || !oturum) return;
+    try {
+      await sb.from('islem_log').insert({
+        user_id: oturum.id,
+        kim: oturum.user_metadata && oturum.user_metadata.ad || oturum.email,
+        islem,
+        detay: detay || null
+      });
+    } catch (e) {}
+  },
+  async auditListe(n) {
+    if (!sb) return [];
+    try {
+      const {
+        data
+      } = await sb.from('islem_log').select('*').order('created', {
+        ascending: false
+      }).limit(n || 60);
+      return data || [];
+    } catch (e) {
+      return [];
+    }
+  },
+  async olayYaz(oturum, tip, deger) {
+    if (!sb) return;
+    try {
+      await sb.from('olay_log').insert({
+        tip,
+        deger: (deger || '').slice(0, 120),
+        user_id: oturum ? oturum.id : null
+      });
+    } catch (e) {}
+  },
+  async topOlay(tip, n) {
+    if (!sb) return [];
+    try {
+      const {
+        data
+      } = await sb.from('olay_log').select('deger').eq('tip', tip).order('created', {
+        ascending: false
+      }).limit(3000);
+      const m = {};
+      (data || []).forEach(x => {
+        if (x.deger) {
+          m[x.deger] = (m[x.deger] || 0) + 1;
+        }
+      });
+      return Object.entries(m).map(([deger, adet]) => ({
+        deger,
+        adet
+      })).sort((a, b) => b.adet - a.adet).slice(0, n || 8);
+    } catch (e) {
+      return [];
+    }
+  },
+  async onlineSayi() {
+    if (!sb) return 0;
+    try {
+      const bes = new Date(Date.now() - 5 * 60000).toISOString();
+      const {
+        data
+      } = await sb.from('olay_log').select('user_id,created').gte('created', bes).limit(2000);
+      return new Set((data || []).map(x => x.user_id || 'anon')).size;
+    } catch (e) {
+      return 0;
+    }
+  },
+  async takipYaz(oturum, tip, hedefId, hedefAd, ekle) {
+    if (!sb || !oturum) return;
+    try {
+      if (ekle) await sb.from('takipler').upsert({
+        user_id: oturum.id,
+        tip,
+        hedef_id: String(hedefId),
+        hedef_ad: hedefAd || null
+      });else await sb.from('takipler').delete().eq('user_id', oturum.id).eq('tip', tip).eq('hedef_id', String(hedefId));
+    } catch (e) {}
+  },
+  async populer(tip, n) {
+    if (!sb) return [];
+    try {
+      const {
+        data
+      } = await sb.from('takipler').select('hedef_id,hedef_ad').eq('tip', tip).limit(4000);
+      const m = {};
+      (data || []).forEach(x => {
+        const k = x.hedef_id;
+        if (!m[k]) m[k] = {
+          ad: x.hedef_ad || k,
+          adet: 0
+        };
+        m[k].adet++;
+      });
+      return Object.values(m).sort((a, b) => b.adet - a.adet).slice(0, n || 5);
+    } catch (e) {
+      return [];
+    }
+  },
   async davetOlustur(ligId, tip, takimId) {
     if (!sb) return {
       hata: "yok"
@@ -30126,15 +30225,27 @@ function AdminPanel({
   const [ozet, setOzet] = useState(null);
   const [ulkeler, setUlkeler] = useState([]);
   const [bekTransfer, setBekTransfer] = useState([]);
+  const [audit, setAudit] = useState([]);
+  const [topSayfa, setTopSayfa] = useState([]);
+  const [topArama, setTopArama] = useState([]);
+  const [online, setOnline] = useState(0);
+  const [popLig, setPopLig] = useState([]);
+  const [popOyuncu, setPopOyuncu] = useState([]);
   const yenile = async () => {
     setYuk(true);
-    const [l, y, h, p, u, oz, ul, bt] = await Promise.all([Admin.ligler(), Admin.yetkiListe(), Db.haklariListe(), Db.profillerHepsi(), Db.uyeler(), Db.panelOzet(), Db.ulkeDagilim(), Db.bekleyenTransferler()]);
+    const [l, y, h, p, u, oz, ul, bt, au, ts, ta, on, pl, po] = await Promise.all([Admin.ligler(), Admin.yetkiListe(), Db.haklariListe(), Db.profillerHepsi(), Db.uyeler(), Db.panelOzet(), Db.ulkeDagilim(), Db.bekleyenTransferler(), Db.auditListe(), Db.topOlay('sayfa'), Db.topOlay('arama'), Db.onlineSayi(), Db.populer('lig'), Db.populer('oyuncu')]);
     setLigler(l);
     setYetkiler(y);
     setUyeler(u || []);
     setOzet(oz);
     setUlkeler(ul || []);
     setBekTransfer(bt || []);
+    setAudit(au || []);
+    setTopSayfa(ts || []);
+    setTopArama(ta || []);
+    setOnline(on || 0);
+    setPopLig(pl || []);
+    setPopOyuncu(po || []);
     const epostaHarita = {};
     (p || []).forEach(pr => {
       epostaHarita[pr.user_id] = pr.email;
@@ -30154,6 +30265,7 @@ function AdminPanel({
     const r = onay ? await Db.transferOnayla(id) : await Db.transferReddet(id);
     if (r.ok) {
       setBekTransfer(p => p.filter(x => x.id !== id));
+      Db.logla(oturum, onay ? "Transfer onayladı" : "Transfer reddetti", "");
       setMesaj(onay ? "✓ Transfer onaylandı" : "Transfer reddedildi");
     } else setMesaj("Olmadı: " + (r.hata || ""));
   };
@@ -30296,6 +30408,7 @@ function AdminPanel({
     }
     const r = await Db.hakVer(prof.user_id, say, hakNot || null);
     if (r.ok) {
+      Db.logla(oturum, "Lig hakkı verdi", e + " → " + say);
       setHakMail("");
       setHakSayi(1);
       setHakNot("");
@@ -30601,13 +30714,19 @@ function AdminPanel({
       fontSize: 9,
       color: T.textMut
     }
-  }, et)))), ulkeler.length > 0 && React.createElement("div", {
+  }, et)))), React.createElement("div", {
     style: {
+      display: "flex",
+      gap: 8,
+      marginBottom: 8
+    }
+  }, ulkeler.length > 0 && React.createElement("div", {
+    style: {
+      flex: 1,
       background: T.bg1,
       border: "0.5px solid " + T.line,
       borderRadius: 12,
-      padding: "12px 14px",
-      marginBottom: 8
+      padding: "12px 14px"
     }
   }, React.createElement("div", {
     style: {
@@ -30616,7 +30735,7 @@ function AdminPanel({
       fontWeight: 700,
       marginBottom: 8
     }
-  }, "🌍 ÜLKELERE GÖRE LİG"), ulkeler.map(u => React.createElement("div", {
+  }, "🌍 ÜLKE"), ulkeler.map(u => React.createElement("div", {
     key: u.ulke,
     style: {
       display: "flex",
@@ -30624,7 +30743,7 @@ function AdminPanel({
       gap: 8,
       fontSize: 12.5,
       color: T.text,
-      padding: "4px 0"
+      padding: "3px 0"
     }
   }, React.createElement("span", {
     style: {
@@ -30634,7 +30753,100 @@ function AdminPanel({
     style: {
       color: T.accent
     }
-  }, u.adet))))), !yuk && sekme === "uyeler" && React.createElement("div", null, (() => {
+  }, u.adet)))), React.createElement("div", {
+    style: {
+      flex: 1,
+      background: T.bg1,
+      border: "0.5px solid " + T.line,
+      borderRadius: 12,
+      padding: "12px 14px",
+      textAlign: "center",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center"
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textMut,
+      fontWeight: 700,
+      marginBottom: 4
+    }
+  }, "🟢 ŞU AN ONLINE"), React.createElement("div", {
+    style: {
+      fontSize: 28,
+      fontWeight: 800,
+      color: T.accent,
+      fontFamily: T.fontDisplay
+    }
+  }, online), React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: T.textMut
+    }
+  }, "son 5 dakika"))), (popLig.length > 0 || popOyuncu.length > 0) && React.createElement("div", {
+    style: {
+      background: T.bg1,
+      border: "0.5px solid " + T.line,
+      borderRadius: 12,
+      padding: "12px 14px"
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textMut,
+      fontWeight: 700,
+      marginBottom: 8
+    }
+  }, "🔥 EN ÇOK TAKİP EDİLEN"), popLig.length > 0 && React.createElement("div", {
+    style: {
+      marginBottom: 6
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 9.5,
+      color: T.gold,
+      fontWeight: 700
+    }
+  }, "Ligler"), popLig.map((x, i) => React.createElement("div", {
+    key: i,
+    style: {
+      display: "flex",
+      fontSize: 12,
+      color: T.text,
+      padding: "2px 0"
+    }
+  }, React.createElement("span", {
+    style: {
+      flex: 1
+    }
+  }, x.ad), React.createElement("b", {
+    style: {
+      color: T.gold
+    }
+  }, x.adet)))), popOyuncu.length > 0 && React.createElement("div", null, React.createElement("div", {
+    style: {
+      fontSize: 9.5,
+      color: T.accent2,
+      fontWeight: 700
+    }
+  }, "Oyuncular"), popOyuncu.map((x, i) => React.createElement("div", {
+    key: i,
+    style: {
+      display: "flex",
+      fontSize: 12,
+      color: T.text,
+      padding: "2px 0"
+    }
+  }, React.createElement("span", {
+    style: {
+      flex: 1
+    }
+  }, x.ad), React.createElement("b", {
+    style: {
+      color: T.accent2
+    }
+  }, x.adet)))))), !yuk && sekme === "uyeler" && React.createElement("div", null, (() => {
     const yetkili = uyeler.filter(u => u.hak && u.hak.toplam > 0);
     const normal = uyeler.filter(u => !(u.hak && u.hak.toplam > 0));
     return React.createElement("div", null, React.createElement("div", {
@@ -30798,7 +31010,10 @@ function AdminPanel({
           const y = !u.admin;
           if (y || confirm(u.email + " admin yetkisi kaldırılsın mı?")) {
             const r = await Db.adminYap(u.user_id, y);
-            if (r.ok) yenile();else setMesaj("Olmadı: " + (r.hata || ""));
+            if (r.ok) {
+              Db.logla(oturum, y ? "Admin yaptı" : "Admin kaldırdı", u.email);
+              yenile();
+            } else setMesaj("Olmadı: " + (r.hata || ""));
           }
         },
         className: "tap",
@@ -31169,6 +31384,165 @@ function AdminPanel({
       lineHeight: 1.8
     }
   }, React.createElement("div", {
+    style: {
+      background: T.bg1,
+      border: "0.5px solid " + T.line,
+      borderRadius: 12,
+      padding: "12px 14px",
+      marginBottom: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textMut,
+      fontWeight: 700,
+      marginBottom: 8
+    }
+  }, "💚 SİSTEM SAĞLIĞI"), [["Veritabanı", !!ozet], ["Giriş (Auth)", !!oturum], ["Kayıt/Okuma", ligler != null]].map(([ad, ok], i) => React.createElement("div", {
+    key: i,
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      fontSize: 12.5,
+      padding: "3px 0"
+    }
+  }, React.createElement("span", null, ok ? "🟢" : "🔴"), React.createElement("span", {
+    style: {
+      flex: 1,
+      color: T.text
+    }
+  }, ad), React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: ok ? T.accent : T.danger
+    }
+  }, ok ? "çalışıyor" : "?")))), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      marginBottom: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      flex: 1,
+      background: T.bg1,
+      border: "0.5px solid " + T.line,
+      borderRadius: 12,
+      padding: "12px 14px"
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textMut,
+      fontWeight: 700,
+      marginBottom: 8
+    }
+  }, "📄 EN ÇOK SAYFA"), topSayfa.length === 0 ? React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textMut
+    }
+  }, "Veri birikiyor…") : topSayfa.map((x, i) => React.createElement("div", {
+    key: i,
+    style: {
+      display: "flex",
+      fontSize: 12,
+      color: T.text,
+      padding: "2px 0"
+    }
+  }, React.createElement("span", {
+    style: {
+      flex: 1
+    }
+  }, x.deger), React.createElement("b", {
+    style: {
+      color: T.accent2
+    }
+  }, x.adet)))), React.createElement("div", {
+    style: {
+      flex: 1,
+      background: T.bg1,
+      border: "0.5px solid " + T.line,
+      borderRadius: 12,
+      padding: "12px 14px"
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textMut,
+      fontWeight: 700,
+      marginBottom: 8
+    }
+  }, "🔍 EN ÇOK ARAMA"), topArama.length === 0 ? React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textMut
+    }
+  }, "Henüz arama yok") : topArama.map((x, i) => React.createElement("div", {
+    key: i,
+    style: {
+      display: "flex",
+      fontSize: 12,
+      color: T.text,
+      padding: "2px 0"
+    }
+  }, React.createElement("span", {
+    style: {
+      flex: 1,
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis"
+    }
+  }, x.deger), React.createElement("b", {
+    style: {
+      color: T.gold
+    }
+  }, x.adet))))), React.createElement("div", {
+    style: {
+      background: T.bg1,
+      border: "0.5px solid " + T.line,
+      borderRadius: 12,
+      padding: "12px 14px",
+      marginBottom: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textMut,
+      fontWeight: 700,
+      marginBottom: 8
+    }
+  }, "📝 İŞLEM GEÇMİŞİ (son ", audit.length, ")"), audit.length === 0 ? React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textMut
+    }
+  }, "Henüz kayıt yok. Kritik işlemler (hak verme, silme, transfer onay) burada loglanır.") : React.createElement("div", {
+    style: {
+      maxHeight: 220,
+      overflowY: "auto"
+    }
+  }, audit.map(a => React.createElement("div", {
+    key: a.id,
+    style: {
+      display: "flex",
+      gap: 8,
+      fontSize: 11,
+      padding: "5px 0",
+      borderTop: "0.5px solid " + T.line
+    }
+  }, React.createElement("span", {
+    style: {
+      color: T.textMut,
+      whiteSpace: "nowrap"
+    }
+  }, (a.created || "").slice(5, 16).replace("T", " ")), React.createElement("span", {
+    style: {
+      flex: 1,
+      color: T.text
+    }
+  }, React.createElement("b", null, (a.kim || "?").split("@")[0]), " · ", a.islem, a.detay ? " — " + a.detay : ""))))), React.createElement("div", {
     style: {
       background: "linear-gradient(120deg," + T.accent2 + "18," + T.bg1 + ")",
       border: "0.5px solid " + T.accent2 + "44",
@@ -31892,9 +32266,35 @@ function App() {
       setSahiplenme(null);
     }
   };
-  const ligTakip = id => setTakipLig(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const oyuncuTakip = id => setTakipOyuncu(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const takimTakip = id => setTakipTakim(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const adAra = (tip, id) => {
+    try {
+      for (const t of turnuvalar) {
+        if (tip === 'lig' && t.id === id) return t.ad;
+        for (const tk of t.takimlar) {
+          if (tip === 'takim' && tk.id === id) return tk.ad;
+          if (tip === 'oyuncu') for (const o of tk.oyuncular) {
+            if (o.id === id) return o.ad;
+          }
+        }
+      }
+    } catch (e) {}
+    return null;
+  };
+  const ligTakip = id => setTakipLig(p => {
+    const ekle = !p.includes(id);
+    Db.takipYaz(oturum, 'lig', id, adAra('lig', id), ekle);
+    return ekle ? [...p, id] : p.filter(x => x !== id);
+  });
+  const oyuncuTakip = id => setTakipOyuncu(p => {
+    const ekle = !p.includes(id);
+    Db.takipYaz(oturum, 'oyuncu', id, adAra('oyuncu', id), ekle);
+    return ekle ? [...p, id] : p.filter(x => x !== id);
+  });
+  const takimTakip = id => setTakipTakim(p => {
+    const ekle = !p.includes(id);
+    Db.takipYaz(oturum, 'takim', id, adAra('takim', id), ekle);
+    return ekle ? [...p, id] : p.filter(x => x !== id);
+  });
   const bildirimler = useMemo(() => {
     const b = [];
     const tumO = Motor.tumOyuncular(turnuvalar);
@@ -31976,6 +32376,9 @@ function App() {
     setNavGecmis(p => [...p, nav]);
     setNav(n);
     window.scrollTo(0, 0);
+    try {
+      if (n && n.sayfa) Db.olayYaz(oturum, 'sayfa', n.sayfa);
+    } catch (e) {}
   };
   const geri = () => {
     setNavGecmis(p => {
@@ -32199,6 +32602,7 @@ function App() {
         alert("Olmadı: " + r.hata);
         return;
       }
+      Db.logla(oturum, arsiv ? "Lig arşivledi" : "Ligi aktif etti", turnuva.ad);
     }
     turnuva.durum = arsiv ? 'arsiv' : 'aktif';
     if (arsiv) {
@@ -32215,6 +32619,7 @@ function App() {
         alert("Silinemedi (maç oynanmış olabilir — arşivle): " + r.hata);
         return;
       }
+      Db.logla(oturum, "Lig sildi", turnuva.ad);
     }
     setTurnuvalar(p => p.filter(t => t.id !== turnuva.id));
     git({
