@@ -5738,7 +5738,7 @@ function ProfilSayfa({
       borderRadius: 8,
       padding: "5px 8px"
     }
-  }, "bırak")) : null, oturum && IZINLI_MAILLER.map(m => m.toLowerCase()).includes((oturum.email || "").toLowerCase()) && React.createElement("div", {
+  }, "bırak")) : null, oturum && adminMi && React.createElement("div", {
     onClick: () => git({
       sayfa: "admin"
     }),
