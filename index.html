@@ -1829,46 +1829,55 @@ const Db = {
         ot = otR.data || [],
         mc = mcR.data || [];
       const pidler = [...new Set(ot.map(x => x.player_id))];
-      let oyList = [];
+      let acikById = {},
+        tamById = {};
       if (pidler.length) {
         const {
-          data: oy
-        } = await sb.from('oyuncular').select('*').in('player_id', pidler);
-        oyList = oy || [];
+          data: ac
+        } = await sb.from('oyuncular_acik').select('*').in('player_id', pidler);
+        (ac || []).forEach(o => {
+          acikById[o.player_id] = o;
+        });
+        try {
+          const {
+            data: tm
+          } = await sb.from('oyuncular').select('*').in('player_id', pidler);
+          (tm || []).forEach(o => {
+            tamById[o.player_id] = o;
+          });
+        } catch (e) {}
       }
-      const oyById = {};
-      oyList.forEach(o => {
-        oyById[o.player_id] = o;
-      });
       const takimlar = tk.map(t => {
         const oyuncular = ot.filter(x => x.takim_id === t.id).map(u => {
-          const o = oyById[u.player_id] || {};
-          const n = o.nitelik || {};
+          const tam = tamById[u.player_id];
+          const ac = acikById[u.player_id] || {};
+          const n = tam && tam.nitelik || ac.nitelik || {};
           return {
             id: u.player_id,
             player_id: u.player_id,
-            lisNo: o.lis_no || null,
-            ad: o.ad_soyad,
-            poz: o.poz,
-            no: o.forma_no,
-            ovr: o.ovr,
+            lisNo: tam && tam.lis_no || null,
+            ad: tam && tam.ad_soyad || ac.gorunen_ad || "Oyuncu",
+            poz: tam && tam.poz || ac.poz || null,
+            no: tam ? tam.forma_no : ac.forma_no,
+            ovr: tam ? tam.ovr : ac.ovr,
             pac: n.pac,
             sho: n.sho,
             pas: n.pas,
             dri: n.dri,
             def: n.def,
             phy: n.phy,
-            renk: o.renk,
-            formaRenk: o.renk,
-            yas: yasHesap(o.dogum),
-            boy: o.boy,
-            kilo: o.kilo,
-            ayak: o.ayak,
-            dogum: o.dogum,
-            bolge: o.bolge,
-            uyruk: o.uyruk,
-            saglik: o.saglik,
-            deger: o.deger,
+            renk: tam && tam.renk || ac.renk,
+            formaRenk: tam && tam.renk || ac.renk,
+            yas: tam ? yasHesap(tam.dogum) : ac.yas,
+            boy: tam ? tam.boy : ac.boy,
+            kilo: tam ? tam.kilo : null,
+            ayak: tam && tam.ayak || ac.ayak,
+            dogum: tam && tam.dogum || null,
+            bolge: tam && tam.bolge || ac.bolge,
+            uyruk: tam && tam.uyruk || null,
+            saglik: tam && tam.saglik || ac.saglik,
+            deger: tam ? tam.deger : ac.deger,
+            sahip_user_id: tam && tam.sahip_user_id || null,
             gol: 0,
             asist: 0,
             mac: 0,
@@ -2005,6 +2014,25 @@ const Db = {
       const {
         data
       } = await q;
+      const idler = (data || []).map(x => x.id);
+      const sonuc = [];
+      for (const id of idler) {
+        const t = await this.ligYukle(id);
+        if (t) sonuc.push(t);
+      }
+      return sonuc;
+    } catch (e) {
+      return [];
+    }
+  },
+  async liglerYukleAcik(limit) {
+    if (!sb) return [];
+    try {
+      const {
+        data
+      } = await sb.from('ligler').select('id').eq('durum', 'aktif').order('olusturma', {
+        ascending: false
+      }).limit(limit || 60);
       const idler = (data || []).map(x => x.id);
       const sonuc = [];
       for (const id of idler) {
@@ -8817,7 +8845,8 @@ function TurnuvaSayfa({
     serbest: "Serbest",
     tek: "Tek Devre",
     cift: "Çift Devre",
-    gruplu: "Gruplu"
+    gruplu: "Gruplu",
+    kupa: "🏆 Kupa"
   }[turnuva.format] || "Serbest";
   const akisOlaylar = useMemo(() => {
     const ev = [];
@@ -10836,13 +10865,35 @@ function YonetimPaneli({
       marginBottom: 6,
       border: "0.5px solid " + T.line
     }
+  }, React.createElement("label", {
+    className: "tap",
+    title: "Takım rengi",
+    style: {
+      cursor: "pointer",
+      flexShrink: 0,
+      position: "relative"
+    }
   }, React.createElement(Logo, {
     renk: t.renk,
     ad: t.ad,
     boy: 26
-  }), React.createElement("span", {
+  }), React.createElement("input", {
+    type: "color",
+    value: t.renk || "#34D399",
+    onChange: e => yonetim.takimDuzenle(turnuva, t.id, {
+      renk: e.target.value
+    }),
+    style: {
+      position: "absolute",
+      inset: 0,
+      opacity: 0,
+      width: 26,
+      height: 26,
+      cursor: "pointer"
+    }
+  })), React.createElement("span", {
     onClick: () => git({
-      sayfa: "takimyonet",
+      sayfa: "takim",
       takim: t,
       turnuva
     }),
@@ -10858,7 +10909,23 @@ function YonetimPaneli({
       overflow: "hidden",
       textOverflow: "ellipsis"
     }
-  }, t.ad), turnuva.format === "gruplu" ? React.createElement("select", {
+  }, t.ad), React.createElement("button", {
+    onClick: () => {
+      const y = prompt("Takım adı:", t.ad);
+      if (y && y.trim()) yonetim.takimDuzenle(turnuva, t.id, {
+        ad: y.trim()
+      });
+    },
+    className: "tap",
+    title: "Adı düzenle",
+    style: {
+      color: T.textMut,
+      fontSize: 12,
+      background: "none",
+      border: "none",
+      padding: "0 3px"
+    }
+  }, "✏️"), turnuva.format === "gruplu" ? React.createElement("select", {
     value: t.grup || 0,
     onChange: e => yonetim.grupTasi(turnuva, t.id, parseInt(e.target.value)),
     style: {
@@ -10879,7 +10946,7 @@ function YonetimPaneli({
     value: gi
   }, "ABCDEFGHIJ"[gi], " Gr."))) : React.createElement("span", {
     onClick: () => git({
-      sayfa: "takimyonet",
+      sayfa: "takim",
       takim: t,
       turnuva
     }),
@@ -31338,10 +31405,10 @@ function App() {
     };
   }, []);
   useEffect(() => {
-    if (!sb || !oturum || saltOkunur) return;
+    if (!sb || saltOkunur || DAVET_TOKEN) return;
     let aktif = true;
     (async () => {
-      const ligler = await Db.liglerYukle(oturum.id, false);
+      const ligler = oturum ? await Db.liglerYukle(oturum.id, false) : await Db.liglerYukleAcik();
       if (!aktif) return;
       ligler.forEach(t => {
         try {
@@ -31899,6 +31966,26 @@ function App() {
     guncelle();
     return yeni;
   };
+  const takimDuzenle = async (turnuva, takimId, alanlar) => {
+    const t = turnuva.takimlar.find(x => x.id === takimId);
+    if (!t) return;
+    if (alanlar.ad != null) t.ad = alanlar.ad;
+    if (alanlar.renk != null) {
+      t.renk = alanlar.renk;
+      (t.oyuncular || []).forEach(o => {
+        o.renk = alanlar.renk;
+        o.formaRenk = alanlar.renk;
+      });
+    }
+    if (iliskiselMi(turnuva) && typeof takimId === "string") {
+      const db = {};
+      if (alanlar.ad != null) db.ad = alanlar.ad;
+      if (alanlar.renk != null) db.renk = alanlar.renk;
+      if (Object.keys(db).length) await Db.takimGuncelle(takimId, db);
+    }
+    turnuvaHesapla(turnuva);
+    guncelle();
+  };
   const takimSil = async (turnuva, takimId) => {
     if (iliskiselMi(turnuva) && typeof takimId === "string") {
       const r = await Db.takimSil(takimId);
@@ -32296,9 +32383,10 @@ function App() {
           git: git,
           takipLig: takipLig,
           ligTakip: ligTakip,
-          yonetim: saltOkunur ? null : {
+          yonetim: saltOkunur || !oturum ? null : {
             takimEkle,
             takimSil,
+            takimDuzenle,
             macEkle,
             macSil,
             fikstürYap,
