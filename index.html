@@ -2536,7 +2536,7 @@ function svgAmblem(ad, renk, boy) {
     <text x="50" y="50" font-size="40" font-weight="800" fill="#fff" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${harf}</text>
   </svg>`;
 }
-function uretVeri(turnuvaSayisi = 5, takimPerTurnuva = 9, oyuncuPerTakim = 12) {
+function uretVeri(turnuvaSayisi = 5, takimPerTurnuva = 9, oyuncuPerTakim = 12, opts = {}) {
   const turnuvalar = [];
   let oyuncuId = 1,
     takimId = 1,
@@ -2604,198 +2604,272 @@ function uretVeri(turnuvaSayisi = 5, takimPerTurnuva = 9, oyuncuPerTakim = 12) {
         form: []
       });
     }
+    const fmt = opts.format || "serbest";
+    const grupSay = fmt === "gruplu" ? Math.max(2, opts.grup || 2) : 0;
+    if (grupSay) {
+      takimlar.forEach((tk, idx) => {
+        tk.grup = idx % grupSay;
+      });
+    }
+    const kisi = opts.kisi || 7;
+    const oran = opts.oynanmaOran == null ? 1 : Math.max(0, Math.min(1, opts.oynanmaOran));
+    const fixtures = [];
+    const eslestir = list => {
+      for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+        fixtures.push({
+          A: list[i],
+          B: list[j],
+          grup: list[i].grup || 0
+        });
+        if (fmt === "cift") fixtures.push({
+          A: list[j],
+          B: list[i],
+          grup: list[i].grup || 0
+        });
+      }
+    };
+    if (grupSay) {
+      for (let g = 0; g < grupSay; g++) eslestir(takimlar.filter(tk => tk.grup === g));
+    } else eslestir(takimlar);
+    fixtures.forEach((fx, idx) => {
+      fx.hafta = idx + 1;
+    });
+    const oynananSay = Math.round(fixtures.length * oran);
+    const dizUret = tk => {
+      const liste = DIZILIS_SABLON[kisi] || DIZILIS_SABLON[7];
+      const sab = pick(liste);
+      const slotlar = slotlariUret(sab);
+      const havuz = [...tk.oyuncular].sort((a, b) => b.ovr - a.ovr);
+      const kull = new Set();
+      const yerlesim = slotlar.map(sl => {
+        let a = havuz.find(o => !kull.has(o.id) && o.poz === sl.poz) || havuz.find(o => !kull.has(o.id));
+        if (a) kull.add(a.id);
+        return a ? a.id : null;
+      });
+      const yedek = havuz.filter(o => !kull.has(o.id)).map(o => o.id);
+      return {
+        ad: sab.ad,
+        kadro: {
+          yerlesim,
+          yedek
+        }
+      };
+    };
     const maclar = [];
-    let hafta = 1;
-    for (let i = 0; i < takimlar.length; i++) {
-      for (let j = i + 1; j < takimlar.length; j++) {
-        const A = takimlar[i],
-          B = takimlar[j];
-        const sA = rnd(6),
-          sB = rnd(6);
-        const olaylar = [];
-        const hattrickMac = Math.random() > 0.55;
-        const golciler = (tk, adet) => {
-          let yildizGolcu = null;
-          if (hattrickMac && adet >= 3 && tk === (sA >= sB ? A : B)) {
-            yildizGolcu = pick(tk.oyuncular.filter(p => p.poz !== "Kaleci"));
-          }
-          for (let g = 0; g < adet; g++) {
-            const sc = yildizGolcu && g < 3 ? yildizGolcu : pick(tk.oyuncular.filter(p => p.poz !== "Kaleci"));
-            sc.gol++;
-            const as = pick(tk.oyuncular.filter(p => p.id !== sc.id));
-            const asistVar = Math.random() > 0.35;
-            if (asistVar) {
-              as.asist++;
-            }
-            const golDk = Math.floor(Math.random() * 60) + 1;
-            olaylar.push({
-              oyuncu: sc.ad,
-              takim: tk.ad,
-              tip: "gol",
-              asist: asistVar ? as.ad : null,
-              dk: golDk
-            });
-          }
-        };
-        golciler(A, sA);
-        golciler(B, sB);
-        [A, B].forEach(tk => {
-          const sariSay = Math.random() > 0.5 ? Math.random() > 0.6 ? 2 : 1 : 0;
-          for (let i = 0; i < sariSay; i++) {
-            const p = pick(tk.oyuncular);
-            p.sari++;
-            olaylar.push({
-              oyuncu: p.ad,
-              takim: tk.ad,
-              tip: "sari"
-            });
-          }
-          if (Math.random() > 0.78) {
-            const p = pick(tk.oyuncular);
-            p.kirmizi++;
-            olaylar.push({
-              oyuncu: p.ad,
-              takim: tk.ad,
-              tip: "kirmizi"
-            });
-          }
-        });
-        const macKaleciler = [];
-        [A, B].forEach(tk => {
-          const k = tk.oyuncular.find(p => p.poz === "Kaleci");
-          if (k) {
-            const n = 1 + rnd(6);
-            k.kurtaris += n;
-            macKaleciler.push({
-              ad: k.ad,
-              kurtaris: n
-            });
-          }
-        });
-        const mvpTk = sA >= sB ? A : B;
-        const mvpAday = mvpTk.oyuncular.filter(p => p.gol > 0).length ? mvpTk.oyuncular.filter(p => p.gol > 0) : mvpTk.oyuncular;
-        const mvpO = pickWeighted(mvpAday, p => p.gol * 3 + p.asist * 2 + p.ovr / 40);
-        if (mvpO) mvpO.mvp++;
-        const tumO = [...A.oyuncular, ...B.oyuncular];
-        const forvetler = tumO.filter(p => p.poz === "Forvet");
-        const ortalar = tumO.filter(p => p.poz === "OrtaSaha");
-        const defanslar = tumO.filter(p => p.poz === "Defans");
-        const kaleciler = tumO.filter(p => p.poz === "Kaleci");
-        const macOdul = {};
-        macOdul.mvp = mvpO ? mvpO.ad : null;
-        {
-          const o = pickWeighted(forvetler.length ? forvetler : tumO, p => p.gol + p.sho / 20);
-          if (o) {
-            o.forvet++;
-            macOdul.forvet = o.ad;
-          }
-        }
-        {
-          const o = pickWeighted(ortalar.length ? ortalar : tumO, p => p.asist + p.pas / 20);
-          if (o) {
-            o.ortasaha++;
-            macOdul.ortasaha = o.ad;
-          }
-        }
-        {
-          const o = pickWeighted(defanslar.length ? defanslar : tumO, p => p.def / 15);
-          if (o) {
-            o.defans++;
-            macOdul.defans = o.ad;
-          }
-        }
-        {
-          const o = pickWeighted(kaleciler.length ? kaleciler : tumO, p => p.kurtaris + p.def / 20);
-          if (o) {
-            o.kaleci++;
-            macOdul.kaleci = o.ad;
-          }
-        }
-        {
-          const o = pickWeighted(tumO, p => (p.ovr - 50) / 12);
-          if (o) {
-            o.altin++;
-            macOdul.altin = o.ad;
-          }
-        }
-        {
-          const o = pickWeighted(tumO, p => (p.ovr - 50) / 15);
-          if (o) {
-            o.gumus++;
-            macOdul.gumus = o.ad;
-          }
-        }
-        {
-          const o = pickWeighted(tumO, p => p.gol + p.sho / 25);
-          if (o) {
-            o.macinGolu++;
-            macOdul.macinGolu = o.ad;
-          }
-        }
-        {
-          const o = pick(tumO);
-          o.enerjik++;
-          macOdul.enerjik = o.ad;
-        }
-        {
-          const o = pick(tumO);
-          o.centilmen++;
-          macOdul.centilmen = o.ad;
-        }
-        A.oyuncular.forEach(p => p.mac++);
-        B.oyuncular.forEach(p => p.mac++);
-        A.o++;
-        B.o++;
-        A.ag += sA;
-        A.yg += sB;
-        B.ag += sB;
-        B.yg += sA;
-        if (sA > sB) {
-          A.g++;
-          B.m++;
-          A.puan += 3;
-          A.form.push("G");
-          B.form.push("M");
-        } else if (sB > sA) {
-          B.g++;
-          A.m++;
-          B.puan += 3;
-          B.form.push("M");
-          A.form.push("G");
-        } else {
-          A.b++;
-          B.b++;
-          A.puan++;
-          B.puan++;
-          A.form.push("B");
-          B.form.push("B");
-        }
-        const macIst = istatistikUret(sA, sB);
-        const yeniMacObj = {
+    fixtures.forEach((fx, fi) => {
+      const A = fx.A,
+        B = fx.B,
+        hafta = fx.hafta;
+      if (fi >= oynananSay) {
+        maclar.push({
           id: macId++,
           hafta,
+          grup: fx.grup,
           takimA: A.ad,
           takimB: B.ad,
           renkA: A.renk,
           renkB: B.renk,
-          skorA: sA,
-          skorB: sB,
-          olaylar,
-          kaleciler: macKaleciler,
-          mvp: mvpO.ad,
-          mvpTakim: mvpTk.ad,
-          oduller: macOdul,
-          istatistik: macIst,
-          oynandi: true,
+          skorA: null,
+          skorB: null,
+          olaylar: [],
+          oynandi: false,
           takimAId: A.id,
           takimBId: B.id,
           sure: 60
-        };
-        yeniMacObj.ratingler = ratingHesapla(yeniMacObj, A, B);
-        maclar.push(yeniMacObj);
-        hafta++;
+        });
+        return;
       }
-    }
+      const sA = rnd(6),
+        sB = rnd(6);
+      const olaylar = [];
+      const hattrickMac = Math.random() > 0.55;
+      const golciler = (tk, adet) => {
+        let yildizGolcu = null;
+        if (hattrickMac && adet >= 3 && tk === (sA >= sB ? A : B)) {
+          yildizGolcu = pick(tk.oyuncular.filter(p => p.poz !== "Kaleci"));
+        }
+        for (let g = 0; g < adet; g++) {
+          const sc = yildizGolcu && g < 3 ? yildizGolcu : pick(tk.oyuncular.filter(p => p.poz !== "Kaleci"));
+          sc.gol++;
+          const as = pick(tk.oyuncular.filter(p => p.id !== sc.id));
+          const asistVar = Math.random() > 0.35;
+          if (asistVar) {
+            as.asist++;
+          }
+          const golDk = Math.floor(Math.random() * 60) + 1;
+          olaylar.push({
+            oyuncu: sc.ad,
+            takim: tk.ad,
+            tip: "gol",
+            asist: asistVar ? as.ad : null,
+            dk: golDk
+          });
+        }
+      };
+      golciler(A, sA);
+      golciler(B, sB);
+      [A, B].forEach(tk => {
+        const sariSay = Math.random() > 0.5 ? Math.random() > 0.6 ? 2 : 1 : 0;
+        for (let i = 0; i < sariSay; i++) {
+          const p = pick(tk.oyuncular);
+          p.sari++;
+          olaylar.push({
+            oyuncu: p.ad,
+            takim: tk.ad,
+            tip: "sari"
+          });
+        }
+        if (Math.random() > 0.78) {
+          const p = pick(tk.oyuncular);
+          p.kirmizi++;
+          olaylar.push({
+            oyuncu: p.ad,
+            takim: tk.ad,
+            tip: "kirmizi"
+          });
+        }
+      });
+      const macKaleciler = [];
+      [A, B].forEach(tk => {
+        const k = tk.oyuncular.find(p => p.poz === "Kaleci");
+        if (k) {
+          const n = 1 + rnd(6);
+          k.kurtaris += n;
+          macKaleciler.push({
+            ad: k.ad,
+            kurtaris: n
+          });
+        }
+      });
+      const mvpTk = sA >= sB ? A : B;
+      const mvpAday = mvpTk.oyuncular.filter(p => p.gol > 0).length ? mvpTk.oyuncular.filter(p => p.gol > 0) : mvpTk.oyuncular;
+      const mvpO = pickWeighted(mvpAday, p => p.gol * 3 + p.asist * 2 + p.ovr / 40);
+      if (mvpO) mvpO.mvp++;
+      const tumO = [...A.oyuncular, ...B.oyuncular];
+      const forvetler = tumO.filter(p => p.poz === "Forvet");
+      const ortalar = tumO.filter(p => p.poz === "OrtaSaha");
+      const defanslar = tumO.filter(p => p.poz === "Defans");
+      const kaleciler = tumO.filter(p => p.poz === "Kaleci");
+      const macOdul = {};
+      macOdul.mvp = mvpO ? mvpO.ad : null;
+      {
+        const o = pickWeighted(forvetler.length ? forvetler : tumO, p => p.gol + p.sho / 20);
+        if (o) {
+          o.forvet++;
+          macOdul.forvet = o.ad;
+        }
+      }
+      {
+        const o = pickWeighted(ortalar.length ? ortalar : tumO, p => p.asist + p.pas / 20);
+        if (o) {
+          o.ortasaha++;
+          macOdul.ortasaha = o.ad;
+        }
+      }
+      {
+        const o = pickWeighted(defanslar.length ? defanslar : tumO, p => p.def / 15);
+        if (o) {
+          o.defans++;
+          macOdul.defans = o.ad;
+        }
+      }
+      {
+        const o = pickWeighted(kaleciler.length ? kaleciler : tumO, p => p.kurtaris + p.def / 20);
+        if (o) {
+          o.kaleci++;
+          macOdul.kaleci = o.ad;
+        }
+      }
+      {
+        const o = pickWeighted(tumO, p => (p.ovr - 50) / 12);
+        if (o) {
+          o.altin++;
+          macOdul.altin = o.ad;
+        }
+      }
+      {
+        const o = pickWeighted(tumO, p => (p.ovr - 50) / 15);
+        if (o) {
+          o.gumus++;
+          macOdul.gumus = o.ad;
+        }
+      }
+      {
+        const o = pickWeighted(tumO, p => p.gol + p.sho / 25);
+        if (o) {
+          o.macinGolu++;
+          macOdul.macinGolu = o.ad;
+        }
+      }
+      {
+        const o = pick(tumO);
+        o.enerjik++;
+        macOdul.enerjik = o.ad;
+      }
+      {
+        const o = pick(tumO);
+        o.centilmen++;
+        macOdul.centilmen = o.ad;
+      }
+      A.oyuncular.forEach(p => p.mac++);
+      B.oyuncular.forEach(p => p.mac++);
+      A.o++;
+      B.o++;
+      A.ag += sA;
+      A.yg += sB;
+      B.ag += sB;
+      B.yg += sA;
+      if (sA > sB) {
+        A.g++;
+        B.m++;
+        A.puan += 3;
+        A.form.push("G");
+        B.form.push("M");
+      } else if (sB > sA) {
+        B.g++;
+        A.m++;
+        B.puan += 3;
+        B.form.push("M");
+        A.form.push("G");
+      } else {
+        A.b++;
+        B.b++;
+        A.puan++;
+        B.puan++;
+        A.form.push("B");
+        B.form.push("B");
+      }
+      const macIst = istatistikUret(sA, sB);
+      const dA = dizUret(A),
+        dB = dizUret(B);
+      const yeniMacObj = {
+        id: macId++,
+        hafta,
+        grup: fx.grup,
+        takimA: A.ad,
+        takimB: B.ad,
+        renkA: A.renk,
+        renkB: B.renk,
+        skorA: sA,
+        skorB: sB,
+        olaylar,
+        kaleciler: macKaleciler,
+        mvp: mvpO ? mvpO.ad : null,
+        mvpTakim: mvpTk.ad,
+        oduller: macOdul,
+        istatistik: macIst,
+        oynandi: true,
+        takimAId: A.id,
+        takimBId: B.id,
+        sure: 60,
+        dizilisA: dA.ad,
+        dizilisB: dB.ad,
+        kadroA: dA.kadro,
+        kadroB: dB.kadro
+      };
+      yeniMacObj.ratingler = ratingHesapla(yeniMacObj, A, B);
+      maclar.push(yeniMacObj);
+    });
     takimlar.sort((a, b) => b.puan - a.puan || b.ag - b.yg - (a.ag - a.yg) || b.ag - a.ag);
     takimlar.forEach((tk, i) => tk.sira = i + 1);
     turnuvalar.push({
@@ -2804,8 +2878,9 @@ function uretVeri(turnuvaSayisi = 5, takimPerTurnuva = 9, oyuncuPerTakim = 12) {
       renk: pick(RENKLER),
       takimlar,
       maclar,
-      format: "serbest",
-      grupSayi: 0,
+      format: fmt,
+      grupSayi: grupSay,
+      kisi,
       sehir: pick(["İstanbul", "Ankara", "İzmir", "Bursa", "Antalya"])
     });
   }
@@ -30299,6 +30374,27 @@ function AdminPanel({
   };
   const [stresYuk, setStresYuk] = useState(false);
   const [stresLog, setStresLog] = useState("");
+  const [cfgLig, setCfgLig] = useState(3);
+  const [cfgTakim, setCfgTakim] = useState(8);
+  const [cfgOyuncu, setCfgOyuncu] = useState(12);
+  const [cfgFormat, setCfgFormat] = useState("tek");
+  const [cfgOran, setCfgOran] = useState(80);
+  const [cfgKupa, setCfgKupa] = useState(true);
+  const macOnizle = useMemo(() => {
+    const n = Math.max(2, parseInt(cfgTakim) || 0);
+    let perLig = n * (n - 1) / 2;
+    if (cfgFormat === "cift") perLig *= 2;
+    if (cfgFormat === "gruplu") {
+      const g = Math.max(2, Math.round(n / 4));
+      const gk = Math.ceil(n / g);
+      perLig = g * (gk * (gk - 1) / 2);
+    }
+    return {
+      perLig: Math.round(perLig),
+      toplam: Math.round(perLig * (parseInt(cfgLig) || 0))
+    };
+  }, [cfgLig, cfgTakim, cfgFormat]);
+  const STRES_LIG_ADI = ["Cuma Akşamı Ligi", "Kadıköy Süper Lig", "Ankara Kurumsal Lig", "İzmir Serbest Lig", "Bursa Dostluk Ligi", "Antalya Sahil Ligi", "Beşiktaş Gece Ligi", "Çankaya Kupası Ligi", "Bornova Yıldızlar", "Nilüfer Efeler Ligi"];
   const stresTestOlustur = async () => {
     if (!oturum || !oturum.id) {
       setStresLog("Önce giriş yap.");
@@ -30308,72 +30404,42 @@ function AdminPanel({
       setStresLog("Supabase bağlantısı yok.");
       return;
     }
+    const nLig = Math.max(1, Math.min(30, parseInt(cfgLig) || 1));
+    const nTk = Math.max(2, Math.min(24, parseInt(cfgTakim) || 8));
+    const nOy = Math.max(3, Math.min(30, parseInt(cfgOyuncu) || 12));
+    const oran = Math.max(0, Math.min(1, (parseInt(cfgOran) || 100) / 100));
+    const grup = cfgFormat === "gruplu" ? Math.max(2, Math.round(nTk / 4)) : 0;
+    const sehirler = ["İstanbul", "Ankara", "İzmir", "Bursa", "Antalya", "Adana", "Konya", "Eskişehir"];
     setStresYuk(true);
-    setStresLog("Üretiliyor…");
-    const konfig = [{
-      ad: "Cuma Akşamı Ligi",
-      format: "tek",
-      tk: 8,
-      oy: 12,
-      sehir: "İstanbul",
-      ilce: "Kartal"
-    }, {
-      ad: "Kadıköy Süper Lig",
-      format: "cift",
-      tk: 6,
-      oy: 11,
-      sehir: "İstanbul",
-      ilce: "Kadıköy"
-    }, {
-      ad: "Ankara Kurumsal Lig",
-      format: "gruplu",
-      tk: 8,
-      oy: 11,
-      sehir: "Ankara",
-      grup: 2
-    }, {
-      ad: "İzmir Serbest Lig",
-      format: "serbest",
-      tk: 10,
-      oy: 12,
-      sehir: "İzmir"
-    }, {
-      ad: "Bursa Dostluk Ligi",
-      format: "tek",
-      tk: 5,
-      oy: 10,
-      sehir: "Bursa"
-    }];
     const olan = [];
     try {
-      for (let i = 0; i < konfig.length; i++) {
-        const c = konfig[i];
-        const T2 = uretVeri(1, c.tk, c.oy)[0];
-        T2.ad = c.ad;
-        T2.format = c.format;
-        T2.sehir = c.sehir;
-        if (c.ilce) T2.ilce = c.ilce;
-        if (c.grup) {
-          T2.grupSayi = c.grup;
-          T2.takimlar.forEach((tk, idx) => {
-            tk.grup = idx % c.grup;
-          });
-        }
-        setStresLog("Kaydediliyor " + (i + 1) + "/" + (konfig.length + 1) + ": " + c.ad + " …");
+      for (let i = 0; i < nLig; i++) {
+        setStresLog("Üretiliyor " + (i + 1) + "/" + nLig + " …");
+        const T2 = uretVeri(1, nTk, nOy, {
+          format: cfgFormat,
+          grup,
+          kisi: 7,
+          oynanmaOran: oran
+        })[0];
+        T2.ad = STRES_LIG_ADI[i] || "Test Ligi " + (i + 1);
+        T2.sehir = pick(sehirler);
+        setStresLog("Kaydediliyor " + (i + 1) + "/" + nLig + ": " + T2.ad + " …");
         const r = await Db.ligKaydet(T2, oturum.id);
         if (!r.ok) {
-          setStresLog("❌ Hata (" + c.ad + "): " + (r.hata || ""));
+          setStresLog("❌ Hata (" + T2.ad + "): " + (r.hata || ""));
           setStresYuk(false);
           return;
         }
-        olan.push(c.ad);
+        olan.push(T2.ad);
       }
-      setStresLog("Kaydediliyor " + (konfig.length + 1) + "/" + (konfig.length + 1) + ": Kupa …");
-      const kupa = demoKupa();
-      kupa.ad = "⭐ Şampiyonlar Kupası (Stres)";
-      const rk = await Db.ligKaydet(kupa, oturum.id);
-      if (rk.ok) olan.push(kupa.ad);
-      setStresLog("✅ " + olan.length + " lig ilişkisel veritabanına kaydedildi. Şimdi 'İlişkiselden Yükle' ile görüntüle.");
+      if (cfgKupa) {
+        setStresLog("Kaydediliyor: Kupa …");
+        const kupa = demoKupa();
+        kupa.ad = "⭐ Şampiyonlar Kupası (Stres)";
+        const rk = await Db.ligKaydet(kupa, oturum.id);
+        if (rk.ok) olan.push(kupa.ad);
+      }
+      setStresLog("✅ " + olan.length + " lig kaydedildi (" + cfgFormat + ", %" + Math.round(oran * 100) + " oynanmış, ~" + macOnizle.toplam + " maç). Şimdi 'İlişkiselden Yükle' ile görüntüle.");
     } catch (e) {
       setStresLog("❌ " + String(e && e.message || e));
     }
@@ -30386,6 +30452,122 @@ function AdminPanel({
     const n = await onIliskiselYukle();
     setStresYuk(false);
     setStresLog("✅ " + n + " lig yüklendi. Ana sayfada görebilirsin.");
+  };
+  const [tarama, setTarama] = useState(null);
+  const [taramaYuk, setTaramaYuk] = useState(false);
+  const [taramaKopyalandi, setTaramaKopyalandi] = useState(false);
+  const sistemTaramasi = async () => {
+    setTaramaYuk(true);
+    setTarama(null);
+    setTaramaKopyalandi(false);
+    const R = [];
+    const ekle = (ad, durum, not) => R.push({
+      ad,
+      durum,
+      not: not || ""
+    });
+    const say = async (t, filtre) => {
+      try {
+        let q = sb.from(t).select('*', {
+          count: 'exact',
+          head: true
+        });
+        if (filtre) q = filtre(q);
+        const {
+          count,
+          error
+        } = await q;
+        return error ? {
+          err: error.message
+        } : {
+          n: count || 0
+        };
+      } catch (e) {
+        return {
+          err: String(e && e.message || e)
+        };
+      }
+    };
+    try {
+      ekle("Supabase bağlantısı", sb && Db.hazir() ? "ok" : "hata", sb && Db.hazir() ? SB_URL.replace("https://", "") : "bağlantı yok");
+      if (!sb) {
+        setTarama(R);
+        setTaramaYuk(false);
+        return;
+      }
+      if (oturum) {
+        let adm = false;
+        try {
+          adm = await Db.adminMi(oturum.id);
+        } catch (e) {}
+        ekle("Oturum / kimlik", "ok", (oturum.email || "?") + (adm ? " · Süper Admin ✓" : " · normal üye"));
+      } else ekle("Oturum / kimlik", "uyari", "giriş yapılmamış");
+      const cLig = await say('ligler'),
+        cTk = await say('takimlar'),
+        cOy = await say('oyuncular');
+      const cMac = await say('maclar'),
+        cMacO = await say('maclar', q => q.eq('oynandi', true));
+      ekle("Ligler", cLig.err ? "hata" : "ok", cLig.err || cLig.n + " lig");
+      ekle("Takımlar", cTk.err ? "hata" : "ok", cTk.err || cTk.n + " takım");
+      ekle("Oyuncular", cOy.err ? "hata" : "ok", cOy.err || cOy.n + " oyuncu");
+      ekle("Maçlar", cMac.err ? "hata" : "ok", cMac.err || cMac.n + " maç · " + (cMacO.n || 0) + " oynanmış");
+      const cOl = await say('mac_olaylari'),
+        cOd = await say('mac_odulleri'),
+        cTr = await say('transferler'),
+        cDav = await say('davetler');
+      ekle("Maç olayları (gol/asist/kart/kurtarış)", cOl.err ? "uyari" : "ok", cOl.err || cOl.n + " olay");
+      ekle("Maç ödülleri (MVP + mevkiler)", cOd.err ? "uyari" : "ok", cOd.err || cOd.n + " ödül");
+      ekle("Transferler", cTr.err ? "uyari" : "ok", cTr.err || cTr.n + " transfer");
+      ekle("Davet linkleri", cDav.err ? "uyari" : "ok", cDav.err || cDav.n + " davet");
+      try {
+        const {
+          data,
+          error
+        } = await sb.from('oyuncular_acik').select('*').limit(1);
+        if (error) ekle("KVKK açık görünüm", "hata", error.message);else if (!data || !data.length) ekle("KVKK açık görünüm", "uyari", "henüz oyuncu yok — veri girilince test edilir");else {
+          const row = data[0];
+          const hassas = ['telefon', 'tc', 'kilo', 'dogum', 'ad_soyad', 'email', 'not_'].filter(k => k in row);
+          ekle("KVKK açık görünüm", hassas.length ? "hata" : "ok", hassas.length ? "⚠️ HASSAS ALAN SIZIYOR: " + hassas.join(", ") : "güvenli — sadece: " + Object.keys(row).join(", "));
+        }
+      } catch (e) {
+        ekle("KVKK açık görünüm", "hata", String(e && e.message || e));
+      }
+      const cUye = await say('profiller'),
+        cAdm = await say('adminler'),
+        cHak = await say('lig_haklari');
+      ekle("Üyeler (profiller)", cUye.err ? "uyari" : "ok", cUye.err || cUye.n + " üye");
+      ekle("Süper Adminler", cAdm.err ? "uyari" : "ok", cAdm.err || cAdm.n + " admin");
+      ekle("Lig hakları", cHak.err ? "uyari" : "ok", cHak.err || cHak.n + " kayıt");
+      const cLog = await say('islem_log'),
+        cOlay = await say('olay_log'),
+        cTak = await say('takipler');
+      ekle("İşlem kaydı (audit)", cLog.err ? "uyari" : "ok", cLog.err || cLog.n + " satır");
+      ekle("Analitik olay", cOlay.err ? "uyari" : "ok", cOlay.err || cOlay.n + " satır");
+      ekle("Takipler", cTak.err ? "uyari" : "ok", cTak.err || cTak.n + " takip");
+      const cBozuk = await say('maclar', q => q.eq('oynandi', true).or('ev_skor.is.null,dep_skor.is.null'));
+      ekle("Tutarsız maç (oynandı ama skor boş)", cBozuk.err ? "uyari" : cBozuk.n > 0 ? "uyari" : "ok", cBozuk.err || cBozuk.n + " adet");
+    } catch (e) {
+      ekle("Tarama hatası", "hata", String(e && e.message || e));
+    }
+    setTarama(R);
+    setTaramaYuk(false);
+  };
+  const taramaMetin = () => {
+    if (!tarama) return "";
+    const sim = {
+      ok: "✅",
+      uyari: "⚠️",
+      hata: "❌"
+    };
+    const bas = "FORZALIG SİSTEM TARAMASI\n" + (oturum ? oturum.email : "") + "\n========================\n";
+    return bas + tarama.map(r => (sim[r.durum] || "•") + " " + r.ad + (r.not ? ": " + r.not : "")).join("\n");
+  };
+  const taramaKopyala = () => {
+    try {
+      navigator.clipboard.writeText(taramaMetin());
+      setTaramaKopyalandi(true);
+      setTimeout(() => setTaramaKopyalandi(false), 2000);
+    } catch (e) {}
   };
   const testTemizleFn = async () => {
     if (!oturum || !oturum.id) return;
@@ -31546,6 +31728,92 @@ function AdminPanel({
     }
   }, React.createElement("b", null, (a.kim || "?").split("@")[0]), " · ", a.islem, a.detay ? " — " + a.detay : ""))))), React.createElement("div", {
     style: {
+      background: "linear-gradient(120deg," + T.accent + "1e," + T.bg1 + ")",
+      border: "0.5px solid " + T.accent + "55",
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 10
+    }
+  }, React.createElement("b", {
+    style: {
+      color: T.text
+    }
+  }, "🔍 Sistem Taraması"), React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: T.textMut,
+      margin: "5px 0 10px",
+      lineHeight: 1.6
+    }
+  }, "Canlı veritabanını tarar: bağlantı, veri sayıları, KVKK gizliliği, yetkiler, tutarsızlıklar. Rapor çıkar → ", React.createElement("b", null, "Kopyala"), " ile bana yapıştır, birlikte bakalım."), React.createElement("button", {
+    onClick: sistemTaramasi,
+    disabled: taramaYuk,
+    className: "tap",
+    style: {
+      width: "100%",
+      background: taramaYuk ? T.line : T.accent,
+      color: taramaYuk ? T.textMut : "#04070C",
+      border: 0,
+      borderRadius: 10,
+      padding: "11px",
+      fontSize: 12.5,
+      fontWeight: 800
+    }
+  }, taramaYuk ? "⏳ Taranıyor…" : "🔍 Sistemi Tara"), tarama && React.createElement("div", {
+    style: {
+      marginTop: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      maxHeight: 280,
+      overflowY: "auto",
+      background: T.bg0,
+      borderRadius: 8,
+      padding: "6px 10px"
+    }
+  }, tarama.map((r, i) => {
+    const rk = r.durum === "ok" ? T.accent : r.durum === "uyari" ? T.gold : T.danger;
+    const sim = r.durum === "ok" ? "✅" : r.durum === "uyari" ? "⚠️" : "❌";
+    return React.createElement("div", {
+      key: i,
+      style: {
+        display: "flex",
+        gap: 8,
+        fontSize: 11.5,
+        padding: "6px 0",
+        borderTop: i ? "0.5px solid " + T.line : "none",
+        alignItems: "baseline"
+      }
+    }, React.createElement("span", null, sim), React.createElement("span", {
+      style: {
+        color: T.text,
+        fontWeight: 600,
+        flex: "0 0 auto"
+      }
+    }, r.ad), React.createElement("span", {
+      style: {
+        color: rk,
+        flex: 1,
+        textAlign: "right",
+        wordBreak: "break-word"
+      }
+    }, r.not));
+  })), React.createElement("button", {
+    onClick: taramaKopyala,
+    className: "tap",
+    style: {
+      width: "100%",
+      marginTop: 8,
+      background: taramaKopyalandi ? T.accent : T.bg2,
+      color: taramaKopyalandi ? "#04070C" : T.text,
+      border: "0.5px solid " + T.line,
+      borderRadius: 10,
+      padding: "9px",
+      fontSize: 12,
+      fontWeight: 800
+    }
+  }, taramaKopyalandi ? "✓ Kopyalandı — bana yapıştır" : "📋 Raporu Kopyala"))), React.createElement("div", {
+    style: {
       background: "linear-gradient(120deg," + T.accent2 + "18," + T.bg1 + ")",
       border: "0.5px solid " + T.accent2 + "44",
       borderRadius: 12,
@@ -31563,7 +31831,123 @@ function AdminPanel({
       margin: "5px 0 10px",
       lineHeight: 1.6
     }
-  }, "Her lig tipinde (tek/çift/gruplu/serbest/kupa) dolu ligler üretir → yeni ilişkisel tablolara kaydeder. Oyuncular, istatistikler, kadrolar, maç olayları, kurtarışlar, ödüller — hepsi dolu. Sonra \"İlişkiselden Yükle\" ile görüntüle."), React.createElement("div", {
+  }, "İstediğin miktarda dolu lig üretir → ilişkisel tablolara kaydeder. Oyuncular, istatistikler, kadrolar/dizilişler, goller, asistler, kartlar, kurtarışlar, MVP + tüm maç sonu ödülleri — hepsi dolu. \"%oynanmış\" ile bazı maçları fikstürde bekletir (gerçekçi)."), (() => {
+    const Alan = ({
+      et,
+      val,
+      set,
+      min,
+      max
+    }) => React.createElement("label", {
+      style: {
+        flex: "1 1 84px",
+        fontSize: 10,
+        color: T.textMut
+      }
+    }, et, React.createElement("input", {
+      type: "number",
+      min: min,
+      max: max,
+      value: val,
+      onChange: e => set(e.target.value),
+      style: {
+        width: "100%",
+        marginTop: 3,
+        background: T.bg0,
+        border: "0.5px solid " + T.line,
+        borderRadius: 8,
+        padding: "7px 8px",
+        color: T.text,
+        fontSize: 13,
+        fontWeight: 700
+      }
+    }));
+    return React.createElement("div", {
+      style: {
+        background: T.bg0,
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 10
+      }
+    }, React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap"
+      }
+    }, React.createElement(Alan, {
+      et: "Kaç lig",
+      val: cfgLig,
+      set: setCfgLig,
+      min: 1,
+      max: 30
+    }), React.createElement(Alan, {
+      et: "Ligde takım",
+      val: cfgTakim,
+      set: setCfgTakim,
+      min: 2,
+      max: 24
+    }), React.createElement(Alan, {
+      et: "Takımda oyuncu",
+      val: cfgOyuncu,
+      set: setCfgOyuncu,
+      min: 3,
+      max: 30
+    }), React.createElement(Alan, {
+      et: "% oynanmış",
+      val: cfgOran,
+      set: setCfgOran,
+      min: 0,
+      max: 100
+    })), React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 6,
+        flexWrap: "wrap",
+        marginTop: 9,
+        alignItems: "center"
+      }
+    }, React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: T.textMut,
+        marginRight: 2
+      }
+    }, "Format:"), [["tek", "Tek devre"], ["cift", "Çift devre"], ["gruplu", "Gruplu"], ["serbest", "Serbest"]].map(([k, ad]) => React.createElement("span", {
+      key: k,
+      onClick: () => setCfgFormat(k),
+      className: "tap",
+      style: {
+        fontSize: 10.5,
+        padding: "5px 10px",
+        borderRadius: 11,
+        background: cfgFormat === k ? T.accent2 : T.bg2,
+        color: cfgFormat === k ? "#04070C" : T.textMut,
+        fontWeight: cfgFormat === k ? 800 : 500
+      }
+    }, ad)), React.createElement("label", {
+      className: "tap",
+      style: {
+        fontSize: 10.5,
+        color: T.textMut,
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        marginLeft: "auto"
+      }
+    }, React.createElement("input", {
+      type: "checkbox",
+      checked: cfgKupa,
+      onChange: e => setCfgKupa(e.target.checked)
+    }), " örnek kupa")), React.createElement("div", {
+      style: {
+        fontSize: 10.5,
+        color: T.gold,
+        marginTop: 9,
+        fontWeight: 600
+      }
+    }, "≈ ", (parseInt(cfgLig) || 0) * (parseInt(cfgTakim) || 0), " takım · ", (parseInt(cfgLig) || 0) * (parseInt(cfgTakim) || 0) * (parseInt(cfgOyuncu) || 0), " oyuncu · ", macOnizle.toplam, " maç (", macOnizle.perLig, "/lig) · %", cfgOran, " oynanmış"));
+  })(), React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
