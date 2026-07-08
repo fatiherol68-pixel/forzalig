@@ -5377,7 +5377,8 @@ function ProfilSayfa({
   oturum,
   cikisYap,
   sahiplenme,
-  onSahiplenmeBirak
+  onSahiplenmeBirak,
+  adminMi
 }) {
   const kariyereGit = () => {
     if (!sahiplenme) return;
@@ -5796,7 +5797,7 @@ function ProfilSayfa({
     onClick: () => git({
       sayfa: "ayar"
     })
-  }), React.createElement(Sat, {
+  }), adminMi && React.createElement(Sat, {
     ik: "💾",
     metin: "Yedekleme & Veri",
     onClick: () => git({
@@ -33309,7 +33310,8 @@ function App() {
           oturum: oturum,
           cikisYap: cikisYap,
           sahiplenme: sahiplenme,
-          onSahiplenmeBirak: sahiplenmeyiBirak
+          onSahiplenmeBirak: sahiplenmeyiBirak,
+          adminMi: adminMi
         });
         break;
       case "admin":
