@@ -7060,7 +7060,14 @@ function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMo
 /* ============================================================
    FAZ 4 — LİG KUR sihirbazı
    ============================================================ */
-function LigKur({T, git, ligKur}){
+function LigKur({T, git, ligKur, oturum}){
+  const [hakBilgi,setHakBilgi]=useState(null);
+  const [adminMi,setAdminMi]=useState(false);
+  useEffect(()=>{ let a=true; (async()=>{
+    if(!sb||!oturum) return;
+    const [h,adm]=await Promise.all([Db.hakGetir(oturum.id), Db.adminMi(oturum.id)]);
+    if(a){ setHakBilgi(h); setAdminMi(adm); }
+  })(); return ()=>{a=false;}; },[oturum]);
   const [ad,setAd]=useState("");
   const [sehir,setSehir]=useState("İstanbul");
   const [ilce,setIlce]=useState("");
@@ -7083,6 +7090,21 @@ function LigKur({T, git, ligKur}){
 
   return <div className="fade-in" style={{paddingBottom:100}}>
     <Baslik ust="YENİ LİG" ana="Lig Kur" T={T}/>
+    {/* Lig hakkı göstergesi (Karar 3) */}
+    {oturum && (adminMi
+      ? <div style={{margin:"4px 14px 0",background:"linear-gradient(120deg,"+T.danger+"18,"+T.bg1+")",border:"0.5px solid "+T.danger+"44",borderRadius:11,padding:"10px 13px",display:"flex",alignItems:"center",gap:9}}>
+          <span style={{fontSize:17}}>👑</span><span style={{fontSize:12,color:T.text,fontWeight:600}}>Süper Admin — <b style={{color:T.danger}}>sınırsız</b> lig açabilirsin</span>
+        </div>
+      : hakBilgi && <div style={{margin:"4px 14px 0",background:"linear-gradient(120deg,"+(hakBilgi.kalan>0?T.gold:T.danger)+"18,"+T.bg1+")",border:"0.5px solid "+(hakBilgi.kalan>0?T.gold:T.danger)+"44",borderRadius:11,padding:"10px 13px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:9}}>
+            <span style={{fontSize:17}}>🎟️</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12.5,color:T.text,fontWeight:700}}>Lig hakkın: <b style={{color:hakBilgi.kalan>0?T.gold:T.danger}}>{hakBilgi.kalan} kaldı</b></div>
+              <div style={{fontSize:10,color:T.textMut}}>{hakBilgi.toplam} toplam · {hakBilgi.kullanilan} kullanıldı</div>
+            </div>
+          </div>
+          {hakBilgi.kalan<=0 && <div style={{fontSize:10.5,color:T.danger,marginTop:6,lineHeight:1.5}}>Hakkın kalmadı. Yeni lig açmak için Süper Admin'e IBAN ödemesi yapıp hak iste.</div>}
+        </div>)}
     <div style={{padding:"6px 14px"}}>
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:6}}>LİG ADI</div>
       <input value={ad} onChange={e=>setAd(e.target.value)} placeholder="Örn: Cuma Akşamı Ligi"
@@ -9181,7 +9203,7 @@ function App(){
       case "ana": icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={()=>git({sayfa:"ligkur"})} saltOkunur={saltOkunur}/>; break;
-      case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur}/>; break;
+      case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
       case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={saltOkunur?null:{takimEkle,takimSil,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec}} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip}/>; break;
