@@ -33383,7 +33383,7 @@ function App() {
     await skorKaydet(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller);
   };
   let icerik;
-  const bosMu = turnuvalar.length === 0 && nav.sayfa !== "ayar" && nav.sayfa !== "ligkur" && nav.sayfa !== "ligler";
+  const bosMu = turnuvalar.length === 0 && (nav.sayfa === "ana" || nav.sayfa === "tumenler");
   if (paylasimYuk) {
     icerik = React.createElement("div", {
       style: {
