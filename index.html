@@ -391,6 +391,37 @@ const Db = {
   // ---- Maçlar + sonuç (madde 17/18: log otomatik) ----
   async macOlustur(m){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('maclar').insert(m).select('id').single(); return error?{hata:error.message}:{ok:true,id:data.id}; }catch(e){ return {hata:String(e)}; } },
   async macSonuc(id, evSkor, depSkor){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('maclar').update({ev_skor:evSkor, dep_skor:depSkor, oynandi:true}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  // Bir maçı tam kaydet (ekle veya güncelle) + olaylar/ödül yeniden yaz. nameToPid: {oyuncuAd: player_id}
+  async macKaydet(ligId, mc, nameToPid){
+    if(!sb) return {hata:"yok"};
+    try{
+      const satir={ lig_id:ligId, ev_takim_id:mc.takimAId, dep_takim_id:mc.takimBId, hafta:(mc.hafta??null),
+        tur:(mc.tur??null), grup:(mc.grup??null), bye:!!mc.bye, pen_galip:mc.penGalip||null,
+        ev_skor:(mc.skorA==null?null:mc.skorA), dep_skor:(mc.skorB==null?null:mc.skorB), oynandi:!!mc.oynandi,
+        sure:mc.sure||60, dizilis_ev:mc.dizilisA||null, dizilis_dep:mc.dizilisB||null, kadro_ev:mc.kadroA||null,
+        kadro_dep:mc.kadroB||null, istatistik:mc.istatistik||null, ratingler:mc.ratingler||null,
+        olaylar:mc.olaylar||null, kaleciler:mc.kaleciler||null, oduller:mc.oduller||null,
+        mvp:mc.mvp||null, mvp_takim:mc.mvpTakim||null };
+      let macId=(typeof mc.id==="string")?mc.id:null;
+      if(macId){ const {error}=await sb.from('maclar').update(satir).eq('id',macId); if(error) return {hata:error.message}; }
+      else { const {data,error}=await sb.from('maclar').insert(satir).select('id').single(); if(error) return {hata:error.message}; macId=data.id; }
+      await sb.from('mac_olaylari').delete().eq('mac_id',macId);
+      await sb.from('mac_odulleri').delete().eq('mac_id',macId);
+      const olayK=[]; const P=nameToPid||{};
+      (mc.olaylar||[]).forEach(ol=>{ const pid=P[ol.oyuncu];
+        if(ol.tip==='gol'){ if(pid) olayK.push({mac_id:macId,player_id:pid,tip:'gol',dakika:(ol.dk??null),adet:1}); if(ol.asist&&P[ol.asist]) olayK.push({mac_id:macId,player_id:P[ol.asist],tip:'asist',dakika:(ol.dk??null),adet:1}); }
+        else if((ol.tip==='sari'||ol.tip==='kirmizi')&&pid){ olayK.push({mac_id:macId,player_id:pid,tip:ol.tip,dakika:(ol.dk??null),adet:1}); }
+      });
+      (mc.kaleciler||[]).forEach(k=>{ const pid=P[k.ad]; if(pid&&k.kurtaris) olayK.push({mac_id:macId,player_id:pid,tip:'kurtaris',adet:k.kurtaris}); });
+      if(olayK.length) await sb.from('mac_olaylari').insert(olayK);
+      const odulK=[]; const od=mc.oduller||{};
+      ['forvet','ortasaha','defans','kaleci','altin','gumus','centilmen','enerjik','macinGolu','mvp'].forEach(kk=>{ const nm=(kk==='mvp')?mc.mvp:od[kk]; if(nm&&P[nm]) odulK.push({mac_id:macId,player_id:P[nm],odul_tip:kk}); });
+      if(odulK.length) await sb.from('mac_odulleri').insert(odulK);
+      return {ok:true, id:macId};
+    }catch(e){ return {hata:String(e&&e.message||e)}; }
+  },
+  async macSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('maclar').delete().eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async ligMaclariSil(ligId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('maclar').delete().eq('lig_id',ligId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async maclar(ligId){ if(!sb) return []; try{ const {data}=await sb.from('maclar').select('*').eq('lig_id',ligId).order('hafta',{nullsFirst:true}); return data||[]; }catch(e){ return []; } },
   async macLog(macId){ if(!sb) return []; try{ const {data}=await sb.from('mac_sonuc_log').select('*').eq('mac_id',macId).order('zaman',{ascending:false}); return data||[]; }catch(e){ return []; } },
   // ---- Olaylar (gol/asist/kart) ----
@@ -3150,10 +3181,10 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
       })
       .filter(s=> s[0] && !/(takım|takim).*ad.*soyad/i.test(s.join(" "))); // başlık satırını atla
   };
-  const excelEkleYap=()=>{
+  const excelEkleYap=async()=>{
     const satirlar=excelAyristir(excelMetin);
     if(satirlar.length===0){ setExcelSonuc({hata:"Veri bulunamadı"}); return; }
-    const s=yonetim.excelTopluEkle(turnuva, satirlar);
+    const s=await yonetim.excelTopluEkle(turnuva, satirlar);
     setExcelSonuc(s); setExcelMetin("");
   };
 
@@ -9047,60 +9078,96 @@ function App(){
       return [...p, yeni];
     });
   };
+  // ===== İLİŞKİSEL KALICILIK YARDIMCILARI (Faz 3) =====
+  const oyuncuDbKayit=(o)=>({ ad_soyad:o.ad, forma_no:(o.no??null), dogum:tarihISO(o.dogum), ayak:o.ayak||null,
+    boy:(o.boy??null), kilo:(o.kilo??null), uyruk:o.uyruk||null, poz:o.poz||null, ovr:(o.ovr??null),
+    nitelik:{pac:o.pac,sho:o.sho,pas:o.pas,dri:o.dri,def:o.def,phy:o.phy}, deger:(o.deger??null),
+    saglik:o.saglik||null, bolge:o.bolge||null, renk:o.renk||o.formaRenk||null });
+  const oyuncuIliskiselKaydet=async(ligId, takimId, o)=>{
+    const or=await Db.oyuncuOlustur(oyuncuDbKayit(o));
+    if(or.ok){ o.id=or.player_id; o.player_id=or.player_id; await Db.kadroEkle(or.player_id, takimId, ligId); }
+    return or;
+  };
+  const takimIliskiselKaydet=async(ligId, tk)=>{
+    const r=await Db.takimEkle(ligId, tk.ad);
+    if(r.hata) return {hata:r.hata};
+    await Db.takimGuncelle(r.id, {renk:tk.renk||null, grup:tk.grup||0, lis_no:tk.lisNo||null});
+    tk.id=r.id;
+    for(const o of (tk.oyuncular||[])) await oyuncuIliskiselKaydet(ligId, r.id, o);
+    return {ok:true, id:r.id};
+  };
+  const iliskiselMi=(turnuva)=> !!(turnuva && turnuva.iliskisel && sb);
+  // turnuvayı takımdan bul (oyuncu işlemlerinde lig_id lazım)
+  const takiminTurnuvasi=(takim)=> turnuvalar.find(t=>t.takimlar.some(x=>x.id===takim.id));
+
   // Lig bilgilerini güncelle
   const ligGuncelle=(turnuva, alanlar)=>{
     Object.assign(turnuva, alanlar);
+    if(iliskiselMi(turnuva)){ const db={}; if(alanlar.ad!=null)db.ad=alanlar.ad; if(alanlar.renk!=null)db.renk=alanlar.renk; if(alanlar.sehir!=null)db.sehir=alanlar.sehir; if(alanlar.ilce!=null)db.ilce=alanlar.ilce; if(alanlar.logo!=null)db.logo=alanlar.logo; if(alanlar.bitisTarihi!=null)db.bitis_tarihi=alanlar.bitisTarihi; if(Object.keys(db).length) Db.ligGuncelle(turnuva.id, db); }
     guncelle();
   };
   // Takım ekle
-  const takimEkle=(turnuva, ad, bos)=>{
+  const takimEkle=async(turnuva, ad, bos)=>{
     const tid=yeniId(turnuvalar,"takim"); const oid=yeniId(turnuvalar,"oyuncu");
-    // bos=true → oyuncusuz takım (sorumlu kendi girer); değilse 12 rastgele
     const yeni = yeniTakim(tid, ad, pick(RENKLER), oid, bos?0:12);
+    if(iliskiselMi(turnuva)){ const r=await takimIliskiselKaydet(turnuva.id, yeni); if(r.hata){ alert("Takım eklenemedi: "+r.hata); return; } }
     turnuva.takimlar.push(yeni);
     guncelle();
     return yeni;
   };
-  // Takım sil
-  const takimSil=(turnuva, takimId)=>{
+  // Takım sil (madde 23: maç yapılmışsa sunucu engeller)
+  const takimSil=async(turnuva, takimId)=>{
+    if(iliskiselMi(turnuva) && typeof takimId==="string"){ const r=await Db.takimSil(takimId); if(r.hata){ alert("Silinemedi (maç yapılmış olabilir): "+r.hata); return; } }
     turnuva.takimlar = turnuva.takimlar.filter(t=>t.id!==takimId);
     turnuva.maclar = turnuva.maclar.filter(m=>m.takimAId!==takimId && m.takimBId!==takimId);
     turnuvaHesapla(turnuva); guncelle();
   };
   // Oyuncu ekle (detaylı veya hızlı)
-  const oyuncuEkle=(takim, bilgi)=>{
+  const oyuncuEkle=async(takim, bilgi)=>{
     const oid=yeniId(turnuvalar,"oyuncu");
     const o=yeniOyuncu(oid, bilgi.ad, bilgi.poz, bilgi.no, takim.renk);
     if(bilgi.dogum){ o.dogum=bilgi.dogum; const y=parseInt((bilgi.dogum.split(".")[2]||bilgi.dogum.split("-")[0])); if(y>1950&&y<2020)o.yas=2026-y; }
     if(bilgi.boy) o.boy=parseInt(bilgi.boy)||o.boy;
     if(bilgi.kilo) o.kilo=parseInt(bilgi.kilo)||o.kilo;
+    const trn=takiminTurnuvasi(takim);
+    if(iliskiselMi(trn)){ await oyuncuIliskiselKaydet(trn.id, takim.id, o); }
     takim.oyuncular.push(o); guncelle(); return o;
   };
   // Toplu oyuncu ekle (isim listesi)
-  const oyuncuTopluEkle=(takim, isimler)=>{
+  const oyuncuTopluEkle=async(takim, isimler)=>{
     let oid=yeniId(turnuvalar,"oyuncu");
     const pozDagit=["Kaleci","Defans","Defans","OrtaSaha","OrtaSaha","Forvet","Forvet","Defans","OrtaSaha","Forvet","Defans","OrtaSaha"];
-    isimler.forEach((ad,i)=>{
-      const o=yeniOyuncu(oid++, ad.trim(), pozDagit[(takim.oyuncular.length+i)%pozDagit.length], takim.oyuncular.length+i+1, takim.renk);
+    const trn=takiminTurnuvasi(takim); const base=takim.oyuncular.length;
+    for(let i=0;i<isimler.length;i++){
+      const o=yeniOyuncu(oid++, isimler[i].trim(), pozDagit[(base+i)%pozDagit.length], base+i+1, takim.renk);
+      if(iliskiselMi(trn)){ await oyuncuIliskiselKaydet(trn.id, takim.id, o); }
       takim.oyuncular.push(o);
-    });
+    }
     guncelle();
   };
   // Oyuncu düzenle
-  const oyuncuDuzenle=(takim, oyuncuId, bilgi)=>{
+  const oyuncuDuzenle=async(takim, oyuncuId, bilgi)=>{
     const o=takim.oyuncular.find(x=>x.id===oyuncuId); if(!o)return;
     if(bilgi.ad!=null)o.ad=bilgi.ad; if(bilgi.poz!=null)o.poz=bilgi.poz; if(bilgi.no!=null)o.no=parseInt(bilgi.no)||o.no;
     if(bilgi.dogum!=null){ o.dogum=bilgi.dogum; const y=parseInt((bilgi.dogum.split(".")[2]||bilgi.dogum.split("-")[0])); if(y>1950&&y<2020)o.yas=2026-y; }
     if(bilgi.boy!=null)o.boy=parseInt(bilgi.boy)||o.boy; if(bilgi.kilo!=null)o.kilo=parseInt(bilgi.kilo)||o.kilo;
+    if(bilgi.ayak!=null)o.ayak=bilgi.ayak; if(bilgi.uyruk!=null)o.uyruk=bilgi.uyruk; if(bilgi.saglik!=null)o.saglik=bilgi.saglik;
+    const trn=takiminTurnuvasi(takim);
+    if(iliskiselMi(trn) && typeof o.id==="string"){ await Db.oyuncuGuncelle(o.id, { ad_soyad:o.ad, poz:o.poz, forma_no:o.no, dogum:tarihISO(o.dogum), boy:o.boy, kilo:o.kilo, ayak:o.ayak, uyruk:o.uyruk, saglik:o.saglik }); }
     guncelle();
   };
-  // Oyuncu sil
-  const oyuncuSil=(takim, oyuncuId)=>{ takim.oyuncular=takim.oyuncular.filter(x=>x.id!==oyuncuId); guncelle(); };
+  // Oyuncu sil (madde 24: kariyer korunur → üyelikten çıkar, kayıt kalır)
+  const oyuncuSil=async(takim, oyuncuId)=>{
+    const trn=takiminTurnuvasi(takim);
+    if(iliskiselMi(trn) && typeof oyuncuId==="string"){ await Db.kadrodanCikarPid(oyuncuId, takim.id); }
+    takim.oyuncular=takim.oyuncular.filter(x=>x.id!==oyuncuId); guncelle();
+  };
 
   // EXCEL TOPLU EKLE — sütunlar: Takım | Ad Soyad | Doğum | Mevki | No | Boy | Kilo | Uyruk
-  const excelTopluEkle=(turnuva, satirlar)=>{
+  const excelTopluEkle=async(turnuva, satirlar)=>{
     let oid=yeniId(turnuvalar,"oyuncu");
     let tid=yeniId(turnuvalar,"takim");
+    const rel=iliskiselMi(turnuva);
     const mevkiNorm=(s)=>{ s=(s||"").toLowerCase();
       if(s.includes("kale"))return "Kaleci";
       if(s.includes("def")||s.includes("stoper")||s.includes("bek"))return "Defans";
@@ -9109,11 +9176,13 @@ function App(){
       return null;
     };
     let eklenenTakim=0, eklenenOyuncu=0;
-    satirlar.forEach((satir,idx)=>{
+    for(const satir of satirlar){
       const [takimAd, ad, dogum, mevki, no, ayak, boy, kilo, uyruk] = satir;
-      if(!takimAd || !ad) return;
+      if(!takimAd || !ad) continue;
       let takim = turnuva.takimlar.find(t=>t.ad.toLowerCase().trim()===takimAd.toLowerCase().trim());
-      if(!takim){ takim=yeniTakim(tid++, takimAd.trim(), pick(RENKLER), oid, 0); turnuva.takimlar.push(takim); eklenenTakim++; }
+      if(!takim){ takim=yeniTakim(tid++, takimAd.trim(), pick(RENKLER), oid, 0);
+        if(rel){ const r=await Db.takimEkle(turnuva.id, takim.ad); if(!r.hata){ await Db.takimGuncelle(r.id,{renk:takim.renk,lis_no:takim.lisNo}); takim.id=r.id; } }
+        turnuva.takimlar.push(takim); eklenenTakim++; }
       const poz = mevkiNorm(mevki) || ["Kaleci","Defans","Defans","OrtaSaha","OrtaSaha","Forvet","Forvet"][takim.oyuncular.length%7];
       const o=yeniOyuncu(oid++, ad.trim(), poz, parseInt(no)||takim.oyuncular.length+1, takim.renk);
       if(dogum && dogum.trim()){ o.dogum=dogum.trim(); const y=parseInt((dogum.split(".")[2]||dogum.split("-")[0]||dogum.split("/")[2])); if(y>1950&&y<2020)o.yas=2026-y; }
@@ -9121,56 +9190,71 @@ function App(){
       if(boy) o.boy=parseInt(boy)||o.boy;
       if(kilo) o.kilo=parseInt(kilo)||o.kilo;
       if(uyruk && uyruk.trim()) o.uyruk=uyruk.trim();
+      if(rel && typeof takim.id==="string"){ await oyuncuIliskiselKaydet(turnuva.id, takim.id, o); }
       takim.oyuncular.push(o); eklenenOyuncu++;
-    });
-    if(turnuva.format==="gruplu") gruplaraDagit(turnuva,"kura");
+    }
+    if(turnuva.format==="gruplu"){ gruplaraDagit(turnuva,"kura"); if(rel){ for(const tk of turnuva.takimlar){ if(typeof tk.id==="string") await Db.takimGuncelle(tk.id,{grup:tk.grup||0}); } } }
     turnuvaHesapla(turnuva); guncelle();
     return {eklenenTakim, eklenenOyuncu};
   };
+  // İlişkisel: oyuncu ad → player_id haritası (maç olayları için)
+  const adPidHarita=(turnuva)=>{ const m={}; turnuva.takimlar.forEach(tk=>tk.oyuncular.forEach(o=>{ if(o.player_id) m[o.ad]=o.player_id; })); return m; };
+  // İlişkisel: id'si olmayan (yeni) maçları kaydet, uuid ata
+  const maclariSenkronize=async(turnuva)=>{
+    if(!iliskiselMi(turnuva)) return;
+    const P=adPidHarita(turnuva);
+    for(const mc of turnuva.maclar){ if(typeof mc.id!=="string"){ const r=await Db.macKaydet(turnuva.id, mc, P); if(r.ok) mc.id=r.id; } }
+  };
   // Maç ekle (serbest)
-  const macEkle=(turnuva, aId, bId)=>{
+  const macEkle=async(turnuva, aId, bId)=>{
     const A=turnuva.takimlar.find(t=>t.id===aId), B=turnuva.takimlar.find(t=>t.id===bId);
     if(!A||!B||A.id===B.id) return;
-    const mid=Math.max(0,...turnuva.maclar.map(m=>m.id), yeniId(turnuvalar,"mac")-1)+1;
-    const hafta=turnuva.maclar.length?Math.max(...turnuva.maclar.map(m=>m.hafta))+1:1;
-    turnuva.maclar.push(yeniMac(mid, A, B, hafta));
+    const mid=Math.max(0,...turnuva.maclar.map(m=>typeof m.id==="number"?m.id:0), yeniId(turnuvalar,"mac")-1)+1;
+    const hafta=turnuva.maclar.length?Math.max(...turnuva.maclar.map(m=>m.hafta||0))+1:1;
+    const yeni=yeniMac(mid, A, B, hafta);
+    if(iliskiselMi(turnuva)){ const r=await Db.macKaydet(turnuva.id, yeni, adPidHarita(turnuva)); if(r.ok) yeni.id=r.id; }
+    turnuva.maclar.push(yeni);
     guncelle();
   };
   // Maç sil
-  const macSil=(turnuva, macId)=>{
+  const macSil=async(turnuva, macId)=>{
+    if(iliskiselMi(turnuva) && typeof macId==="string"){ await Db.macSil(macId); }
     turnuva.maclar = turnuva.maclar.filter(m=>m.id!==macId);
     turnuvaHesapla(turnuva); guncelle();
   };
   // Fikstür üret (otomatik) — gruplu ise grup grup
-  const fikstürYap=(turnuva, cift)=>{
+  const fikstürYap=async(turnuva, cift)=>{
     turnuva.maclar = turnuva.format==="kupa" ? kupaFikstur(turnuva)
       : turnuva.format==="gruplu" ? gruplufikstürUret(turnuva, cift) : fikstürUret(turnuva, cift);
+    if(iliskiselMi(turnuva)){ await Db.ligMaclariSil(turnuva.id); await maclariSenkronize(turnuva); }
     turnuvaHesapla(turnuva); guncelle();
   };
   // KUPA — sonraki turu oluştur / penaltı galibi seç
-  const kupaSonraki=(turnuva)=>{ const r=kupaSonrakiTur(turnuva); if(r.hata){ alert(r.hata); } else if(r.bitti){ alert("🏆 Şampiyon: "+(r.sampiyon?r.sampiyon.ad:"?")); } turnuvaHesapla(turnuva); guncelle(); return r; };
-  const penGalipSec=(turnuva, mac, takimAd)=>{ mac.penGalip=takimAd; guncelle(); };
+  const kupaSonraki=async(turnuva)=>{ const r=kupaSonrakiTur(turnuva); if(r.hata){ alert(r.hata); } else if(r.bitti){ alert("🏆 Şampiyon: "+(r.sampiyon?r.sampiyon.ad:"?")); } if(iliskiselMi(turnuva)) await maclariSenkronize(turnuva); turnuvaHesapla(turnuva); guncelle(); return r; };
+  const penGalipSec=async(turnuva, mac, takimAd)=>{ mac.penGalip=takimAd; if(iliskiselMi(turnuva) && typeof mac.id==="string") await Db.macKaydet(turnuva.id, mac, adPidHarita(turnuva)); guncelle(); };
   // Gruplara dağıt
-  const dagit=(turnuva, yontem)=>{ gruplaraDagit(turnuva, yontem); turnuvaHesapla(turnuva); guncelle(); };
+  const dagit=async(turnuva, yontem)=>{ gruplaraDagit(turnuva, yontem); if(iliskiselMi(turnuva)){ for(const tk of turnuva.takimlar){ if(typeof tk.id==="string") await Db.takimGuncelle(tk.id,{grup:tk.grup||0}); } } turnuvaHesapla(turnuva); guncelle(); };
   // Takımı başka gruba taşı
-  const grupTasi=(turnuva, takimId, yeniGrup)=>{
+  const grupTasi=async(turnuva, takimId, yeniGrup)=>{
     const t=turnuva.takimlar.find(x=>x.id===takimId); if(t)t.grup=yeniGrup;
+    if(iliskiselMi(turnuva) && typeof takimId==="string") await Db.takimGuncelle(takimId,{grup:yeniGrup});
     guncelle();
   };
   // Skor + olaylar kaydet
-  const skorKaydet=(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller)=>{
+  const skorKaydet=async(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller)=>{
     mac.skorA=skorA; mac.skorB=skorB; mac.olaylar=olaylar||[]; mac.mvp=mvp||null; mac.mvpTakim=mvpTakim||null; mac.oynandi=true;
     if(oduller) mac.oduller={...oduller};
     if(!mac.istatistik) mac.istatistik=istatistikUret(skorA, skorB);
     const A=turnuva.takimlar.find(t=>t.id===mac.takimAId)||turnuva.takimlar.find(t=>t.ad===mac.takimA);
     const B=turnuva.takimlar.find(t=>t.id===mac.takimBId)||turnuva.takimlar.find(t=>t.ad===mac.takimB);
     mac.ratingler = ratingHesapla(mac, A, B);
+    if(iliskiselMi(turnuva)){ const r=await Db.macKaydet(turnuva.id, mac, adPidHarita(turnuva)); if(r.ok && r.id) mac.id=r.id; }
     turnuvaHesapla(turnuva); guncelle();
   };
   // Rating'i yönetici elle düzeltir
-  const ratingKaydet=(mac, ratingler)=>{ mac.ratingler={...ratingler}; guncelle(); };
+  const ratingKaydet=async(mac, ratingler)=>{ mac.ratingler={...ratingler}; const trn=turnuvalar.find(t=>t.maclar.some(m=>m.id===mac.id)); if(trn && iliskiselMi(trn) && typeof mac.id==="string") await Db.macKaydet(trn.id, mac, adPidHarita(trn)); guncelle(); };
   // SİHİRBAZ — kadro + skor + olaylar + ödüller tek seferde kaydet
-  const sihirbazKaydet=(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller, kadroPaket)=>{
+  const sihirbazKaydet=async(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller, kadroPaket)=>{
     if(kadroPaket){
       mac.kadroA=kadroPaket.kadroA; mac.kadroB=kadroPaket.kadroB;
       mac.dizilisA=kadroPaket.dizilisA; mac.dizilisB=kadroPaket.dizilisB;
@@ -9178,7 +9262,7 @@ function App(){
       if(kadroPaket.kaleciler) mac.kaleciler=kadroPaket.kaleciler;
       mac.tarih=kadroPaket.tarih||""; mac.saat=kadroPaket.saat||""; mac.stad=kadroPaket.stad||"";
     }
-    skorKaydet(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller);
+    await skorKaydet(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller);
   };
 
   let icerik;
