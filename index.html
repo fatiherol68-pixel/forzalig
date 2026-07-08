@@ -335,6 +335,24 @@ const Db = {
   // ---- Profiller (email ↔ user_id köprüsü) ----
   async profilBul(email){ if(!sb||!email) return null; try{ const {data}=await sb.from('profiller').select('user_id,email,ad').ilike('email',(email||'').trim()).maybeSingle(); return data||null; }catch(e){ return null; } },
   async profillerHepsi(){ if(!sb) return []; try{ const {data}=await sb.from('profiller').select('user_id,email,ad'); return data||[]; }catch(e){ return []; } },
+  // ---- Admin panel: özet sayımlar + ülke dağılımı + bekleyen işler ----
+  async panelOzet(){
+    if(!sb) return null;
+    try{
+      const c=(t)=>sb.from(t).select('*',{count:'exact',head:true});
+      const [lig,uye,oyuncu,mac,arsiv,transfer]=await Promise.all([
+        c('ligler'), c('profiller'), c('oyuncular'), c('maclar'),
+        sb.from('ligler').select('*',{count:'exact',head:true}).eq('durum','arsiv'),
+        sb.from('transferler').select('*',{count:'exact',head:true}).in('asama',['talep','oyuncu_kabul','yonetici_onay'])
+      ]);
+      return { lig:lig.count||0, uye:uye.count||0, oyuncu:oyuncu.count||0, mac:mac.count||0, arsivLig:arsiv.count||0, bekleyenTransfer:transfer.count||0 };
+    }catch(e){ return null; }
+  },
+  async ulkeDagilim(){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('ulke'); const m={}; (data||[]).forEach(x=>{ const u=x.ulke||'TR'; m[u]=(m[u]||0)+1; }); return Object.entries(m).map(([ulke,adet])=>({ulke,adet})).sort((a,b)=>b.adet-a.adet); }catch(e){ return []; } },
+  async bekleyenTransferler(){ if(!sb) return []; try{ const {data}=await sb.from('transferler').select('id,player_id,lig_id,eski_takim_id,yeni_takim_id,asama,talep_tarihi, oyuncular(ad_soyad), ligler(ad)').in('asama',['talep','oyuncu_kabul','yonetici_onay']).order('talep_tarihi',{ascending:false}).limit(30); return data||[]; }catch(e){ return []; } },
+  async transferOnayla(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('transferler').update({asama:'tamam', yonetici_onay_t:new Date().toISOString()}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async transferReddet(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('transferler').update({asama:'iptal'}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async adminYap(userId, yap){ if(!sb) return {hata:"yok"}; try{ if(yap){ const {error}=await sb.from('adminler').upsert({user_id:userId}); return error?{hata:error.message}:{ok:true}; } else { const {error}=await sb.from('adminler').delete().eq('user_id',userId); return error?{hata:error.message}:{ok:true}; } }catch(e){ return {hata:String(e)}; } },
   // ---- Davet sistemi (takım/oyuncu linki + kariyer sahiplenme) ----
   async davetOlustur(ligId, tip, takimId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('davetler').insert({lig_id:ligId, tip, takim_id:takimId||null}).select('token').single(); return error?{hata:error.message}:{ok:true, token:data.token}; }catch(e){ return {hata:String(e)}; } },
   async davetGetir(token){ if(!sb||!token) return null; try{ const {data}=await sb.from('davetler').select('token,tip,aktif,lig_id,takim_id, ligler(ad,sehir), takimlar(ad)').eq('token',token).maybeSingle(); return data||null; }catch(e){ return null; } },
@@ -8595,13 +8613,18 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const [hakMail,setHakMail]=useState("");
   const [hakSayi,setHakSayi]=useState(1);
   const [hakNot,setHakNot]=useState("");
+  const [ozet,setOzet]=useState(null);        // KPI sayımları
+  const [ulkeler,setUlkeler]=useState([]);    // ülke dağılımı
+  const [bekTransfer,setBekTransfer]=useState([]); // bekleyen transferler
   const yenile=async()=>{ setYuk(true);
-    const [l,y,h,p,u]=await Promise.all([Admin.ligler(), Admin.yetkiListe(), Db.haklariListe(), Db.profillerHepsi(), Db.uyeler()]);
-    setLigler(l); setYetkiler(y); setUyeler(u||[]);
+    const [l,y,h,p,u,oz,ul,bt]=await Promise.all([Admin.ligler(), Admin.yetkiListe(), Db.haklariListe(), Db.profillerHepsi(), Db.uyeler(), Db.panelOzet(), Db.ulkeDagilim(), Db.bekleyenTransferler()]);
+    setLigler(l); setYetkiler(y); setUyeler(u||[]); setOzet(oz); setUlkeler(ul||[]); setBekTransfer(bt||[]);
     const epostaHarita={}; (p||[]).forEach(pr=>{ epostaHarita[pr.user_id]=pr.email; });
     setHaklar((h||[]).map(x=>({...x, email:epostaHarita[x.user_id]||x.user_id})));
     setYuk(false);
   };
+  const ULKE_AD={TR:"🇹🇷 Türkiye",DE:"🇩🇪 Almanya",AT:"🇦🇹 Avusturya"};
+  const transferOnay=async(id,onay)=>{ const r=onay?await Db.transferOnayla(id):await Db.transferReddet(id); if(r.ok){ setBekTransfer(p=>p.filter(x=>x.id!==id)); setMesaj(onay?"✓ Transfer onaylandı":"Transfer reddedildi"); } else setMesaj("Olmadı: "+(r.hata||"")); };
   useEffect(()=>{ yenile(); },[]);
   const ligSil=async(slug)=>{ if(!confirm("Bu ligi yayından kaldır? (moderasyon)")) return; const r=await Admin.ligSil(slug); if(r.ok){ setLigler(p=>p.filter(x=>x.slug!==slug)); } else setMesaj("Silinemedi: "+(r.hata||"")); };
   const yetkiEkle=async()=>{ const e=yeniMail.trim().toLowerCase(); if(!e){return;} const r=await Admin.yetkiEkle(e,"onayli"); if(r.ok){ setYeniMail(""); setMesaj("Eklendi ✓"); yenile(); } else setMesaj("Olmadı: "+(r.hata||"")); };
@@ -8691,7 +8714,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
     </div>
 
     <div style={{display:"flex",gap:6,padding:"10px 14px 0"}}>
-      {[["ozet","Özet"],["uyeler","👥 Üyeler"],["hak","🎟️ Lig Hakkı"],["ligler","🌍 Açık Ligler"],["yetki","✅ Yetkiler"],["sistem","⚙️ Sistem"]].map(([k,l])=>
+      {[["ozet","🎯 İşlem Merkezi"],["uyeler","👥 Üyeler"],["hak","🎟️ Lig Hakkı"],["ligler","🌍 Açık Ligler"],["yetki","✅ Yetkiler"],["sistem","⚙️ Sistem"]].map(([k,l])=>
         <button key={k} onClick={()=>setSekme(k)} className="tap" style={{fontSize:11,padding:"7px 11px",borderRadius:9,fontWeight:700,background:sekme===k?T.accent:T.bg1,color:sekme===k?T.bg0:T.textMut,border:"0.5px solid "+(sekme===k?T.accent:T.line)}}>{l}</button>
       )}
     </div>
@@ -8700,14 +8723,49 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
     <div style={{padding:"12px 14px"}}>
       {yuk && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:20}}>Yükleniyor…</div>}
 
-      {!yuk && sekme==="ozet" && <div style={{fontSize:12.5,color:T.textSoft,lineHeight:1.8}}>
-        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14}}>
-          <b style={{color:T.text}}>Platform özeti</b><br/>
-          🌍 Herkese açık lig: <b style={{color:T.gold}}>{ligler.length}</b><br/>
-          ✅ Onaylı hesap: <b style={{color:T.accent}}>{yetkiler.length}</b><br/>
-          🕹️ Senin verinde: {turnuvalar.length} lig · {toplamTakim} takım · {toplamOyuncu} oyuncu · {toplamMac} oynanmış maç<br/>
-          🔒 Mod: <b style={{color:HERKESE_ACIK?T.accent:T.gold}}>{HERKESE_ACIK?"HERKESE AÇIK":"TEST (sadece yetkili)"}</b>
+      {!yuk && sekme==="ozet" && <div>
+        {/* İŞLEM MERKEZİ — yapılacak işler tek ekranda (madde 18) */}
+        <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"2px 2px 8px"}}>🎯 YAPILACAK İŞLER</div>
+        {bekTransfer.length===0
+          ? <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"16px",textAlign:"center",fontSize:12,color:T.textMut,marginBottom:8}}>✅ Bekleyen iş yok — her şey yolunda</div>
+          : <div style={{background:"linear-gradient(120deg,"+T.gold+"14,"+T.bg1+")",border:"0.5px solid "+T.gold+"44",borderRadius:12,padding:12,marginBottom:8}}>
+              <div style={{fontSize:12,fontWeight:800,color:T.gold,marginBottom:8}}>🟡 Bekleyen Transfer ({bekTransfer.length})</div>
+              {bekTransfer.map(t=>
+                <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,background:T.bg0,borderRadius:9,padding:"8px 10px",marginBottom:5}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.oyuncular?t.oyuncular.ad_soyad:"Oyuncu"}</div>
+                    <div style={{fontSize:9.5,color:T.textMut}}>{t.ligler?t.ligler.ad:""} · aşama: {t.asama}</div>
+                  </div>
+                  <button onClick={()=>transferOnay(t.id,true)} className="tap" style={{background:T.accent,color:"#04070C",border:0,borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:800}}>Onayla</button>
+                  <button onClick={()=>transferOnay(t.id,false)} className="tap" style={{background:"none",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:8,padding:"6px 9px",fontSize:11,fontWeight:700}}>Ret</button>
+                </div>
+              )}
+            </div>}
+        {/* diğer iş türleri (mekanizması gelince dolacak) */}
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+          <span style={{fontSize:10,color:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"4px 8px"}}>💰 Ödeme: manuel (Lig Hakkı sekmesi)</span>
+          <span style={{fontSize:10,color:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"4px 8px"}}>🚩 Şikayet: yakında</span>
         </div>
+
+        {/* DASHBOARD — KPI kartları */}
+        <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"2px 2px 8px"}}>📊 GENEL DURUM</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+          {[["🌍",ozet?ozet.lig:"–","lig",T.gold],["👥",ozet?ozet.uye:"–","üye",T.accent2],["⚽",ozet?ozet.oyuncu:"–","oyuncu",T.accent],["📅",ozet?ozet.mac:"–","maç",T.text],["🔄",ozet?ozet.bekleyenTransfer:"–","bekleyen",T.gold],["📦",ozet?ozet.arsivLig:"–","arşiv",T.textMut]].map(([ik,say,et,renk],i)=>
+            <div key={i} style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"11px 6px",textAlign:"center"}}>
+              <div style={{fontSize:15}}>{ik}</div><div style={{fontSize:19,fontWeight:800,color:renk,fontFamily:T.fontDisplay}}>{say}</div><div style={{fontSize:9,color:T.textMut}}>{et}</div>
+            </div>
+          )}
+        </div>
+
+        {/* ÜLKE DAĞILIMI (madde 3) */}
+        {ulkeler.length>0 && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+          <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:8}}>🌍 ÜLKELERE GÖRE LİG</div>
+          {ulkeler.map(u=>
+            <div key={u.ulke} style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:T.text,padding:"4px 0"}}>
+              <span style={{flex:1}}>{ULKE_AD[u.ulke]||u.ulke}</span><b style={{color:T.accent}}>{u.adet}</b>
+            </div>
+          )}
+        </div>}
       </div>}
 
       {!yuk && sekme==="uyeler" && <div>
@@ -8730,6 +8788,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
                 : yetki
                 ? <span style={{fontSize:9.5,fontWeight:800,color:T.gold,background:T.gold+"1f",borderRadius:6,padding:"4px 8px",whiteSpace:"nowrap"}}>Yetkili · {kalan}/{u.hak.toplam} boş</span>
                 : <span style={{fontSize:9.5,fontWeight:700,color:T.textMut,background:T.bg2,borderRadius:6,padding:"4px 8px"}}>normal</span>}
+              {oturum && u.user_id!==oturum.id && <button onClick={async()=>{ const y=!u.admin; if(y||confirm(u.email+" admin yetkisi kaldırılsın mı?")){ const r=await Db.adminYap(u.user_id,y); if(r.ok) yenile(); else setMesaj("Olmadı: "+(r.hata||"")); } }} className="tap" title={u.admin?"Admin'i kaldır":"Admin yap"} style={{fontSize:12,background:"none",border:"0.5px solid "+T.line,borderRadius:7,padding:"4px 7px",color:u.admin?T.danger:T.textMut}}>{u.admin?"⬇️":"👑"}</button>}
             </div> ); })}
         </div>; })()}
       </div>}
