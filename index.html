@@ -1034,6 +1034,28 @@ const Db = {
       };
     }
   },
+  async kadrodanCikarPid(playerId, takimId) {
+    if (!sb) return {
+      hata: "yok"
+    };
+    try {
+      const {
+        error
+      } = await sb.from('oyuncu_takim').update({
+        aktif: false,
+        ayrilma: new Date().toISOString()
+      }).eq('player_id', playerId).eq('takim_id', takimId).eq('aktif', true);
+      return error ? {
+        hata: error.message
+      } : {
+        ok: true
+      };
+    } catch (e) {
+      return {
+        hata: String(e)
+      };
+    }
+  },
   async transferTalep(pid, ligId, eskiTakim, yeniTakim, talepEden) {
     if (!sb) return {
       hata: "yok"
@@ -30675,7 +30697,7 @@ function App() {
     r.readAsText(file);
   };
   const guncelle = () => setTurnuvalar(p => [...p]);
-  const ligKur = ({
+  const ligKur = async ({
     ad,
     sehir,
     ilce,
@@ -30686,28 +30708,63 @@ function App() {
     baslangic,
     hedefTakim
   }) => {
-    setTurnuvalar(p => {
-      const id = yeniId(p, "turnuva");
+    const bilgi = {
+      ad: ad || "Yeni Lig",
+      renk: renk || pick(RENKLER),
+      sehir: sehir || "İstanbul",
+      ilce: ilce || "",
+      kisi: kisi || 7,
+      format: format || "serbest",
+      grupSayi: grupSayi || 0,
+      baslangic: baslangic || "",
+      hedefTakim: hedefTakim || 0
+    };
+    if (sb && oturum) {
+      const r = await Db.ligOlustur(oturum.id, {
+        ad: bilgi.ad,
+        ulke: 'TR',
+        sehir: bilgi.sehir,
+        ilce: bilgi.ilce,
+        renk: bilgi.renk,
+        kisi: bilgi.kisi,
+        format: bilgi.format,
+        grup_sayi: bilgi.grupSayi,
+        hedef_takim: bilgi.hedefTakim,
+        fikstur_tipi: bilgi.format
+      });
+      if (r.hata) {
+        const yetkiSorun = /policy|row-level|violates row|permission/i.test(r.hata);
+        alert(yetkiSorun ? "⚠️ Lig açma hakkın yok.\n\nLig oluşturmak için Süper Admin'in sana yetki (lig hakkı) vermesi gerekiyor. IBAN ödemesi sonrası admin hakkını tanımlar." : "Lig açılamadı: " + r.hata);
+        return;
+      }
       const yeni = {
-        id,
-        ad: ad || "Yeni Lig",
-        renk: renk || pick(RENKLER),
-        sehir: sehir || "İstanbul",
-        ilce: ilce || "",
-        kisi: kisi || 7,
-        format: format || "serbest",
-        grupSayi: grupSayi || 0,
-        baslangic: baslangic || "",
-        hedefTakim: hedefTakim || 0,
+        id: r.id,
+        ...bilgi,
         takimlar: [],
-        maclar: []
+        maclar: [],
+        iliskisel: true
       };
-      const np = [...p, yeni];
+      setIliskiselModu(true);
+      setTurnuvalar(p => [...p, yeni]);
       setTimeout(() => git({
         sayfa: "turnuva",
         turnuva: yeni
       }), 0);
-      return np;
+      return;
+    }
+    setTurnuvalar(p => {
+      const id = yeniId(p, "turnuva");
+      const yeni = {
+        id,
+        ...bilgi,
+        takimlar: [],
+        maclar: []
+      };
+      setTimeout(() => git({
+        sayfa: "turnuva",
+        turnuva: yeni
+      }), 0);
+      return [...p, yeni];
     });
   };
   const ligGuncelle = (turnuva, alanlar) => {
@@ -31300,14 +31357,14 @@ function App() {
       textAlign: "center",
       padding: "6px 12px"
     }
-  }, "🧪 STRES TESTİ MODU — ilişkisel veritabanından yüklendi · gerçek verin güvende (sayfayı yenile → geri gelir) ", React.createElement("span", {
+  }, "🔵 İLİŞKİSEL VERİTABANI MODU — yeni sistem aktif ", React.createElement("span", {
     onClick: () => window.location.reload(),
     style: {
       textDecoration: "underline",
       cursor: "pointer",
       marginLeft: 6
     }
-  }, "↻ Yenile")), kapi === "splash" && React.createElement(AcilisSplash, {
+  }, "↻ Çık / Yenile")), kapi === "splash" && React.createElement(AcilisSplash, {
     T: T,
     onBitti: () => setKapi("tanitim")
   }), kapi === "tanitim" && React.createElement(Tanitim, {
