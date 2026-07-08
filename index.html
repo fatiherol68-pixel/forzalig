@@ -518,14 +518,21 @@ const Db = {
       ]);
       const tk=tkR.data||[], ot=otR.data||[], mc=mcR.data||[];
       const pidler=[...new Set(ot.map(x=>x.player_id))];
-      let oyList=[]; if(pidler.length){ const {data:oy}=await sb.from('oyuncular').select('*').in('player_id',pidler); oyList=oy||[]; }
-      const oyById={}; oyList.forEach(o=>{ oyById[o.player_id]=o; });
+      // AÇIK görünüm (herkes/ziyaretçi) + TAM görünüm (girişliyse RLS izin verdiği kadar)
+      let acikById={}, tamById={};
+      if(pidler.length){
+        const {data:ac}=await sb.from('oyuncular_acik').select('*').in('player_id',pidler); (ac||[]).forEach(o=>{ acikById[o.player_id]=o; });
+        try{ const {data:tm}=await sb.from('oyuncular').select('*').in('player_id',pidler); (tm||[]).forEach(o=>{ tamById[o.player_id]=o; }); }catch(e){}
+      }
       const takimlar=tk.map(t=>{
-        const oyuncular=ot.filter(x=>x.takim_id===t.id).map(u=>{ const o=oyById[u.player_id]||{}; const n=o.nitelik||{};
-          return { id:u.player_id, player_id:u.player_id, lisNo:o.lis_no||null, ad:o.ad_soyad, poz:o.poz, no:o.forma_no,
-            ovr:o.ovr, pac:n.pac,sho:n.sho,pas:n.pas,dri:n.dri,def:n.def,phy:n.phy,
-            renk:o.renk, formaRenk:o.renk, yas:yasHesap(o.dogum), boy:o.boy, kilo:o.kilo, ayak:o.ayak,
-            dogum:o.dogum, bolge:o.bolge, uyruk:o.uyruk, saglik:o.saglik, deger:o.deger,
+        const oyuncular=ot.filter(x=>x.takim_id===t.id).map(u=>{ const tam=tamById[u.player_id]; const ac=acikById[u.player_id]||{}; const n=(tam&&tam.nitelik)||ac.nitelik||{};
+          return { id:u.player_id, player_id:u.player_id, lisNo:(tam&&tam.lis_no)||null,
+            ad:(tam&&tam.ad_soyad)||ac.gorunen_ad||"Oyuncu", poz:(tam&&tam.poz)||ac.poz||null, no:(tam?tam.forma_no:ac.forma_no),
+            ovr:(tam?tam.ovr:ac.ovr), pac:n.pac,sho:n.sho,pas:n.pas,dri:n.dri,def:n.def,phy:n.phy,
+            renk:(tam&&tam.renk)||ac.renk, formaRenk:(tam&&tam.renk)||ac.renk,
+            yas:(tam?yasHesap(tam.dogum):ac.yas), boy:(tam?tam.boy:ac.boy), kilo:(tam?tam.kilo:null), ayak:(tam&&tam.ayak)||ac.ayak,
+            dogum:(tam&&tam.dogum)||null, bolge:(tam&&tam.bolge)||ac.bolge, uyruk:(tam&&tam.uyruk)||null,
+            saglik:(tam&&tam.saglik)||ac.saglik, deger:(tam?tam.deger:ac.deger), sahip_user_id:(tam&&tam.sahip_user_id)||null,
             gol:0,asist:0,mac:0,kurtaris:0,sari:0,kirmizi:0,mvp:0,dk:0,
             altin:0,gumus:0,forvet:0,ortasaha:0,defans:0,kaleci:0,centilmen:0,enerjik:0,macinGolu:0 };
         });
@@ -567,6 +574,16 @@ const Db = {
       let q=sb.from('ligler').select('id').order('olusturma',{ascending:false}).limit(300);
       if(!hepsi && yoneticiId) q=q.eq('yonetici_id',yoneticiId);
       const {data}=await q; const idler=(data||[]).map(x=>x.id);
+      const sonuc=[]; for(const id of idler){ const t=await this.ligYukle(id); if(t) sonuc.push(t); }
+      return sonuc;
+    }catch(e){ return []; }
+  },
+  // Ziyaretçi/herkes için: tüm AKTİF public ligleri yükle (KVKK açık görünümle)
+  async liglerYukleAcik(limit){
+    if(!sb) return [];
+    try{
+      const {data}=await sb.from('ligler').select('id').eq('durum','aktif').order('olusturma',{ascending:false}).limit(limit||60);
+      const idler=(data||[]).map(x=>x.id);
       const sonuc=[]; for(const id of idler){ const t=await this.ligYukle(id); if(t) sonuc.push(t); }
       return sonuc;
     }catch(e){ return []; }
@@ -2867,7 +2884,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   else if(oynanan>0){ durumYazi="DEVAM"; durumRenk=T.accent; }
 
   const lider=[...turnuva.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
-  const formatAd={serbest:"Serbest",tek:"Tek Devre",cift:"Çift Devre",gruplu:"Gruplu"}[turnuva.format]||"Serbest";
+  const formatAd={serbest:"Serbest",tek:"Tek Devre",cift:"Çift Devre",gruplu:"Gruplu",kupa:"🏆 Kupa"}[turnuva.format]||"Serbest";
 
   // AKIŞ olayları (otomatik)
   const akisOlaylar=useMemo(()=>{
@@ -3331,13 +3348,17 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
     </div>
     {tk.map(t=>
       <div key={t.id} style={{display:"flex",alignItems:"center",gap:9,background:T.bg1,borderRadius:10,padding:"9px 11px",marginBottom:6,border:"0.5px solid "+T.line}}>
-        <Logo renk={t.renk} ad={t.ad} boy={26}/>
-        <span onClick={()=>git({sayfa:"takimyonet",takim:t,turnuva})} className="tap" style={{flex:1,fontSize:13,color:T.text,fontWeight:600,cursor:"pointer",minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span>
+        <label className="tap" title="Takım rengi" style={{cursor:"pointer",flexShrink:0,position:"relative"}}>
+          <Logo renk={t.renk} ad={t.ad} boy={26}/>
+          <input type="color" value={t.renk||"#34D399"} onChange={e=>yonetim.takimDuzenle(turnuva,t.id,{renk:e.target.value})} style={{position:"absolute",inset:0,opacity:0,width:26,height:26,cursor:"pointer"}}/>
+        </label>
+        <span onClick={()=>git({sayfa:"takim",takim:t,turnuva})} className="tap" style={{flex:1,fontSize:13,color:T.text,fontWeight:600,cursor:"pointer",minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span>
+        <button onClick={()=>{ const y=prompt("Takım adı:", t.ad); if(y&&y.trim()) yonetim.takimDuzenle(turnuva,t.id,{ad:y.trim()}); }} className="tap" title="Adı düzenle" style={{color:T.textMut,fontSize:12,background:"none",border:"none",padding:"0 3px"}}>✏️</button>
         {turnuva.format==="gruplu" ?
           <select value={t.grup||0} onChange={e=>yonetim.grupTasi(turnuva,t.id,parseInt(e.target.value))} style={{background:T.bg2,border:"0.5px solid "+T.line,borderRadius:7,padding:"4px 6px",color:T.accent,fontSize:11,fontWeight:700,outline:"none",fontFamily:"inherit"}}>
             {Array.from({length:turnuva.grupSayi||2},(_,gi)=><option key={gi} value={gi}>{"ABCDEFGHIJ"[gi]} Gr.</option>)}
           </select>
-          : <span onClick={()=>git({sayfa:"takimyonet",takim:t,turnuva})} className="tap" style={{fontSize:10,color:T.accent,cursor:"pointer",whiteSpace:"nowrap"}}>{t.oyuncular.length} oyuncu ›</span>}
+          : <span onClick={()=>git({sayfa:"takim",takim:t,turnuva})} className="tap" style={{fontSize:10,color:T.accent,cursor:"pointer",whiteSpace:"nowrap"}}>{t.oyuncular.length} oyuncu ›</span>}
         {iliskisel && typeof t.id==="string" && <button onClick={()=>oyuncuDavetiUret(t.id)} className="tap" title="Oyuncu davet linki" style={{color:T.accent2,fontSize:13,background:"none",border:"none",padding:"0 4px"}}>🔗</button>}
         <button onClick={()=>{ if(confirm(t.ad+" takımını sil?")) yonetim.takimSil(turnuva,t.id); }} className="tap" style={{color:T.danger,fontSize:13,background:"none",border:"none",padding:"0 4px"}}>🗑</button>
       </div>
@@ -8999,12 +9020,12 @@ function App(){
     return ()=>{ aktif=false; try{ sub.subscription.unsubscribe(); }catch(e){} };
   },[]);
 
-  // FAZ 3 — giriş yapınca İLİŞKİSEL veritabanından kendi liglerini yükle (ana sistem)
+  // FAZ 3 — İLİŞKİSEL yükleme: girişli → kendi ligleri (yönetim), ziyaretçi → tüm public ligler
   useEffect(()=>{
-    if(!sb || !oturum || saltOkunur) return;
+    if(!sb || saltOkunur || DAVET_TOKEN) return;
     let aktif=true;
     (async()=>{
-      const ligler=await Db.liglerYukle(oturum.id, false); // kendi ligleri
+      const ligler = oturum ? await Db.liglerYukle(oturum.id, false) : await Db.liglerYukleAcik();
       if(!aktif) return;
       ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
       setIliskiselModu(true);            // blob otomatik kaydı/yeniden yayını KAPALI
@@ -9292,6 +9313,13 @@ function App(){
     guncelle();
     return yeni;
   };
+  // Takım düzenle (ad / renk) — lig sorumlusu
+  const takimDuzenle=async(turnuva, takimId, alanlar)=>{
+    const t=turnuva.takimlar.find(x=>x.id===takimId); if(!t) return;
+    if(alanlar.ad!=null) t.ad=alanlar.ad; if(alanlar.renk!=null){ t.renk=alanlar.renk; (t.oyuncular||[]).forEach(o=>{ o.renk=alanlar.renk; o.formaRenk=alanlar.renk; }); }
+    if(iliskiselMi(turnuva) && typeof takimId==="string"){ const db={}; if(alanlar.ad!=null)db.ad=alanlar.ad; if(alanlar.renk!=null)db.renk=alanlar.renk; if(Object.keys(db).length) await Db.takimGuncelle(takimId, db); }
+    turnuvaHesapla(turnuva); guncelle();
+  };
   // Takım sil (madde 23: maç yapılmışsa sunucu engeller)
   const takimSil=async(turnuva, takimId)=>{
     if(iliskiselMi(turnuva) && typeof takimId==="string"){ const r=await Db.takimSil(takimId); if(r.hata){ alert("Silinemedi (maç yapılmış olabilir): "+r.hata); return; } }
@@ -9465,7 +9493,7 @@ function App(){
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={()=>git({sayfa:"ligkur"})} saltOkunur={saltOkunur}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
-      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={saltOkunur?null:{takimEkle,takimSil,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam}} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
+      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={(saltOkunur||!oturum)?null:{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam}} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur}/>; break;
