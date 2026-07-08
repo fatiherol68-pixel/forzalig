@@ -30579,39 +30579,20 @@ function App() {
     if (!sb || !oturum || saltOkunur) return;
     let aktif = true;
     (async () => {
-      const r = await Bulut.yukle(oturum.id);
+      const ligler = await Db.liglerYukle(oturum.id, false);
       if (!aktif) return;
-      const v = r ? r.veri : null;
-      bulutZaman.current = r ? r.zaman : null;
-      if (v && Array.isArray(v.turnuvalar)) {
-        let gelen = v.turnuvalar;
-        if (!gelen.some(t => t.id === 990001)) {
-          try {
-            gelen = [demoKupa(), ...gelen];
-          } catch (e) {}
-        }
-        setTurnuvalar(gelen);
-        if (v.temaKey) setTemaKey(v.temaKey);
-        if (Array.isArray(v.takipLig)) setTakipLig(v.takipLig);
-        if (Array.isArray(v.takipOyuncu)) setTakipOyuncu(v.takipOyuncu);
-        if (Array.isArray(v.takipTakim)) setTakipTakim(v.takipTakim);
-        setBulutDurum("Buluttan yüklendi ✓");
-      } else {
-        const sr = await Bulut.kaydetGuvenli(oturum.id, {
-          turnuvalar,
-          temaKey,
-          takipLig,
-          takipOyuncu,
-          takipTakim,
-          v: 1
-        }, null);
-        if (sr.ok) bulutZaman.current = sr.zaman;
-        setBulutDurum("Buluta kaydedildi ✓");
-      }
+      ligler.forEach(t => {
+        try {
+          turnuvaHesapla(t);
+        } catch (e) {}
+      });
+      setIliskiselModu(true);
+      setTurnuvalar(ligler);
       bulutHazir.current = true;
+      setBulutDurum(ligler.length ? "Yüklendi ✓ (" + ligler.length + " lig)" : "");
       setTimeout(() => {
         if (aktif) setBulutDurum("");
-      }, 2500);
+      }, 2200);
     })();
     return () => {
       aktif = false;
@@ -31753,28 +31734,7 @@ function App() {
       background: T.bg0,
       fontFamily: T.fontBody
     }
-  }, iliskiselModu && React.createElement("div", {
-    style: {
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 1700,
-      background: "linear-gradient(90deg,#38BDF8,#34D399)",
-      color: "#04070C",
-      fontSize: 11.5,
-      fontWeight: 800,
-      textAlign: "center",
-      padding: "6px 12px"
-    }
-  }, "🔵 İLİŞKİSEL VERİTABANI MODU — yeni sistem aktif ", React.createElement("span", {
-    onClick: () => window.location.reload(),
-    style: {
-      textDecoration: "underline",
-      cursor: "pointer",
-      marginLeft: 6
-    }
-  }, "↻ Çık / Yenile")), kapi === "splash" && React.createElement(AcilisSplash, {
+  }, kapi === "splash" && React.createElement(AcilisSplash, {
     T: T,
     onBitti: () => setKapi("tanitim")
   }), kapi === "tanitim" && React.createElement(Tanitim, {
