@@ -381,6 +381,7 @@ const Db = {
   async kadroEkle(pid, takimId, ligId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('oyuncu_takim').insert({player_id:pid, takim_id:takimId, lig_id:ligId, aktif:true}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async kadro(takimId){ if(!sb) return []; try{ const {data}=await sb.from('oyuncu_takim').select('*').eq('takim_id',takimId).eq('aktif',true); return data||[]; }catch(e){ return []; } },
   async kadrodanCikar(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('oyuncu_takim').update({aktif:false, ayrilma:new Date().toISOString()}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async kadrodanCikarPid(playerId, takimId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('oyuncu_takim').update({aktif:false, ayrilma:new Date().toISOString()}).eq('player_id',playerId).eq('takim_id',takimId).eq('aktif',true); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   // ---- Transfer (madde 13: 3 adımlı zincir) ----
   async transferTalep(pid, ligId, eskiTakim, yeniTakim, talepEden){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('transferler').insert({player_id:pid, lig_id:ligId, eski_takim_id:eskiTakim||null, yeni_takim_id:yeniTakim, talep_eden:talepEden, asama:'talep'}).select('id').single(); return error?{hata:error.message}:{ok:true,id:data.id}; }catch(e){ return {hata:String(e)}; } },
   async transferOyuncuKabul(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('transferler').update({asama:'oyuncu_kabul', oyuncu_kabul_t:new Date().toISOString()}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
@@ -8996,14 +8997,32 @@ function App(){
   const guncelle=()=> setTurnuvalar(p=>[...p]);
 
   // Yeni lig oluştur
-  const ligKur=({ad, sehir, ilce, renk, kisi, format, grupSayi, baslangic, hedefTakim})=>{
+  const ligKur=async({ad, sehir, ilce, renk, kisi, format, grupSayi, baslangic, hedefTakim})=>{
+    const bilgi={ ad: ad||"Yeni Lig", renk: renk||pick(RENKLER), sehir: sehir||"İstanbul", ilce: ilce||"",
+      kisi: kisi||7, format: format||"serbest", grupSayi: grupSayi||0, baslangic: baslangic||"", hedefTakim: hedefTakim||0 };
+    // İLİŞKİSEL + HAK KONTROLÜ (Karar 3): yetkisi/hakkı yoksa RLS engeller
+    if(sb && oturum){
+      const r=await Db.ligOlustur(oturum.id, { ad:bilgi.ad, ulke:'TR', sehir:bilgi.sehir, ilce:bilgi.ilce, renk:bilgi.renk,
+        kisi:bilgi.kisi, format:bilgi.format, grup_sayi:bilgi.grupSayi, hedef_takim:bilgi.hedefTakim, fikstur_tipi:bilgi.format });
+      if(r.hata){
+        const yetkiSorun=/policy|row-level|violates row|permission/i.test(r.hata);
+        alert(yetkiSorun
+          ? "⚠️ Lig açma hakkın yok.\n\nLig oluşturmak için Süper Admin'in sana yetki (lig hakkı) vermesi gerekiyor. IBAN ödemesi sonrası admin hakkını tanımlar."
+          : ("Lig açılamadı: "+r.hata));
+        return;
+      }
+      const yeni={ id:r.id, ...bilgi, takimlar:[], maclar:[], iliskisel:true };
+      setIliskiselModu(true);
+      setTurnuvalar(p=>[...p, yeni]);
+      setTimeout(()=>git({sayfa:"turnuva",turnuva:yeni}),0);
+      return;
+    }
+    // Çevrimdışı yedek (giriş yoksa) — eski davranış
     setTurnuvalar(p=>{
       const id=yeniId(p,"turnuva");
-      const yeni={ id, ad: ad||"Yeni Lig", renk: renk||pick(RENKLER), sehir: sehir||"İstanbul", ilce: ilce||"",
-        kisi: kisi||7, format: format||"serbest", grupSayi: grupSayi||0, baslangic: baslangic||"", hedefTakim: hedefTakim||0, takimlar:[], maclar:[] };
-      const np=[...p, yeni];
+      const yeni={ id, ...bilgi, takimlar:[], maclar:[] };
       setTimeout(()=>git({sayfa:"turnuva",turnuva:yeni}),0);
-      return np;
+      return [...p, yeni];
     });
   };
   // Lig bilgilerini güncelle
@@ -9196,7 +9215,7 @@ function App(){
   return <div style={{minHeight:"100vh",background:T.bg0,fontFamily:T.fontBody}}>
     {/* STRES TESTİ — ilişkiselden yüklendi; gerçek veri korunuyor */}
     {iliskiselModu && <div style={{position:"fixed",top:0,left:0,right:0,zIndex:1700,background:"linear-gradient(90deg,#38BDF8,#34D399)",color:"#04070C",fontSize:11.5,fontWeight:800,textAlign:"center",padding:"6px 12px"}}>
-      🧪 STRES TESTİ MODU — ilişkisel veritabanından yüklendi · gerçek verin güvende (sayfayı yenile → geri gelir) <span onClick={()=>window.location.reload()} style={{textDecoration:"underline",cursor:"pointer",marginLeft:6}}>↻ Yenile</span>
+      🔵 İLİŞKİSEL VERİTABANI MODU — yeni sistem aktif <span onClick={()=>window.location.reload()} style={{textDecoration:"underline",cursor:"pointer",marginLeft:6}}>↻ Çık / Yenile</span>
     </div>}
     {/* FAZ 7 — Açılış / Tanıtım / Giriş kapısı (uygulamanın üstünde overlay) */}
     {kapi==="splash" && <AcilisSplash T={T} onBitti={()=>setKapi("tanitim")}/>}
