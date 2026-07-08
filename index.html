@@ -2015,11 +2015,7 @@ const Db = {
         data
       } = await q;
       const idler = (data || []).map(x => x.id);
-      const sonuc = [];
-      for (const id of idler) {
-        const t = await this.ligYukle(id);
-        if (t) sonuc.push(t);
-      }
+      const sonuc = (await Promise.all(idler.map(id => this.ligYukle(id)))).filter(Boolean);
       return sonuc;
     } catch (e) {
       return [];
@@ -2034,11 +2030,7 @@ const Db = {
         ascending: false
       }).limit(limit || 60);
       const idler = (data || []).map(x => x.id);
-      const sonuc = [];
-      for (const id of idler) {
-        const t = await this.ligYukle(id);
-        if (t) sonuc.push(t);
-      }
+      const sonuc = (await Promise.all(idler.map(id => this.ligYukle(id)))).filter(Boolean);
       return sonuc;
     } catch (e) {
       return [];
@@ -15556,7 +15548,7 @@ function OyuncuSayfa({
       }, 1200);
     } else setTransferMesaj("❌ " + (r && r.hata || "olmadı"));
   };
-  const benimMi = sahiplenme && (sahiplenme.oyuncu_id === o.id || sahiplenme.oyuncu_ad === o.ad);
+  const benimMi = oturum && o.sahip_user_id && o.sahip_user_id === oturum.id || sahiplenme && (sahiplenme.oyuncu_id === o.id || sahiplenme.oyuncu_ad === o.ad);
   const sahiplen = async () => {
     if (!oturum) {
       setSahipMesaj("Sahiplenmek için giriş yapmalısın.");
@@ -24469,7 +24461,7 @@ function Ayarlar({
     style: {
       padding: "12px 14px"
     }
-  }, React.createElement("div", {
+  }, !sb && React.createElement(React.Fragment, null, React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -24570,7 +24562,7 @@ function Ayarlar({
       fontWeight: 600,
       border: "0.5px solid " + T.danger + "55"
     }
-  }, "🗑 Tüm veriyi sil")), React.createElement("div", {
+  }, "🗑 Tüm veriyi sil"))), React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -31237,7 +31229,7 @@ function App() {
     });
   }
   const [temaKey, setTemaKey] = useState(() => ilk && ilk.temaKey || "neon");
-  const [turnuvalar, setTurnuvalar] = useState(() => ilk && ilk.turnuvalar || uretVeri(5, 9, 12));
+  const [turnuvalar, setTurnuvalar] = useState(() => sb ? [] : ilk && ilk.turnuvalar || uretVeri(5, 9, 12));
   const [nav, setNav] = useState({
     sayfa: "ana"
   });
@@ -31304,7 +31296,7 @@ function App() {
     setTurnuvalar(p => [...p]);
   }, []);
   useEffect(() => {
-    if (saltOkunur) return;
+    if (saltOkunur || sb) return;
     setTurnuvalar(p => p.some(t => t.id === 990001) ? p : (() => {
       try {
         return [demoKupa(), ...p];
