@@ -24375,7 +24375,8 @@ function Ayarlar({
   yedekle,
   yukleDosya,
   kayitDurum,
-  git
+  git,
+  adminMi
 }) {
   return React.createElement("div", {
     className: "fade-in main-area",
@@ -24427,7 +24428,7 @@ function Ayarlar({
       fontFamily: T.fontDisplay,
       lineHeight: 1.1
     }
-  }, "Tema & Veri")))), React.createElement("div", {
+  }, "Tema & Veri")))), adminMi && React.createElement(React.Fragment, null, React.createElement("div", {
     style: {
       padding: "6px 14px"
     }
@@ -24616,7 +24617,7 @@ function Ayarlar({
       background: "#fff",
       transition: "left .2s"
     }
-  })))), React.createElement("div", {
+  }))))), React.createElement("div", {
     style: {
       padding: "6px 14px"
     }
@@ -31953,6 +31954,7 @@ function App() {
   const bulutZaman = useRef(null);
   const [catisma, setCatisma] = useState(false);
   const [iliskiselModu, setIliskiselModu] = useState(false);
+  const [adminMi, setAdminMi] = useState(false);
   const [saltOkunur] = useState(() => !!PAYLASIM_SLUG);
   const [paylasimYuk, setPaylasimYuk] = useState(() => !!PAYLASIM_SLUG);
   const [paylasimHata, setPaylasimHata] = useState(false);
@@ -32100,6 +32102,11 @@ function App() {
     (async () => {
       const ligler = oturum ? await Db.liglerYukle(oturum.id, false) : await Db.liglerYukleAcik();
       if (!aktif) return;
+      if (oturum) {
+        Db.adminMi(oturum.id).then(a => {
+          if (aktif) setAdminMi(!!a);
+        });
+      } else setAdminMi(false);
       ligler.forEach(t => {
         try {
           turnuvaHesapla(t);
@@ -33347,7 +33354,8 @@ function App() {
           yedekle: yedekle,
           yukleDosya: yukleDosya,
           kayitDurum: kayitDurum,
-          git: git
+          git: git,
+          adminMi: adminMi
         });
         break;
       default:
