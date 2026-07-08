@@ -1891,7 +1891,7 @@ function EnKart({et, o, deg, br, renk, T, takim, onClick}){
   </div>;
 }
 
-function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak}){
+function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi}){
   const kariyereGit=()=>{
     if(!sahiplenme) return;
     // yerelde oyuncuyu bul
@@ -1976,7 +1976,7 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
 
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"16px 2px 8px"}}>AYARLAR</div>
       <Sat ik="⚙️" metin="Uygulama Ayarları" onClick={()=>git({sayfa:"ayar"})}/>
-      <Sat ik="💾" metin="Yedekleme & Veri" onClick={()=>git({sayfa:"ayar"})}/>
+      {adminMi && <Sat ik="💾" metin="Yedekleme & Veri" onClick={()=>git({sayfa:"ayar"})}/>}
 
       <div style={{fontSize:9,color:T.textMut,textAlign:"center",margin:"20px 0",lineHeight:1.6}}>
         Kişisel kartın, kariyerin ve takımın<br/>online sürümde (üyelikle) burada olacak.
@@ -9635,7 +9635,7 @@ function App(){
       case "sihirbaz": icerik=<MacSihirbaz mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} sihirbazKaydet={sihirbazKaydet}/>; break;
       case "istatistik": icerik=<MacIstatistik mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} onKaydet={(mac,ist)=>{ mac.istatistik=ist; }}/>; break;
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
-      case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak}/>; break;
+      case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi}/>; break;
       case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async()=>{ const gelen=await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
       case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi}/>; break;
