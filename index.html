@@ -533,7 +533,8 @@ const Db = {
       });
       return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', takimlar, maclar, format:L.format||'tek',
         grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
-        sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, iliskisel:true };
+        sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
+        kurallarKilit:!!L.kurallar_kilit, iliskisel:true };
     }catch(e){ console.warn('ligYukle',e); return null; }
   },
   // Test verisini temizle: kullanıcının tüm ligleri + öksüz oyuncular (admin)
@@ -3170,7 +3171,7 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
   const tk=turnuva.takimlar;
 
   const takimEkleYap=(bos)=>{ if(!yeniTakimAd.trim())return; yonetim.takimEkle(turnuva, yeniTakimAd.trim(), bos); setYeniTakimAd(""); };
-  const macEkleYap=()=>{ if(!macA||!macB||macA===macB)return; yonetim.macEkle(turnuva, parseInt(macA), parseInt(macB)); setMacA(""); setMacB(""); };
+  const macEkleYap=()=>{ if(!macA||!macB||macA===macB)return; yonetim.macEkle(turnuva, macA, macB); setMacA(""); setMacB(""); };
 
   // Excel/tablo metnini ayrıştır (satır=oyuncu, sütun=TAB veya virgül/noktalı virgül)
   const excelAyristir=(metin)=>{
@@ -3358,6 +3359,22 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
       )}
       <div style={{fontSize:10,color:T.textMut,textAlign:"center",marginTop:6}}>Skoru girmek için ortadaki kutuya dokun</div>
     </>}
+
+    {/* KURAL KİLİDİ (madde 20) + ARŞİV/SİL (madde 21) */}
+    {turnuva.maclar.some(m=>m.oynandi) && <div style={{margin:"14px 0 4px",background:"linear-gradient(120deg,"+T.gold+"14,"+T.bg1+")",border:"0.5px solid "+T.gold+"44",borderRadius:11,padding:"11px 13px"}}>
+      <div style={{fontSize:12,color:T.text,fontWeight:700}}>🔒 Kurallar kilitli</div>
+      <div style={{fontSize:10.5,color:T.textMut,marginTop:3,lineHeight:1.5}}>Maç oynandığı için <b>puan sistemi · averaj · fikstür tipi</b> değiştirilemez. Lig adı, logo, bitiş tarihi serbest.</div>
+    </div>}
+
+    <div style={{margin:"14px 0 4px",background:T.bg1,border:"0.5px solid "+T.danger+"33",borderRadius:11,padding:"12px 13px"}}>
+      <div style={{fontSize:11,color:T.danger,fontWeight:800,marginBottom:8}}>⚠️ TEHLİKELİ BÖLGE</div>
+      {turnuva.durum==="arsiv"
+        ? <button onClick={()=>yonetim.ligArsivle(turnuva,false)} className="tap" style={{width:"100%",background:T.accent+"18",color:T.accent,border:"0.5px solid "+T.accent+"55",borderRadius:9,padding:"10px",fontSize:12.5,fontWeight:700,marginBottom:8}}>♻️ Ligi tekrar aktif yap</button>
+        : <button onClick={()=>{ if(confirm("Ligi arşivle? Puan/maç geçmişi korunur, listeden gizlenir. İstediğinde geri açarsın.")) yonetim.ligArsivle(turnuva,true); }} className="tap" style={{width:"100%",background:T.gold+"18",color:T.gold,border:"0.5px solid "+T.gold+"55",borderRadius:9,padding:"10px",fontSize:12.5,fontWeight:700,marginBottom:8}}>📦 Ligi Arşivle</button>}
+      {!turnuva.maclar.some(m=>m.oynandi)
+        ? <button onClick={()=>{ if(confirm("Ligi TAMAMEN sil? Bu geri alınamaz. (Maç oynanmadığı için silinebilir)")) yonetim.ligSilTam(turnuva); }} className="tap" style={{width:"100%",background:"none",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:9,padding:"10px",fontSize:12.5,fontWeight:700}}>🗑️ Ligi tamamen sil</button>
+        : <div style={{fontSize:10,color:T.textMut,textAlign:"center",lineHeight:1.5}}>Maç oynandığı için lig <b>silinemez</b> — sadece arşivlenebilir (madde 22). Kalıcı silme yalnızca Süper Admin'de.</div>}
+    </div>
     </div>
   </div>;
 }
@@ -5112,9 +5129,12 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme}){
   const oynandi = m.skorA!=null;
   const [yorumTohum,setYorumTohum]=useState(0);
   const yorum = oynandi ? macYorumUret(m, turnuva, yorumTohum) : null;
+  // Skor değişiklik logu (madde 22) — ilişkisel maçlarda
+  const [degisLog,setDegisLog]=useState([]);
+  useEffect(()=>{ let a=true; (async()=>{ if(sb && typeof m.id==="string"){ const l=await Db.macLog(m.id); if(a) setDegisLog(l||[]); } })(); return ()=>{a=false;}; },[m.id]);
 
   // deterministik "rastgele" — aynı maç hep aynı görünsün
-  const seed = (m.id||1)*2654435761>>>0;
+  const seed = ((typeof m.id==="string"?hash(m.id):(m.id||1))*2654435761)>>>0;
   const det = (n)=>{ let x=(seed + n*40503)>>>0; x=(x^(x>>>13))*0xC2B2AE35>>>0; return (x>>>0)/4294967296; };
 
   // gollere dakika ata (elle girilmişse onu kullan, yoksa deterministik)
@@ -5343,6 +5363,22 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme}){
 
       {/* MVP OYLAMASI (maç oynandıysa) */}
       {oynandi && oylamaKadro.length>0 && <MvpOylama m={m} turnuva={turnuva} kadro={oylamaKadro} T={T} oturum={oturum} sahiplenme={sahiplenme}/>}
+
+      {/* SKOR DEĞİŞİKLİK GEÇMİŞİ (madde 22) */}
+      {degisLog.length>0 && <div style={{padding:"10px 14px 0"}}>
+        <div style={{background:T.bg1,borderRadius:14,padding:"12px 13px",border:"0.5px solid "+T.line}}>
+          <div style={{fontSize:10,color:T.textMut,fontWeight:700,marginBottom:10}}>📝 SKOR DEĞİŞİKLİK GEÇMİŞİ</div>
+          {degisLog.map((l,i)=>
+            <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:11,padding:"6px 0",borderTop:i>0?"0.5px solid "+T.line:"none"}}>
+              <span style={{color:T.textMut,fontFamily:T.fontDisplay}}>{(l.eski_ev==null?"–":l.eski_ev)+"-"+(l.eski_dep==null?"–":l.eski_dep)}</span>
+              <span style={{color:T.textMut}}>→</span>
+              <span style={{color:T.text,fontWeight:800,fontFamily:T.fontDisplay}}>{(l.yeni_ev==null?"–":l.yeni_ev)+"-"+(l.yeni_dep==null?"–":l.yeni_dep)}</span>
+              <span style={{marginLeft:"auto",fontSize:9.5,color:T.textMut}}>{l.zaman?new Date(l.zaman).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""}</span>
+            </div>
+          )}
+          <div style={{fontSize:9,color:T.textMut,marginTop:8,lineHeight:1.5}}>Şeffaflık için her skor değişikliği kaydedilir (ne zaman · eski→yeni).</div>
+        </div>
+      </div>}
 
       {/* GOL DAKİKALARI */}
       {goller.length>0 && <div style={{padding:"10px 14px 0"}}>
@@ -9094,6 +9130,18 @@ function App(){
     if(iliskiselMi(turnuva)){ const db={}; if(alanlar.ad!=null)db.ad=alanlar.ad; if(alanlar.renk!=null)db.renk=alanlar.renk; if(alanlar.sehir!=null)db.sehir=alanlar.sehir; if(alanlar.ilce!=null)db.ilce=alanlar.ilce; if(alanlar.logo!=null)db.logo=alanlar.logo; if(alanlar.bitisTarihi!=null)db.bitis_tarihi=alanlar.bitisTarihi; if(Object.keys(db).length) Db.ligGuncelle(turnuva.id, db); }
     guncelle();
   };
+  // Lig arşivle / aktif yap (madde 22) — maç oynanmışsa silinemez, arşivlenir
+  const ligArsivle=async(turnuva, arsiv)=>{
+    if(iliskiselMi(turnuva)){ const r=await Db.ligArsivle(turnuva.id, arsiv); if(r.hata){ alert("Olmadı: "+r.hata); return; } }
+    turnuva.durum = arsiv ? 'arsiv' : 'aktif';
+    if(arsiv){ git({sayfa:"ana"}); }
+    guncelle();
+  };
+  // Lig tamamen sil (sadece maç oynanmamışsa; admin her zaman) — RLS korur
+  const ligSilTam=async(turnuva)=>{
+    if(iliskiselMi(turnuva)){ const r=await Db.ligSil(turnuva.id); if(r.hata){ alert("Silinemedi (maç oynanmış olabilir — arşivle): "+r.hata); return; } }
+    setTurnuvalar(p=>p.filter(t=>t.id!==turnuva.id)); git({sayfa:"ana"});
+  };
   // Takım ekle
   const takimEkle=async(turnuva, ad, bos)=>{
     const tid=yeniId(turnuvalar,"takim"); const oid=yeniId(turnuvalar,"oyuncu");
@@ -9272,11 +9320,11 @@ function App(){
     icerik=<BosDurum T={T} git={git}/>;
   } else {
     switch(nav.sayfa){
-      case "ana": icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>; break;
+      case "ana": icerik=<AnaSayfa turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git}/>; break;
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={()=>git({sayfa:"ligkur"})} saltOkunur={saltOkunur}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
-      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={saltOkunur?null:{takimEkle,takimSil,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec}} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
+      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={saltOkunur?null:{takimEkle,takimSil,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam}} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} saltOkunur={saltOkunur}/>; break;
