@@ -7167,7 +7167,7 @@ function TakipLigIcerik({turnuva, ligTab, T, git}){
 }
 
 /* AYARLAR — tema + stres testi */
-function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMod, setAdminMod, yedekle, yukleDosya, kayitDurum, git}){
+function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMod, setAdminMod, yedekle, yukleDosya, kayitDurum, git, adminMi}){
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     {/* VAV HERO BAŞLIK */}
     <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"22px 18px 18px",background:"linear-gradient(120deg,"+T.accent+"40 0%,"+T.bg0+" 38%,"+T.accent+"22 66%,"+T.bg0+")"}}>
@@ -7181,8 +7181,8 @@ function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMo
       </div>
     </div>
 
-    {/* VERİ KALICILIĞI — yedekle / yükle */}
-    <div style={{padding:"6px 14px"}}>
+    {/* VERİ KALICILIĞI + SÜPER ADMIN — sadece admin görsün */}
+    {adminMi && <><div style={{padding:"6px 14px"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:T.accent+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>💾</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Verilerim</span></div>
       <div style={{background:T.accent+"0E",borderRadius:12,padding:"14px",border:"0.5px solid "+T.accent+"33"}}>
         <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
@@ -7213,7 +7213,7 @@ function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMo
           <div style={{position:"absolute",top:3,left:adminMod?21:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
         </div>
       </div>
-    </div>
+    </div></>}
 
     <div style={{padding:"6px 14px"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:"#7c4dff22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🎨</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Tema</span></div>
@@ -9034,6 +9034,7 @@ function App(){
   const bulutZaman=useRef(null);                 // son bilinen bulut zamanı (çakışma tespiti)
   const [catisma,setCatisma]=useState(false);    // başka cihaz veriyi değiştirdi
   const [iliskiselModu,setIliskiselModu]=useState(false); // stres testi: ilişkiselden yüklendi → buluta YAZMA (gerçek veriyi koru)
+  const [adminMi,setAdminMi]=useState(false);   // giriş yapan kişi Süper Admin mi
   // FAZ 9 — paylaşılan lig (salt-okunur public görünüm)
   const [saltOkunur]=useState(()=> !!PAYLASIM_SLUG);
   const [paylasimYuk,setPaylasimYuk]=useState(()=> !!PAYLASIM_SLUG);
@@ -9150,6 +9151,7 @@ function App(){
     (async()=>{
       const ligler = oturum ? await Db.liglerYukle(oturum.id, false) : await Db.liglerYukleAcik();
       if(!aktif) return;
+      if(oturum){ Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); } else setAdminMi(false);
       ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
       setIliskiselModu(true);            // blob otomatik kaydı/yeniden yayını KAPALI
       setTurnuvalar(ligler);
@@ -9636,7 +9638,7 @@ function App(){
       case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak}/>; break;
       case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async()=>{ const gelen=await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
-      case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git}/>; break;
+      case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
     }
   }
