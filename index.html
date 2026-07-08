@@ -9719,7 +9719,9 @@ function App(){
   };
 
   let icerik;
-  const bosMu = turnuvalar.length===0 && nav.sayfa!=="ayar" && nav.sayfa!=="ligkur" && nav.sayfa!=="ligler";
+  // "Henüz lig yok" boş ekranı SADECE lig içeriğine bağlı sayfalarda çıksın.
+  // Profil / Takip / Admin / Yasal / Ayarlar / Keşfet / LigKur kendi içeriğini her zaman gösterir.
+  const bosMu = turnuvalar.length===0 && (nav.sayfa==="ana" || nav.sayfa==="tumenler");
   if(paylasimYuk){
     icerik=<div style={{padding:"90px 30px",textAlign:"center"}}>
       <div className="vav-suzul" style={{fontSize:40,marginBottom:14}}>⚽</div>
