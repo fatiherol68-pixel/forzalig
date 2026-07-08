@@ -574,17 +574,17 @@ const Db = {
       let q=sb.from('ligler').select('id').order('olusturma',{ascending:false}).limit(300);
       if(!hepsi && yoneticiId) q=q.eq('yonetici_id',yoneticiId);
       const {data}=await q; const idler=(data||[]).map(x=>x.id);
-      const sonuc=[]; for(const id of idler){ const t=await this.ligYukle(id); if(t) sonuc.push(t); }
+      const sonuc=(await Promise.all(idler.map(id=>this.ligYukle(id)))).filter(Boolean);
       return sonuc;
     }catch(e){ return []; }
   },
-  // Ziyaretçi/herkes için: tüm AKTİF public ligleri yükle (KVKK açık görünümle)
+  // Ziyaretçi/herkes için: tüm AKTİF public ligleri yükle (KVKK açık görünümle) — paralel
   async liglerYukleAcik(limit){
     if(!sb) return [];
     try{
       const {data}=await sb.from('ligler').select('id').eq('durum','aktif').order('olusturma',{ascending:false}).limit(limit||60);
       const idler=(data||[]).map(x=>x.id);
-      const sonuc=[]; for(const id of idler){ const t=await this.ligYukle(id); if(t) sonuc.push(t); }
+      const sonuc=(await Promise.all(idler.map(id=>this.ligYukle(id)))).filter(Boolean);
       return sonuc;
     }catch(e){ return []; }
   },
@@ -4553,7 +4553,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     if(r&&r.ok){ setTransferMesaj("✅ "+r.yeniTakim+" takımına transfer edildi."); setTimeout(()=>{ setTransferAcik(false); git({sayfa:"ana"}); },1200); }
     else setTransferMesaj("❌ "+((r&&r.hata)||"olmadı"));
   };
-  const benimMi = sahiplenme && (sahiplenme.oyuncu_id===o.id || sahiplenme.oyuncu_ad===o.ad);
+  const benimMi = (oturum && o.sahip_user_id && o.sahip_user_id===oturum.id) || (sahiplenme && (sahiplenme.oyuncu_id===o.id || sahiplenme.oyuncu_ad===o.ad));
   const sahiplen=async()=>{
     if(!oturum){ setSahipMesaj("Sahiplenmek için giriş yapmalısın."); return; }
     setSahipYuk(true); setSahipMesaj("");
@@ -7199,7 +7199,7 @@ function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMo
       </div>
     </div>
     <div style={{padding:"12px 14px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:"#34D39922",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🧪</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Stres Testi <span style={{fontSize:11,color:T.textMut,fontWeight:400}}>(örnek veri)</span></span></div>
+      {!sb && <><div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:"#34D39922",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🧪</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Stres Testi <span style={{fontSize:11,color:T.textMut,fontWeight:400}}>(örnek veri)</span></span></div>
       <div style={{background:T.bg1,borderRadius:12,padding:"14px",border:"0.5px solid "+T.line}}>
         <div style={{fontSize:12,color:T.textMut,marginBottom:12,lineHeight:1.6}}>
           Şu an: {turnuvalar.length} turnuva, {turnuvalar.reduce((s,t)=>s+t.takimlar.length,0)} takım, {Motor.tumOyuncular(turnuvalar).length} futbolcu, {turnuvalar.reduce((s,t)=>s+t.maclar.length,0)} maç.
@@ -7210,7 +7210,7 @@ function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMo
           <button onClick={()=>{ if(confirm("Aşırı yük: 15 lig, ~300 takım, ~5000 oyuncu üretilecek. Cihazı zorlar. Devam?")) veriUret(15,20,20); }} className="tap" style={{flex:1,background:T.danger,color:"#fff",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700}}>🔥 Aşırı</button>
         </div>
         <button onClick={veriSil} className="tap" style={{width:"100%",marginTop:8,background:"transparent",color:T.danger,borderRadius:10,padding:"11px",fontSize:13,fontWeight:600,border:"0.5px solid "+T.danger+"55"}}>🗑 Tüm veriyi sil</button>
-      </div>
+      </div></>}
 
       <div style={{display:"flex",alignItems:"center",gap:8,margin:"18px 4px 8px"}}><span style={{width:28,height:28,borderRadius:8,background:T.textMut+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>⚖️</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Yasal</span></div>
       <div onClick={()=>git({sayfa:"yasal",tip:"gizlilik"})} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"12px 13px",marginBottom:6}}><span style={{fontSize:16}}>🔒</span><span style={{flex:1,fontSize:13,color:T.text}}>Gizlilik / KVKK</span><span style={{fontSize:12,color:T.textMut}}>›</span></div>
@@ -8897,7 +8897,8 @@ function App(){
   }
 
   const [temaKey,setTemaKey]=useState(()=> (ilk&&ilk.temaKey)||"neon");
-  const [turnuvalar,setTurnuvalar]=useState(()=> (ilk&&ilk.turnuvalar)||uretVeri(5,9,12));
+  // Supabase varsa (canlı): başlangıçta BOŞ — ligler ilişkiselden yüklenir (eski yerel demo karışmasın)
+  const [turnuvalar,setTurnuvalar]=useState(()=> sb ? [] : ((ilk&&ilk.turnuvalar)||uretVeri(5,9,12)));
   const [nav,setNav]=useState({sayfa:"ana"});
   const [navGecmis,setNavGecmis]=useState([]); // geri navigasyonu için yığın
   // FAZ 7 — açılış kapısı: "splash" | "tanitim" | "giris" | "uyeol" | null(uygulama)
@@ -8946,9 +8947,9 @@ function App(){
     setTurnuvalar(p=>[...p]);
   },[]);
 
-  // DEMO KUPA — açılışta bir kez ekle (yoksa)
+  // DEMO KUPA — sadece Supabase YOKSA (çevrimdışı demo). Canlıda ilişkisel yüklenir.
   useEffect(()=>{
-    if(saltOkunur) return;
+    if(saltOkunur || sb) return;
     setTurnuvalar(p=> p.some(t=>t.id===990001) ? p : (()=>{ try{ return [demoKupa(), ...p]; }catch(e){ return p; } })());
   },[]);
 
