@@ -685,9 +685,19 @@ const Db = {
   async liglerYukle(yoneticiId, hepsi){
     if(!sb) return [];
     try{
-      let q=sb.from('ligler').select('id').order('olusturma',{ascending:false}).limit(300);
-      if(!hepsi && yoneticiId) q=q.eq('yonetici_id',yoneticiId);
-      const {data}=await q; const idler=(data||[]).map(x=>x.id);
+      const idSet=new Set();
+      if(hepsi){
+        const {data}=await sb.from('ligler').select('id').order('olusturma',{ascending:false}).limit(300);
+        (data||[]).forEach(x=>idSet.add(x.id));
+      } else if(yoneticiId){
+        // 1) sahibi olduğun ligler
+        try{ const {data}=await sb.from('ligler').select('id').eq('yonetici_id',yoneticiId).limit(300); (data||[]).forEach(x=>idSet.add(x.id)); }catch(e){}
+        // 2) takım sorumlusu (kaptan) olduğun ligler
+        try{ const {data}=await sb.from('takimlar').select('lig_id').eq('yonetici_id',yoneticiId).limit(300); (data||[]).forEach(x=>x.lig_id&&idSet.add(x.lig_id)); }catch(e){}
+        // 3) oyuncu olarak katıldığın ligler
+        try{ const {data:pl}=await sb.from('oyuncular').select('player_id').eq('sahip_user_id',yoneticiId).limit(500); const pids=(pl||[]).map(x=>x.player_id); if(pids.length){ const {data:ot}=await sb.from('oyuncu_takim').select('lig_id').in('player_id',pids).limit(1000); (ot||[]).forEach(x=>x.lig_id&&idSet.add(x.lig_id)); } }catch(e){}
+      }
+      const idler=[...idSet];
       const sonuc=(await Promise.all(idler.map(id=>this.ligYukle(id)))).filter(Boolean);
       return sonuc;
     }catch(e){ return []; }
