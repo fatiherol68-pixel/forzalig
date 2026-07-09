@@ -7,6 +7,7 @@
 <meta name="description" content="ForzaLig: halı saha ligini yönet, puan durumu, fikstür, kral listeleri, FIFA tarzı oyuncu kartları ve canlı skorlar. Ligini link/QR ile paylaş, herkes görsün.">
 <meta name="theme-color" content="#070B12">
 <meta name="keywords" content="halı saha, lig, fikstür, puan durumu, gol kralı, futbol, turnuva, forzalig">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23070B12'/><circle cx='32' cy='32' r='18' fill='%23ffffff'/><path d='M32 21L42.5 28.6 38.5 40.9 25.5 40.9 21.5 28.6Z' fill='%230B0F17'/></svg>">
 <link rel="canonical" href="https://forzalig.com/">
 <!-- Open Graph (WhatsApp/Facebook önizleme) -->
 <meta property="og:type" content="website">
@@ -26,6 +27,33 @@
 <!-- Chart.js statik yüklenmez; sadece grafik gerektiğinde chartYukle() ile getirilir (hız). -->
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
+<script>
+  window.__FL_SENTRY_DSN = ""; // sentry.io projesinden alınan DSN'i buraya yapıştır (boşsa Sentry kapalı)
+  (function(){
+    var dsn = window.__FL_SENTRY_DSN;
+    if(!dsn) return;
+    function baslat(){
+      var s = document.createElement("script");
+      s.src = "https://browser.sentry-cdn.com/7.120.3/bundle.min.js";
+      s.crossOrigin = "anonymous";
+      s.onload = function(){
+        if(!window.Sentry) return;
+        window.Sentry.init({
+          dsn: dsn,
+          environment: "production",
+          tracesSampleRate: 0,          // performans izleme kapalı (ücretsiz kotayı korur)
+          replaysSessionSampleRate: 0,  // oturum tekrarı kapalı
+          replaysOnErrorSampleRate: 0
+        });
+      };
+      document.head.appendChild(s);
+    }
+    var boslaYukle = function(){ (window.requestIdleCallback || function(f){ setTimeout(f, 1); })(baslat); };
+    if(document.readyState === "complete") boslaYukle();
+    else window.addEventListener("load", boslaYukle);
+  })();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
