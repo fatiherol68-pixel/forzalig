@@ -451,8 +451,8 @@ const Db = {
   // ---- Davet sistemi (takım/oyuncu linki + kariyer sahiplenme) ----
   async davetOlustur(ligId, tip, takimId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('davetler').insert({lig_id:ligId, tip, takim_id:takimId||null}).select('token').single(); return error?{hata:error.message}:{ok:true, token:data.token}; }catch(e){ return {hata:String(e)}; } },
   async davetGetir(token){ if(!sb||!token) return null; try{ const {data}=await sb.from('davetler').select('token,tip,aktif,lig_id,takim_id, ligler(ad,sehir), takimlar(ad)').eq('token',token).maybeSingle(); return data||null; }catch(e){ return null; } },
-  async takimDavetiKullan(token, ad){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('takim_daveti_kullan',{p_token:token, p_ad:ad}); return error?{hata:error.message}:{ok:true, id:data}; }catch(e){ return {hata:String(e)}; } },
-  async oyuncuDavetiKullan(token, ad, no){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('oyuncu_daveti_kullan',{p_token:token, p_ad:ad, p_no:no||null}); return error?{hata:error.message}:{ok:true, player_id:data}; }catch(e){ return {hata:String(e)}; } },
+  async takimDavetiKullan(token, ad, renk, renk2, logo){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('takim_daveti_kullan',{p_token:token, p_ad:ad, p_renk:renk||null, p_renk2:renk2||null, p_logo:logo||null}); return error?{hata:error.message}:{ok:true, takimId:(data&&data.takim_id)||null, oyuncuToken:(data&&data.oyuncu_token)||null}; }catch(e){ return {hata:String(e)}; } },
+  async oyuncuDavetiKullan(token, bilgi){ if(!sb) return {hata:"yok"}; const b=bilgi||{}; try{ const {data,error}=await sb.rpc('oyuncu_daveti_kullan',{p_token:token, p_ad:b.ad, p_no:b.no||null, p_poz:b.poz||null, p_foto:b.foto||null, p_dogum:b.dogum||null, p_boy:b.boy||null, p_kilo:b.kilo||null, p_uyruk:b.uyruk||null, p_ayak:b.ayak||null}); return error?{hata:error.message}:{ok:true, player_id:data}; }catch(e){ return {hata:String(e)}; } },
   async oyuncuSahiplenRel(playerId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('oyuncu_sahiplen',{p_player_id:playerId}); return error?{hata:error.message}:{ok:!!data, zaten:!data}; }catch(e){ return {hata:String(e)}; } },
   // Tüm üyeler + yetki bilgisi (admin panel "Üyeler" sekmesi)
   async uyeler(){
@@ -9192,22 +9192,37 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   </div>;
 }
 
-/* DAVET KATILIM — ?davet=TOKEN linkiyle takım/oyuncu ekle */
+/* DAVET KATILIM — ?davet=TOKEN linkiyle takım/oyuncu ekle (2 renk + logo + foto + profil) */
 function DavetKatil({T, token, oturum, girisYap}){
   const [davet,setDavet]=useState(undefined);
   const [ad,setAd]=useState(""); const [no,setNo]=useState("");
-  const [mesaj,setMesaj]=useState(""); const [yuk,setYuk]=useState(false);
+  const [renk,setRenk]=useState("#2980B9"); const [renk2,setRenk2]=useState("#FFFFFF"); const [logo,setLogo]=useState("");
+  const [poz,setPoz]=useState("OrtaSaha"); const [foto,setFoto]=useState("");
+  const [dogum,setDogum]=useState(""); const [boy,setBoy]=useState(""); const [kilo,setKilo]=useState(""); const [uyruk,setUyruk]=useState("Türkiye"); const [ayak,setAyak]=useState("Sağ");
+  const [detay,setDetay]=useState(false);
+  const [mesaj,setMesaj]=useState(""); const [yuk,setYuk]=useState(false); const [fotoYuk,setFotoYuk]=useState(false);
+  const [oyuncuLink,setOyuncuLink]=useState(""); const [kopyalandi,setKopyalandi]=useState(false);
   useEffect(()=>{ let a=true; (async()=>{ const d=await Db.davetGetir(token); if(a) setDavet(d); })(); return ()=>{a=false;}; },[token]);
   const cik=()=>{ try{ window.location.href=window.location.origin+window.location.pathname; }catch(e){} };
+  const dosyaSec=async(e, klasor, setUrl)=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; setFotoYuk(true); setMesaj("Fotoğraf yükleniyor…"); const r=await fotoYukle(f, klasor); setFotoYuk(false); e.target.value=""; if(r&&r.url){ setUrl(r.url); setMesaj(""); } else setMesaj("❌ Fotoğraf yüklenemedi: "+((r&&r.hata)||"")); };
   const katil=async()=>{
-    if(!ad.trim()){ setMesaj("İsim gir."); return; }
+    if(!ad.trim()){ setMesaj("❌ "+(davet.tip==="takim"?"Takım adı gir.":"Ad soyad gir.")); return; }
     setYuk(true); setMesaj("Kaydediliyor…");
-    const r = davet.tip==="takim" ? await Db.takimDavetiKullan(token, ad.trim()) : await Db.oyuncuDavetiKullan(token, ad.trim(), parseInt(no)||null);
-    setYuk(false);
-    if(r.ok){ setMesaj("✅ Tamamlandı!"); setTimeout(cik,1300); } else setMesaj("❌ "+(r.hata||"olmadı"));
+    if(davet.tip==="takim"){
+      const r=await Db.takimDavetiKullan(token, ad.trim(), renk, renk2, logo||null);
+      setYuk(false);
+      if(r.ok){ setMesaj(""); setOyuncuLink(r.oyuncuToken?DAVET_URL(r.oyuncuToken):""); }
+      else setMesaj("❌ "+(r.hata||"olmadı"));
+    } else {
+      const r=await Db.oyuncuDavetiKullan(token, {ad:ad.trim(), no:parseInt(no)||null, poz, foto:foto||null, dogum:dogum||null, boy:parseInt(boy)||null, kilo:parseInt(kilo)||null, uyruk:uyruk||null, ayak});
+      setYuk(false);
+      if(r.ok){ setMesaj("✅ Takıma katıldın!"); setTimeout(cik,1500); } else setMesaj("❌ "+(r.hata||"olmadı"));
+    }
   };
-  const kutu=(ic)=><div style={{position:"fixed",inset:0,zIndex:2000,background:T.bg0,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-    <div className="fade-in" style={{width:"100%",maxWidth:400,background:T.bg1,border:"1px solid "+T.line,borderRadius:18,padding:24}}>{ic}</div></div>;
+  const kopyala=()=>{ try{ navigator.clipboard.writeText(oyuncuLink); setKopyalandi(true); setTimeout(()=>setKopyalandi(false),1600); }catch(e){} };
+  const kutu=(ic)=><div style={{position:"fixed",inset:0,zIndex:2000,background:T.bg0,display:"flex",alignItems:"center",justifyContent:"center",padding:20,overflowY:"auto"}}>
+    <div className="fade-in" style={{width:"100%",maxWidth:400,background:T.bg1,border:"1px solid "+T.line,borderRadius:18,padding:24,margin:"auto"}}>{ic}</div></div>;
+  const inp={width:"100%",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:11,padding:12,color:T.text,fontSize:14,fontFamily:"inherit",outline:"none",marginBottom:10,boxSizing:"border-box"};
   if(davet===undefined) return kutu(<div style={{textAlign:"center",color:T.textMut,fontSize:13}}>Davet açılıyor…</div>);
   if(!davet || !davet.aktif) return kutu(<div style={{textAlign:"center"}}>
     <div style={{fontSize:36,marginBottom:10}}>🔗</div>
@@ -9218,23 +9233,77 @@ function DavetKatil({T, token, oturum, girisYap}){
   const ligAd = davet.ligler ? davet.ligler.ad : "";
   const takimAd = davet.takimlar ? davet.takimlar.ad : "";
   const takimMi = davet.tip==="takim";
+  // Takım kuruldu → oyuncu davet linkini paylaş ekranı
+  if(takimMi && oyuncuLink) return kutu(<div style={{textAlign:"center"}}>
+    <div style={{fontSize:38,marginBottom:8}}>✅</div>
+    <div style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>Takımın kuruldu!</div>
+    <div style={{fontSize:12.5,color:T.textSoft,margin:"8px 0 16px",lineHeight:1.6}}><b style={{color:T.accent}}>{ad}</b> hazır. Şimdi bu linki <b>oyuncularına</b> gönder — herkes kendi bilgisini + fotoğrafını girsin.</div>
+    {qrData(oyuncuLink) && <img src={qrData(oyuncuLink)} alt="QR" style={{width:150,height:150,borderRadius:12,margin:"0 auto 12px",display:"block",background:"#fff",padding:6}}/>}
+    <div style={{fontSize:11,color:T.textMut,background:T.bg0,borderRadius:9,padding:"9px 10px",wordBreak:"break-all",marginBottom:10}}>{oyuncuLink}</div>
+    <button onClick={kopyala} className="tap" style={{width:"100%",background:T.accent,color:T.bg0,border:0,borderRadius:12,padding:13,fontWeight:800,fontSize:14,marginBottom:8}}>{kopyalandi?"✓ Kopyalandı":"🔗 Oyuncu Linkini Kopyala"}</button>
+    <div onClick={cik} className="tap" style={{fontSize:11,color:T.textMut,marginTop:6,cursor:"pointer"}}>Bitir · ana sayfa</div>
+  </div>);
+  const POZLAR=[["Kaleci","🧤"],["Defans","🛡️"],["OrtaSaha","🎩"],["Forvet","⚽"]];
   return kutu(<div>
     <div style={{textAlign:"center",marginBottom:18}}>
       <div style={{fontSize:34,marginBottom:8}}>{takimMi?"🛡️":"⚽"}</div>
-      <div style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{takimMi?"Takımını ekle":"Takıma katıl"}</div>
+      <div style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{takimMi?"Takımını kur":"Takıma katıl"}</div>
       <div style={{fontSize:12,color:T.textMut,marginTop:5}}>{takimMi ? <><b style={{color:T.accent}}>{ligAd}</b> ligine takımını kur, yöneticisi ol</> : <><b style={{color:T.accent}}>{takimAd}</b> takımına oyuncu olarak katıl</>}</div>
     </div>
     {!oturum
       ? <div style={{textAlign:"center"}}>
-          <div style={{fontSize:12.5,color:T.textSoft,marginBottom:14,lineHeight:1.6}}>Katılmak için önce üye ol / giriş yap.<br/>Sonra bu ekrana geri döneceksin.</div>
-          <button onClick={girisYap} className="tap" style={{width:"100%",background:T.accent,color:T.bg0,border:0,borderRadius:12,padding:13,fontWeight:800,fontSize:14}}>Üye Ol / Giriş Yap</button>
+          <div style={{fontSize:12.5,color:T.textSoft,marginBottom:14,lineHeight:1.6}}>Katılmak için önce <b>Google ile giriş</b> yap.<br/>Sonra bu ekrana geri döneceksin.</div>
+          <button onClick={girisYap} className="tap" style={{width:"100%",background:T.accent,color:T.bg0,border:0,borderRadius:12,padding:13,fontWeight:800,fontSize:14}}>Google ile Giriş Yap</button>
         </div>
-      : <div>
-          <input value={ad} onChange={e=>setAd(e.target.value)} placeholder={takimMi?"Takım adı":"Ad soyad"} style={{width:"100%",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:11,padding:12,color:T.text,fontSize:14,fontWeight:600,fontFamily:"inherit",outline:"none",marginBottom:10,boxSizing:"border-box"}}/>
-          {!takimMi && <input value={no} onChange={e=>setNo(e.target.value)} placeholder="Forma no (opsiyonel)" type="number" style={{width:"100%",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:11,padding:12,color:T.text,fontSize:14,fontFamily:"inherit",outline:"none",marginBottom:10,boxSizing:"border-box"}}/>}
-          <button onClick={katil} disabled={yuk} className="tap" style={{width:"100%",background:takimMi?T.accent:T.accent2,color:"#04070C",border:0,borderRadius:12,padding:13,fontWeight:800,fontSize:14,opacity:yuk?.7:1}}>{yuk?"Kaydediliyor…":(takimMi?"🛡️ Takımı Oluştur":"⚽ Katıl")}</button>
-          {mesaj && <div style={{fontSize:12,color:/✅/.test(mesaj)?T.accent:/❌/.test(mesaj)?T.danger:T.textSoft,textAlign:"center",marginTop:10}}>{mesaj}</div>}
-        </div>}
+      : takimMi
+        ? <div>
+            <input value={ad} onChange={e=>setAd(e.target.value)} placeholder="Takım adı" style={{...inp,fontWeight:600}}/>
+            <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+              <div style={{position:"relative",flexShrink:0}}>
+                <Logo renk={renk} ad={ad||"F"} logo={logo} renk2={renk2} boy={54}/>
+                <label className="tap" title="Logo yükle" style={{position:"absolute",bottom:-4,right:-4,background:T.bg2,borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,border:"1px solid "+T.line,cursor:"pointer"}}>{fotoYuk?"⏳":"📷"}
+                  <input type="file" accept="image/*" onChange={e=>dosyaSec(e,"logo",setLogo)} style={{display:"none"}}/></label>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10.5,color:T.textMut,marginBottom:6,fontWeight:600}}>Takım renkleri (2 zorunlu)</div>
+                <div style={{display:"flex",gap:14}}>
+                  <label className="tap" style={{textAlign:"center",cursor:"pointer"}}><div style={{width:32,height:32,borderRadius:9,background:renk,border:"2px solid "+T.bg0,boxShadow:"0 0 0 1px "+T.line}}/><input type="color" value={renk} onChange={e=>setRenk(e.target.value)} style={{opacity:0,width:0,height:0,position:"absolute"}}/><div style={{fontSize:9,color:T.textMut,marginTop:3}}>Ana</div></label>
+                  <label className="tap" style={{textAlign:"center",cursor:"pointer"}}><div style={{width:32,height:32,borderRadius:9,background:renk2,border:"2px solid "+T.bg0,boxShadow:"0 0 0 1px "+T.line}}/><input type="color" value={renk2} onChange={e=>setRenk2(e.target.value)} style={{opacity:0,width:0,height:0,position:"absolute"}}/><div style={{fontSize:9,color:T.textMut,marginTop:3}}>2. renk</div></label>
+                </div>
+              </div>
+            </div>
+            <button onClick={katil} disabled={yuk||fotoYuk} className="tap" style={{width:"100%",background:T.accent,color:"#04070C",border:0,borderRadius:12,padding:13,fontWeight:800,fontSize:14,opacity:(yuk||fotoYuk)?.7:1}}>{yuk?"Kaydediliyor…":"🛡️ Takımı Kur"}</button>
+            {mesaj && <div style={{fontSize:12,color:/❌/.test(mesaj)?T.danger:T.textSoft,textAlign:"center",marginTop:10}}>{mesaj}</div>}
+          </div>
+        : <div>
+            <div style={{display:"flex",justifyContent:"center",marginBottom:12}}>
+              <div style={{position:"relative"}}>
+                <div style={{width:82,height:82,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.accent2+"88",background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(ad||"?",82,foto)}}/>
+                <label className="tap" title="Fotoğraf ekle" style={{position:"absolute",bottom:0,right:0,background:T.accent2,color:"#04070C",borderRadius:"50%",width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,cursor:"pointer",border:"2px solid "+T.bg1}}>{fotoYuk?"⏳":"📷"}
+                  <input type="file" accept="image/*" onChange={e=>dosyaSec(e,"oyuncu",setFoto)} style={{display:"none"}}/></label>
+              </div>
+            </div>
+            <input value={ad} onChange={e=>setAd(e.target.value)} placeholder="Ad soyad" style={{...inp,fontWeight:600}}/>
+            <div style={{fontSize:10.5,color:T.textMut,marginBottom:6,fontWeight:600}}>Mevki</div>
+            <div style={{display:"flex",gap:6,marginBottom:10}}>
+              {POZLAR.map(([k,ik])=><span key={k} onClick={()=>setPoz(k)} className="tap" style={{flex:1,textAlign:"center",fontSize:10.5,padding:"8px 2px",borderRadius:10,background:poz===k?T.accent2:T.bg0,color:poz===k?"#04070C":T.textMut,fontWeight:poz===k?800:500,border:"0.5px solid "+(poz===k?T.accent2:T.line)}}>{ik}<br/>{k==="OrtaSaha"?"Orta":k}</span>)}
+            </div>
+            <input value={no} onChange={e=>setNo(e.target.value)} placeholder="Forma no" type="number" style={inp}/>
+            <div onClick={()=>setDetay(!detay)} className="tap" style={{fontSize:11.5,color:T.accent2,textAlign:"center",marginBottom:10,cursor:"pointer"}}>{detay?"− Ek bilgileri gizle":"+ Ek bilgi (opsiyonel): doğum, boy, kilo…"}</div>
+            {detay && <div style={{marginBottom:6}}>
+              <label style={{fontSize:10,color:T.textMut}}>Doğum tarihi<input type="date" value={dogum} onChange={e=>setDogum(e.target.value)} style={{...inp,marginTop:3}}/></label>
+              <div style={{display:"flex",gap:8}}>
+                <input value={boy} onChange={e=>setBoy(e.target.value)} placeholder="Boy (cm)" type="number" style={{...inp,flex:1}}/>
+                <input value={kilo} onChange={e=>setKilo(e.target.value)} placeholder="Kilo (kg)" type="number" style={{...inp,flex:1}}/>
+              </div>
+              <input value={uyruk} onChange={e=>setUyruk(e.target.value)} placeholder="Uyruk" style={inp}/>
+              <div style={{display:"flex",gap:6,marginBottom:4}}>
+                {["Sağ","Sol","Çift"].map(k=><span key={k} onClick={()=>setAyak(k)} className="tap" style={{flex:1,textAlign:"center",fontSize:11,padding:"8px 2px",borderRadius:9,background:ayak===k?T.accent2+"33":T.bg0,color:ayak===k?T.accent2:T.textMut,fontWeight:ayak===k?700:500,border:"0.5px solid "+(ayak===k?T.accent2:T.line)}}>{k} ayak</span>)}
+              </div>
+            </div>}
+            <button onClick={katil} disabled={yuk||fotoYuk} className="tap" style={{width:"100%",background:T.accent2,color:"#04070C",border:0,borderRadius:12,padding:13,fontWeight:800,fontSize:14,opacity:(yuk||fotoYuk)?.7:1}}>{yuk?"Kaydediliyor…":"⚽ Takıma Katıl"}</button>
+            {mesaj && <div style={{fontSize:12,color:/✅/.test(mesaj)?T.accent:/❌/.test(mesaj)?T.danger:T.textSoft,textAlign:"center",marginTop:10}}>{mesaj}</div>}
+          </div>}
     <div onClick={cik} className="tap" style={{textAlign:"center",fontSize:11,color:T.textMut,marginTop:16,cursor:"pointer"}}>Vazgeç · ana sayfa</div>
   </div>);
 }
