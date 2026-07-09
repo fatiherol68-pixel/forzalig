@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>ForzaLig — Halı Saha Liginin Dijital Merkezi</title>
 <meta name="description" content="ForzaLig: halı saha ligini yönet, puan durumu, fikstür, kral listeleri, FIFA tarzı oyuncu kartları ve canlı skorlar. Ligini link/QR ile paylaş, herkes görsün.">
 <meta name="theme-color" content="#070B12">
@@ -24,7 +24,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- Chart.js statik yüklenmez; sadece grafik gerektiğinde chartYukle() ile getirilir (hız). -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -634,7 +634,7 @@ const authHata = (m)=>{ m=(m||"").toLowerCase();
 const TEMALAR = {
   neon: {
     ad: "Neon Yeşil", bg0:"#070B12", bg1:"#0F1828", bg2:"#0A1422", line:"#1A2233",
-    text:"#F1F5F9", textMut:"#5A6B85", textSoft:"#94A3B8",
+    text:"#F1F5F9", textMut:"#74849B", textSoft:"#94A3B8",
     accent:"#34D399", accent2:"#38BDF8", gold:"#FBBF24", danger:"#F87171",
     fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#34D399","#070B12"]
   },
@@ -652,19 +652,19 @@ const TEMALAR = {
   },
   mavi: {
     ad: "Mavi Beyaz", bg0:"#040A16", bg1:"#0A1428", bg2:"#071020", line:"#16243E",
-    text:"#F1F6FC", textMut:"#5E7CA0", textSoft:"#8FAAD0",
+    text:"#F1F6FC", textMut:"#6482A6", textSoft:"#8FAAD0",
     accent:"#3B9EFF", accent2:"#5BC0FF", gold:"#FFC857", danger:"#FF6B6B",
     fontBody:"'Sora', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#3B9EFF","#FFFFFF"]
   },
   mor: {
     ad: "Mor Neon", bg0:"#0A0612", bg1:"#160B28", bg2:"#100820", line:"#2A1A40",
-    text:"#F3EEFC", textMut:"#7A5FA0", textSoft:"#A98FD0",
+    text:"#F3EEFC", textMut:"#8C71B2", textSoft:"#A98FD0",
     accent:"#A855F7", accent2:"#C77DFF", gold:"#FBBF24", danger:"#F87171",
     fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#A855F7","#0A0612"]
   },
   turuncu: {
     ad: "Turuncu Enerji", bg0:"#120A04", bg1:"#28160A", bg2:"#1E1007", line:"#40280F",
-    text:"#FCF3EE", textMut:"#A07A5F", textSoft:"#D0A98F",
+    text:"#FCF3EE", textMut:"#A27C61", textSoft:"#D0A98F",
     accent:"#FF7A1A", accent2:"#FFA04D", gold:"#FFD54F", danger:"#FF5252",
     fontBody:"'Oswald', sans-serif", fontDisplay:"'Bebas Neue', sans-serif", renkCifti:["#FF7A1A","#FFFFFF"]
   },
@@ -1518,16 +1518,36 @@ function MiniBar({deger, max, renk, T}){
   </div>;
 }
 
+/* Chart.js'i yalnızca ilk grafik gerektiğinde yükle (açılış hızı için ~200KB tasarruf) */
+let _chartYuk=null;
+function chartYukle(){
+  if(window.Chart) return Promise.resolve();
+  if(_chartYuk) return _chartYuk;
+  _chartYuk=new Promise((res,rej)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js";
+    s.async=true; s.onload=res; s.onerror=rej;
+    document.head.appendChild(s);
+  });
+  return _chartYuk;
+}
+
 /* Chart.js sarmalayıcı — her grafik tipi için tek parça */
 function Grafik({tip, data, options, yukseklik=180}){
   const ref=useRef(null);
   const chartRef=useRef(null);
+  const [hazir,setHazir]=useState(!!window.Chart);
+  useEffect(()=>{
+    let iptal=false;
+    if(!window.Chart) chartYukle().then(()=>{ if(!iptal) setHazir(true); }).catch(()=>{});
+    return ()=>{ iptal=true; };
+  },[]);
   useEffect(()=>{
     if(!ref.current || !window.Chart) return;
     if(chartRef.current) chartRef.current.destroy();
     chartRef.current=new window.Chart(ref.current,{type:tip,data,options:{responsive:true,maintainAspectRatio:false,...options}});
     return ()=>{ if(chartRef.current) chartRef.current.destroy(); };
-  },[tip,JSON.stringify(data),JSON.stringify(options)]);
+  },[hazir,tip,JSON.stringify(data),JSON.stringify(options)]);
   return <div style={{height:yukseklik,position:"relative"}}><canvas ref={ref}/></div>;
 }
 

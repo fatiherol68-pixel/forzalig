@@ -57,6 +57,21 @@ Gereken: `@babel/core`, `@babel/preset-react`. Çıktı boyutu ~648KB.
    takılıyordu. `bosMu` artık sadece `ana`/`tumenler`'de true. (satır ~9722)
 7. **Hız optimizasyonu**: minify (907→648KB) + CDN defer + DOMContentLoaded boot.
 
+## BU OTURUMDA YAPILANLAR — 2. tur (9 Tem 2026, PageSpeed düzeltmeleri)
+Kullanıcı PageSpeed ölçtü: Mobil Perf 74 / Erişilebilirlik 75 / En İyi Uyg. 96 / SEO 100
+(Masaüstü Perf 97). İki iş yapıldı:
+1. **Erişilebilirlik — zoom kilidi kaldırıldı**: viewport meta'daki `maximum-scale=1.0, user-scalable=no`
+   silindi → kullanıcı sayfayı yakınlaştırabiliyor (WCAG ihlali giderildi). Yeni:
+   `width=device-width, initial-scale=1.0, viewport-fit=cover`.
+2. **Erişilebilirlik — renk kontrastı**: `textMut` (soluk metin) küçük fontlarda 4.5:1'i geçmiyordu
+   (~3.3). 4 temada açıldı (kontrast betiğiyle hesaplandı, ≥4.6:1): Neon Yeşil #5A6B85→#74849B,
+   Mavi Beyaz #5E7CA0→#6482A6, Mor Neon #7A5FA0→#8C71B2, Turuncu #A07A5F→#A27C61.
+   (Kırmızı Beyaz #B08585 ve Altın Lüks #9A8147 zaten geçiyordu — dokunulmadı.)
+3. **Performans — Chart.js artık lazy-load**: `<head>`'ten statik Chart.js `<script>` çıkarıldı.
+   Yeni `chartYukle()` + `Grafik` bileşeni grafiği yalnızca gerektiğinde (tek yer: Puan Durumu
+   "Şampiyonluk Yarışı", `PuanDurumuTekli`) yükler. Açılışta ~200KB JS tasarrufu. Offline
+   harness testi doğruladı: grafik render edilmeden istek YOK, mount olunca tam 1 kez yükleniyor.
+
 ## Doğrulama yöntemi (ÖNEMLİ kısıt)
 Canlı siteye (forzalig.com, supabase.co, github.io, cdnjs) **egress engeli yüzünden ULAŞILAMIYOR.**
 Test = scratchpad'de Playwright + Chromium (/opt/pw-browsers/chromium) ile `compiled.html`'i
@@ -66,10 +81,11 @@ CDN yerine yerel React UMD ile açıp (sb=null → misafir/çevrimdışı mod) o
 ## BEKLEYEN İŞLER
 - [ ] **Lansman temizliği**: Kullanıcı `supabase/99_lansman_temizlik.sql`'i lansman günü çalıştıracak
       (tüm demo/test verisini siler, fatiherol68 hesabı+admin kalır). GERİ ALINAMAZ, aceleye getirme.
-- [ ] Kullanıcı sert yenileyip (Ctrl+Shift+R) PageSpeed'i tekrar çalıştıracak → yeni performans puanı.
-      (Önceki: Performans 73, Erişilebilirlik 75, En İyi Uygulamalar 100, SEO 100.)
-- [ ] (Opsiyonel) Erişilebilirlik 75 → renk kontrastı/buton etiketleri düzeltmeleri
-- [ ] (Opsiyonel) Chart.js'i tamamen "gerektiğinde yükle" (şu an defer'lı)
+- [ ] Kullanıcı sert yenileyip (Ctrl+Shift+R) PageSpeed'i tekrar çalıştıracak → yeni puan.
+      (Son ölçüm: Mobil Perf 74 / Erişilebilirlik 75 / En İyi 96 / SEO 100. Bu turdan sonra
+      erişilebilirlik ve mobil performansın yükselmesi beklenir.)
+- [x] Erişilebilirlik: zoom kilidi + renk kontrastı düzeltildi (bu tur, 3. tur değil — yukarıya bak)
+- [x] Chart.js "gerektiğinde yükle" — TAMAM (lazy-load, bu tur)
 - [ ] (Opsiyonel, ücretli) Supabase Custom Domain → auth.forzalig.com
 
 ## Kullanıcının son tarama raporu (referans — her şey ✅)
