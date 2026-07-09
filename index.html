@@ -650,7 +650,7 @@ const Db = {
             gol:0,asist:0,mac:0,kurtaris:0,sari:0,kirmizi:0,mvp:0,dk:0,
             altin:0,gumus:0,forvet:0,ortasaha:0,defans:0,kaleci:0,centilmen:0,enerjik:0,macinGolu:0 };
         });
-        return { id:t.id, lisNo:t.lis_no, ad:t.ad, renk:t.renk, renk2:t.renk2||null, logo:t.logo||null, oyuncular, grup:t.grup||0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0,form:[] };
+        return { id:t.id, lisNo:t.lis_no, ad:t.ad, renk:t.renk, renk2:t.renk2||null, logo:t.logo||null, yonetici_id:t.yonetici_id||null, oyuncular, grup:t.grup||0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0,form:[] };
       });
       const maclar=mc.map(m=>{ const evT=takimlar.find(x=>x.id===m.ev_takim_id), depT=takimlar.find(x=>x.id===m.dep_takim_id);
         return { id:m.id, hafta:m.hafta, tur:m.tur, grup:m.grup, bye:m.bye, penGalip:m.pen_galip,
@@ -661,7 +661,7 @@ const Db = {
           dizilisA:m.dizilis_ev, dizilisB:m.dizilis_dep, kadroA:m.kadro_ev, kadroB:m.kadro_dep,
           stad:m.stad, hakem:m.hakem, tarih:m.tarih||'' };
       });
-      return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', takimlar, maclar, format:L.format||'tek',
+      return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', yonetici_id:L.yonetici_id, takimlar, maclar, format:L.format||'tek',
         grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
         sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
         kurallarKilit:!!L.kurallar_kilit, iliskisel:true };
@@ -4327,8 +4327,21 @@ function FiltreCip({aktif, onClick, T, children}){
 }
 
 /* TAKIM SAYFASI */
-function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip}){
+function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum}){
   const [sekme,setSekme]=useState("akis");
+  // Kaptan kendi takımının logosunu değiştirebilir (RLS: takim_yoneticim)
+  const takimBenim = !!(oturum && takim.yonetici_id && takim.yonetici_id===oturum.id);
+  const [logoYuk,setLogoYuk]=useState(false); const [,setLogoTik]=useState(0);
+  const logoDegistir=async(e)=>{
+    const f=e.target.files&&e.target.files[0]; if(!f)return;
+    setLogoYuk(true);
+    const r=await fotoYukle(f,"logo");
+    if(r&&r.url){ takim.logo=r.url;
+      if(sb && typeof takim.id==="string"){ try{ await sb.from('takimlar').update({logo:r.url}).eq('id',takim.id); }catch(err){} }
+      setLogoTik(x=>x+1);
+    } else alert((r&&r.hata)||"Logo yüklenemedi (giriş gerekli).");
+    setLogoYuk(false); e.target.value="";
+  };
   const takimTakipte = takipTakim && takipTakim.includes(takim.id);
   const [fikGor,setFikGor]=useState("sonuc"); // fikstür/sonuç geçişi
   const sirali=[...takim.oyuncular].sort((a,b)=>b.ovr-a.ovr);
@@ -4402,7 +4415,9 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip}){
       <div className="vav-supurme"/>
       {/* süzülen amblem + büyük başlık */}
       <div style={{display:"flex",alignItems:"center",gap:14,position:"relative"}}>
-        <div className="vav-suzul" style={{border:"3px solid "+takim.renk+"88",borderRadius:16,overflow:"hidden",boxShadow:"0 0 24px "+takim.renk+"66",flexShrink:0,background:T.bg2}}><Logo renk={takim.renk} ad={takim.ad} logo={takim.logo} renk2={takim.renk2} boy={70}/></div>
+        <div className="vav-suzul" style={{border:"3px solid "+takim.renk+"88",borderRadius:16,overflow:"hidden",boxShadow:"0 0 24px "+takim.renk+"66",flexShrink:0,background:T.bg2,position:"relative"}}><Logo renk={takim.renk} ad={takim.ad} logo={takim.logo} renk2={takim.renk2} boy={70}/>
+          {takimBenim && <label className="tap" title="Logoyu değiştir" style={{position:"absolute",bottom:0,right:0,background:T.accent,color:T.bg0,width:24,height:24,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,cursor:"pointer",border:"2px solid "+T.bg0}}>{logoYuk?"⏳":"📷"}
+            <input type="file" accept="image/*" onChange={logoDegistir} style={{display:"none"}}/></label>}</div>
         <div style={{minWidth:0}}>
           <div style={{fontSize:24,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.15,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{takim.ad} <span style={{fontSize:11,background:T.accent+"22",color:T.accent,fontWeight:700,borderRadius:6,padding:"2px 8px"}}>{guvNotu}</span></div>
           <div style={{fontSize:11,color:T.textSoft,marginTop:4}}>{takim.oyuncular.length} oyuncu · {takim.o} maç · ort. güç <b style={{color:takim.renk,fontFamily:T.fontDisplay}}>{ortGuc}</b></div>
@@ -4729,7 +4744,8 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   const oyLig=(turnuvalar||[]).find(t=>t.takimlar.some(tk=>tk.oyuncular.some(p=>p.id===o.id)));
   const oyTakim=oyLig?oyLig.takimlar.find(tk=>tk.oyuncular.some(p=>p.id===o.id)):null;
   const transferHedefler=oyLig?oyLig.takimlar.filter(tk=>tk.id!==(oyTakim&&oyTakim.id)):[];
-  const transferYapilabilir = !saltOkunur && oturum && oyLig && oyLig.iliskisel && transferHedefler.length>0 && onTransfer;
+  const benimLigim = !!(oturum && oyLig && oyLig.yonetici_id && oyLig.yonetici_id===oturum.id);
+  const transferYapilabilir = !saltOkunur && oturum && oyLig && oyLig.iliskisel && benimLigim && transferHedefler.length>0 && onTransfer;
   const transferYap=async()=>{
     if(!transferHedef){ setTransferMesaj("Hedef takım seç."); return; }
     setTransferMesaj("Transfer ediliyor…");
@@ -4751,6 +4767,18 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     }
     setSahipYuk(false);
     setSahipMesaj(r&&r.ok ? "⭐ Kariyerine eklendi! Profil'den görebilirsin." : (r&&r.hata)||"Olmadı, tekrar dene.");
+  };
+  // Kendi fotoğrafını değiştir (sahiplendiğin oyuncu → RLS: sahip_user_id güncelleyebilir)
+  const [fotoYuk2,setFotoYuk2]=useState(false); const [,setFotoTik]=useState(0);
+  const kendiFotoDegistir=async(e)=>{
+    const f=e.target.files&&e.target.files[0]; if(!f)return;
+    setFotoYuk2(true);
+    const r=await fotoYukle(f,"oyuncu");
+    if(r&&r.url){ o.foto=r.url; const pid=o.player_id||(typeof o.id==="string"?o.id:null);
+      if(sb && pid){ try{ await sb.from('oyuncular').update({foto:r.url}).eq('player_id',pid); }catch(err){} }
+      setFotoTik(x=>x+1);
+    } else alert((r&&r.hata)||"Fotoğraf yüklenemedi (giriş gerekli).");
+    setFotoYuk2(false); e.target.value="";
   };
   // karşılaştırma adayları: oyuncunun bulunduğu ligdeki tüm oyuncular (yoksa _adaylar fallback)
   const adaylar=useMemo(()=>{
@@ -4906,12 +4934,14 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
           </div>}
     </div>}
     {/* SAHİPLENME — bu oyuncu benim (kariyer) */}
-    {oturum && !benimMi && <div style={{padding:"10px 14px 0"}}>
+    {oturum && !benimMi && !o.sahip_user_id && <div style={{padding:"10px 14px 0"}}>
       <button onClick={sahiplen} disabled={sahipYuk} className="tap" style={{width:"100%",background:T.gold+"18",color:T.gold,border:"1px solid "+T.gold+"66",borderRadius:12,padding:12,fontSize:13,fontWeight:800,opacity:sahipYuk?.7:1}}>{sahipYuk?"Kaydediliyor…":"⭐ Bu oyuncu benim (kariyerime ekle)"}</button>
       {sahipMesaj && <div style={{fontSize:11,color:T.textSoft,textAlign:"center",marginTop:7}}>{sahipMesaj}</div>}
     </div>}
-    {oturum && benimMi && <div style={{padding:"10px 14px 0"}}>
-      <div style={{width:"100%",background:T.gold+"14",color:T.gold,border:"1px solid "+T.gold+"55",borderRadius:12,padding:12,fontSize:13,fontWeight:800,textAlign:"center"}}>⭐ Bu senin kariyerin</div>
+    {oturum && benimMi && <div style={{padding:"10px 14px 0",display:"flex",gap:8,alignItems:"stretch"}}>
+      <div style={{flex:1,background:T.gold+"14",color:T.gold,border:"1px solid "+T.gold+"55",borderRadius:12,padding:12,fontSize:13,fontWeight:800,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>⭐ Bu senin kariyerin</div>
+      <label className="tap" title="Fotoğrafını değiştir" style={{flexShrink:0,background:T.accent+"18",color:T.accent,border:"1px solid "+T.accent+"66",borderRadius:12,padding:"0 16px",fontSize:13,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center"}}>{fotoYuk2?"⏳ Yükleniyor":"📷 Fotoğraf"}
+        <input type="file" accept="image/*" onChange={kendiFotoDegistir} style={{display:"none"}}/></label>
     </div>}
 
     {/* STAT ÖZET BARI — hero altında hızlı bakış */}
@@ -9952,7 +9982,7 @@ function App(){
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
       case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={(saltOkunur||!oturum)?null:{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam}} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
-      case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip}/>; break;
+      case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur}/>; break;
       case "mac": icerik=<MacSayfa mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} oturum={oturum} sahiplenme={sahiplenme}/>; break;
       case "skorgir": icerik=<SkorGir mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} skorKaydet={skorKaydet}/>; break;
