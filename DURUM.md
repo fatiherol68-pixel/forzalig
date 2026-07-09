@@ -76,14 +76,14 @@ Kullanıcı PageSpeed ölçtü: Mobil Perf 74 / Erişilebilirlik 75 / En İyi Uy
 PageSpeed 2. tur sonrası: Mobil Perf 75 / **Erişilebilirlik 90** (75'ten çıktı ✅) / En İyi 96 / SEO 100.
 1. **Favicon eklendi**: `<head>`'e SVG data-URI favicon (koyu kare + beyaz futbol topu). Konsoldaki
    `/favicon.ico 404` giderildi + sekme ikonu geldi. Ekstra dosya/istek YOK (data-URI).
-2. **Sentry hata izleme (scaffold, DORMANT)**: `<head>`'e tembel yüklenen Sentry başlatıcı eklendi.
-   - DSN değişkeni: `window.__FL_SENTRY_DSN` (index.html head'de, şu an BOŞ = Sentry kapalı).
-   - Kullanıcı sentry.io'da ücretsiz proje açıp DSN verince, o satıra yapıştır → derle → main'e deploy.
+2. **Sentry hata izleme — AKTİF (deploy edildi)**: `<head>`'de tembel yüklenen Sentry başlatıcı.
+   - DSN değişkeni: `window.__FL_SENTRY_DSN` (index.html head'de). DSN girildi (EU bölgesi:
+     `...ingest.de.sentry.io/4511704256479312`). Proje: sentry.io "forzalig" (Browser JS).
    - SDK sayfa `load`'undan SONRA `requestIdleCallback` ile yüklenir → açılış hızını ETKİLEMEZ.
    - CDN: browser.sentry-cdn.com/7.120.3/bundle.min.js. `tracesSampleRate:0` + replay kapalı
-     (ücretsiz kotayı korur; sadece JS hataları toplanır). Offline harness: boş DSN'de istek yok,
-     test DSN'de tam 1 kez yüklenip Sentry.init çağrılıyor — doğrulandı.
-   - **BEKLİYOR**: kullanıcının gerçek DSN'i (bir sonraki adım).
+     (ücretsiz kotayı korur; sadece JS hataları toplanır). Offline harness (gerçek DSN): SDK
+     load sonrası tam 1 kez yükleniyor, Sentry.init doğru DSN ile çağrılıyor — doğrulandı.
+   - DSN gizli değil (client-side, publishable) — repoda durması normal, service_role gibi değil.
 
 ## Güvenlik başlıkları notu (securityheaders.com = F)
 GitHub Pages özel HTTP yanıt başlığı (HSTS/CSP/X-Frame-Options/X-Content-Type-Options/
