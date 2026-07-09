@@ -72,6 +72,26 @@ Kullanıcı PageSpeed ölçtü: Mobil Perf 74 / Erişilebilirlik 75 / En İyi Uy
    "Şampiyonluk Yarışı", `PuanDurumuTekli`) yükler. Açılışta ~200KB JS tasarrufu. Offline
    harness testi doğruladı: grafik render edilmeden istek YOK, mount olunca tam 1 kez yükleniyor.
 
+## BU OTURUMDA YAPILANLAR — 3. tur (Sentry + favicon)
+PageSpeed 2. tur sonrası: Mobil Perf 75 / **Erişilebilirlik 90** (75'ten çıktı ✅) / En İyi 96 / SEO 100.
+1. **Favicon eklendi**: `<head>`'e SVG data-URI favicon (koyu kare + beyaz futbol topu). Konsoldaki
+   `/favicon.ico 404` giderildi + sekme ikonu geldi. Ekstra dosya/istek YOK (data-URI).
+2. **Sentry hata izleme (scaffold, DORMANT)**: `<head>`'e tembel yüklenen Sentry başlatıcı eklendi.
+   - DSN değişkeni: `window.__FL_SENTRY_DSN` (index.html head'de, şu an BOŞ = Sentry kapalı).
+   - Kullanıcı sentry.io'da ücretsiz proje açıp DSN verince, o satıra yapıştır → derle → main'e deploy.
+   - SDK sayfa `load`'undan SONRA `requestIdleCallback` ile yüklenir → açılış hızını ETKİLEMEZ.
+   - CDN: browser.sentry-cdn.com/7.120.3/bundle.min.js. `tracesSampleRate:0` + replay kapalı
+     (ücretsiz kotayı korur; sadece JS hataları toplanır). Offline harness: boş DSN'de istek yok,
+     test DSN'de tam 1 kez yüklenip Sentry.init çağrılıyor — doğrulandı.
+   - **BEKLİYOR**: kullanıcının gerçek DSN'i (bir sonraki adım).
+
+## Güvenlik başlıkları notu (securityheaders.com = F)
+GitHub Pages özel HTTP yanıt başlığı (HSTS/CSP/X-Frame-Options/X-Content-Type-Options/
+Referrer-Policy/Permissions-Policy) EKLETMİYOR — statik hosting sınırı. Meta etiketiyle sadece
+CSP/referrer eklenebilir ama securityheaders.com yalnız HTTP başlıklarını okur (meta sayılmaz) +
+inline script'ler yüzünden katı CSP siteyi kırar. GERÇEK çözüm: forzalig.com'u Cloudflare (ücretsiz)
+arkasına alıp başlıkları orada eklemek. Kullanıcı isterse ileride. Acil değil (fonksiyonel risk yok).
+
 ## Doğrulama yöntemi (ÖNEMLİ kısıt)
 Canlı siteye (forzalig.com, supabase.co, github.io, cdnjs) **egress engeli yüzünden ULAŞILAMIYOR.**
 Test = scratchpad'de Playwright + Chromium (/opt/pw-browsers/chromium) ile `compiled.html`'i
