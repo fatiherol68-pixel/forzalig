@@ -9,6 +9,14 @@
 <meta name="keywords" content="halı saha, lig, fikstür, puan durumu, gol kralı, futbol, turnuva, forzalig">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23070B12'/><circle cx='32' cy='32' r='18' fill='%23ffffff'/><path d='M32 21L42.5 28.6 38.5 40.9 25.5 40.9 21.5 28.6Z' fill='%230B0F17'/></svg>">
 <link rel="canonical" href="https://forzalig.com/">
+<!-- PWA: ana ekrana ekle + tam ekran uygulama kabuğu -->
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ForzaLig">
+<link rel="apple-touch-startup-image" href="/icons/apple-splash-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)">
 <!-- Open Graph (WhatsApp/Facebook önizleme) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ForzaLig">
@@ -59,6 +67,52 @@
     else window.addEventListener("load", boslaYukle);
   })();
 </script>
+<!-- Service worker: kabuk önbelleği + "yeni sürüm hazır" bildirimi -->
+<script>
+  (function(){
+    if(!("serviceWorker" in navigator)) return;
+    if(location.protocol !== "https:" && location.hostname !== "localhost") return;
+    function toastGoster(reg){
+      if(document.getElementById("fl-guncel-toast")) return;
+      var t = document.createElement("div");
+      t.id = "fl-guncel-toast";
+      t.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));z-index:99999;background:#0F1728;color:#F1F5F9;border:1px solid #39FF7A55;border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;font:600 13px Inter,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:92vw";
+      t.innerHTML = '<span>✨ Yeni sürüm hazır</span>';
+      var b = document.createElement("button");
+      b.textContent = "Yenile";
+      b.style.cssText = "background:#39FF7A;color:#06240F;border:none;border-radius:10px;padding:9px 16px;font:700 13px Inter,sans-serif;cursor:pointer;min-height:36px";
+      b.onclick = function(){
+        b.textContent = "…";
+        if(reg.waiting) reg.waiting.postMessage("FL_SKIP_WAITING");
+        setTimeout(function(){ location.reload(); }, 400);
+      };
+      t.appendChild(b);
+      document.body.appendChild(t);
+    }
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("/sw.js").then(function(reg){
+        // Sayfa açıkken yeni sürüm bulunursa kullanıcıya sor
+        if(reg.waiting) toastGoster(reg);
+        reg.addEventListener("updatefound", function(){
+          var yeni = reg.installing;
+          if(!yeni) return;
+          yeni.addEventListener("statechange", function(){
+            if(yeni.state === "installed" && navigator.serviceWorker.controller) toastGoster(reg);
+          });
+        });
+        // Uygulama her öne geldiğinde güncelleme kontrol et (PWA'da sekme hiç kapanmaz)
+        document.addEventListener("visibilitychange", function(){
+          if(document.visibilityState === "visible") reg.update().catch(function(){});
+        });
+      }).catch(function(){});
+      // Yeni SW devraldığında sayfayı tazele (Yenile'ye basıldıysa)
+      var yenilendi = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function(){
+        if(yenilendi) return; yenilendi = true;
+      });
+    });
+  })();
+</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap"></noscript>
 <style>
@@ -77,6 +131,21 @@
     .main-area { padding-bottom: 30px !important; }
   }
   .desktop-side { display: none; }
+  /* PWA (ana ekrandan açılınca): içerik çentiğin/status barın altına girmesin */
+  @media (display-mode: standalone) {
+    #root { padding-top: env(safe-area-inset-top); }
+  }
+  /* Tablet / büyük telefon (600–819px): içerik kenarlara yapışmasın */
+  @media (min-width: 600px) and (max-width: 819px) {
+    .wrap { max-width: 640px; }
+    .mobile-bottom { max-width: 640px !important; }
+  }
+  /* Dokunma: çift-dokun yakınlaştırma gecikmesini kaldır + alt menü hedefleri ≥48px */
+  button, .tap, a { touch-action: manipulation; }
+  .mobile-bottom button { min-height: 48px; }
+  /* İskelet yükleyici (içerik gelmeden biçimli parıltı) */
+  @keyframes flSkel { 0%{background-position:-200px 0;} 100%{background-position:200px 0;} }
+  .fl-skel { border-radius:10px; background:linear-gradient(90deg, rgba(255,255,255,.05) 25%, rgba(255,255,255,.12) 50%, rgba(255,255,255,.05) 75%); background-size:400px 100%; animation:flSkel 1.3s infinite linear; }
   ::-webkit-scrollbar { width: 0; height: 0; }
   .fade-in { animation: fadeIn .4s ease both; }
   @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform:none; } }
@@ -9665,8 +9734,20 @@ function App(){
     document.body.style.background=T.bg0;
   },[temaKey]);
 
-  const git=(n)=>{ setNavGecmis(p=>[...p, nav]); setNav(n); window.scrollTo(0,0); try{ if(n&&n.sayfa) Db.olayYaz(oturum,'sayfa',n.sayfa); }catch(e){} };
-  const geri=()=>{ setNavGecmis(p=>{ if(p.length===0){ setNav({sayfa:"ana"}); return p; } const son=p[p.length-1]; setNav(son); return p.slice(0,-1); }); window.scrollTo(0,0); };
+  // GEZİNME + TARAYICI GEÇMİŞİ — telefonun geri tuşu uygulamadan atmasın:
+  // git() her sayfa geçişinde history'ye kayıt ekler; geri tuşu (popstate) iç yığından döner.
+  const titret=(ms)=>{ try{ if(navigator.vibrate) navigator.vibrate(ms||8); }catch(e){} }; // haptik: kısa dokunuş hissi (destekleyen cihazlarda)
+  const git=(n)=>{ titret(); setNavGecmis(p=>[...p, nav]); setNav(n); try{ window.history.pushState({fz:1},""); }catch(e){} window.scrollTo(0,0); try{ if(n&&n.sayfa) Db.olayYaz(oturum,'sayfa',n.sayfa); }catch(e){} };
+  const geriIc=()=>{ setNavGecmis(p=>{ if(p.length===0){ setNav({sayfa:"ana"}); return p; } const son=p[p.length-1]; setNav(son); return p.slice(0,-1); }); window.scrollTo(0,0); };
+  const geriIcRef=useRef(geriIc); geriIcRef.current=geriIc;
+  // Uygulamanın kendi "←" butonu: bizim eklediğimiz kayıt varsa tarayıcıdan geri git
+  // (popstate → geriIc); yoksa doğrudan iç yığından dön. İkisi hep senkron kalır.
+  const geri=()=>{ try{ if(window.history.state&&window.history.state.fz){ window.history.back(); return; } }catch(e){} geriIc(); };
+  useEffect(()=>{
+    const din=()=>{ geriIcRef.current(); };
+    window.addEventListener("popstate",din);
+    return ()=>window.removeEventListener("popstate",din);
+  },[]);
   const veriUret=(a,b,c)=>{ setTurnuvalar(uretVeri(a,b,c)); setNav({sayfa:"ana"}); setNavGecmis([]); setTab("ana"); };
   const veriSil=()=>{ setTurnuvalar([]); setNav({sayfa:"ana"}); setNavGecmis([]); setTab("ana"); };
 
@@ -9964,10 +10045,18 @@ function App(){
   // Profil / Takip / Admin / Yasal / Ayarlar / Keşfet / LigKur kendi içeriğini her zaman gösterir.
   const bosMu = turnuvalar.length===0 && (nav.sayfa==="ana" || nav.sayfa==="tumenler");
   if(paylasimYuk){
-    icerik=<div style={{padding:"90px 30px",textAlign:"center"}}>
-      <div className="vav-suzul" style={{fontSize:40,marginBottom:14}}>⚽</div>
-      <div style={{fontSize:15,color:T.text,fontWeight:700}}>Lig yükleniyor…</div>
-      <div style={{fontSize:12,color:T.textMut,marginTop:6}}>Paylaşılan lig getiriliyor</div>
+    icerik=<div style={{padding:"20px 16px"}}>
+      {/* İskelet: gelecek içeriğin biçimini gösterir (boş ekran hissi yok) */}
+      <div className="fl-skel" style={{height:44,marginBottom:14,borderRadius:14}}/>
+      <div style={{display:"flex",gap:10,marginBottom:14}}>
+        <div className="fl-skel" style={{width:72,height:72,borderRadius:"50%"}}/>
+        <div style={{flex:1}}>
+          <div className="fl-skel" style={{height:18,width:"60%",marginBottom:8}}/>
+          <div className="fl-skel" style={{height:12,width:"40%"}}/>
+        </div>
+      </div>
+      {[0,1,2,3,4,5].map(i=><div key={i} className="fl-skel" style={{height:52,marginBottom:8,opacity:1-i*0.13}}/>)}
+      <div style={{fontSize:12,color:T.textMut,textAlign:"center",marginTop:14}}>Paylaşılan lig getiriliyor…</div>
     </div>;
   } else if(paylasimHata){
     icerik=<div style={{padding:"80px 30px",textAlign:"center"}}>
@@ -10012,7 +10101,7 @@ function App(){
   const aktifTab = nav.sayfa==="ana"?"ana":nav.sayfa==="ligler"?"lig":nav.sayfa==="profil"?"profil":nav.sayfa==="ayar"?"ayar":"";
 
   const menuItems=[["ana","🏠","Ana"],["lig","🔍","Keşfet"],["profil","👤","Profil"],["ayar","⚙️","Ayarlar"]];
-  const menuGit=(k)=>{ setNavGecmis([]); if(k==="ana")setNav({sayfa:"ana"}); if(k==="lig")setNav({sayfa:"ligler"}); if(k==="profil")setNav({sayfa:"profil"}); if(k==="ayar")setNav({sayfa:"ayar"}); window.scrollTo(0,0); };
+  const menuGit=(k)=>{ titret(); setNavGecmis([]); if(k==="ana")setNav({sayfa:"ana"}); if(k==="lig")setNav({sayfa:"ligler"}); if(k==="profil")setNav({sayfa:"profil"}); if(k==="ayar")setNav({sayfa:"ayar"}); window.scrollTo(0,0); };
 
   return <div style={{minHeight:"100vh",background:T.bg0,fontFamily:T.fontBody}}>
     {/* DAVET — ?davet=TOKEN ile takım/oyuncu katılım (auth kapısı yoksa) */}
