@@ -85,6 +85,23 @@ PageSpeed 2. tur sonrası: Mobil Perf 75 / **Erişilebilirlik 90** (75'ten çık
      load sonrası tam 1 kez yükleniyor, Sentry.init doğru DSN ile çağrılıyor — doğrulandı.
    - DSN gizli değil (client-side, publishable) — repoda durması normal, service_role gibi değil.
 
+## BU OTURUMDA YAPILANLAR — 4. tur (mobil performans: statik açılış ekranı)
+Sorun: mobil Perf 75 — TBT 0 ama FCP 3.8s / LCP 4.5s (ilk boyama çok geç, çünkü `#root` boştu ve
+React+CDN yüklenene kadar hiçbir şey görünmüyordu). Çözüm (auth'a DOKUNMADAN, düşük risk):
+1. **Statik açılış ekranı**: `#root` içine düz HTML splash (`#fz-onsplash`: saha SVG + ⚽ + yeşil
+   "ForzaLig" + yükleniyor çubuğu + forzalig.com). HTML gelir gelmez boyanır; React `createRoot`
+   render edince otomatik değişir. → FCP/LCP React'i beklemez.
+2. **Google Fonts render-blocking DEĞİL**: `media="print" onload="this.media='all'"` + `<noscript>`
+   fallback. Fontlar ilk boyamayı geciktirmez (splash sistem fontuyla anında çıkar).
+3. **preconnect**: cdnjs, jsdelivr, fonts.googleapis, fonts.gstatic → bağlantı kurulumu erken.
+4. **Beyaz flaş önleme**: body/#root `background: var(--bg0, #070B12)` fallback (JS öncesi de koyu).
+Ölçüm (yerel Lighthouse, gzip'li, mobil emülasyon): **Perf 75→94**, FCP 3.8→1.5s, LCP 4.5→2.2s,
+Speed Index 1.5s, CLS 0. Erişilebilirlik 100, best-practices 96 korundu (offline harness).
+NOT: Kalan darboğaz TBT ~230ms (React parse/boot). 95+ garanti için Supabase'i lazy-load etmek
+gerekir ama o AUTH akışını riske atar — lansman öncesi yapılmadı (bilerek). Kullanıcı isterse ayrı tur.
+NOT2: İlk açılışta artık "çift splash" olabilir (statik → sonra React'in animasyonlu splash'ı). İkisi de
+koyu/ForzaLig, akıcı; kullanıcı beğenmezse React splash'ı ilk açılışta atlatılabilir.
+
 ## Güvenlik başlıkları notu (securityheaders.com = F)
 GitHub Pages özel HTTP yanıt başlığı (HSTS/CSP/X-Frame-Options/X-Content-Type-Options/
 Referrer-Policy/Permissions-Policy) EKLETMİYOR — statik hosting sınırı. Meta etiketiyle sadece

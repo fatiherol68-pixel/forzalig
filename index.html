@@ -22,6 +22,10 @@
 <meta name="twitter:title" content="ForzaLig — Halı Saha Ligi">
 <meta name="twitter:description" content="Ligini yönet, paylaş, herkes görsün.">
 <meta name="twitter:image" content="https://forzalig.com/og.png">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -55,12 +59,16 @@
     else window.addEventListener("load", boslaYukle);
   })();
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap"></noscript>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { overscroll-behavior:none; }
-  body { font-family: var(--font-body, 'Inter', sans-serif); background: var(--bg0); color: var(--text); transition: background .3s, color .3s; }
-  #root { min-height: 100vh; background: var(--bg0); position: relative; }
+  body { font-family: var(--font-body, 'Inter', sans-serif); background: var(--bg0, #070B12); color: var(--text, #F1F5F9); transition: background .3s, color .3s; }
+  #root { min-height: 100vh; background: var(--bg0, #070B12); position: relative; }
+  /* Statik açılış ekranı (React yüklenmeden anında görünür → FCP/LCP hızlanır) */
+  #fz-onsplash { position:fixed; inset:0; background:#070B12; display:flex; align-items:center; justify-content:center; overflow:hidden; z-index:1; }
+  @keyframes fzPreBar { 0%{transform:translateX(-100%);} 100%{transform:translateX(250%);} }
   .wrap { max-width: 480px; margin: 0 auto; position: relative; }
   @media (min-width: 820px) {
     .wrap { max-width: 1080px; }
@@ -178,7 +186,23 @@
   .fz-giris { animation:fzGiris .5s ease both; }</style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root"><div id="fz-onsplash">
+  <svg viewBox="0 0 220 300" width="220" height="300" style="position:absolute;opacity:.35" aria-hidden="true">
+    <g fill="none" stroke="#34D399" stroke-width="1">
+      <rect x="8" y="8" width="204" height="284" rx="5"/><line x1="8" y1="150" x2="212" y2="150"/>
+      <circle cx="110" cy="150" r="34"/><rect x="58" y="8" width="104" height="46"/><rect x="58" y="246" width="104" height="46"/>
+    </g>
+  </svg>
+  <div style="position:relative;text-align:center;z-index:2">
+    <div style="font-size:46px;line-height:1">⚽</div>
+    <div style="font-size:34px;font-weight:800;color:#34D399;letter-spacing:1px;text-shadow:0 0 22px #34D399;font-family:'Sora','Inter',sans-serif;margin-top:10px">ForzaLig</div>
+    <div style="width:160px;height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin:20px auto 0">
+      <div style="width:45%;height:100%;background:linear-gradient(90deg,#34D399,#38BDF8);border-radius:3px;animation:fzPreBar 1.1s ease-in-out infinite"></div>
+    </div>
+    <div style="font-size:10px;color:#74849B;letter-spacing:1.5px;margin-top:9px">YÜKLENİYOR...</div>
+  </div>
+  <div style="position:absolute;bottom:24px;font-size:11px;color:#74849B;letter-spacing:2px">forzalig.com</div>
+</div></div>
 <script type="text/babel">
 const { useState, useEffect, useMemo, useRef } = React;
 
