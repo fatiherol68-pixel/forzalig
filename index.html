@@ -4759,11 +4759,11 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     sistemDeger.current={id:o.id, pac:o.pac,sho:o.sho,pas:o.pas,dri:o.dri,def:o.def,phy:o.phy, ovr:o.ovr, deger:o.deger};
   },[o.id]);
   const acDuzenle=()=>{ setD({...o, yildizManuel: o.yildizManuel||0}); setDuzenle(true); };
-  const acBilgi=()=>{ setBd({ad:o.ad,poz:o.poz,no:o.no,ayak:o.ayak||"Sağ",dogum:o.dogum||"",boy:o.boy||"",kilo:o.kilo||"",uyruk:o.uyruk||"",saglik:o.saglik||"Sağlam"}); setBilgiAcik(true); };
+  const acBilgi=()=>{ setBd({ad:o.ad,poz:o.poz,no:o.no,ayak:o.ayak||"Sağ",dogum:o.dogum||"",boy:o.boy||"",kilo:o.kilo||"",uyruk:o.uyruk||"",saglik:o.saglik||"Sağlam",foto:o.foto||null}); setBilgiAcik(true); };
   const kaydetBilgi=()=>{
     o.ad=bd.ad||o.ad; o.poz=bd.poz; o.no=parseInt(bd.no)||o.no; o.ayak=bd.ayak;
     o.dogum=bd.dogum; o.boy=parseInt(bd.boy)||o.boy; o.kilo=parseInt(bd.kilo)||o.kilo;
-    o.uyruk=bd.uyruk||o.uyruk; o.saglik=bd.saglik;
+    o.uyruk=bd.uyruk||o.uyruk; o.saglik=bd.saglik; o.foto=bd.foto!==undefined?bd.foto:o.foto;
     const y=parseInt((bd.dogum.split(".")[2]||bd.dogum.split("-")[0]||"")); if(y>1950&&y<2020)o.yas=2026-y;
     o._manuel=true; setBilgiAcik(false);
   };
@@ -5200,6 +5200,15 @@ function BilgiDuzeltModal({o, bd, setBd, T, kaydet, kapat}){
         <button onClick={kapat} className="tap" style={{fontSize:20,color:T.textMut,background:"none",border:0}}>✕</button>
       </div>
       <div style={{fontSize:11,color:T.textMut,marginBottom:14}}>Lisans No: {o.lisNo||"—"} (değişmez)</div>
+
+      <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+        <div style={{position:"relative"}}>
+          <div style={{width:76,height:76,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.accent+"66",background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(bd.ad||o.ad||"?",76,bd.foto)}}/>
+          <label className="tap" title="Fotoğraf ekle/değiştir" style={{position:"absolute",bottom:0,right:0,background:T.accent,color:T.bg0,borderRadius:"50%",width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,cursor:"pointer",border:"2px solid "+T.bg1}}>📷
+            <input type="file" accept="image/*" onChange={async e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; const r=await fotoYukle(f,"oyuncu"); if(r&&r.url) g("foto",r.url); else alert((r&&r.hata)||"Fotoğraf yüklenemedi (giriş gerekli)."); e.target.value=""; }} style={{display:"none"}}/></label>
+          {bd.foto && <div onClick={()=>g("foto",null)} className="tap" title="Fotoğrafı kaldır" style={{position:"absolute",top:0,right:0,background:T.danger,color:"#fff",borderRadius:"50%",width:20,height:20,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,cursor:"pointer",border:"2px solid "+T.bg1}}>✕</div>}
+        </div>
+      </div>
 
       <div style={{marginBottom:12}}><div style={lbl}>AD SOYAD</div><input value={bd.ad} onChange={e=>g("ad",e.target.value)} style={inp}/></div>
 
