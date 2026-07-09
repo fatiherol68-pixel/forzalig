@@ -26,7 +26,7 @@ fs.writeFileSync(OUT,html);
 // Service worker sürüm damgası: her derlemede değişir → istemciler "yeni sürüm" toast'ı görür
 try{
   const surum=require('child_process').execSync('git -C /home/user/forzalig rev-parse --short HEAD').toString().trim()+'-'+Math.floor(Date.now()/1000);
-  const swSrc=fs.readFileSync('/home/user/forzalig/sw.js','utf8').replace('FL_SW_SURUM',surum);
+  const swSrc=fs.readFileSync('/home/user/forzalig/sw.js','utf8').split('FL_SW_SURUM').join(surum); // TÜM geçişleri değiştir (yorumdaki dahil)
   fs.writeFileSync(__dirname+'/sw.compiled.js',swSrc);
   console.log('SW sürümü:',surum);
 }catch(e){ console.error('SW damgalanamadı:',e.message); }
