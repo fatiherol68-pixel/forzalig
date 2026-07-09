@@ -137,14 +137,15 @@ CDN yerine yerel React UMD ile açıp (sb=null → misafir/çevrimdışı mod) o
 `node build/derle.js` derleme; smoke/misafir testleri offline. Canlı testi kullanıcı yapar.
 
 ## BEKLEYEN İŞLER
-- [ ] **Lansman temizliği**: Kullanıcı `supabase/99_lansman_temizlik.sql`'i lansman günü çalıştıracak
-      (tüm demo/test verisini siler, fatiherol68 hesabı+admin kalır). GERİ ALINAMAZ, aceleye getirme.
-- [ ] Kullanıcı sert yenileyip (Ctrl+Shift+R) PageSpeed'i tekrar çalıştıracak → yeni puan.
-      (Son ölçüm: Mobil Perf 74 / Erişilebilirlik 75 / En İyi 96 / SEO 100. Bu turdan sonra
-      erişilebilirlik ve mobil performansın yükselmesi beklenir.)
-- [x] Erişilebilirlik: zoom kilidi + renk kontrastı düzeltildi (bu tur, 3. tur değil — yukarıya bak)
-- [x] Chart.js "gerektiğinde yükle" — TAMAM (lazy-load, bu tur)
+- [x] **Lansman temizliği YAPILDI (9 Tem 2026)**: Kullanıcı `99_lansman_temizlik.sql`'i Supabase SQL
+      Editor'da çalıştırdı. Kontrol sorgusu: ligler/takimlar/oyuncular/maclar=0, uyeler=1, adminler=1 ✅.
+      Veritabanı temiz, lansmana hazır. (Demo veri gitti; sadece fatiherol68 hesabı+admin kaldı.)
+- [x] Erişilebilirlik: zoom kilidi + renk kontrastı + "Canlı" pulse kontrast → TAMAM (Mobil+Masaüstü 100)
+- [x] Chart.js lazy-load + statik açılış ekranı + favicon + Sentry → TAMAM (Mobil Perf 84, Masaüstü 99)
+- [ ] Kullanıcı canlı siteyi temiz veritabanıyla test edecek (boş ekran, giriş, yeni lig oluşturma).
+- [ ] (Opsiyonel) Mobil Perf 84→95: açılış splash süresini kısaltmak gerekir — kullanıcı 4sn KALSIN dedi.
 - [ ] (Opsiyonel, ücretli) Supabase Custom Domain → auth.forzalig.com
+- [ ] (Opsiyonel) Cloudflare + güvenlik başlıkları (securityheaders F) — kullanıcı şimdilik BIRAKTI.
 
 ## Kullanıcının son tarama raporu (referans — her şey ✅)
 20 lig, 136 takım, 1500 oyuncu, 399 maç (hepsi oynanmış), KVKK güvenli, 0 tutarsız maç,
