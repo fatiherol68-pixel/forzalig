@@ -1,0 +1,17 @@
+{
+  "name": "ForzaLig — Halı Saha Ligi",
+  "short_name": "ForzaLig",
+  "description": "Halı saha ligini yönet: puan durumu, fikstür, kral listeleri, oyuncu kartları.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070B12",
+  "theme_color": "#070B12",
+  "lang": "tr",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
