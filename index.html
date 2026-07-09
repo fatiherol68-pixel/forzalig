@@ -8655,7 +8655,7 @@ function GirisAuth({T, mod, kapiGit, tamamla}){
     setHata(""); setBilgi("");
     if(!sb){ setHata("Sunucuya bağlanılamadı."); return; }
     try{
-      const {error}=await sb.auth.signInWithOAuth({ provider, options:{ redirectTo: window.location.origin+window.location.pathname } });
+      const {error}=await sb.auth.signInWithOAuth({ provider, options:{ redirectTo: window.location.origin+window.location.pathname+window.location.search } });
       if(error) setHata((provider==="apple"?"Apple":"Google")+" girişi henüz açık değil. (Ayar gerekiyor)");
     }catch(e){ setHata("Giriş başlatılamadı."); }
   };
@@ -9213,6 +9213,7 @@ function DavetKatil({T, token, oturum, girisYap}){
   const [oyuncuLink,setOyuncuLink]=useState(""); const [kopyalandi,setKopyalandi]=useState(false);
   useEffect(()=>{ let a=true; (async()=>{ const d=await Db.davetGetir(token); if(a) setDavet(d); })(); return ()=>{a=false;}; },[token]);
   const cik=()=>{ try{ window.location.href=window.location.origin+window.location.pathname; }catch(e){} };
+  const googleGiris=async()=>{ if(!sb){ if(girisYap)girisYap(); return; } try{ const {error}=await sb.auth.signInWithOAuth({provider:"google", options:{redirectTo: window.location.href}}); if(error && girisYap) girisYap(); }catch(e){ if(girisYap)girisYap(); } };
   const dosyaSec=async(e, klasor, setUrl)=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; setFotoYuk(true); setMesaj("Fotoğraf yükleniyor…"); const r=await fotoYukle(f, klasor); setFotoYuk(false); e.target.value=""; if(r&&r.url){ setUrl(r.url); setMesaj(""); } else setMesaj("❌ Fotoğraf yüklenemedi: "+((r&&r.hata)||"")); };
   const katil=async()=>{
     if(!ad.trim()){ setMesaj("❌ "+(davet.tip==="takim"?"Takım adı gir.":"Ad soyad gir.")); return; }
@@ -9261,8 +9262,9 @@ function DavetKatil({T, token, oturum, girisYap}){
     </div>
     {!oturum
       ? <div style={{textAlign:"center"}}>
-          <div style={{fontSize:12.5,color:T.textSoft,marginBottom:14,lineHeight:1.6}}>Katılmak için önce <b>Google ile giriş</b> yap.<br/>Sonra bu ekrana geri döneceksin.</div>
-          <button onClick={girisYap} className="tap" style={{width:"100%",background:T.accent,color:T.bg0,border:0,borderRadius:12,padding:13,fontWeight:800,fontSize:14}}>Google ile Giriş Yap</button>
+          <div style={{fontSize:12.5,color:T.textSoft,marginBottom:14,lineHeight:1.6}}>Katılmak için <b>Google ile giriş</b> yap.<br/>Giriş sonrası otomatik bu davete döneceksin.</div>
+          <button onClick={googleGiris} className="tap" style={{width:"100%",background:"#fff",color:"#1a1a1a",border:0,borderRadius:12,padding:13,fontWeight:800,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>🟦 Google ile Devam Et</button>
+          <div onClick={girisYap} className="tap" style={{fontSize:11,color:T.textMut,marginTop:12,cursor:"pointer"}}>e-posta ile giriş →</div>
         </div>
       : takimMi
         ? <div>
