@@ -228,6 +228,39 @@ const PAYLASIM_URL = (slug)=>{ try{ return window.location.origin + window.locat
 /* QR kod (paylaşım linki için) — data:image döner, kütüphane yoksa boş */
 const qrData = (url)=>{ try{ if(typeof qrcode==="undefined"||!url) return ""; const qr=qrcode(0,"M"); qr.addData(url); qr.make(); return qr.createDataURL(5,10); }catch(e){ return ""; } };
 
+/* Fotoğraf/logo yükleme — telefon fotoğrafını küçültür (max 512px, jpeg) → Supabase Storage → herkese açık URL.
+   Giriş yapılmamışsa/sb yoksa hata döner (çağıran yer avatar'a düşer). */
+function resimKucult(dosya, maxBoy=512, kalite=0.82){
+  return new Promise((res,rej)=>{
+    try{
+      const img=new Image(); const url=URL.createObjectURL(dosya);
+      img.onload=()=>{
+        let w=img.width, h=img.height; const o=Math.min(1, maxBoy/Math.max(w,h));
+        w=Math.round(w*o); h=Math.round(h*o);
+        const c=document.createElement("canvas"); c.width=w; c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        c.toBlob(b=> b?res(b):rej(new Error("kucultme")), "image/jpeg", kalite);
+      };
+      img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error("resim okunamadi")); };
+      img.src=url;
+    }catch(e){ rej(e); }
+  });
+}
+async function fotoYukle(dosya, klasor){
+  if(!sb) return {hata:"Giriş gerekli (bulut kapalı)."};
+  if(!dosya) return {hata:"Dosya yok."};
+  if(dosya.size>15*1024*1024) return {hata:"Fotoğraf çok büyük (max 15MB)."};
+  try{
+    const kucuk = await resimKucult(dosya);
+    const yol = (klasor||"genel")+"/"+Date.now()+"_"+Math.random().toString(36).slice(2,9)+".jpg";
+    const {error}=await sb.storage.from("fotolar").upload(yol, kucuk, {contentType:"image/jpeg", upsert:false});
+    if(error) return {hata:error.message};
+    const {data}=sb.storage.from("fotolar").getPublicUrl(yol);
+    return {url:(data&&data.publicUrl)||""};
+  }catch(e){ return {hata:String(e&&e.message||e)}; }
+}
+
 /* Bulut veri — tüm uygulama durumu, kullanıcı başına tek JSON satırı */
 const Bulut = {
   async yukle(userId){
@@ -534,12 +567,12 @@ const Db = {
       const takimIdMap={}, oyAdMap={}, oyAdGlobal={};
       for(const tk of (T.takimlar||[])){
         const {data:tRow,error:e2}=await sb.from('takimlar').insert({
-          lig_id:ligId, ad:tk.ad, renk:tk.renk||null, grup:tk.grup||0, lis_no:tk.lisNo||null
+          lig_id:ligId, ad:tk.ad, renk:tk.renk||null, renk2:tk.renk2||null, logo:tk.logo||null, grup:tk.grup||0, lis_no:tk.lisNo||null
         }).select('id').single();
         if(e2) return {hata:e2.message};
         takimIdMap[tk.id]=tRow.id;
         const oyKayit=(tk.oyuncular||[]).map(o=>({
-          ad_soyad:o.ad, forma_no:(o.no??null), dogum:tarihISO(o.dogum), ayak:o.ayak||null,
+          ad_soyad:o.ad, forma_no:(o.no??null), dogum:tarihISO(o.dogum), ayak:o.ayak||null, foto:o.foto||null,
           boy:(o.boy??null), kilo:(o.kilo??null), uyruk:o.uyruk||null, poz:o.poz||null, ovr:(o.ovr??null),
           nitelik:{pac:o.pac,sho:o.sho,pas:o.pas,dri:o.dri,def:o.def,phy:o.phy},
           deger:(o.deger??null), saglik:o.saglik||null, bolge:o.bolge||null, renk:o.renk||o.formaRenk||null
@@ -613,10 +646,11 @@ const Db = {
             yas:(tam?yasHesap(tam.dogum):ac.yas), boy:(tam?tam.boy:ac.boy), kilo:(tam?tam.kilo:null), ayak:(tam&&tam.ayak)||ac.ayak,
             dogum:(tam&&tam.dogum)||null, bolge:(tam&&tam.bolge)||ac.bolge, uyruk:(tam&&tam.uyruk)||null,
             saglik:(tam&&tam.saglik)||ac.saglik, deger:(tam?tam.deger:ac.deger), sahip_user_id:(tam&&tam.sahip_user_id)||null,
+            foto:(tam&&tam.foto)||ac.foto||null,
             gol:0,asist:0,mac:0,kurtaris:0,sari:0,kirmizi:0,mvp:0,dk:0,
             altin:0,gumus:0,forvet:0,ortasaha:0,defans:0,kaleci:0,centilmen:0,enerjik:0,macinGolu:0 };
         });
-        return { id:t.id, lisNo:t.lis_no, ad:t.ad, renk:t.renk, oyuncular, grup:t.grup||0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0,form:[] };
+        return { id:t.id, lisNo:t.lis_no, ad:t.ad, renk:t.renk, renk2:t.renk2||null, logo:t.logo||null, oyuncular, grup:t.grup||0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0,form:[] };
       });
       const maclar=mc.map(m=>{ const evT=takimlar.find(x=>x.id===m.ev_takim_id), depT=takimlar.find(x=>x.id===m.dep_takim_id);
         return { id:m.id, hafta:m.hafta, tur:m.tur, grup:m.grup, bye:m.bye, penGalip:m.pen_galip,
@@ -801,7 +835,8 @@ function SkeletonSatir(props){
 }
 
 /* SVG avatar üreteci — her oyuncu benzersiz yüz */
-function svgAvatar(ad, boy){
+function svgAvatar(ad, boy, foto){
+  if(foto) return `<img src="${foto}" alt="" width="${boy}" height="${boy}" loading="lazy" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block">`;
   const h=hash(ad);
   const tenler=["#F2C9A0","#E8B589","#D89B6C","#C68642","#A06A3C","#8D5524"];
   const saclar=["#1A1A1A","#2C1810","#4A2C18","#6B4423","#8B6914","#3A3A3A","#5A3825"];
@@ -826,7 +861,8 @@ function svgAvatar(ad, boy){
 }
 
 /* SVG amblem üreteci — her takım benzersiz logo */
-function svgAmblem(ad, renk, boy){
+function svgAmblem(ad, renk, boy, logo){
+  if(logo) return `<img src="${logo}" alt="" width="${boy}" height="${boy}" loading="lazy" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block;border-radius:50%">`;
   const h=hash(ad);
   const tip=h%3; // kalkan, daire, baklava
   const harf=ad.replace(/[^A-Za-zÇĞİÖŞÜçğıöşü]/g,"")[0]||"F";
@@ -1094,7 +1130,7 @@ function lisansUret(tip){
 function yeniOyuncu(id, ad, poz, no, renk){
   const ovr=60+rnd(25);
   return {
-    id, lisNo: lisansUret("oyuncu"), ad: ad||"Yeni Oyuncu", poz: poz||"OrtaSaha", no: no||1, ovr,
+    id, lisNo: lisansUret("oyuncu"), ad: ad||"Yeni Oyuncu", poz: poz||"OrtaSaha", no: no||1, ovr, foto:null,
     pac:55+rnd(40), sho:55+rnd(40), pas:55+rnd(40), dri:55+rnd(40), def:55+rnd(40), phy:55+rnd(40),
     renk, yas:18+rnd(22), boy:170+rnd(25), kilo:65+rnd(25), ayak: pick(["Sağ","Sağ","Sağ","Sol","Çift"]),
     dogum:`01.01.${2026-(18+rnd(22))}`, bolge:"Merkez", uyruk:"Türkiye", saglik:"Sağlam",
@@ -1111,7 +1147,7 @@ function yeniTakim(id, ad, renk, oyuncuBaslaId, oyuncuSayi=12){
   for(let i=0;i<oyuncuSayi;i++){
     oyuncular.push(yeniOyuncu(oyuncuBaslaId+i, pick(ADLAR)+" "+pick(SOYADLAR), pozlar[i]||"OrtaSaha", i+1, renk));
   }
-  return { id, lisNo: lisansUret("takim"), ad: ad||"Yeni Takım", renk, oyuncular, grup:0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0, form:[] };
+  return { id, lisNo: lisansUret("takim"), ad: ad||"Yeni Takım", renk, renk2:null, logo:null, oyuncular, grup:0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0, form:[] };
 }
 
 function yeniMac(id, A, B, hafta){
@@ -1548,12 +1584,12 @@ const Motor = {
 /* ============================================================
    UI PARÇALARI (ortak bileşenler — her yerde aynı)
    ============================================================ */
-function Logo({renk, boy=40, ad}){
-  return <div style={{width:boy,height:boy,flexShrink:0}} dangerouslySetInnerHTML={{__html: svgAmblem(ad||"F", renk, boy)}}/>;
+function Logo({renk, boy=40, ad, logo}){
+  return <div style={{width:boy,height:boy,flexShrink:0,borderRadius:"50%",overflow:"hidden"}} dangerouslySetInnerHTML={{__html: svgAmblem(ad||"F", renk, boy, logo)}}/>;
 }
 
 function Avatar({o, boy=44, T}){
-  return <div style={{width:boy,height:boy,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html: svgAvatar(o.ad, boy)}}/>;
+  return <div style={{width:boy,height:boy,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html: svgAvatar(o.ad, boy, o.foto)}}/>;
 }
 
 function FormRozet({form, T}){
@@ -1859,7 +1895,7 @@ function SahaDizilis({takim, T, git, turnuva}){
               <div style={{position:"relative"}}>
                 {aktif && <div style={{position:"absolute",top:"50%",left:"50%",width:34,height:34,borderRadius:"50%",border:"2px solid "+T.accent,transform:"translate(-50%,-50%)",animation:"sahaDalga .6s ease-out",pointerEvents:"none"}}/>}
                 {isKaptan && <div style={{position:"absolute",top:-4,right:-6,width:14,height:14,borderRadius:"50%",background:T.gold,color:"#1A1505",fontSize:8,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",zIndex:4,border:"1.5px solid "+T.bg0}}>C</div>}
-                <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",border:"2px solid "+renk,transition:"transform .35s, box-shadow .35s",transform:aktif?"scale(1.3)":"scale(1)",boxShadow:aktif?"0 0 16px 4px "+T.accent:"none"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34)}}/>
+                <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",border:"2px solid "+renk,transition:"transform .35s, box-shadow .35s",transform:aktif?"scale(1.3)":"scale(1)",boxShadow:aktif?"0 0 16px 4px "+T.accent:"none"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34,o.foto)}}/>
               </div>
               <div style={{fontSize:8,color:"#fff",fontWeight:600,marginTop:3,textShadow:"0 1px 2px #000",whiteSpace:"nowrap"}}>{o.ad.split(" ")[0]}</div>
               <div style={{fontSize:8,background:renk,color:pozYazi(o.poz),fontWeight:700,borderRadius:3,padding:"0 5px",marginTop:1}}>#{o.no}</div>
@@ -1888,7 +1924,7 @@ function SahaDizilis({takim, T, git, turnuva}){
                 <div style={{fontSize:10,color:T.accent,fontWeight:700}}>{secili.poz==="Kaleci"?"GK":secili.poz==="Defans"?"DEF":secili.poz==="OrtaSaha"?"ORT":"FOR"}</div>
                 <div style={{fontSize:10,color:"#fff",marginTop:3}}>#{secili.no}{kaptan&&secili.id===kaptan.id?" Ⓒ":""}</div>
               </div>
-              <div style={{width:60,height:60,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.accent+"88"}} dangerouslySetInnerHTML={{__html:svgAvatar(secili.ad,60)}}/>
+              <div style={{width:60,height:60,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.accent+"88"}} dangerouslySetInnerHTML={{__html:svgAvatar(secili.ad,60,secili.foto)}}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:15,fontWeight:800,color:T.accent,textTransform:"uppercase",lineHeight:1.1}}>{secili.ad}</div>
                 <div style={{fontSize:10,color:"#9fd",marginTop:2}}>{takim.ad}</div>
@@ -1936,7 +1972,7 @@ function Podyum({liste, T}){
   return <div style={{display:"flex",alignItems:"flex-end",justifyContent:"center",gap:8}}>
     {siralama.map((o,i)=> o &&
       <div key={o.id} style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1}}>
-        <div className={i===1?"vav-suzul":""} style={{width:36,height:36,borderRadius:"50%",overflow:"hidden",border:(i===1?"2.5px solid "+T.gold:"2px solid "+T.gold),marginBottom:4,boxShadow:i===1?"0 0 14px "+T.gold+"88":"none"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,36)}}/>
+        <div className={i===1?"vav-suzul":""} style={{width:36,height:36,borderRadius:"50%",overflow:"hidden",border:(i===1?"2.5px solid "+T.gold:"2px solid "+T.gold),marginBottom:4,boxShadow:i===1?"0 0 14px "+T.gold+"88":"none"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,36,o.foto)}}/>
         <div style={{fontSize:10,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>{o.ad.split(" ")[0]}</div>
         <div className={i===1?"vav-parla":""} style={{fontSize:9,color:i===1?T.gold:T.accent,fontWeight:i===1?800:400}}>{o.gol} gol</div>
         <div className={"bar-grow"+(i===1?" vav-bar":"")} style={{width:"100%",height:yuk[i],background:i===1?`linear-gradient(180deg,${T.gold},${T.gold}cc)`:T.bg2,borderRadius:"6px 6px 0 0",marginTop:4,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:4,transformOrigin:"bottom",boxShadow:i===1?"0 -4px 18px "+T.gold+"55":"none"}}>
@@ -1977,7 +2013,7 @@ function EnKart({et, o, deg, br, renk, T, takim, onClick}){
   return <div onClick={onClick} className="kart-hover" style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:11}}>
     <div style={{fontSize:9,color:T.textMut,fontWeight:700,marginBottom:8}}>{et}</div>
     <div style={{display:"flex",alignItems:"center",gap:8}}>
-      {takim ? <Logo renk={o.renk} ad={o.ad} boy={30}/> : <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,30)}}/>}
+      {takim ? <Logo renk={o.renk} ad={o.ad} logo={o.logo} boy={30}/> : <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,30,o.foto)}}/>}
       <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div><div style={{fontSize:9,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{takim?(o.turnuva||""):(o.takimAd||o.turnuva||"")}</div></div>
     </div>
     <div style={{fontSize:20,fontWeight:800,color:renk,fontFamily:T.fontDisplay,marginTop:6}}>{deg}{br&&<span style={{fontSize:10,color:T.textMut,fontWeight:400}}> {br}</span>}</div>
@@ -2164,7 +2200,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
         const toplamGol=t.maclar.reduce((s,m)=>s+(m.oynandi?(m.skorA||0)+(m.skorB||0):0),0);
         return <div key={t.id} onClick={()=>git({sayfa:"turnuva",turnuva:t})} className="tap kart-hover" style={{background:T.bg1,borderRadius:14,padding:13,marginBottom:9,border:"0.5px solid "+T.line}}>
           <div style={{display:"flex",gap:11,alignItems:"center"}}>
-            <Logo renk={t.renk} ad={t.ad} boy={46}/>
+            <Logo renk={t.renk} ad={t.ad} logo={t.logo} boy={46}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:15,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
               <div style={{fontSize:10,color:T.textMut,marginTop:2}}>{t.sehir||""}{t.sehir?" · ":""}{t.takimlar.length} takım · {oynanan} maç</div>
@@ -2182,7 +2218,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
       {takimSirali.map((tk,i)=>{
         const durum=takimDurum[tk.turnuva+"|"+tk.ad];
         return <div key={i} onClick={()=>git({sayfa:"takim",takim:tk,turnuva:tk._t})} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,borderRadius:11,padding:"10px 12px",marginBottom:5,border:"0.5px solid "+T.line}}>
-          <Logo renk={tk.renk} ad={tk.ad} boy={34}/>
+          <Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} boy={34}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               <span style={{fontSize:13,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tk.ad}</span>
@@ -2203,7 +2239,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
       {oyuncuSirali.slice(0,200).map((o,i)=>
         <div key={i} onClick={()=>git({sayfa:"oyuncu",oyuncu:{...o}})} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,borderRadius:11,padding:"9px 12px",marginBottom:5,border:"0.5px solid "+T.line}}>
           <div style={{position:"relative",flexShrink:0}}>
-            <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34)}}/>
+            <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34,o.foto)}}/>
             {o.ovr>0 && <span style={{position:"absolute",bottom:-3,right:-4,fontSize:8,fontWeight:800,background:T.gold,color:"#06140d",borderRadius:6,padding:"0px 4px",fontFamily:T.fontDisplay}}>{o.ovr}</span>}
           </div>
           <div style={{flex:1,minWidth:0}}>
@@ -2407,7 +2443,7 @@ function TumEnler({turnuvalar, T, git, gomulu}){
               {aciklama && <div style={{display:"inline-block",fontSize:8,color:renk,background:renk+"1f",borderRadius:5,padding:"1px 6px",marginTop:3,fontWeight:600}}>{aciklama}</div>}
             </div>
             {lider ? <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
-              {aktif.tip==="o" ? <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",border:"2px solid "+renk}} dangerouslySetInnerHTML={{__html:svgAvatar(lider.ad,30)}}/> : aktif.tip==="t" ? <Logo renk={lider.renk} ad={lider.ad} boy={30}/> : <span style={{fontSize:22}}>🏟️</span>}
+              {aktif.tip==="o" ? <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",border:"2px solid "+renk}} dangerouslySetInnerHTML={{__html:svgAvatar(lider.ad,30,lider.foto)}}/> : aktif.tip==="t" ? <Logo renk={lider.renk} ad={lider.ad} logo={lider.logo} boy={30}/> : <span style={{fontSize:22}}>🏟️</span>}
               <div style={{textAlign:"right"}}><div style={{fontSize:10.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64}}>{lider.ad}</div><div style={{fontSize:13,color:renk,fontWeight:800,fontFamily:T.fontDisplay}}>{valFn(lider)}</div></div>
             </div> : <span style={{fontSize:10,color:T.textMut}}>veri yok</span>}
             <span style={{fontSize:11,color:T.textMut,transform:acikMi?"rotate(90deg)":"none",transition:"transform .2s",flexShrink:0}}>›</span>
@@ -2422,7 +2458,7 @@ function TumEnler({turnuvalar, T, git, gomulu}){
               };
               return <div key={i} onClick={tikla} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:9,padding:"6px 11px"}}>
                 <span style={{fontSize:11,color:i===0?T.gold:T.textMut,fontWeight:700,width:16}}>{i+1}</span>
-                {aktif.tip==="t" ? <Logo renk={x.renk} ad={x.ad} boy={24}/> : aktif.tip==="l" ? <span style={{fontSize:16,width:24,textAlign:"center"}}>🏟️</span> : <div style={{width:24,height:24,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(x.ad,24)}}/>}
+                {aktif.tip==="t" ? <Logo renk={x.renk} ad={x.ad} logo={x.logo} boy={24}/> : aktif.tip==="l" ? <span style={{fontSize:16,width:24,textAlign:"center"}}>🏟️</span> : <div style={{width:24,height:24,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(x.ad,24,x.foto)}}/>}
                 <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{x.ad}</div>{aktif.tip==="o" && <div style={{fontSize:9,color:T.textMut}}>{x.takimAd} · {x.turnuva}</div>}{aktif.tip==="t" && <div style={{fontSize:9,color:T.textMut}}>{x.turnuva}</div>}</div>
                 <span style={{fontSize:13,color:renk,fontWeight:800,fontFamily:T.fontDisplay}}>{valFn(x)}</span>
               </div>;
@@ -2520,7 +2556,7 @@ function AnaSayfa({turnuvalar, T, git}){
           <div className="vav-supurme"/>
           <div style={{fontSize:9,color:"#34D399",fontWeight:800,marginBottom:8,letterSpacing:.3,position:"relative"}}>📈 YÜKSELEN TAKIM</div>
           <div style={{display:"flex",alignItems:"center",gap:8,position:"relative"}}>
-            <div className="vav-suzul"><Logo renk={yukselenTakim.t.renk} ad={yukselenTakim.t.ad} boy={32}/></div>
+            <div className="vav-suzul"><Logo renk={yukselenTakim.t.renk} ad={yukselenTakim.t.ad} logo={yukselenTakim.t.logo} boy={32}/></div>
             <div style={{minWidth:0}}>
               <div style={{fontSize:12,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{yukselenTakim.t.ad}</div>
               <div style={{fontSize:9,color:"#34D399"}}>son 5 maçta <b className="vav-parla" style={{fontSize:12,fontFamily:T.fontDisplay}}>{yukselenTakim.p}</b> puan</div>
@@ -2557,7 +2593,7 @@ function AnaSayfa({turnuvalar, T, git}){
           style={{background:`linear-gradient(135deg, ${T.accent}22, ${T.bg1})`,borderRadius:16,padding:"18px 18px 16px",border:"0.5px solid "+T.accent+"44",overflow:"hidden"}}>
           <div style={{fontSize:10,color:T.accent,fontWeight:700,letterSpacing:.6,marginBottom:8,display:"inline-block",background:T.accent+"22",padding:"3px 9px",borderRadius:20}}>HAFTANIN ÖNE ÇIKANI</div>
           <div style={{display:"flex",alignItems:"center",gap:14}}>
-            <Logo renk={lider.renk} ad={lider.ad} boy={56}/>
+            <Logo renk={lider.renk} ad={lider.ad} logo={lider.logo} boy={56}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{lider.ad} zirvede!</div>
               <div style={{fontSize:12,color:T.textSoft,marginTop:3}}>{lider.o} maçta {lider.g} galibiyet. {fark>0?`2. sıraya ${fark} puan fark.`:"Liderlik eşit puanda."}</div>
@@ -2593,7 +2629,7 @@ function AnaSayfa({turnuvalar, T, git}){
           {ilk5.map(t=>
             <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
-              <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
+              <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
               <span style={{textAlign:"center",color:(t.ag-t.yg)>=0?T.accent:T.danger}}>{(t.ag-t.yg)>=0?"+":""}{t.ag-t.yg}</span>
               <span style={{textAlign:"center",color:T.gold,fontWeight:800,fontFamily:T.fontDisplay,background:T.gold+"18",borderRadius:6,padding:"3px 0"}}>{t.puan}</span>
@@ -2678,7 +2714,7 @@ function AnaSayfa({turnuvalar, T, git}){
       <div style={{fontSize:13,fontWeight:700,color:T.text,margin:"0 4px 8px"}}>📋 Diğer Turnuvalar</div>
       {turnuvalar.filter(t=>t.id!==tk.id).map(t=>
         <div key={t.id} onClick={()=>git({sayfa:"turnuva",turnuva:t})} className="tap" style={{display:"flex",alignItems:"center",gap:12,background:T.bg1,borderRadius:12,padding:"12px 14px",marginBottom:8,border:"0.5px solid "+T.line}}>
-          <Logo renk={t.renk} ad={t.ad} boy={40}/>
+          <Logo renk={t.renk} ad={t.ad} logo={t.logo} boy={40}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:14,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
             <div style={{fontSize:11,color:T.textMut}}>{t.sehir} · {t.takimlar.length} takım · {t.maclar.length} maç</div>
@@ -2784,7 +2820,7 @@ function LigGenel({turnuva, T, git}){
           style={{background:`linear-gradient(135deg, ${T.accent}22, ${T.bg1})`,borderRadius:16,padding:"18px 18px 16px",border:"0.5px solid "+T.accent+"44",overflow:"hidden"}}>
           <div style={{fontSize:10,color:T.accent,fontWeight:700,letterSpacing:.6,marginBottom:8,display:"inline-block",background:T.accent+"22",padding:"3px 9px",borderRadius:20}}>HAFTANIN ÖNE ÇIKANI</div>
           <div style={{display:"flex",alignItems:"center",gap:14}}>
-            <Logo renk={lider.renk} ad={lider.ad} boy={56}/>
+            <Logo renk={lider.renk} ad={lider.ad} logo={lider.logo} boy={56}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{lider.ad} zirvede!</div>
               <div style={{fontSize:12,color:T.textSoft,marginTop:3}}>{lider.o} maçta {lider.g} galibiyet. {fark>0?`2. sıraya ${fark} puan fark.`:"Liderlik eşit puanda."}</div>
@@ -2820,7 +2856,7 @@ function LigGenel({turnuva, T, git}){
           {ilk5.map(t=>
             <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
-              <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
+              <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
               <span style={{textAlign:"center",color:(t.ag-t.yg)>=0?T.accent:T.danger}}>{(t.ag-t.yg)>=0?"+":""}{t.ag-t.yg}</span>
               <span style={{textAlign:"center",color:T.gold,fontWeight:800,fontFamily:T.fontDisplay,background:T.gold+"18",borderRadius:6,padding:"3px 0"}}>{t.puan}</span>
@@ -3046,7 +3082,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
       </div>
     </div>
     <div style={{position:"relative",padding:"0 14px"}}>
-      <div style={{position:"absolute",top:-28,left:14,border:"3px solid "+T.bg0,borderRadius:14,overflow:"hidden"}}><Logo renk={turnuva.renk} ad={turnuva.ad} boy={56}/></div>
+      <div style={{position:"absolute",top:-28,left:14,border:"3px solid "+T.bg0,borderRadius:14,overflow:"hidden"}}><Logo renk={turnuva.renk} ad={turnuva.ad} logo={turnuva.logo} boy={56}/></div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:10}}>
         {!saltOkunur && oturum && <button onClick={paylasAc} className="tap" style={{background:turnuva.paylasimSlug?T.accent:"transparent",color:turnuva.paylasimSlug?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.gold,border:"1px solid "+(turnuva.paylasimSlug?T.accent:T.gold),borderRadius:20,padding:"0 14px",height:32,fontSize:12,fontWeight:700}}>{turnuva.paylasimSlug?"🔗 Paylaşımda":"🔗 Paylaş"}</button>}
         {ligTakip && <button onClick={()=>ligTakip(turnuva.id)} className="tap" style={{background:takipte?T.accent:"transparent",color:takipte?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,border:"1px solid "+T.accent,borderRadius:20,padding:"0 16px",height:32,fontSize:12,fontWeight:700}}>{takipte?"✓ Takipte":"+ Takip et"}</button>}
@@ -3111,7 +3147,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
             {onbir.map(o=>
               <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:{...o,turnuva:turnuva.ad}})} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.bg0,borderRadius:7,padding:"5px 7px"}}>
-                <span style={{width:18,height:18,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,18)}}/>
+                <span style={{width:18,height:18,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,18,o.foto)}}/>
                 <span style={{fontSize:10,color:T.text,flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad.split(" ")[0]}</span>
                 <span style={{fontSize:8,color:T.accent,fontWeight:700}}>{pozKisa(o.poz)}</span>
               </div>
@@ -3247,7 +3283,7 @@ function LigIstatistik({turnuva, ist, T, git, onbirAltin, pozKisa}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
         {sezonOnbir.map(o=>
           <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:{...o,turnuva:turnuva.ad}})} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.bg0,borderRadius:7,padding:"5px 7px"}}>
-            <span style={{width:18,height:18,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,18)}}/>
+            <span style={{width:18,height:18,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,18,o.foto)}}/>
             <span style={{fontSize:10,color:T.text,flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad.split(" ")[0]}</span>
             <span style={{fontSize:8,color:sezonTip==="altin"?T.gold:"#C0C0C0",fontWeight:700}}>{pozKisa(o.poz)}</span>
           </div>
@@ -3470,7 +3506,7 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
     {tk.map(t=>
       <div key={t.id} style={{display:"flex",alignItems:"center",gap:9,background:T.bg1,borderRadius:10,padding:"9px 11px",marginBottom:6,border:"0.5px solid "+T.line}}>
         <label className="tap" title="Takım rengi" style={{cursor:"pointer",flexShrink:0,position:"relative"}}>
-          <Logo renk={t.renk} ad={t.ad} boy={26}/>
+          <Logo renk={t.renk} ad={t.ad} logo={t.logo} boy={26}/>
           <input type="color" value={t.renk||"#34D399"} onChange={e=>yonetim.takimDuzenle(turnuva,t.id,{renk:e.target.value})} style={{position:"absolute",inset:0,opacity:0,width:26,height:26,cursor:"pointer"}}/>
         </label>
         <span onClick={()=>git({sayfa:"takim",takim:t,turnuva})} className="tap" style={{flex:1,fontSize:13,color:T.text,fontWeight:600,cursor:"pointer",minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span>
@@ -3612,7 +3648,7 @@ function GrupTablo({takimlar, T, git, turnuva}){
             boxShadow:lider?`0 4px 16px ${T.gold}22`:"none"}}>
           <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:ust?vurgu:"transparent"}}/>
           <span style={{color:ust?vurgu:T.textSoft,fontWeight:700}}>{lider?"🏆":sira}</span>
-          <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}><Logo renk={t.renk} ad={t.ad} boy={20}/><span style={{color:T.text,fontWeight:lider?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} boy={20}/><span style={{color:T.text,fontWeight:lider?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
           <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
           <span style={{textAlign:"center",color:"#34D399"}}>{t.g}</span>
           <span style={{textAlign:"center",color:T.gold}}>{t.b}</span>
@@ -3721,7 +3757,7 @@ function PuanDurumuTekli({turnuva, T, git}){
             {lider && <div className="vav-supurme"/>}
             <div style={{position:"absolute",left:0,top:0,bottom:0,width:lider?4:3,background:seritRenk,zIndex:1}}/>
             <span style={{color:samp?T.gold:dusme?T.danger:T.textSoft,fontWeight:700,position:"relative"}}>{lider?"🏆":t.sira}</span>
-            <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0,position:"relative"}}><Logo renk={t.renk} ad={t.ad} boy={20}/><span style={{color:T.text,fontWeight:lider?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0,position:"relative"}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} boy={20}/><span style={{color:T.text,fontWeight:lider?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
             <span style={{textAlign:"center",color:T.textSoft,position:"relative"}}>{t.o}</span>
             <span style={{textAlign:"center",color:"#34D399",position:"relative"}}>{t.g}</span>
             <span style={{textAlign:"center",color:T.gold,position:"relative"}}>{t.b}</span>
@@ -3798,7 +3834,7 @@ function TakimPodyum({liste, T}){
   return <div style={{display:"flex",alignItems:"flex-end",justifyContent:"center",gap:10}}>
     {siralama.map((t,i)=> t &&
       <div key={t.id} style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1,minWidth:0}}>
-        <Logo renk={t.renk} ad={t.ad} boy={i===1?40:32}/>
+        <Logo renk={t.renk} ad={t.ad} logo={t.logo} boy={i===1?40:32}/>
         <div style={{fontSize:10,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%",marginTop:4}}>{t.ad}</div>
         <div style={{fontSize:10,color:T.gold,fontWeight:700}}>{t.puan} P</div>
         <div className="bar-grow" style={{width:"100%",height:yuk[i],background:i===1?T.gold:T.bg2,borderRadius:"6px 6px 0 0",marginTop:5,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:5,transformOrigin:"bottom"}}>
@@ -3921,7 +3957,7 @@ function OdulMerkezi({turnuva, T, git}){
       <div style={{fontSize:10,color:T.gold,fontWeight:700,letterSpacing:.6,marginBottom:10}}>🏆 SEZONUN EN ÇOK ÖDÜL TOPLAYANI</div>
       <div onClick={()=>git({sayfa:"oyuncu",oyuncu:vitrin[0]})} className="tap" style={{display:"flex",alignItems:"center",gap:13}}>
         <div style={{position:"relative"}}>
-          <div style={{width:54,height:54,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.gold}} dangerouslySetInnerHTML={{__html:svgAvatar(vitrin[0].ad,54)}}/>
+          <div style={{width:54,height:54,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.gold}} dangerouslySetInnerHTML={{__html:svgAvatar(vitrin[0].ad,54,vitrin[0].foto)}}/>
           <span style={{position:"absolute",bottom:-4,right:-4,fontSize:18}}>👑</span>
         </div>
         <div style={{flex:1,minWidth:0}}>
@@ -3982,7 +4018,7 @@ function KralPodyum({liste, alan, renk, T, git}){
     {siralama.map((o,i)=> o &&
       <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:o})} className="tap" style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1,minWidth:0}}>
         <div style={{position:"relative"}}>
-          <div style={{width:boy[i],height:boy[i],borderRadius:"50%",overflow:"hidden",border:"2px solid "+(i===1?T.gold:renk)}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,boy[i])}}/>
+          <div style={{width:boy[i],height:boy[i],borderRadius:"50%",overflow:"hidden",border:"2px solid "+(i===1?T.gold:renk)}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,boy[i],o.foto)}}/>
           <span style={{position:"absolute",bottom:-4,right:-4,fontSize:16}}>{madalya[i]}</span>
         </div>
         <div style={{fontSize:11,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%",marginTop:6}}>{o.ad.split(" ")[0]}</div>
@@ -4046,7 +4082,7 @@ function Karsilastir({tip, a, b, aday, turnuva, T, git}){
       </div>
       {liste.slice(0,40).map(o=>
         <div key={o.id} onClick={()=>setSecB(o)} className="tap" style={{display:"flex",alignItems:"center",gap:10,background:T.bg1,borderRadius:10,padding:"9px 11px",marginBottom:5,border:"0.5px solid "+T.line}}>
-          <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,30)}}/>
+          <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,30,o.foto)}}/>
           <span style={{flex:1,fontSize:13,color:T.text}}>{o.ad}</span>
           <span style={{fontSize:11,color:T.textMut}}>{o.gol||0}G {o.asist||0}A</span>
         </div>
@@ -4067,9 +4103,9 @@ function Karsilastir({tip, a, b, aday, turnuva, T, git}){
   };
   return <div className="fade-in" style={{padding:"16px 14px 90px"}}>
     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-around",marginBottom:14}}>
-      <div style={{textAlign:"center",flex:1}}><div style={{width:48,height:48,borderRadius:"50%",overflow:"hidden",margin:"0 auto 6px"}} dangerouslySetInnerHTML={{__html:svgAvatar(a.ad,48)}}/><div style={{fontSize:12,color:T.text,fontWeight:700}}>{a.ad}</div><div style={{fontSize:9,color:T.textMut}}>{a.poz}</div></div>
+      <div style={{textAlign:"center",flex:1}}><div style={{width:48,height:48,borderRadius:"50%",overflow:"hidden",margin:"0 auto 6px"}} dangerouslySetInnerHTML={{__html:svgAvatar(a.ad,48,a.foto)}}/><div style={{fontSize:12,color:T.text,fontWeight:700}}>{a.ad}</div><div style={{fontSize:9,color:T.textMut}}>{a.poz}</div></div>
       <div style={{padding:"16px 6px 0",fontSize:11,color:T.textMut,fontWeight:700}}>VS</div>
-      <div style={{textAlign:"center",flex:1}}><div style={{width:48,height:48,borderRadius:"50%",overflow:"hidden",margin:"0 auto 6px"}} dangerouslySetInnerHTML={{__html:svgAvatar(secB.ad,48)}}/><div style={{fontSize:12,color:T.text,fontWeight:700}}>{secB.ad}</div><div style={{fontSize:9,color:T.textMut}}>{secB.poz}</div></div>
+      <div style={{textAlign:"center",flex:1}}><div style={{width:48,height:48,borderRadius:"50%",overflow:"hidden",margin:"0 auto 6px"}} dangerouslySetInnerHTML={{__html:svgAvatar(secB.ad,48,secB.foto)}}/><div style={{fontSize:12,color:T.text,fontWeight:700}}>{secB.ad}</div><div style={{fontSize:9,color:T.textMut}}>{secB.poz}</div></div>
     </div>
     <div style={{background:T.bg1,borderRadius:12,padding:"4px 14px 10px",border:"0.5px solid "+T.line}}>
       {satir("OVR",a.ovr||0,secB.ovr||0)}
@@ -4107,7 +4143,7 @@ function SezonSonu({turnuva, T, git}){
       <div style={{position:"relative"}}>
         <div style={{fontSize:12,color:T.gold,fontWeight:800,letterSpacing:2,marginBottom:14}} className="vav-parla">🏆 ŞAMPİYON</div>
         <div className="vav-suzul" style={{display:"inline-block",position:"relative",borderRadius:16,boxShadow:"0 0 30px "+T.gold+"66"}}>
-          <Logo renk={sampiyon.renk} ad={sampiyon.ad} boy={80}/>
+          <Logo renk={sampiyon.renk} ad={sampiyon.ad} logo={sampiyon.logo} boy={80}/>
         </div>
         <div style={{fontSize:24,color:T.text,fontWeight:800,marginTop:14,fontFamily:T.fontDisplay}}>{sampiyon.ad}</div>
         <div style={{fontSize:12,color:T.textMut,marginTop:4}}>{sampiyon.puan} puan · {sampiyon.o||0} maç · {sampiyon.ag||0} gol</div>
@@ -4121,7 +4157,7 @@ function SezonSonu({turnuva, T, git}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         {[["⚽ Gol Kralı",golK,"gol"],["🎯 Asist Kralı",asistK,"asist"],["🧤 En İyi Kaleci",kaleciK,"kurtaris"],["🥇 Altın Top",altin,"altin"]].map(([et,o,alan],i)=>
           o && <div key={i} onClick={()=>git&&git({sayfa:"oyuncu",oyuncu:{...o,turnuva:turnuva.ad}})} className="tap" style={{background:T.bg1,borderRadius:12,padding:11,border:"0.5px solid "+T.line,display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34)}}/>
+            <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34,o.foto)}}/>
             <div style={{minWidth:0,flex:1}}><div style={{fontSize:9,color:T.textMut}}>{et}</div><div style={{fontSize:12,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div></div>
             <span style={{fontSize:16,fontWeight:800,color:T.gold,fontFamily:T.fontDisplay}}>{o[alan]}</span>
           </div>
@@ -4137,7 +4173,7 @@ function SezonSonu({turnuva, T, git}){
           <div key={poz} style={{display:"flex",justifyContent:"space-around",marginBottom:ri<3?18:0}}>
             {list.map(o=>
               <div key={o.id} onClick={()=>git&&git({sayfa:"oyuncu",oyuncu:{...o,turnuva:turnuva.ad}})} className="tap" style={{textAlign:"center"}}>
-                <div style={{width:36,height:36,borderRadius:"50%",overflow:"hidden",border:"2px solid "+pozRenk(poz),margin:"0 auto"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,36)}}/>
+                <div style={{width:36,height:36,borderRadius:"50%",overflow:"hidden",border:"2px solid "+pozRenk(poz),margin:"0 auto"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,36,o.foto)}}/>
                 <div style={{fontSize:8,color:"#fff",marginTop:3,fontWeight:600,textShadow:"0 1px 2px #000"}}>{o.ad.split(" ")[0]}</div>
                 <div style={{fontSize:8,color:T.gold,fontWeight:700}}>{o.ovr}</div>
               </div>
@@ -4153,7 +4189,7 @@ function SezonSonu({turnuva, T, git}){
       {sirali.map((tk,i)=>
         <div key={tk.id} style={{display:"flex",alignItems:"center",gap:8,background:i===0?T.gold+"12":T.bg1,borderRadius:9,padding:"8px 11px",marginBottom:3,borderLeft:i===0?"2px solid "+T.gold:"2px solid transparent"}}>
           <span style={{width:16,fontSize:11,fontWeight:700,color:i===0?T.gold:T.textMut,textAlign:"center"}}>{i+1}</span>
-          <Logo renk={tk.renk} ad={tk.ad} boy={20}/>
+          <Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} boy={20}/>
           <span style={{flex:1,fontSize:12,color:T.text,fontWeight:i===0?700:400}}>{tk.ad}</span>
           <span style={{fontSize:13,fontWeight:800,color:i===0?T.gold:T.text,fontFamily:T.fontDisplay}}>{tk.puan||0}</span>
         </div>
@@ -4339,7 +4375,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip}){
       <div className="vav-supurme"/>
       {/* süzülen amblem + büyük başlık */}
       <div style={{display:"flex",alignItems:"center",gap:14,position:"relative"}}>
-        <div className="vav-suzul" style={{border:"3px solid "+takim.renk+"88",borderRadius:16,overflow:"hidden",boxShadow:"0 0 24px "+takim.renk+"66",flexShrink:0,background:T.bg2}}><Logo renk={takim.renk} ad={takim.ad} boy={70}/></div>
+        <div className="vav-suzul" style={{border:"3px solid "+takim.renk+"88",borderRadius:16,overflow:"hidden",boxShadow:"0 0 24px "+takim.renk+"66",flexShrink:0,background:T.bg2}}><Logo renk={takim.renk} ad={takim.ad} logo={takim.logo} boy={70}/></div>
         <div style={{minWidth:0}}>
           <div style={{fontSize:24,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.15,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{takim.ad} <span style={{fontSize:11,background:T.accent+"22",color:T.accent,fontWeight:700,borderRadius:6,padding:"2px 8px"}}>{guvNotu}</span></div>
           <div style={{fontSize:11,color:T.textSoft,marginTop:4}}>{takim.oyuncular.length} oyuncu · {takim.o} maç · ort. güç <b style={{color:takim.renk,fontFamily:T.fontDisplay}}>{ortGuc}</b></div>
@@ -4628,7 +4664,7 @@ function LisansKarti({o, turnuva, T}){
       </div>
       <div style={{display:"flex",padding:13,gap:12}}>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,flexShrink:0}}>
-          <div style={{width:74,height:74,borderRadius:11,overflow:"hidden",border:"2px solid "+rolRenk}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,74)}}/>
+          <div style={{width:74,height:74,borderRadius:11,overflow:"hidden",border:"2px solid "+rolRenk}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,74,o.foto)}}/>
           <Logo renk={o.renk||(turnuva&&turnuva.takimlar.find(tk=>tk.oyuncular.some(p=>p.id===o.id))?.renk)||"#888"} ad={o.takimAd||""} boy={54}/>
         </div>
         <div style={{flex:1,minWidth:0,border:"0.5px solid "+T.line,borderRadius:8,overflow:"hidden",alignSelf:"flex-start"}}>
@@ -4797,7 +4833,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
       <div className="vav-supurme"/>
       {/* süzülen avatar + büyük başlık */}
       <div style={{display:"flex",alignItems:"center",gap:14,position:"relative"}}>
-        <div className="vav-suzul" style={{width:76,height:76,borderRadius:"50%",overflow:"hidden",border:"3px solid "+T.accent+"88",boxShadow:"0 0 22px "+T.accent+"55",flexShrink:0,background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,76)}}/>
+        <div className="vav-suzul" style={{width:76,height:76,borderRadius:"50%",overflow:"hidden",border:"3px solid "+T.accent+"88",boxShadow:"0 0 22px "+T.accent+"55",flexShrink:0,background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,76,o.foto)}}/>
         <div style={{minWidth:0}}>
           <div style={{fontSize:24,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.15,display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>{o.ad} <span style={{color:T.accent,fontSize:14}}>✔</span></div>
           <div style={{fontSize:11,color:T.textSoft,marginTop:4}}>{o.poz} · {o.takimAd}</div>
@@ -5308,7 +5344,7 @@ function MvpOylama({m, turnuva, kadro, T, oturum, sahiplenme}){
       {yuk ? <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:10}}>Yükleniyor…</div> : <>
         {/* MVP kartı */}
         {mvp && <div style={{display:"flex",alignItems:"center",gap:11,background:T.gold+"14",borderRadius:11,padding:10,marginBottom:10}}>
-          <div style={{width:42,height:42,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.gold,flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(mvp.ad,42)}}/>
+          <div style={{width:42,height:42,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.gold,flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(mvp.ad,42,mvp.foto)}}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:9,color:T.gold,fontWeight:800,letterSpacing:.5}}>🏆 ÖNDE</div>
             <div style={{fontSize:14,fontWeight:800,color:T.text}}>{mvp.ad}</div>
@@ -5322,7 +5358,7 @@ function MvpOylama({m, turnuva, kadro, T, oturum, sahiplenme}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
             {kadro.map(o=>{ const ben=o.id===benId; const secili=benimOyum===o.id;
               return <div key={o.id} onClick={()=>!ben&&oyla(o)} className={ben?"":"tap"} style={{display:"flex",alignItems:"center",gap:7,background:secili?T.accent+"22":T.bg0,border:"1px solid "+(secili?T.accent:T.line),borderRadius:9,padding:"7px 8px",opacity:ben?.4:1,cursor:ben?"default":"pointer"}}>
-                <div style={{width:24,height:24,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,24)}}/>
+                <div style={{width:24,height:24,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,24,o.foto)}}/>
                 <span style={{fontSize:11,color:T.text,flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ben?"Sen":o.ad.split(" ")[0]} {ben?"":( sayim[o.id]?"· "+sayim[o.id]:"")}</span>
                 {secili && <span style={{fontSize:11,color:T.accent}}>✓</span>}
               </div>;
@@ -5698,7 +5734,7 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme}){
           {golKatki.map((p,i)=>{
             const oyuncuObj=()=>{ if(!turnuva)return null; for(const tk of turnuva.takimlar){const o=tk.oyuncular.find(x=>x.ad===p.ad); if(o)return {...o,takimAd:tk.ad,turnuva:turnuva.ad,_adaylar:tk.oyuncular};} return null; };
             return <div key={i} onClick={()=>{const o=oyuncuObj(); if(o&&git)git({sayfa:"oyuncu",oyuncu:o});}} className={turnuva?"tap satir-hover":""} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 6px",borderBottom:i<golKatki.length-1?"0.5px solid "+T.line:"none"}}>
-              <div style={{width:28,height:28,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(p.ad,28)}}/>
+              <div style={{width:28,height:28,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(p.ad,28,p.foto)}}/>
               <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.ad}</div><div style={{fontSize:9,color:T.textMut}}>{p.takim}</div></div>
               {p.g>0 && <span style={{fontSize:11,color:T.accent}}>{p.g} gol</span>}
               {p.a>0 && <span style={{fontSize:11,color:T.accent2}}>{p.a} asist</span>}
@@ -5876,7 +5912,7 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme}){
           {sirali.map((tk,i)=>{ const bizim=(tk.ad===m.takimA||tk.ad===m.takimB); const avr=(tk.ag||0)-(tk.yg||0);
             return <div key={tk.id} onClick={()=>git&&git({sayfa:"takim",takim:tk,turnuva})} className="tap" style={{display:"flex",alignItems:"center",gap:7,background:i===0?T.gold+"12":(bizim?T.accent+"10":T.bg1),borderRadius:8,padding:"8px 10px",marginBottom:3,borderLeft:i===0?"2px solid "+T.gold:(bizim?"2px solid "+T.accent:"2px solid transparent")}}>
               <span style={{width:14,fontSize:11,fontWeight:700,color:i===0?T.gold:T.textMut,textAlign:"center"}}>{i+1}</span>
-              <Logo renk={tk.renk} ad={tk.ad} boy={18}/>
+              <Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} boy={18}/>
               <span style={{flex:1,fontSize:11,color:T.text,fontWeight:bizim?700:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tk.ad}</span>
               <span style={{width:22,textAlign:"center",fontSize:10,color:T.textMut}}>{tk.o||0}</span>
               <span style={{width:24,textAlign:"center",fontSize:10,color:T.textMut}}>{avr>=0?"+"+avr:avr}</span>
@@ -5993,7 +6029,7 @@ function KadroKolon({takim, renk, ad, dizilis, ilk11, olaylar, ratingler, T, git
           return <div key={o.id} onClick={()=>setSecili(o)} className="tap" style={{position:"absolute",left:x+"%",top:s.y+"%",transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer",zIndex:2}}>
             <div style={{position:"relative",width:AV,height:AV}}>
               <div style={{position:"absolute",inset:-2,borderRadius:"50%",background:"radial-gradient(circle,"+c+"44,transparent 70%)"}}/>
-              <div style={{position:"relative",width:AV,height:AV,borderRadius:"50%",overflow:"hidden",border:"2px solid "+c,boxShadow:"0 3px 7px rgba(0,0,0,.5),0 0 7px "+c+"55"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,AV)}}/>
+              <div style={{position:"relative",width:AV,height:AV,borderRadius:"50%",overflow:"hidden",border:"2px solid "+c,boxShadow:"0 3px 7px rgba(0,0,0,.5),0 0 7px "+c+"55"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,AV,o.foto)}}/>
               {isKap && <div style={{position:"absolute",top:-3,left:-3,width:12,height:12,borderRadius:"50%",background:"linear-gradient(135deg,#FFD970,#E0A020)",color:"#3a2800",fontSize:7,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>C</div>}
               {sariSet.has(o.ad) && <div style={{position:"absolute",top:-2,right:-2,width:6,height:9,background:"#F2C200",borderRadius:1,border:"1px solid #0a2718"}}/>}
               {kirmiziSet.has(o.ad) && <div style={{position:"absolute",top:-2,right:-2,width:6,height:9,background:"#E23B3B",borderRadius:1,border:"1px solid #0a2718"}}/>}
@@ -6019,7 +6055,7 @@ function KadroKolon({takim, renk, ad, dizilis, ilk11, olaylar, ratingler, T, git
         const r=ratingler?ratingler[o.ad]:null;
         const rc = r!=null ? (r>=8.5?"#1a9c5b":r>=7?"#3ea76b":r>=6?"#c4a01e":"#d3504a") : null;
         return <div key={o.id} onClick={()=>setSecili(o)} className="tap" style={{display:"flex",alignItems:"center",gap:8,padding:"5px 2px",opacity:girdi?1:0.55}}>
-          <div style={{width:24,height:24,borderRadius:"50%",overflow:"hidden",border:"1.5px solid "+(girdi?"#34D399":T.line),flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,24)}}/>
+          <div style={{width:24,height:24,borderRadius:"50%",overflow:"hidden",border:"1.5px solid "+(girdi?"#34D399":T.line),flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,24,o.foto)}}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:10,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}><span style={{color:T.gold,fontWeight:800}}>{o.no}</span> {o.ad}</div>
             {girdi ? <div style={{fontSize:8,color:T.textMut,marginTop:1}}><span style={{color:"#34D399",fontWeight:700}}>↑ {girdi.dk!=null&&girdi.dk!==""?girdi.dk+"'":""}</span>{girdi.partner?" · "+girdi.partner+" yerine":""}</div>
@@ -6043,7 +6079,7 @@ function KadroKolon({takim, renk, ad, dizilis, ilk11, olaylar, ratingler, T, git
                 <div style={{fontSize:10,color:pozRenk(secili.poz),fontWeight:700}}>{secili.poz==="Kaleci"?"GK":secili.poz==="Defans"?"DEF":secili.poz==="OrtaSaha"?"ORT":"FOR"}</div>
                 <div style={{fontSize:10,color:"#fff",marginTop:3}}>#{secili.no}{kaptan&&secili.id===kaptan.id?" Ⓒ":""}</div>
               </div>
-              <div style={{width:60,height:60,borderRadius:"50%",overflow:"hidden",border:"2px solid "+pozRenk(secili.poz)+"88"}} dangerouslySetInnerHTML={{__html:svgAvatar(secili.ad,60)}}/>
+              <div style={{width:60,height:60,borderRadius:"50%",overflow:"hidden",border:"2px solid "+pozRenk(secili.poz)+"88"}} dangerouslySetInnerHTML={{__html:svgAvatar(secili.ad,60,secili.foto)}}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:15,fontWeight:800,color:pozRenk(secili.poz),textTransform:"uppercase",lineHeight:1.1}}>{secili.ad}</div>
                 <div style={{fontSize:10,color:"#9fd",marginTop:2}}>{ad}</div>
@@ -6704,7 +6740,7 @@ function MacKurulum({mac, turnuva, T, git, kaydet}){
             border:o?(buSecili?"2px solid "+T.accent:"none"):"1.5px dashed rgba(255,255,255,.55)",
             boxShadow:hedefVurgu&&!o?"0 0 0 2px "+T.accent+"55":"none"}}>
             {o ? <div style={{display:"flex",flexDirection:"column",alignItems:"center",opacity:buSecili?.55:1,pointerEvents:"none"}}>
-              <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",border:"2px solid "+(buSecili?T.accent:renk),boxShadow:"0 2px 5px rgba(0,0,0,.4)"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34)}}/>
+              <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",border:"2px solid "+(buSecili?T.accent:renk),boxShadow:"0 2px 5px rgba(0,0,0,.4)"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34,o.foto)}}/>
               <div style={{fontSize:8,color:"#fff",fontWeight:600,marginTop:2,textShadow:"0 1px 2px #000",whiteSpace:"nowrap"}}>{o.ad.split(" ")[0]}</div>
               <div style={{fontSize:8,background:T.gold,color:"#1A1505",fontWeight:700,borderRadius:3,padding:"0 4px"}}>{o.ovr}</div>
             </div> : <span style={{fontSize:18,color:"rgba(255,255,255,.45)",pointerEvents:"none"}}>+</span>}
@@ -7041,7 +7077,7 @@ function TakipSayfa({T, turnuvalar, takipLig, takipOyuncu, takipTakim, ligTakip,
           {ligler.map(t=>{ const aktif=(aktifLig&&aktifLig.id===t.id);
             return <div key={t.id} onClick={()=>setSeciliLig(t.id)} className="tap" style={{display:"flex",alignItems:"center",gap:6,whiteSpace:"nowrap",borderRadius:9,padding:"6px 10px",
               background:aktif?t.renk+"22":T.bg1,border:"0.5px solid "+(aktif?t.renk:T.line)}}>
-              <Logo renk={t.renk} ad={t.ad} boy={18}/>
+              <Logo renk={t.renk} ad={t.ad} logo={t.logo} boy={18}/>
               <span style={{fontSize:11,color:aktif?T.text:T.textMut,fontWeight:aktif?700:500}}>{t.ad}</span>
             </div>;
           })}
@@ -7050,7 +7086,7 @@ function TakipSayfa({T, turnuvalar, takipLig, takipOyuncu, takipTakim, ligTakip,
         {aktifLig && <>
           {/* lig başlık + takipten çık */}
           <div style={{display:"flex",alignItems:"center",gap:9,background:T.bg1,borderRadius:11,padding:"10px 12px",marginBottom:10}}>
-            <Logo renk={aktifLig.renk} ad={aktifLig.ad} boy={32}/>
+            <Logo renk={aktifLig.renk} ad={aktifLig.ad} logo={aktifLig.logo} boy={32}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,color:T.text,fontWeight:700}}>{aktifLig.ad}</div>
               <div style={{fontSize:10,color:ligDurum(aktifLig).renk,fontWeight:600}}>{ligDurum(aktifLig).yazi}</div>
@@ -7090,7 +7126,7 @@ function TakipSayfa({T, turnuvalar, takipLig, takipOyuncu, takipTakim, ligTakip,
           const rakip = siradakiMac ? (siradakiMac.takimA===tk.ad?siradakiMac.takimB:siradakiMac.takimA) : null;
           return <div key={tk.id} style={{background:T.bg1,borderRadius:11,padding:"11px 12px",marginBottom:8}}>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>
-              <div onClick={()=>git({sayfa:"takim",takim:tk,turnuva:t})} className="tap" style={{flexShrink:0}}><Logo renk={tk.renk} ad={tk.ad} boy={40}/></div>
+              <div onClick={()=>git({sayfa:"takim",takim:tk,turnuva:t})} className="tap" style={{flexShrink:0}}><Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} boy={40}/></div>
               <div onClick={()=>git({sayfa:"takim",takim:tk,turnuva:t})} className="tap" style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <span style={{fontSize:13,color:T.text,fontWeight:700}}>{tk.ad}</span>
@@ -7172,7 +7208,7 @@ function TakipLigIcerik({turnuva, ligTab, T, git}){
     {sirali.map((t,i)=>
       <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva})} className="tap" style={{display:"flex",alignItems:"center",gap:8,padding:"8px 9px",background:T.bg1,borderRadius:9,marginBottom:4}}>
         <span style={{fontSize:12,fontWeight:700,width:16,color:i===0?T.gold:i<3?T.text:T.textMut}}>{i+1}</span>
-        <Logo renk={t.renk} ad={t.ad} boy={22}/>
+        <Logo renk={t.renk} ad={t.ad} logo={t.logo} boy={22}/>
         <span style={{fontSize:12,color:T.text,flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span>
         <span style={{fontSize:9,color:T.textMut,whiteSpace:"nowrap"}}>O{t.o||0} G{t.g||0} B{t.b||0} M{t.m||0}</span>
         <span style={{fontSize:13,fontWeight:800,fontFamily:T.fontDisplay,color:i===0?T.gold:T.text,minWidth:22,textAlign:"right"}}>{t.puan||0}</span>
@@ -8206,7 +8242,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
                 border:o?(buSecili?"2px solid "+T.accent:"none"):"1.5px dashed rgba(255,255,255,.55)",
                 boxShadow:hedefVurgu&&!o?"0 0 0 2px "+T.accent+"55":"none"}}>
                 {o ? <div style={{display:"flex",flexDirection:"column",alignItems:"center",opacity:buSecili?.55:1,pointerEvents:"none"}}>
-                  <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",border:"2px solid "+(buSecili?T.accent:renk),boxShadow:"0 2px 5px rgba(0,0,0,.4)"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34)}}/>
+                  <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",border:"2px solid "+(buSecili?T.accent:renk),boxShadow:"0 2px 5px rgba(0,0,0,.4)"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34,o.foto)}}/>
                   <div style={{fontSize:8,color:"#fff",fontWeight:600,marginTop:2,textShadow:"0 1px 2px #000",whiteSpace:"nowrap"}}>{o.ad.split(" ")[0]}</div>
                   <div style={{fontSize:8,background:T.gold,color:"#1A1505",fontWeight:700,borderRadius:3,padding:"0 4px"}}>{o.ovr}</div>
                 </div> : <span style={{fontSize:18,color:"rgba(255,255,255,.45)",pointerEvents:"none"}}>+</span>}
@@ -9917,7 +9953,7 @@ function App(){
                 <div style={{fontSize:10,color:T.textMut,fontWeight:700,marginBottom:6}}>👤 OYUNCULAR</div>
                 {oyuncular.map(({o,tk,t})=>
                   <div key={o.id} onClick={()=>go({sayfa:"oyuncu",oyuncu:{...o,turnuva:t.ad}})} className="tap" style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",borderRadius:9,marginBottom:2}}>
-                    <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,30)}}/>
+                    <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,30,o.foto)}}/>
                     <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div><div style={{fontSize:10,color:T.textMut}}>{tk.ad} · {t.ad}</div></div>
                     <span style={{fontSize:11,color:T.textMut}}>›</span>
                   </div>
@@ -9927,7 +9963,7 @@ function App(){
                 <div style={{fontSize:10,color:T.textMut,fontWeight:700,marginBottom:6}}>⚽ TAKIMLAR</div>
                 {takimlar.map(({tk,t})=>
                   <div key={tk.id} onClick={()=>go({sayfa:"takim",takim:tk,turnuva:t})} className="tap" style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",borderRadius:9,marginBottom:2}}>
-                    <Logo renk={tk.renk} ad={tk.ad} boy={30}/>
+                    <Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} boy={30}/>
                     <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tk.ad}</div><div style={{fontSize:10,color:T.textMut}}>{t.ad} · {tk.oyuncular.length} oyuncu</div></div>
                     <span style={{fontSize:11,color:T.textMut}}>›</span>
                   </div>

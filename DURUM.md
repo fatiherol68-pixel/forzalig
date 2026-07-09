@@ -123,6 +123,30 @@ Masaüstü Perf **99** / Erişilebilirlik **100**. FCP 3.8→1.6s (statik splash
 - **Güvenlik başlıkları (securityheaders F) şimdilik BIRAKILDI** ← kullanıcı seçti. Fonksiyonel risk yok.
   İleride istenirse çözüm: Cloudflare (ücretsiz) + DNS/nameserver değişikliği (kullanıcı aksiyonu).
 
+## AKTİF GELİŞTİRME — Fotoğraflı takım/oyuncu + davet zinciri (BAŞLANDI, main'e deploy EDİLMEDİ)
+Kullanıcı istedi: (1) takım kaptanı linkle takım kurar (ad + 2 renk + logo foto), (2) otomatik oyuncu
+linki/QR çıkar, (3) oyuncular Google ile ZORUNLU giriş yapıp kayıt olur (ad soyad, mevki, forma no,
+FOTOĞRAF + opsiyonel kg/boy/doğum/uyruk), (4) admin ligden düzeltir. Fotoğraf her yerde (kadro,
+istatistik, gazete, kartlar). Google girişi zorunlu — kullanıcı bilerek seçti (kayıp riskini söyledim).
+
+**PARÇA 1 — Fotoğraf altyapısı: BİTTİ (feature dalında, main'de DEĞİL).**
+- `svgAvatar(ad,boy,foto)` + `svgAmblem(ad,renk,boy,logo)`: foto/logo varsa `<img object-fit:cover>`,
+  yoksa eski çizim. Avatar/Logo bileşenleri güncel. ~28 avatar + ~25 logo çağrısı perl ile bağlandı
+  (foto/logo yoksa otomatik çizime düşer — güvenli, geriye dönük uyumlu).
+- Veri: oyuncu `foto:null`, takım `logo:null, renk2:null` (yeniOyuncu/yeniTakim + ilişkisel kaydet/yükle
+  eşlemesi eklendi). Paylaşımda (paylasimIcinTemizle) foto/logo KORUNUR (doğum/tel/kilo gizli kalır).
+- `fotoYukle(dosya,klasor)` + `resimKucult`: telefon fotoğrafını max 512px jpeg'e küçültür → Supabase
+  Storage `fotolar` bucket → public URL. sb yoksa/giriş yoksa hata (çağıran avatar'a düşer).
+- Offline smoke: 0 hata, avatar/logo render (çizim fallback çalışıyor). Derleme temiz.
+- **KULLANICI GÖREVİ (paralel):** `supabase/11_foto_storage.sql` çalıştıracak (fotolar bucket + RLS +
+  oyuncular.foto / takimlar.logo,renk2 sütunları). Bu olmadan foto yükleme uçtan uca test edilemez.
+
+**PARÇA 2 (SIRADA) — Davet zinciri UI:** kaptan takım kurulum formu (ad + 2 renkli seçici + logo yükle)
+→ otomatik oyuncu davet linki/QR. `DavetKatil` (9142) şu an sadece isim/no alıyor; zenginleştirilecek.
+**PARÇA 3 (SIRADA) — Google zorunlu oyuncu kayıt + foto seçici + admin düzenleme ekranları.**
+NOT: `oyuncular_acik` (public KVKK view) foto sütununu içermiyor olabilir — public relational okuma için
+foto'yu o view'e eklemek gerekebilir (paylaşım JSON blob yolunda foto zaten görünür, o yüzden kritik değil).
+
 ## Güvenlik başlıkları notu (securityheaders.com = F)
 GitHub Pages özel HTTP yanıt başlığı (HSTS/CSP/X-Frame-Options/X-Content-Type-Options/
 Referrer-Policy/Permissions-Policy) EKLETMİYOR — statik hosting sınırı. Meta etiketiyle sadece
