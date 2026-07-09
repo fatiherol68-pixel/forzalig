@@ -2065,12 +2065,16 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   </div>;
 
   const kullaniciAd = oturum ? ((oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email.split("@")[0]) : "Misafir";
+  // Sahiplendiğin oyuncunun fotoğrafı → profil avatarında da göster
+  let benimOyuncum=null;
+  if(oturum){ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ const f=(tk.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id); if(f){benimOyuncum=f;break;} } if(benimOyuncum)break; } }
+  const profilFoto = (benimOyuncum&&benimOyuncum.foto)||null;
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     {/* KİŞİSEL HERO */}
     <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"20px 16px 18px",background:"linear-gradient(120deg,"+T.accent+"3a,"+T.bg0+" 45%,"+(T.accent2||T.accent)+"22 75%,"+T.bg0+")"}}>
       <div className="vav-supurme"/>
       <div style={{position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:13}}>
-        <div className="vav-suzul" style={{width:60,height:60,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.accent,flexShrink:0,boxShadow:"0 0 18px "+T.accent+"55"}} dangerouslySetInnerHTML={{__html:svgAvatar(kullaniciAd,60)}}/>
+        <div className="vav-suzul" style={{width:60,height:60,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.accent,flexShrink:0,boxShadow:"0 0 18px "+T.accent+"55"}} dangerouslySetInnerHTML={{__html:svgAvatar(kullaniciAd,60,profilFoto)}}/>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:11,color:T.textSoft}}>{oturum?"Merhaba 👋":"Hoş geldin"}</div>
           <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{kullaniciAd}</div>
