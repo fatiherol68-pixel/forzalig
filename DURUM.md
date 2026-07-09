@@ -202,3 +202,28 @@ CDN yerine yerel React UMD ile açıp (sb=null → misafir/çevrimdışı mod) o
 ## Kullanıcının son tarama raporu (referans — her şey ✅)
 20 lig, 136 takım, 1500 oyuncu, 399 maç (hepsi oynanmış), KVKK güvenli, 0 tutarsız maç,
 7 üye, 1 admin. (Bunlar demo/test verisi — lansmanda 99 SQL ile silinecek.)
+
+## BU OTURUMDA YAPILANLAR — 6. tur (9 Tem 2026, PWA Faz 1+2) ✅ DEPLOY EDİLDİ
+Mobil denetim (40 madde) → 4 fazlı yol haritası çıkarıldı. Faz 1+2 birlikte yapıldı ve main'e alındı:
+- **İkonlar**: `icons/ikon.svg` (koyu zemin + neon yeşil top + FORZA) → Chromium ile PNG'ye
+  çevrildi (192/512/maskable-512/apple-touch-180 + apple-splash-1170x2532). Yeniden üretmek:
+  scratchpad `rasterize.js` (playwright-core + /opt/pw-browsers/chromium).
+- **manifest.json**: standalone, portrait, #070B12, ikonlar. Ana ekrana ekle artık markalı ikon.
+- **sw.js (service worker)**: HTML=önce ağ, CDN+ikonlar=önce önbellek, Supabase'e karışmaz.
+  Yeni sürüm bulununca saf-JS "✨ Yeni sürüm hazır — Yenile" toast'ı (index.html head'de kayıt scripti).
+  `derle.js` her derlemede `FL_SW_SURUM`'u commit+zaman damgasıyla değiştirir → `build/sw.compiled.js`.
+  Deploy'da `sw.compiled.js` → main'de `sw.js` olarak kopyalanır. (İlk seferde .replace tek geçiş
+  değiştirdi — .split/join'e çevrildi.)
+- **Apple meta**: apple-mobile-web-app-capable, black-translucent status bar, apple-touch-icon, splash.
+- **Tarayıcı geçmişi**: `git()` artık `history.pushState({fz:1})` ekliyor; `popstate` → iç yığından
+  `geriIc()`. Uygulamanın ← butonu history ile senkron. Telefonun geri tuşu uygulamadan atmıyor
+  (offline Playwright testiyle doğrulandı: Keşfet→lig→geri tuşu→Keşfet, uygulama içinde kaldı).
+- **Safe-area**: standalone modda `#root{padding-top:env(safe-area-inset-top)}` (çentik).
+- **Faz 2 cila**: `.fl-skel` iskelet yükleyici (paylaşılan lig yüklenirken), `titret()` haptik
+  (git/menuGit), `touch-action:manipulation`, alt menü butonları ≥48px, 600–819px tablet düzeni.
+- **Kaza + temizlik**: deploy sırasında `build/node_modules` yanlışlıkla main'e girdi → hemen
+  `git rm -r build` + `.gitignore` ile temizlendi; Pages build success (5aac9a1).
+- Analiz artifact'ları: denetim/yol haritası/karne/tasarım (Claude artifacts, linkler sohbette).
+
+## SIRADAKİ: Faz 3 (sosyal/ağ: paylaşım kartları, bildirim, çevrimdışı) ve Faz 4 (büyüme) — kullanıcı isterse.
+Kullanıcı canlıda test etmeli: ana ekrana ekle (markalı ikon), tam ekran açılış, geri tuşu, yeni sürüm toast'ı.
