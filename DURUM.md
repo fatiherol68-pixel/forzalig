@@ -101,6 +101,17 @@ NOT: Kalan darboğaz TBT ~230ms (React parse/boot). 95+ garanti için Supabase'i
 gerekir ama o AUTH akışını riske atar — lansman öncesi yapılmadı (bilerek). Kullanıcı isterse ayrı tur.
 NOT2: İlk açılışta artık "çift splash" olabilir (statik → sonra React'in animasyonlu splash'ı). İkisi de
 koyu/ForzaLig, akıcı; kullanıcı beğenmezse React splash'ı ilk açılışta atlatılabilir.
+NOT3: Kullanıcı 11:16'da ölçtüğünde mobil hâlâ 75 + filmstrip eski (beyaz→animasyon) çıktı → deploy
+YAYILMADAN ölçmüş. origin/main'de splash doğru konumda (satır 188, inline script satır 206'dan önce)
+teyit edildi. Sert yenile + 1 dk bekleyip tekrar ölçmesi gerekiyor.
+
+## BU OTURUMDA YAPILANLAR — 5. tur (erişilebilirlik: "Canlı" kontrastı)
+PageSpeed kontrast raporunu açtı → başarısız öğe: `<span class="live-dot">` "Canlı" (üst header,
+font 11px, bg #070B12). Kök neden: `@keyframes pulse{50%{opacity:.4}}` animasyonu TÜM span'a
+(nokta+yazı) uygulanıyordu; Lighthouse sönük anında (opacity .4) yakalayınca yeşil metnin kontrastı
+~2.5:1'e düşüyordu. Düzeltme: `live-dot` (pulse) sınıfı artık sadece 7×7 iç NOKTADA; "Canlı" yazısı
+tam opak (accent yeşil #34D399 on #070B12 = ~10:1 ✅). Canlı yanıp-sönme efekti korundu. Offline
+smoke: 0 hata, live-dot 7×7 noktada, uygulama render ediyor. → mobil+masaüstü Erişilebilirlik 90→95+ beklenir.
 
 ## Güvenlik başlıkları notu (securityheaders.com = F)
 GitHub Pages özel HTTP yanıt başlığı (HSTS/CSP/X-Frame-Options/X-Content-Type-Options/

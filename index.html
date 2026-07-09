@@ -9878,7 +9878,7 @@ function App(){
           <button onClick={()=>{setAramaAcik(true);setAramaMetin("");}} className="tap" style={{fontSize:18,background:"none",border:0,color:T.textSoft}}>🔍</button>
           {bulutDurum ? <span style={{fontSize:10,color:T.accent,fontWeight:600,whiteSpace:"nowrap"}}>☁ {bulutDurum}</span>
             : oturum ? <span title="Buluta bağlı" style={{fontSize:12,color:T.accent}}>☁</span> : null}
-          <span className="live-dot" style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:T.accent}}><span style={{width:7,height:7,borderRadius:"50%",background:T.accent}}/>Canlı</span>
+          <span style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:T.accent}}><span className="live-dot" style={{width:7,height:7,borderRadius:"50%",background:T.accent}}/>Canlı</span>
           <button onClick={()=>git({sayfa:"takip"})} className="tap" style={{position:"relative",fontSize:18}}>🔔
             {bildirimler.length>0 && <span style={{position:"absolute",top:-4,right:-6,background:T.danger,color:"#fff",fontSize:9,fontWeight:700,borderRadius:8,padding:"1px 5px"}}>{bildirimler.length}</span>}
           </button>
