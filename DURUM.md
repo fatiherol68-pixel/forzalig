@@ -113,6 +113,16 @@ font 11px, bg #070B12). Kök neden: `@keyframes pulse{50%{opacity:.4}}` animasyo
 tam opak (accent yeşil #34D399 on #070B12 = ~10:1 ✅). Canlı yanıp-sönme efekti korundu. Offline
 smoke: 0 hata, live-dot 7×7 noktada, uygulama render ediyor. → mobil+masaüstü Erişilebilirlik 90→95+ beklenir.
 
+## KULLANICI KARARLARI (9 Tem 2026 — bunlara UYULACAK)
+Son PageSpeed (yeni sürüm canlı): Mobil Perf **84** / Erişilebilirlik **100** / En İyi 96 / SEO 100.
+Masaüstü Perf **99** / Erişilebilirlik **100**. FCP 3.8→1.6s (statik splash tuttu). Erişilebilirlik
+90→100 ("Canlı" kontrast fix tuttu). Kalan tek kırmızı: mobil **LCP 4.6s**.
+- **AÇILIŞ SPLASH'İ 4 SANİYE KALACAK** ← kullanıcı bilerek seçti. LCP 4.6s'nin sebebi bu (animasyonlu
+  splash içeriği geciktiriyor). Mobili 95'e çıkarmak splash'i kısaltmayı/atlamayı gerektirir ama
+  kullanıcı animasyonu tercih etti. **SPLASH SÜRESİNE/ANİMASYONUNA DOKUNMA** (aksi istenmedikçe).
+- **Güvenlik başlıkları (securityheaders F) şimdilik BIRAKILDI** ← kullanıcı seçti. Fonksiyonel risk yok.
+  İleride istenirse çözüm: Cloudflare (ücretsiz) + DNS/nameserver değişikliği (kullanıcı aksiyonu).
+
 ## Güvenlik başlıkları notu (securityheaders.com = F)
 GitHub Pages özel HTTP yanıt başlığı (HSTS/CSP/X-Frame-Options/X-Content-Type-Options/
 Referrer-Policy/Permissions-Policy) EKLETMİYOR — statik hosting sınırı. Meta etiketiyle sadece
