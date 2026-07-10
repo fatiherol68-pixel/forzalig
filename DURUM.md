@@ -255,3 +255,29 @@ Kullanıcı canlıda test etmeli: ana ekrana ekle (markalı ikon), tam ekran aç
 
 ## DURUM: Faz 1-2-3-4 TAMAM ve canlıda. Mobil denetimdeki 40 maddenin çoğu kapandı.
 Kalan opsiyoneller: iOS PWA push bildirimleri (araştırma ister), securityheaders (Cloudflare), Supabase custom domain.
+
+## YOL HARİTASI KARARI (10 Tem 2026) — kullanıcı önceliklendirdi
+Sıra: **1) Transfer  2) Sohbet  3) Bildirim** çekirdek özellikleri bitecek → SONRA Review Tool geliştirilecek.
+
+### PARK EDİLDİ (onaylı, sonra yapılacak): "ForzaLig Inspector / Review Tool"
+Kullanıcı mimariyi ONAYLADI, uygulamayı erteledi. Uygulanacak mimari (CTO tasarımı):
+- **İki katman**:
+  - **Katman A — "ForzaLig Inspector" (ASIL rapor, CI job'ı)**: GitHub Actions "Run workflow"
+    butonuyla çalışır (teknik bilgi gerektirmez). Yapar: (1) `index.html` statik parse → route/
+    component envanteri + ölü kod/kullanılmayan görsel tespiti, (2) Playwright ile her sayfanın
+    iPhone/Android/tablet ekran görüntüsü, (3) Lighthouse mobil + axe-core, (4) build manifesti
+    (git commit/tarih/boyut/SW ver — derle.js genişletilir), (5) `supabase/*.sql`'den RLS/RPC/tablo
+    envanteri (canlı DB'ye DOKUNMADAN). Çıktı: **ZIP** = `rapor.html` (insan) + `rapor.md` (AI'ya
+    verilecek TEK dosya — metin öncelikli, token-verimli) + `rapor.json` + `/ekranlar/`.
+  - **Katman B — "Canlı Snapshot" (gizli kısayol, İKİNCİL)**: sadece canlı üretim verisini çeker
+    (DB'de kaç lig/takım/oyuncu/maç, o anki rol, PWA/SW durumu, oturum perf). Süper Admin kısayolu →
+    sunucu doğrulaması → JSON iner.
+- **Güvenlik**: Katman A kodu kullanıcıya HİÇ gitmez (CI'da yaşar = sıfır saldırı yüzeyi). Katman B
+  için 3 kapı: (1) yeni `rpc('gelistirici_yetkisi')` SECURITY DEFINER — AYRI `super_admin` allowlist
+  (mevcut `adminler` YETMEZ, çünkü "normal admin göremeyecek"), (2) localStorage 'developer mode'
+  bayrağı, (3) yetki yoksa SESSİZ (hiçbir tepki yok). Kısayol gizliliği = görünmezlik, güvenlik değil;
+  asıl kilit sunucudaki RPC.
+- **Puanlama felsefesi**: ÖLÇÜLEN (perf/SEO/a11y/PWA) araçtan gerçek sayı; YARGI (UI/UX, kod kalitesi,
+  DB, güvenlik) AI/CTO doldurur — araç subjektif puan UYDURMAZ.
+- **Rollout**: MVP = statik rapor.md/json (ekran görüntüsüz, %60 değer) → screenshots+html → Lighthouse/axe → Katman B → Actions butonu.
+- Karar bekleyen: süper admin tek kişi mi (muhtemelen sadece kullanıcının user id'i) / Katman B şart mı.
