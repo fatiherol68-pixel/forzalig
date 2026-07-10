@@ -281,3 +281,17 @@ Kullanıcı mimariyi ONAYLADI, uygulamayı erteledi. Uygulanacak mimari (CTO tas
   DB, güvenlik) AI/CTO doldurur — araç subjektif puan UYDURMAZ.
 - **Rollout**: MVP = statik rapor.md/json (ekran görüntüsüz, %60 değer) → screenshots+html → Lighthouse/axe → Katman B → Actions butonu.
 - Karar bekleyen: süper admin tek kişi mi (muhtemelen sadece kullanıcının user id'i) / Katman B şart mı.
+
+## TRANSFER — KİLİTLENEN SPEC (kullanıcı kararı, 10 Tem 2026)
+- **Onay zinciri: LİG YÖNETİCİSİ SON ONAY.** Kaptan transfer isteği başlatabilir → istek "beklemede" →
+  lig yöneticisi onaylayınca transfer olur, reddederse OLMAZ. (Kullanıcı gerekçesi: "gittiği takım sorun
+  çıkarabilir, ligden çıkarım diye bilir" → kontrol lig yöneticisinde olmalı.) Lig yöneticisi kendi
+  başlatırsa anında geçer (zaten son merci).
+- **İstatistik: KARİYER TOPLAMI oyuncuyla taşınır** (profil/kart lifetime gol/asist birikir).
+  ÖNEMLİ NOT: lig içi tablolar (gol kralı vb.) zaten maç olaylarından (m.olaylar) hesaplandığı için
+  bundan ETKİLENMEZ — league standings bozulmaz. Kariyer toplamı sadece oyuncu KARTINDA gösterilir.
+- **Geçmiş**: oyuncu kartında "eski takımlar" listesi görünür.
+- Mevcut iskelet: `transferEt`, "Transfer et"/"Bu oyuncu benim" butonları var → bu spec'e göre yeniden akış.
+- Taslak tasarım artifact: forzalig-cekirdek.html (öncesi/sonrası telefon ekranları).
+
+## ÇEKİRDEK YAPIM SIRASI (kilit): 1) Transfer → 2) App-içi bildirim → 3) Sohbet(Realtime) → 4) Push(iOS 16.4+ PWA)
