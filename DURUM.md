@@ -227,3 +227,18 @@ Mobil denetim (40 madde) → 4 fazlı yol haritası çıkarıldı. Faz 1+2 birli
 
 ## SIRADAKİ: Faz 3 (sosyal/ağ: paylaşım kartları, bildirim, çevrimdışı) ve Faz 4 (büyüme) — kullanıcı isterse.
 Kullanıcı canlıda test etmeli: ana ekrana ekle (markalı ikon), tam ekran açılış, geri tuşu, yeni sürüm toast'ı.
+
+## BU OTURUMDA YAPILANLAR — 7. tur (Faz 3: sosyal/paylaşım + çevrimdışı) ✅ DEPLOY EDİLDİ
+- **Maç skor kartı → GERÇEK görsel**: `skorKartiCanvas(m,turnuva)` 1080×1080 markalı PNG üretir
+  (koyu zemin + neon yeşil, takım amblemleri/logoları, büyük skor, golcüler+dakika, MVP, ForzaLig).
+  `skorKartiPaylas()`: Web Share API (files) varsa doğrudan WhatsApp/Instagram'a dosya yollar;
+  desteklenmezse PNG indirir. `SkorKart` sayfası artık canvas'tan üretilen gerçek görsel önizleme +
+  "📲 Paylaş" / "⬇️ İndir" butonları gösteriyor (eski "ekran görüntüsü al" metni ve FATIHPRO markası kalktı).
+  Takım logoları `crossOrigin="anonymous"` ile yüklenir; taint/hata olursa harf amblemine düşer (export kırılmaz).
+  Offline Playwright ile doğrulandı: PNG üretiliyor (skorkart_render.png), 0 sayfa hatası.
+- **Çevrimdışı lig önbelleği**: paylaşılan lig başarıyla çekilince `localStorage['forzalig_lig_cache_<slug>']`'e
+  yazılır; internet gidince Paylas.getir null dönerse önbellekten açılır ("Çevrimdışı — son kayıtlı görünüm").
+  Periyodik yenileme (25sn) de önbelleği güncel tutar.
+- **Bildirimler** (Faz 3'ün 3. maddesi): iOS PWA push kısıtlı olduğundan bu turda YAPILMADI — ayrı araştırma ister.
+
+## SIRADAKİ: Faz 4 (büyüme: onboarding turu, çoklu lig geçişi, performans rötuşu) — kullanıcı isterse.
