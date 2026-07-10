@@ -242,3 +242,16 @@ Kullanıcı canlıda test etmeli: ana ekrana ekle (markalı ikon), tam ekran aç
 - **Bildirimler** (Faz 3'ün 3. maddesi): iOS PWA push kısıtlı olduğundan bu turda YAPILMADI — ayrı araştırma ister.
 
 ## SIRADAKİ: Faz 4 (büyüme: onboarding turu, çoklu lig geçişi, performans rötuşu) — kullanıcı isterse.
+
+## BU OTURUMDA YAPILANLAR — 8. tur (Faz 4: büyüme) ✅ DEPLOY EDİLDİ
+- **İlk giriş rehberi (onboarding)**: `Rehber({T,bitir})` — 4 adımlı tur (Ana/Keşfet/Paylaş/Profil),
+  alt menüyü yeşil halkayla vurgular, ilk girişte bir kez (`localStorage['forzalig_rehber_v1']`).
+  App'te `rehberGoster` state + `useEffect([kapi])` tetikler (kapı null olunca). Ayarlar'a
+  "🧭 Uygulama turunu göster" butonu eklendi (`rehberBaslat` prop) → tekrar açılır.
+- **Hızlı lig geçişi**: AnaSayfa'da `turnuvalar.length>1` ise üstte yatay chip şeridi (logo+ad),
+  aktif lig vurgulu; chip'e dokununca `git({sayfa:"turnuva",turnuva:lg})`.
+- **Perf rötuşu**: svgAvatar/svgAmblem `<img>`'lerine `decoding="async"`.
+- Offline Playwright ile 7/7 doğrulandı (rehber açıldı/kapandı/flag, şerit render+tıklama, Ayarlar butonu, 0 hata).
+
+## DURUM: Faz 1-2-3-4 TAMAM ve canlıda. Mobil denetimdeki 40 maddenin çoğu kapandı.
+Kalan opsiyoneller: iOS PWA push bildirimleri (araştırma ister), securityheaders (Cloudflare), Supabase custom domain.
