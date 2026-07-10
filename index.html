@@ -966,6 +966,126 @@ function svgAmblem(ad, renk, boy, logo, renkIki){
   </svg>`;
 }
 
+// ===== FAZ 3 — Maç skor kartını GERÇEK görsel (PNG) olarak üret + paylaş =====
+// Web Share API (files) varsa doğrudan WhatsApp/Instagram'a yollar; yoksa PNG indirir.
+function _resimYukle(src){
+  return new Promise((res)=>{
+    if(!src) return res(null);
+    const img=new Image();
+    img.crossOrigin="anonymous";       // Supabase Storage CORS'a açık; taint olursa export kırılmasın diye onerror→null
+    img.onload=()=>res(img);
+    img.onerror=()=>res(null);
+    img.src=src;
+  });
+}
+function _harfAl(ad){ return (ad||"F").replace(/[^A-Za-zÇĞİÖŞÜçğıöşü]/g,"")[0]||"F"; }
+function _amblemCiz(x, cx, cy, r, renk, renk2, ad, img){
+  x.save();
+  x.beginPath(); x.arc(cx,cy,r,0,7);
+  const g=x.createLinearGradient(cx-r,cy-r,cx+r,cy+r); g.addColorStop(0,renk); g.addColorStop(1,renk2||"#0B1220");
+  x.fillStyle=g; x.fill();
+  x.lineWidth=7; x.strokeStyle="rgba(255,255,255,.35)"; x.stroke();
+  if(img){
+    x.save(); x.beginPath(); x.arc(cx,cy,r-5,0,7); x.clip();
+    // kırpılmış daireye orta-kırpma (cover) ile çiz
+    const s=Math.min(img.width,img.height), sx=(img.width-s)/2, sy=(img.height-s)/2;
+    x.drawImage(img, sx, sy, s, s, cx-r+5, cy-r+5, (r-5)*2, (r-5)*2);
+    x.restore();
+  } else {
+    x.fillStyle="#fff"; x.font="800 "+Math.round(r*1.1)+"px Inter, Arial, sans-serif";
+    x.textAlign="center"; x.textBaseline="middle";
+    x.fillText(_harfAl(ad), cx, cy+2);
+  }
+  x.restore();
+}
+// Maçtan 1080×1080 skor kartı canvas'ı üret (marka: ForzaLig, koyu + neon yeşil kimlik)
+async function skorKartiCanvas(m, turnuva){
+  const G=1080, x=(()=>{ const c=document.createElement("canvas"); c.width=G; c.height=G; c._el=c; return c.getContext("2d"); })();
+  const c=x.canvas;
+  const A="#39FF7A", GOLD="#FBBF24", TEXT="#F1F5F9", MUT="#8CA0B3";
+  const takimA = turnuva && turnuva.takimlar.find(t=>t.ad===m.takimA);
+  const takimB = turnuva && turnuva.takimlar.find(t=>t.ad===m.takimB);
+  const renkA=m.renkA||(takimA&&takimA.renk)||A, renkB=m.renkB||(takimB&&takimB.renk)||"#5B8DEF";
+  const renkA2=(takimA&&takimA.renk2)||ikinciRenk(renkA), renkB2=(takimB&&takimB.renk2)||ikinciRenk(renkB);
+  const [logoA,logoB]=await Promise.all([_resimYukle(takimA&&takimA.logo), _resimYukle(takimB&&takimB.logo)]);
+  const aGol=m.skorA, bGol=m.skorB, aGalip=aGol>bGol, bGalip=bGol>aGol, berabere=aGol===bGol;
+  // arka plan
+  const bg=x.createLinearGradient(0,0,G,G); bg.addColorStop(0,"#0B1220"); bg.addColorStop(1,"#070B12");
+  x.fillStyle=bg; x.fillRect(0,0,G,G);
+  const glow=(cx,cy,renk)=>{ const gl=x.createRadialGradient(cx,cy,20,cx,cy,560); gl.addColorStop(0,renk+"2e"); gl.addColorStop(1,"#00000000"); x.fillStyle=gl; x.fillRect(0,0,G,G); };
+  glow(150,420,renkA); glow(G-150,420,renkB);
+  // çerçeve
+  x.strokeStyle="rgba(57,255,122,.22)"; x.lineWidth=3; x.strokeRect(24,24,G-48,G-48);
+  // başlık: lig adı + hafta/tarih
+  x.textAlign="center";
+  x.fillStyle=GOLD; x.font="800 34px Inter, Arial, sans-serif";
+  x.fillText((turnuva?turnuva.ad:"ForzaLig").toLocaleUpperCase("tr").slice(0,34), G/2, 120);
+  x.fillStyle=MUT; x.font="600 26px Inter, Arial, sans-serif";
+  const tarih=m.tarih?(m.tarih.includes("-")?m.tarih.split("-").reverse().join("."):m.tarih):"";
+  x.fillText((m.hafta?m.hafta+". HAFTA":"")+(tarih?"  ·  "+tarih:""), G/2, 165);
+  // amblemler + skor
+  const cy=430, r=105, cxA=245, cxB=G-245;
+  _amblemCiz(x, cxA, cy, r, renkA, renkA2, m.takimA, logoA);
+  _amblemCiz(x, cxB, cy, r, renkB, renkB2, m.takimB, logoB);
+  x.textAlign="center"; x.textBaseline="middle";
+  x.font="800 150px Inter, Arial, sans-serif";
+  x.fillStyle=aGalip?A:TEXT; x.fillText(String(aGol), G/2-95, cy-6);
+  x.fillStyle=MUT; x.fillText("-", G/2, cy-14);
+  x.fillStyle=bGalip?A:TEXT; x.fillText(String(bGol), G/2+95, cy-6);
+  x.textBaseline="alphabetic";
+  // takım adları
+  x.fillStyle=aGalip?TEXT:MUT; x.font="700 34px Inter, Arial, sans-serif";
+  x.fillText(m.takimA.slice(0,16), cxA, cy+r+55);
+  x.fillStyle=bGalip?TEXT:MUT; x.fillText(m.takimB.slice(0,16), cxB, cy+r+55);
+  // sonuç etiketi
+  const sonuc=berabere?"BERABERE":(aGalip?m.takimA.toLocaleUpperCase("tr")+" KAZANDI":m.takimB.toLocaleUpperCase("tr")+" KAZANDI");
+  x.fillStyle=berabere?GOLD:A; x.font="800 26px Inter, Arial, sans-serif";
+  x.fillText(sonuc.slice(0,30), G/2, cy+r+130);
+  // golcüler
+  const golcu=(ad)=>{ const h={}; (m.olaylar||[]).filter(o=>o.tip==="gol"&&o.takim===ad).forEach(o=>{ (h[o.oyuncu]=h[o.oyuncu]||[]).push(o.dk); }); return Object.entries(h).map(([n,dks])=>({n,dks:dks.filter(d=>d!=null).sort((a,b)=>a-b)})); };
+  const gA=golcu(m.takimA), gB=golcu(m.takimB), maxG=Math.max(gA.length,gB.length);
+  if(maxG>0){
+    let yy=cy+r+195; x.strokeStyle="rgba(255,255,255,.12)"; x.lineWidth=2;
+    x.beginPath(); x.moveTo(140,yy-30); x.lineTo(G-140,yy-30); x.stroke();
+    x.font="500 27px Inter, Arial, sans-serif";
+    const yaz=(g)=> g.n + (g.dks.length?"  "+g.dks.map(d=>d+"'").join(",") : "");
+    for(let i=0;i<Math.min(maxG,6);i++){
+      x.fillStyle="#C7D2DE";
+      x.textAlign="right"; if(gA[i]) x.fillText("⚽ "+yaz(gA[i]), G/2-40, yy);
+      x.textAlign="left";  if(gB[i]) x.fillText(yaz(gB[i])+" ⚽", G/2+40, yy);
+      yy+=46;
+    }
+  }
+  // MVP
+  if(m.mvp){ x.textAlign="center"; x.fillStyle=GOLD; x.font="700 28px Inter, Arial, sans-serif"; x.fillText("⭐ Maçın Adamı: "+m.mvp, G/2, 970); }
+  // footer marka
+  x.textAlign="center"; x.fillStyle=A; x.font="800 40px Inter, Arial, sans-serif";
+  x.fillText("⚽ ForzaLig", G/2, 1030);
+  x.fillStyle=MUT; x.font="600 22px Inter, Arial, sans-serif"; x.fillText("forzalig.com", G/2, 1062);
+  return c;
+}
+function _canvasBlob(c){ return new Promise(res=>{ if(c.toBlob) c.toBlob(res,"image/png"); else res(null); }); }
+// Skor kartını paylaş: önce Web Share (dosya), olmazsa indir. Dönüş: "paylasildi"|"indirildi"|"iptal"|"hata"
+async function skorKartiPaylas(m, turnuva){
+  try{
+    const c=await skorKartiCanvas(m,turnuva);
+    const blob=await _canvasBlob(c);
+    const adDosya=("forzalig-"+(m.takimA+"-"+m.takimB)).replace(/[^A-Za-z0-9-]/g,"_").toLowerCase()+".png";
+    const metin=`${m.takimA} ${m.skorA}-${m.skorB} ${m.takimB}${turnuva?" · "+turnuva.ad:""} · ForzaLig`;
+    if(blob && navigator.canShare){
+      const dosya=new File([blob],adDosya,{type:"image/png"});
+      if(navigator.canShare({files:[dosya]})){
+        try{ await navigator.share({files:[dosya],text:metin}); return "paylasildi"; }
+        catch(e){ if(e&&e.name==="AbortError") return "iptal"; }
+      }
+    }
+    // fallback: indir
+    const url=c.toDataURL("image/png");
+    const a=document.createElement("a"); a.href=url; a.download=adDosya; document.body.appendChild(a); a.click(); a.remove();
+    return "indirildi";
+  }catch(e){ console.warn("skorKartiPaylas:",e); return "hata"; }
+}
+
 function uretVeri(turnuvaSayisi=5, takimPerTurnuva=9, oyuncuPerTakim=12, opts={}) {
   const turnuvalar = [];
   let oyuncuId=1, takimId=1, macId=1;
@@ -4134,35 +4254,34 @@ function KralPodyum({liste, alan, renk, T, git}){
    MAÇLAR — hafta filtresi + galip vurgu + MVP + skor renk
    ============================================================ */
 function SkorKart({mac:m, turnuva, T, git}){
-  const golcu=(takimAd)=>{
-    const harita={};
-    (m.olaylar||[]).filter(o=>o.tip==="gol" && o.takim===takimAd).forEach(o=>{ (harita[o.oyuncu]=harita[o.oyuncu]||[]).push(o.dk); });
-    return Object.entries(harita).map(([ad,dks])=>({ad,dks:dks.sort((a,b)=>(a||0)-(b||0))}));
+  const [onizleme,setOnizleme]=useState("");   // üretilmiş PNG dataURL
+  const [durum,setDurum]=useState("");          // kısa geri bildirim
+  const [mesgul,setMesgul]=useState(false);
+  // sayfa açılınca kartı bir kez üret → önizleme göster
+  useEffect(()=>{ let a=true; (async()=>{
+    try{ const c=await skorKartiCanvas(m,turnuva); if(a) setOnizleme(c.toDataURL("image/png")); }catch(e){}
+  })(); return ()=>{a=false;}; },[m.id]);
+  const paylas=async()=>{
+    if(mesgul) return; setMesgul(true); setDurum("");
+    const r=await skorKartiPaylas(m,turnuva);
+    setMesgul(false);
+    setDurum(r==="paylasildi"?"Paylaşıldı ✅":r==="indirildi"?"Görsel indirildi ✅ (galerinden paylaşabilirsin)":r==="iptal"?"":"Bir sorun oldu, tekrar dene");
   };
-  const gA=golcu(m.takimA), gB=golcu(m.takimB);
-  const fmt=(dks)=> dks.map(d=>d!=null?d+"'":"").filter(Boolean).join(", ");
-  const aGalip=m.skorA>m.skorB, bGalip=m.skorB>m.skorA;
   return <div className="fade-in" style={{padding:"16px 14px 90px"}}>
-    <div style={{fontSize:11,color:T.textMut,textAlign:"center",marginBottom:14}}>Bu kartın ekran görüntüsünü alıp paylaşabilirsin 📲</div>
-    {/* PAYLAŞIM KARTI */}
-    <div style={{background:`linear-gradient(150deg, ${m.renkA}1f, ${T.bg1} 45%, ${m.renkB}1f)`,borderRadius:18,padding:"22px 18px",border:"1px solid "+T.gold+"44"}}>
-      <div style={{textAlign:"center",fontSize:10,color:T.gold,fontWeight:800,letterSpacing:1,marginBottom:4}}>{turnuva?turnuva.ad.toUpperCase():""}</div>
-      <div style={{textAlign:"center",fontSize:9,color:T.textMut,marginBottom:16}}>{m.hafta}. HAFTA{m.tarih?" · "+(m.tarih.includes("-")?m.tarih.split("-").reverse().join("."):m.tarih):""}</div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{flex:1,textAlign:"center"}}><Logo renk={m.renkA} ad={m.takimA} boy={52}/><div style={{fontSize:12,fontWeight:700,color:aGalip?T.text:T.textSoft,marginTop:7}}>{m.takimA}</div></div>
-        <div style={{padding:"0 8px",textAlign:"center"}}>
-          <div style={{fontSize:40,fontWeight:800,fontFamily:T.fontDisplay}}><span style={{color:aGalip?T.accent:T.text}}>{m.skorA}</span><span style={{color:T.textMut}}>-</span><span style={{color:bGalip?T.accent:T.text}}>{m.skorB}</span></div>
-        </div>
-        <div style={{flex:1,textAlign:"center"}}><Logo renk={m.renkB} ad={m.takimB} boy={52}/><div style={{fontSize:12,fontWeight:700,color:bGalip?T.text:T.textSoft,marginTop:7}}>{m.takimB}</div></div>
-      </div>
-      {(gA.length>0||gB.length>0) && <div style={{display:"flex",justifyContent:"space-between",marginTop:16,paddingTop:14,borderTop:"0.5px solid "+T.line,gap:8}}>
-        <div style={{flex:1,textAlign:"right"}}>{gA.map((g,i)=><div key={i} style={{fontSize:10,color:T.textSoft,marginBottom:3}}>{g.ad} <span style={{color:T.textMut}}>{fmt(g.dks)}</span> ⚽</div>)}</div>
-        <div style={{width:1,background:T.line}}/>
-        <div style={{flex:1,textAlign:"left"}}>{gB.map((g,i)=><div key={i} style={{fontSize:10,color:T.textSoft,marginBottom:3}}>⚽ {g.ad} <span style={{color:T.textMut}}>{fmt(g.dks)}</span></div>)}</div>
-      </div>}
-      {m.mvp && <div style={{textAlign:"center",marginTop:14,fontSize:11,color:T.gold}}>⭐ Maçın Adamı: <span style={{fontWeight:700}}>{m.mvp}</span></div>}
-      <div style={{textAlign:"center",marginTop:16,fontSize:9,color:T.textMut,fontWeight:700,letterSpacing:1}}>FATIHPRO</div>
+    <div style={{fontSize:12,color:T.textMut,textAlign:"center",marginBottom:14,lineHeight:1.5}}>Hazır maç kartı 📲<br/><span style={{fontSize:11}}>Paylaş'a bas — WhatsApp, Instagram, her yere gider.</span></div>
+    {/* GERÇEK GÖRSEL ÖNİZLEME (canvas'tan üretilen PNG) */}
+    <div style={{borderRadius:18,overflow:"hidden",border:"1px solid "+T.gold+"44",background:T.bg1,minHeight:200,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      {onizleme
+        ? <img src={onizleme} alt="Maç skor kartı" style={{width:"100%",display:"block"}}/>
+        : <div style={{padding:40,color:T.textMut,fontSize:12}}>Kart hazırlanıyor…</div>}
     </div>
+    {/* AKSİYONLAR */}
+    <div style={{display:"flex",gap:8,marginTop:14}}>
+      <button onClick={paylas} disabled={!onizleme||mesgul} className="tap" style={{flex:2,padding:14,borderRadius:12,background:onizleme?T.accent:T.bg2,color:onizleme?(T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut,fontSize:14,fontWeight:800,border:"none",opacity:mesgul?0.6:1}}>{mesgul?"…":"📲 Paylaş"}</button>
+      <button onClick={()=>{ if(!onizleme)return; const a=document.createElement("a"); a.href=onizleme; a.download="forzalig-skor.png"; document.body.appendChild(a); a.click(); a.remove(); setDurum("İndirildi ✅"); }} disabled={!onizleme} className="tap" style={{flex:1,padding:14,borderRadius:12,background:T.bg1,color:T.text,fontSize:14,fontWeight:700,border:"0.5px solid "+T.line}}>⬇️ İndir</button>
+    </div>
+    {durum && <div style={{textAlign:"center",fontSize:12,color:T.accent,marginTop:10,fontWeight:600}}>{durum}</div>}
+    <div style={{textAlign:"center",fontSize:10,color:T.textMut,marginTop:14,lineHeight:1.6}}>Not: Paylaş bazı tarayıcılarda görseli doğrudan gönderir; desteklemiyorsa otomatik indirir, sonra galerinden paylaşırsın.</div>
   </div>;
 }
 
@@ -9511,13 +9630,22 @@ function App(){
   useEffect(()=>{
     if(!PAYLASIM_SLUG) return;
     let aktif=true;
+    const ONBELLEK="forzalig_lig_cache_"+PAYLASIM_SLUG;
     (async()=>{
-      const lig=await Paylas.getir(PAYLASIM_SLUG);
+      let lig=await Paylas.getir(PAYLASIM_SLUG);
+      // FAZ 3 — çevrimdışı: ağdan gelmezse son görülen kopyayı localStorage'dan aç
+      let cevrimdisi=false;
+      if(!(lig && Array.isArray(lig.takimlar))){
+        try{ const c=localStorage.getItem(ONBELLEK); if(c){ lig=JSON.parse(c); cevrimdisi=true; } }catch(e){}
+      }
       if(!aktif) return;
       if(lig && Array.isArray(lig.takimlar)){
         try{ turnuvaHesapla(lig); }catch(e){}
         setTurnuvalar([lig]);
         setNav({sayfa:"turnuva", turnuva:lig});
+        if(cevrimdisi) setBulutDurum("Çevrimdışı — son kayıtlı görünüm");
+        // başarıyla ağdan geldiyse çevrimdışı için sakla
+        if(!cevrimdisi){ try{ localStorage.setItem(ONBELLEK, JSON.stringify(lig)); }catch(e){} }
         // dinamik SEO/sosyal başlık
         try{
           const bas=lig.ad+" · ForzaLig";
@@ -9542,6 +9670,7 @@ function App(){
         try{ turnuvaHesapla(lig); }catch(e){}
         setTurnuvalar([lig]);
         setNav(n=> n.sayfa==="turnuva" ? {...n, turnuva:lig} : n);
+        try{ localStorage.setItem("forzalig_lig_cache_"+PAYLASIM_SLUG, JSON.stringify(lig)); }catch(e){} // çevrimdışı için güncel tut
       }
     }, 25000);
     return ()=>clearInterval(iv);
