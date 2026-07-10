@@ -925,7 +925,7 @@ function SkeletonSatir(props){
 
 /* SVG avatar üreteci — her oyuncu benzersiz yüz */
 function svgAvatar(ad, boy, foto){
-  if(foto) return `<img src="${foto}" alt="" width="${boy}" height="${boy}" loading="lazy" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block">`;
+  if(foto) return `<img src="${foto}" alt="" width="${boy}" height="${boy}" loading="lazy" decoding="async" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block">`;
   const h=hash(ad);
   const tenler=["#F2C9A0","#E8B589","#D89B6C","#C68642","#A06A3C","#8D5524"];
   const saclar=["#1A1A1A","#2C1810","#4A2C18","#6B4423","#8B6914","#3A3A3A","#5A3825"];
@@ -951,7 +951,7 @@ function svgAvatar(ad, boy, foto){
 
 /* SVG amblem üreteci — her takım benzersiz logo */
 function svgAmblem(ad, renk, boy, logo, renkIki){
-  if(logo) return `<img src="${logo}" alt="" width="${boy}" height="${boy}" loading="lazy" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block;border-radius:50%">`;
+  if(logo) return `<img src="${logo}" alt="" width="${boy}" height="${boy}" loading="lazy" decoding="async" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block;border-radius:50%">`;
   const h=hash(ad);
   const tip=h%3; // kalkan, daire, baklava
   const harf=ad.replace(/[^A-Za-zÇĞİÖŞÜçğıöşü]/g,"")[0]||"F";
@@ -2750,6 +2750,19 @@ function AnaSayfa({turnuvalar, T, git}){
       <div style={{fontSize:24,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1}}>{selam}! 👋</div>
       <div style={{fontSize:12,color:T.textMut,marginTop:6}}>{bugun} · {topTakim} takım, {tumO.length} oyuncu, {topMac} maç</div>
     </div>
+
+    {/* FAZ 4 — HIZLI LİG GEÇİŞİ: birden çok lig varsa yatay şeritle tek dokunuşta gir */}
+    {turnuvalar.length>1 && git && <div style={{padding:"2px 0 4px"}}>
+      <div style={{display:"flex",gap:8,overflowX:"auto",padding:"4px 14px 8px",WebkitOverflowScrolling:"touch"}}>
+        {turnuvalar.map(lg=>{
+          const enAktif=lg.id===aktifTurnuva.id;
+          return <button key={lg.id} onClick={()=>git({sayfa:"turnuva",turnuva:lg})} className="tap" style={{flexShrink:0,display:"flex",alignItems:"center",gap:7,background:enAktif?T.accent+"1c":T.bg1,border:"0.5px solid "+(enAktif?T.accent+"66":T.line),borderRadius:20,padding:"6px 12px 6px 6px",cursor:"pointer"}}>
+            <Logo renk={lg.renk} ad={lg.ad} logo={lg.logo} renk2={lg.renk2} boy={24}/>
+            <span style={{fontSize:12,fontWeight:enAktif?800:600,color:enAktif?T.accent:T.textSoft,whiteSpace:"nowrap",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis"}}>{lg.ad}</span>
+          </button>;
+        })}
+      </div>
+    </div>}
 
     {/* ÖNE ÇIKANLAR */}
     {(haftaninOyuncusu || yukselenTakim) && <div style={{padding:"6px 14px 0"}}>
@@ -7554,7 +7567,7 @@ function TakipLigIcerik({turnuva, ligTab, T, git}){
 }
 
 /* AYARLAR — tema + stres testi */
-function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMod, setAdminMod, yedekle, yukleDosya, kayitDurum, git, adminMi}){
+function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMod, setAdminMod, yedekle, yukleDosya, kayitDurum, git, adminMi, rehberBaslat}){
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     {/* VAV HERO BAŞLIK */}
     <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"22px 18px 18px",background:"linear-gradient(120deg,"+T.accent+"40 0%,"+T.bg0+" 38%,"+T.accent+"22 66%,"+T.bg0+")"}}>
@@ -7567,6 +7580,15 @@ function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMo
         </div>
       </div>
     </div>
+
+    {/* FAZ 4 — uygulama turunu tekrar göster */}
+    {rehberBaslat && <div style={{padding:"10px 14px 0"}}>
+      <button onClick={rehberBaslat} className="tap" style={{width:"100%",display:"flex",alignItems:"center",gap:10,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"13px 14px",cursor:"pointer"}}>
+        <span style={{width:28,height:28,borderRadius:8,background:T.accent+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>🧭</span>
+        <span style={{flex:1,textAlign:"left"}}><span style={{fontSize:13,color:T.text,fontWeight:600,display:"block"}}>Uygulama turunu göster</span><span style={{fontSize:11,color:T.textMut}}>Ana özellikleri hızlıca tanıt</span></span>
+        <span style={{color:T.textMut,fontSize:16}}>›</span>
+      </button>
+    </div>}
 
     {/* VERİ KALICILIĞI + SÜPER ADMIN — sadece admin görsün */}
     {adminMi && <><div style={{padding:"6px 14px"}}>
@@ -8838,6 +8860,44 @@ function Tanitim({T, kapiGit, tamamla}){
   </div>;
 }
 
+/* FAZ 4 — İlk giriş rehberi (onboarding turu): alt menüyü vurgulayan 4 adımlık tanıtım */
+function Rehber({T, bitir}){
+  const [adim,setAdim]=useState(0);
+  const beyaz=T.renkCifti&&T.renkCifti[1]==="#FFFFFF";
+  const adimlar=[
+    {ik:"🏠", vur:0, bas:"Ana", ac:"Ligindeki öne çıkanlar, gol kralı, haftanın maçı ve puan durumu ilk 5 burada. Birden çok ligin varsa üstteki şeritten hızlıca geçersin."},
+    {ik:"🔍", vur:1, bas:"Keşfet", ac:"Tüm liglerin, takımların ve oyuncuların burada. Yeni bir lig de buradan kurulur."},
+    {ik:"📲", vur:-1, bas:"Maçı paylaş", ac:"Bir maça gir, 'Skor Kartı'na dokun — hazır görseli tek dokunuşla WhatsApp'a at."},
+    {ik:"👤", vur:2, bas:"Profil", ac:"Kariyerin, fotoğrafın ve takip ettiğin lig/oyuncular burada. Fotoğrafını da buradan eklersin."},
+  ];
+  const a=adimlar[adim], son=adim===adimlar.length-1;
+  const ileri=()=>{ if(son) bitir(); else { setAdim(x=>x+1); try{ if(navigator.vibrate)navigator.vibrate(8); }catch(e){} } };
+  const navStil={position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto"};
+  return <div className="fade-in" style={{position:"fixed",inset:0,zIndex:2500,background:"rgba(0,0,0,.72)",display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+    <button onClick={bitir} style={{position:"absolute",top:"calc(14px + env(safe-area-inset-top))",right:16,background:"rgba(255,255,255,.14)",color:"#fff",border:0,borderRadius:20,padding:"7px 15px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Atla</button>
+    <div style={{...navStil,position:"static",width:"100%",margin:"0 auto",maxWidth:480}}>
+      <div style={{margin:"0 14px 96px",background:T.bg1,border:"1px solid "+T.accent+"55",borderRadius:16,padding:18,boxShadow:"0 12px 40px rgba(0,0,0,.55)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:9}}>
+          <div style={{width:40,height:40,borderRadius:12,background:T.accent+"22",color:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{a.ik}</div>
+          <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{a.bas}</div>
+          <span style={{marginLeft:"auto",fontSize:11,color:T.textMut,fontWeight:600}}>{adim+1}/{adimlar.length}</span>
+        </div>
+        <div style={{fontSize:13,color:T.textSoft,lineHeight:1.6,marginBottom:14}}>{a.ac}</div>
+        <div style={{display:"flex",gap:6,marginBottom:14}}>{adimlar.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<=adim?T.accent:T.line,transition:"background .3s"}}/>)}</div>
+        <button onClick={ileri} className="tap" style={{width:"100%",padding:13,borderRadius:12,background:T.accent,color:beyaz?"#fff":T.bg0,border:0,fontSize:14,fontWeight:800,cursor:"pointer"}}>{son?"Başlayalım 🚀":"Devam →"}</button>
+      </div>
+    </div>
+    {/* alt menü vurgusu — gerçek nav ile hizalı 4 sütun */}
+    <div style={{...navStil,pointerEvents:"none"}}>
+      <div style={{display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))"}}>
+        {[0,1,2,3].map(i=><div key={i} style={{flex:1,display:"flex",justifyContent:"center",alignItems:"center",height:48}}>
+          {a.vur===i && <div className="fade-in" style={{width:54,height:44,borderRadius:14,border:"2px solid "+T.accent,boxShadow:"0 0 0 4px "+T.accent+"2e, 0 0 22px "+T.accent+"99"}}/>}
+        </div>)}
+      </div>
+    </div>
+  </div>;
+}
+
 /* 3) GİRİŞ / ÜYE OL (tek bileşen, mod ile) */
 function GirisAuth({T, mod, kapiGit, tamamla}){
   const uyeol = mod==="uyeol";
@@ -9577,6 +9637,15 @@ function App(){
   const GIRIS_FLAG="forzalig_giris_v1";
   const [kapi,setKapi]=useState(()=>{ if(PAYLASIM_SLUG||DAVET_TOKEN) return null; try{ return localStorage.getItem(GIRIS_FLAG) ? null : "splash"; }catch(e){ return "splash"; } });
   const kapiTamamla=()=>{ try{ localStorage.setItem(GIRIS_FLAG,"1"); }catch(e){} setKapi(null); };
+  // FAZ 4 — ilk giriş rehberi (onboarding turu): kapı geçildikten sonra bir kez
+  const REHBER_FLAG="forzalig_rehber_v1";
+  const [rehberGoster,setRehberGoster]=useState(false);
+  const rehberBitir=()=>{ try{ localStorage.setItem(REHBER_FLAG,"1"); }catch(e){} setRehberGoster(false); };
+  const rehberBaslat=()=>setRehberGoster(true); // Ayarlar'dan tekrar açmak için
+  useEffect(()=>{
+    if(kapi!==null || PAYLASIM_SLUG || DAVET_TOKEN) return;   // kapı açıkken / paylaşım / davet akışında gösterme
+    try{ if(!localStorage.getItem(REHBER_FLAG)) setRehberGoster(true); }catch(e){}
+  },[kapi]);
   // FAZ 8 — online oturum & bulut senkron
   const [oturum,setOturum]=useState(null);      // supabase kullanıcı (null=çıkış)
   const [bulutDurum,setBulutDurum]=useState(""); // kısa senkron göstergesi
@@ -10221,7 +10290,7 @@ function App(){
       case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi}/>; break;
       case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async()=>{ const gelen=await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
-      case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi}/>; break;
+      case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
     }
   }
@@ -10240,6 +10309,8 @@ function App(){
     {kapi==="splash" && <AcilisSplash T={T} onBitti={()=>setKapi("tanitim")}/>}
     {kapi==="tanitim" && <Tanitim T={T} kapiGit={setKapi} tamamla={kapiTamamla}/>}
     {(kapi==="giris"||kapi==="uyeol") && <GirisAuth T={T} mod={kapi} kapiGit={setKapi} tamamla={kapiTamamla}/>}
+    {/* FAZ 4 — ilk giriş rehberi (uygulama açıkken, kapı yokken) */}
+    {rehberGoster && kapi===null && !saltOkunur && <Rehber T={T} bitir={rehberBitir}/>}
 
     {/* ÇAKIŞMA UYARISI — başka cihaz veriyi değiştirdi */}
     {catisma && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:1800,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
