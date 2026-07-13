@@ -15,6 +15,9 @@ create table if not exists public.sohbet_mesajlari (
 );
 create index if not exists ix_sohbet_kanal on public.sohbet_mesajlari(lig_id, takim_id, olusma);
 
+-- Yetki (bu proje explicit GRANT kullanır; RLS satır bazında ayrıca sınırlar)
+grant select, insert, update, delete on public.sohbet_mesajlari to authenticated;
+
 alter table public.sohbet_mesajlari enable row level security;
 
 -- OKUMA: ligi görebilen herkes lig geneli kanalı okur. Takım kanalını

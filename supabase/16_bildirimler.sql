@@ -17,6 +17,9 @@ create table if not exists public.bildirimler (
 );
 create index if not exists ix_bildirim_user on public.bildirimler(user_id, okundu, olusma desc);
 
+-- Yetki (bu proje explicit GRANT kullanır; RLS satır bazında ayrıca sınırlar)
+grant select, update, delete on public.bildirimler to authenticated;
+
 alter table public.bildirimler enable row level security;
 
 -- Sadece kendi bildirimlerini görür / okundu işaretler / siler
