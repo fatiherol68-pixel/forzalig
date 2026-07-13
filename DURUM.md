@@ -294,4 +294,28 @@ Kullanıcı mimariyi ONAYLADI, uygulamayı erteledi. Uygulanacak mimari (CTO tas
 - Mevcut iskelet: `transferEt`, "Transfer et"/"Bu oyuncu benim" butonları var → bu spec'e göre yeniden akış.
 - Taslak tasarım artifact: forzalig-cekirdek.html (öncesi/sonrası telefon ekranları).
 
-## ÇEKİRDEK YAPIM SIRASI (kilit): 1) Transfer → 2) App-içi bildirim → 3) Sohbet(Realtime) → 4) Push(iOS 16.4+ PWA)
+## BU OTURUMDA YAPILANLAR — 9. tur (Transfer özelliği)
+Transfer spec'e göre uygulandı (kaptan → beklemede → lig yöneticisi onay/ret):
+
+**Değişiklikler:**
+1. **Akış değişikliği**: `transferEt` artık anında transfer yapmıyor (ilişkisel liglerde).
+   Kaptan veya lig yöneticisi istek gönderir → `Db.transferTalep()` ile `asama:'talep'` kaydı oluşur.
+   Yerel liglerde eski davranış korunur (anında taşıma).
+2. **Lig yöneticisi onay paneli**: `YonetimPaneli`'ne "Bekleyen Transfer İstekleri" bölümü eklendi.
+   Lig yöneticisi onaylar → `Db.transferYoneticiOnay(id)` → Supabase trigger (`trg_transfer_uygula`)
+   otomatik olarak `oyuncu_takim` tablosunda eski üyeliği pasifler, yeni üyelik açar.
+   Reddeterse → `Db.transferReddet(id)` → `asama:'iptal'`.
+3. **Görünürlük düzeltmesi**: "Transfer İsteği Gönder" butonu artık sadece **kaptan** (`oyTakim.yonetici_id`)
+   VEYA **lig yöneticisi** (`oyLig.yonetici_id`) tarafından görülür. Eskiden herkese açıktı (bug).
+4. **Eski takımlar gösterimi**: Oyuncu kartı "Genel" sekmesinde "🔄 TRANSFER GEÇMİŞİ" bölümü.
+   `Db.oyuncuTransferGecmisi(playerId)` ile tamamlanmış transferler çekilir.
+5. **DB fonksiyonları eklendi**: `Db.ligBekleyenTransferler(ligId)` — belirli lig için bekleyen
+   transferler (oyuncu adı join'li). `Db.oyuncuTransferGecmisi(playerId)` — tamamlanmış transferler.
+6. **RLS güncelleme**: `supabase/15_transfer_kaptan_rls.sql` — kaptan (takım yöneticisi) ve
+   istek gönderen (`talep_eden`) transferleri görebilir. UPDATE sadece lig yöneticisi/admin.
+7. **Fonksiyonlar**: `transferKabulEt(transfer)` — lig yöneticisi onayı + hafıza taşıma.
+   `transferRedEt(transferId)` — lig yöneticisi reddi.
+
+**Kullanıcı görevi**: `supabase/15_transfer_kaptan_rls.sql` Supabase SQL Editor'da çalıştırılmalı.
+
+## ÇEKİRDEK YAPIM SIRASI (kilit): 1) Transfer ✅ → 2) App-içi bildirim → 3) Sohbet(Realtime) → 4) Push(iOS 16.4+ PWA)

@@ -579,6 +579,8 @@ const Db = {
   async transferYoneticiOnay(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('transferler').update({asama:'tamam', yonetici_onay_t:new Date().toISOString()}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async transferIptal(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('transferler').update({asama:'iptal'}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async transferler(ligId){ if(!sb) return []; try{ const {data}=await sb.from('transferler').select('*').eq('lig_id',ligId).order('talep_tarihi',{ascending:false}); return data||[]; }catch(e){ return []; } },
+  async ligBekleyenTransferler(ligId){ if(!sb) return []; try{ const {data}=await sb.from('transferler').select('id,player_id,lig_id,eski_takim_id,yeni_takim_id,asama,talep_tarihi,talep_eden, oyuncular(ad_soyad)').eq('lig_id',ligId).eq('asama','talep').order('talep_tarihi',{ascending:false}).limit(50); return data||[]; }catch(e){ return []; } },
+  async oyuncuTransferGecmisi(playerId){ if(!sb) return []; try{ const {data}=await sb.from('transferler').select('id,eski_takim_id,yeni_takim_id,asama,talep_tarihi,yonetici_onay_t').eq('player_id',playerId).eq('asama','tamam').order('yonetici_onay_t',{ascending:false}); return data||[]; }catch(e){ return []; } },
   // ---- Maçlar + sonuç (madde 17/18: log otomatik) ----
   async macOlustur(m){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('maclar').insert(m).select('id').single(); return error?{hata:error.message}:{ok:true,id:data.id}; }catch(e){ return {hata:String(e)}; } },
   async macSonuc(id, evSkor, depSkor){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('maclar').update({ev_skor:evSkor, dep_skor:depSkor, oynandi:true}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
@@ -3561,6 +3563,16 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
   const [excelAcik,setExcelAcik]=useState(false);
   const [excelMetin,setExcelMetin]=useState("");
   const [excelSonuc,setExcelSonuc]=useState(null);
+  // transfer istekleri
+  const [bekTransfer,setBekTransfer]=useState([]);
+  const [trfYuk,setTrfYuk]=useState(false);
+  const [trfMesaj,setTrfMesaj]=useState("");
+  const iliskisel2 = turnuva.iliskisel && typeof turnuva.id==="string";
+  useEffect(()=>{
+    if(iliskisel2 && sb){ Db.ligBekleyenTransferler(turnuva.id).then(d=>setBekTransfer(d||[])); }
+  },[turnuva.id]);
+  const trfOnayla=async(t)=>{ setTrfYuk(true); setTrfMesaj(""); const r=await yonetim.transferKabulEt(t); setTrfYuk(false); if(r&&r.ok){ setBekTransfer(p=>p.filter(x=>x.id!==t.id)); setTrfMesaj("✓ Transfer onaylandı"); } else setTrfMesaj("Hata: "+((r&&r.hata)||"")); };
+  const trfReddet=async(t)=>{ setTrfYuk(true); setTrfMesaj(""); const r=await yonetim.transferRedEt(t.id); setTrfYuk(false); if(r&&r.ok){ setBekTransfer(p=>p.filter(x=>x.id!==t.id)); setTrfMesaj("Transfer reddedildi"); } else setTrfMesaj("Hata: "+((r&&r.hata)||"")); };
   // lig bilgileri düzenleme
   const [ligAcik,setLigAcik]=useState(false);
   const [lAd,setLAd]=useState(turnuva.ad||"");
@@ -3636,6 +3648,26 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
         <button onClick={davetKopyala} className="tap" style={{marginTop:7,background:davetKopya?T.accent:T.bg2,color:davetKopya?"#04070C":T.textSoft,border:"0.5px solid "+T.line,borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700}}>{davetKopya?"✓ Kopyalandı":"📋 Kopyala"}</button>
         <div style={{fontSize:9.5,color:T.textMut,marginTop:6,lineHeight:1.4}}>Bu linki WhatsApp'tan kaptana yolla. Açan kişi üye olup takımını kurar.</div>
       </div>}
+    </div>}
+    {/* BEKLEYEN TRANSFER İSTEKLERİ */}
+    {iliskisel2 && <div style={{background:bekTransfer.length?"linear-gradient(120deg,"+T.gold+"14,"+T.bg1+")":T.bg1,border:"0.5px solid "+(bekTransfer.length?T.gold+"44":T.line),borderRadius:12,padding:13,marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:700,color:bekTransfer.length?T.gold:T.text,marginBottom:bekTransfer.length?8:0}}>🔄 Bekleyen Transfer İstekleri {bekTransfer.length>0 && <span style={{fontSize:11}}>({bekTransfer.length})</span>}</div>
+      {bekTransfer.length===0
+        ? <div style={{fontSize:11,color:T.textMut,marginTop:4}}>Bekleyen transfer isteği yok.</div>
+        : bekTransfer.map(t=>{
+            const eskiTk=turnuva.takimlar.find(x=>x.id===t.eski_takim_id);
+            const yeniTk=turnuva.takimlar.find(x=>x.id===t.yeni_takim_id);
+            return <div key={t.id} style={{background:T.bg0,borderRadius:10,padding:"10px 11px",marginBottom:6,border:"0.5px solid "+T.line}}>
+              <div style={{fontSize:12,color:T.text,fontWeight:700}}>{t.oyuncular?t.oyuncular.ad_soyad:"Oyuncu"}</div>
+              <div style={{fontSize:11,color:T.textSoft,marginTop:2}}>{eskiTk?eskiTk.ad:"?"} <span style={{color:T.accent2}}>→</span> {yeniTk?yeniTk.ad:"?"}</div>
+              {t.talep_tarihi && <div style={{fontSize:9,color:T.textMut,marginTop:2}}>{new Date(t.talep_tarihi).toLocaleDateString("tr-TR")}</div>}
+              <div style={{display:"flex",gap:7,marginTop:8}}>
+                <button onClick={()=>trfOnayla(t)} disabled={trfYuk} className="tap" style={{flex:1,background:T.accent,color:"#04070C",border:0,borderRadius:8,padding:"8px",fontSize:12,fontWeight:800,opacity:trfYuk?.6:1}}>✓ Onayla</button>
+                <button onClick={()=>trfReddet(t)} disabled={trfYuk} className="tap" style={{flex:1,background:T.bg2,color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:8,padding:"8px",fontSize:12,fontWeight:700,opacity:trfYuk?.6:1}}>✗ Reddet</button>
+              </div>
+            </div>;
+          })}
+      {trfMesaj && <div style={{fontSize:11,color:/✓/.test(trfMesaj)?T.accent:T.danger,textAlign:"center",marginTop:6}}>{trfMesaj}</div>}
     </div>}
     {/* LİG BİLGİLERİNİ DÜZENLE */}
     <div style={{background:T.bg1,borderRadius:12,border:"0.5px solid "+T.line,marginBottom:14,overflow:"hidden"}}>
@@ -4942,22 +4974,28 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   const [duzenle,setDuzenle]=useState(false);
   const [sahipYuk,setSahipYuk]=useState(false);
   const [sahipMesaj,setSahipMesaj]=useState("");
-  // TRANSFER (madde 16) — oyuncunun ligini + diğer takımları bul
+  // TRANSFER — kaptan istek gönderir, lig yöneticisi onaylar
   const [transferAcik,setTransferAcik]=useState(false);
   const [transferHedef,setTransferHedef]=useState("");
   const [transferMesaj,setTransferMesaj]=useState("");
+  const [eskiTakimlar,setEskiTakimlar]=useState([]);
   const oyLig=(turnuvalar||[]).find(t=>t.takimlar.some(tk=>tk.oyuncular.some(p=>p.id===o.id)));
   const oyTakim=oyLig?oyLig.takimlar.find(tk=>tk.oyuncular.some(p=>p.id===o.id)):null;
   const transferHedefler=oyLig?oyLig.takimlar.filter(tk=>tk.id!==(oyTakim&&oyTakim.id)):[];
   const benimLigim = !!(oturum && oyLig && oyLig.yonetici_id && oyLig.yonetici_id===oturum.id);
-  const transferYapilabilir = !saltOkunur && oturum && oyLig && oyLig.iliskisel && benimLigim && transferHedefler.length>0 && onTransfer;
+  const kaptanMi = !!(oturum && oyTakim && oyTakim.yonetici_id && oyTakim.yonetici_id===oturum.id);
+  const transferYapilabilir = !saltOkunur && oturum && oyLig && oyLig.iliskisel && (benimLigim || kaptanMi) && transferHedefler.length>0 && onTransfer;
   const transferYap=async()=>{
     if(!transferHedef){ setTransferMesaj("Hedef takım seç."); return; }
-    setTransferMesaj("Transfer ediliyor…");
+    setTransferMesaj("Gönderiliyor…");
     const r=await onTransfer(o, transferHedef);
-    if(r&&r.ok){ setTransferMesaj("✅ "+r.yeniTakim+" takımına transfer edildi."); setTimeout(()=>{ setTransferAcik(false); git({sayfa:"ana"}); },1200); }
+    if(r&&r.ok&&r.beklemede){ setTransferMesaj("✅ Transfer isteği gönderildi. Lig yöneticisi onaylayacak."); setTimeout(()=>setTransferAcik(false),2500); }
+    else if(r&&r.ok){ setTransferMesaj("✅ "+r.yeniTakim+" takımına transfer edildi."); setTimeout(()=>{ setTransferAcik(false); git({sayfa:"ana"}); },1200); }
     else setTransferMesaj("❌ "+((r&&r.hata)||"olmadı"));
   };
+  useEffect(()=>{
+    if(typeof o.id==="string" && sb){ Db.oyuncuTransferGecmisi(o.id).then(g=>{ if(g.length){ const takimAd=(tid)=>{ if(!oyLig) return tid; const t=oyLig.takimlar.find(x=>x.id===tid); return t?t.ad:tid; }; setEskiTakimlar(g.map(x=>({id:x.id, eskiAd:takimAd(x.eski_takim_id), yeniAd:takimAd(x.yeni_takim_id), tarih:x.yonetici_onay_t}))); } }); }
+  },[o.id]);
   const benimMi = (oturum && o.sahip_user_id && o.sahip_user_id===oturum.id) || (sahiplenme && (sahiplenme.oyuncu_id===o.id || sahiplenme.oyuncu_ad===o.ad));
   const sahiplen=async()=>{
     if(!oturum){ setSahipMesaj("Sahiplenmek için giriş yapmalısın."); return; }
@@ -5120,19 +5158,19 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
       {adaylar.length>1 && git && <button onClick={()=>git({sayfa:"h2h",tip:"oyuncu",a:o,aday:adaylar,turnuva:o.turnuva})} className="tap" style={{background:"transparent",color:T.gold,border:"1px solid "+T.gold,borderRadius:20,padding:"0 14px",fontSize:12,fontWeight:700}}>⚔️ Karşılaştır</button>}
       {oyuncuTakip && <button onClick={()=>oyuncuTakip(o.id)} className="tap" style={{background:takipte?T.accent:"transparent",color:takipte?(renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,border:"1px solid "+T.accent,borderRadius:20,padding:"0 16px",fontSize:12,fontWeight:700}}>{takipte?"✓ Takipte":"+ Takip et"}</button>}
     </div>
-    {/* TRANSFER (madde 16) — lig yöneticisi oyuncuyu başka takıma taşır */}
+    {/* TRANSFER — kaptan/yönetici transfer isteği gönderir */}
     {transferYapilabilir && <div style={{padding:"10px 14px 0"}}>
       {!transferAcik
-        ? <button onClick={()=>{setTransferAcik(true); setTransferMesaj(""); setTransferHedef("");}} className="tap" style={{width:"100%",background:T.accent2+"18",color:T.accent2,border:"1px solid "+T.accent2+"66",borderRadius:12,padding:12,fontSize:13,fontWeight:800}}>🔄 Transfer et ({oyTakim?oyTakim.ad:""} → ?)</button>
+        ? <button onClick={()=>{setTransferAcik(true); setTransferMesaj(""); setTransferHedef("");}} className="tap" style={{width:"100%",background:T.accent2+"18",color:T.accent2,border:"1px solid "+T.accent2+"66",borderRadius:12,padding:12,fontSize:13,fontWeight:800}}>🔄 Transfer İsteği Gönder ({oyTakim?oyTakim.ad:""} → ?)</button>
         : <div style={{background:T.bg1,border:"0.5px solid "+T.accent2+"55",borderRadius:12,padding:13}}>
             <div style={{fontSize:12,color:T.text,fontWeight:700,marginBottom:8}}>🔄 {o.ad} → hangi takıma?</div>
             <select value={transferHedef} onChange={e=>setTransferHedef(e.target.value)} style={{width:"100%",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:11,color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:9}}>
               <option value="">— Hedef takım seç —</option>
               {transferHedefler.map(tk=><option key={tk.id} value={tk.id}>{tk.ad}</option>)}
             </select>
-            <div style={{fontSize:10,color:T.textMut,marginBottom:10,lineHeight:1.5}}>Eski takımdaki golleri/istatistikleri orada kalır, kariyer toplamına eklenmeye devam eder.</div>
+            <div style={{fontSize:10,color:T.textMut,marginBottom:10,lineHeight:1.5}}>Eski takımdaki golleri/istatistikleri orada kalır, kariyer toplamına eklenmeye devam eder.{oyLig&&oyLig.iliskisel?" Lig yöneticisi onaylarsa transfer tamamlanır.":""}</div>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={transferYap} className="tap" style={{flex:1,background:T.accent2,color:"#04070C",border:0,borderRadius:10,padding:11,fontSize:13,fontWeight:800}}>Transferi Onayla</button>
+              <button onClick={transferYap} className="tap" style={{flex:1,background:T.accent2,color:"#04070C",border:0,borderRadius:10,padding:11,fontSize:13,fontWeight:800}}>{oyLig&&oyLig.iliskisel?"İsteği Gönder":"Transferi Onayla"}</button>
               <button onClick={()=>setTransferAcik(false)} className="tap" style={{background:T.bg2,color:T.textMut,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px 14px",fontSize:13,fontWeight:700}}>Vazgeç</button>
             </div>
             {transferMesaj && <div style={{fontSize:11,color:/✅/.test(transferMesaj)?T.accent:/❌/.test(transferMesaj)?T.danger:T.textSoft,textAlign:"center",marginTop:8}}>{transferMesaj}</div>}
@@ -5197,6 +5235,17 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
         <FifaKart o={o} T={T}/>
         {!adminMod && o._manuel && <div style={{fontSize:10,color:T.textMut}}>✏️ Admin tarafından düzenlendi</div>}
       </div>
+      {eskiTakimlar.length>0 && <div style={{padding:"0 14px 6px"}}>
+        <div style={{background:T.bg1,borderRadius:12,padding:"11px 12px",border:"0.5px solid "+T.line}}>
+          <div style={{fontSize:11,color:T.accent2,fontWeight:700,marginBottom:8}}>🔄 TRANSFER GEÇMİŞİ</div>
+          {eskiTakimlar.map((t,i)=><div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderTop:i?"0.5px solid "+T.line:"none"}}>
+            <span style={{fontSize:12,color:T.textSoft}}>{t.eskiAd}</span>
+            <span style={{fontSize:10,color:T.accent2}}>→</span>
+            <span style={{fontSize:12,color:T.text,fontWeight:600}}>{t.yeniAd}</span>
+            {t.tarih && <span style={{fontSize:9,color:T.textMut,marginLeft:"auto"}}>{new Date(t.tarih).toLocaleDateString("tr-TR")}</span>}
+          </div>)}
+        </div>
+      </div>}
       <div style={{padding:"0 14px 6px"}}>
         <button onClick={()=>alert("Kart paylaşma özelliği yakında eklenecek.")} className="tap" style={{width:"100%",background:T.bg1,border:"0.5px solid "+T.line,color:T.accent,borderRadius:10,padding:"10px",fontSize:12,fontWeight:700}}>📤 Kartı Paylaş <span style={{fontSize:9,color:T.textMut,fontWeight:500}}>· yakında</span></button>
       </div>
@@ -10052,7 +10101,7 @@ function App(){
     if(iliskiselMi(turnuva)){ const r=await Db.ligSil(turnuva.id); if(r.hata){ alert("Silinemedi (maç oynanmış olabilir — arşivle): "+r.hata); return; } Db.logla(oturum, "Lig sildi", turnuva.ad); }
     setTurnuvalar(p=>p.filter(t=>t.id!==turnuva.id)); git({sayfa:"ana"});
   };
-  // TRANSFER (madde 16) — oyuncuyu aynı ligde başka takıma taşı (kariyer korunur)
+  // TRANSFER — kaptan istek gönderir → lig yöneticisi onaylar/reddeder
   const transferEt=async(oyuncu, yeniTakimId)=>{
     let trn, eski;
     for(const t of turnuvalar){ for(const tk of t.takimlar){ if(tk.oyuncular.some(o=>o.id===oyuncu.id)){ trn=t; eski=tk; break; } } if(trn) break; }
@@ -10062,14 +10111,40 @@ function App(){
     if(iliskiselMi(trn) && typeof oyuncu.id==="string"){
       const t=await Db.transferTalep(oyuncu.id, trn.id, eski.id, yeniTakimId, oturum&&oturum.id);
       if(t.hata) return {hata:t.hata};
-      if(t.id){ await Db.transferOyuncuKabul(t.id); const r=await Db.transferYoneticiOnay(t.id); if(r.hata) return {hata:r.hata}; }
+      Db.logla(oturum, "Transfer isteği gönderdi", oyuncu.ad+" → "+yeni.ad);
+      return {ok:true, beklemede:true, yeniTakim:yeni.ad};
     }
-    // hafızada taşı (eski takım istatistikleri maçlarda kalır → kariyer korunur)
+    // yerel lig: direkt taşı
     const oyRef=eski.oyuncular.find(o=>o.id===oyuncu.id);
     eski.oyuncular=eski.oyuncular.filter(o=>o.id!==oyuncu.id);
     if(oyRef){ oyRef.takimAd=yeni.ad; oyRef.renk=yeni.renk; yeni.oyuncular.push(oyRef); }
     turnuvaHesapla(trn); guncelle();
     return {ok:true, yeniTakim:yeni.ad};
+  };
+  // Lig yöneticisi transfer onayı — DB trigger (trg_transfer_uygula) oyuncu_takim'i otomatik günceller
+  const transferKabulEt=async(transfer)=>{
+    const r=await Db.transferYoneticiOnay(transfer.id);
+    if(r.hata) return {hata:r.hata};
+    Db.logla(oturum, "Transfer onayladı", (transfer.oyuncular&&transfer.oyuncular.ad_soyad)||"");
+    const trn=turnuvalar.find(t=>t.id===transfer.lig_id);
+    if(trn){
+      const eski=trn.takimlar.find(t=>t.id===transfer.eski_takim_id);
+      const yeni=trn.takimlar.find(t=>t.id===transfer.yeni_takim_id);
+      if(eski&&yeni){
+        const oyRef=eski.oyuncular.find(o=>o.id===transfer.player_id);
+        eski.oyuncular=eski.oyuncular.filter(o=>o.id!==transfer.player_id);
+        if(oyRef){ oyRef.takimAd=yeni.ad; oyRef.renk=yeni.renk; yeni.oyuncular.push(oyRef); }
+        turnuvaHesapla(trn); guncelle();
+      }
+    }
+    return {ok:true};
+  };
+  // Lig yöneticisi transfer reddi
+  const transferRedEt=async(transferId)=>{
+    const r=await Db.transferReddet(transferId);
+    if(r.hata) return {hata:r.hata};
+    Db.logla(oturum, "Transfer reddetti", "");
+    return {ok:true};
   };
   // Takım ekle
   const takimEkle=async(turnuva, ad, bos)=>{
@@ -10271,7 +10346,7 @@ function App(){
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={()=>git({sayfa:"ligkur"})} saltOkunur={saltOkunur}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
-      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={(saltOkunur||!oturum)?null:{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam}} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
+      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={(saltOkunur||!oturum)?null:{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam,transferKabulEt,transferRedEt}} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur}/>; break;
