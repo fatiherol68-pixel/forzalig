@@ -16,6 +16,9 @@ create table if not exists public.push_abonelikleri (
 );
 create index if not exists ix_push_user on public.push_abonelikleri(user_id);
 
+-- Yetki (bu proje explicit GRANT kullanır; RLS satır bazında ayrıca sınırlar)
+grant select, insert, delete on public.push_abonelikleri to authenticated;
+
 alter table public.push_abonelikleri enable row level security;
 
 -- Kendi aboneliğini ekler / görür / siler

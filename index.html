@@ -5223,8 +5223,8 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
       <label className="tap" title="Fotoğrafını değiştir" style={{flexShrink:0,background:T.accent+"18",color:T.accent,border:"1px solid "+T.accent+"66",borderRadius:12,padding:"0 16px",fontSize:13,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center"}}>{fotoYuk2?"⏳ Yükleniyor":"📷 Fotoğraf"}
         <input type="file" accept="image/*" onChange={kendiFotoDegistir} style={{display:"none"}}/></label>
     </div>}
-    {/* TRANSFER PAZARI — "takım arıyorum" (sadece kendi kartında) */}
-    {oturum && benimMi && typeof o.id==="string" && <div style={{padding:"10px 14px 0"}}>
+    {/* TRANSFER PAZARI — "takım arıyorum" (kendi kartın VEYA lig yöneticisi) */}
+    {oturum && (benimMi || benimLigim) && typeof o.id==="string" && <div style={{padding:"10px 14px 0"}}>
       {musait
         ? <div style={{background:T.gold+"14",border:"1px solid "+T.gold+"55",borderRadius:12,padding:12}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
