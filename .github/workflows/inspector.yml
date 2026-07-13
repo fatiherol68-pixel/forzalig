@@ -1,0 +1,33 @@
+name: ForzaLig Inspector (denetim raporu)
+
+# Elle çalıştırılır: GitHub → Actions → "ForzaLig Inspector" → Run workflow.
+# Teknik bilgi gerektirmez. Canlı veritabanına DOKUNMAZ (statik analiz).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"   # her Pazartesi 06:00 UTC (haftalık otomatik rapor)
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Denetim raporunu üret
+        run: node build/inspector.js
+
+      - name: Raporu özet olarak göster
+        run: cat build/rapor/rapor.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Raporu indirilebilir yap (ZIP)
+        uses: actions/upload-artifact@v4
+        with:
+          name: forzalig-rapor
+          path: build/rapor/
+          retention-days: 30

@@ -1,0 +1,34 @@
+name: Otomatik Test (derle + duman testi)
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "index.html"
+      - "build/**"
+      - ".github/workflows/test.yml"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Babel bağımlılıkları
+        working-directory: build
+        run: npm install @babel/core @babel/preset-react --no-save
+
+      - name: Derle (index.html → compiled.html)
+        run: node build/derle.js build/compiled.html
+
+      - name: Playwright + Chromium
+        run: npm install playwright && npx playwright install --with-deps chromium
+
+      - name: Duman testi (JS hatası + render kontrolü)
+        run: node build/smoke.mjs build/compiled.html
