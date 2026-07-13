@@ -20,12 +20,16 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Babel bağımlılıkları
-        working-directory: build
-        run: npm install @babel/core @babel/preset-react --no-save
-
-      - name: Derle (index.html → compiled.html)
-        run: node build/derle.js build/compiled.html
+      - name: Derle veya kopyala (kaynak dal → derle, main → zaten derli)
+        run: |
+          if grep -q '<script type="text/babel">' index.html; then
+            echo "Kaynak index.html → derleniyor"
+            (cd build && npm install @babel/core @babel/preset-react --no-save)
+            node build/derle.js build/compiled.html
+          else
+            echo "index.html zaten derli (main) → doğrudan test edilecek"
+            cp index.html build/compiled.html
+          fi
 
       - name: Playwright + Chromium
         run: npm install playwright && npx playwright install --with-deps chromium
