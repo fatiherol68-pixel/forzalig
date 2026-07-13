@@ -24,8 +24,9 @@ jobs:
         run: |
           if grep -q '<script type="text/babel">' index.html; then
             echo "Kaynak index.html → derleniyor"
-            (cd build && npm install @babel/core @babel/preset-react --no-save)
-            node build/derle.js build/compiled.html
+            cd build
+            npm install @babel/core @babel/preset-react --no-save
+            node derle.js "$GITHUB_WORKSPACE/build/compiled.html"
           else
             echo "index.html zaten derli (main) → doğrudan test edilecek"
             cp index.html build/compiled.html
