@@ -1,0 +1,52 @@
+name: Otomatik Yedekleme (Supabase → JSON)
+
+# Supabase verisini düzenli olarak JSON'a döküp indirilebilir yedek üretir.
+# GEREKLİ AYARLAR (GitHub → Settings → Secrets and variables → Actions):
+#   SUPABASE_URL          → https://crkestykdsnmfcmamxav.supabase.co
+#   SUPABASE_SERVICE_KEY  → Supabase service_role anahtarı (GİZLİ! sadece burada)
+# Secret girilmemişse iş atlanır (hata vermez).
+on:
+  schedule:
+    - cron: "0 3 * * *"   # her gün 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  yedek:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Secret var mı kontrol et
+        id: kontrol
+        run: |
+          if [ -n "${{ secrets.SUPABASE_URL }}" ] && [ -n "${{ secrets.SUPABASE_SERVICE_KEY }}" ]; then
+            echo "hazir=evet" >> "$GITHUB_OUTPUT"
+          else
+            echo "hazir=hayir" >> "$GITHUB_OUTPUT"
+            echo "::notice::SUPABASE_URL / SUPABASE_SERVICE_KEY secret'ları girilmemiş — yedek atlandı."
+          fi
+
+      - name: Tabloları JSON'a dök
+        if: steps.kontrol.outputs.hazir == 'evet'
+        env:
+          SB_URL: ${{ secrets.SUPABASE_URL }}
+          SB_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          mkdir -p yedek
+          TABLOLAR="ligler takimlar oyuncular oyuncu_takim transferler maclar mac_olaylari profiller davetler bildirimler sohbet_mesajlari"
+          for t in $TABLOLAR; do
+            echo "Yedekleniyor: $t"
+            curl -s "$SB_URL/rest/v1/$t?select=*" \
+              -H "apikey: $SB_KEY" \
+              -H "Authorization: Bearer $SB_KEY" \
+              -o "yedek/$t.json" || echo "  ($t atlandı)"
+          done
+          echo "Tarih: $(date -u +%Y-%m-%dT%H:%M:%SZ)" > yedek/BILGI.txt
+
+      - name: Yedeği indirilebilir yap
+        if: steps.kontrol.outputs.hazir == 'evet'
+        uses: actions/upload-artifact@v4
+        with:
+          name: forzalig-yedek-${{ github.run_number }}
+          path: yedek/
+          retention-days: 30

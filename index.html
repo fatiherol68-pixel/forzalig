@@ -43,6 +43,9 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
+  // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
+  // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
+  window.__FL_VAPID_PUBLIC = "";
   (function(){
     var dsn = window.__FL_SENTRY_DSN;
     if(!dsn) return;
@@ -514,6 +517,7 @@ const Db = {
   async olayYaz(oturum, tip, deger){ if(!sb) return; try{ await sb.from('olay_log').insert({tip, deger:(deger||'').slice(0,120), user_id:oturum?oturum.id:null}); }catch(e){} },
   async topOlay(tip, n){ if(!sb) return []; try{ const {data}=await sb.from('olay_log').select('deger').eq('tip',tip).order('created',{ascending:false}).limit(3000); const m={}; (data||[]).forEach(x=>{ if(x.deger){ m[x.deger]=(m[x.deger]||0)+1; } }); return Object.entries(m).map(([deger,adet])=>({deger,adet})).sort((a,b)=>b.adet-a.adet).slice(0,n||8); }catch(e){ return []; } },
   async onlineSayi(){ if(!sb) return 0; try{ const bes=new Date(Date.now()-5*60000).toISOString(); const {data}=await sb.from('olay_log').select('user_id,created').gte('created',bes).limit(2000); return new Set((data||[]).map(x=>x.user_id||'anon')).size; }catch(e){ return 0; } },
+  async gunlukAktif(){ if(!sb) return []; try{ const bas=new Date(Date.now()-7*86400000).toISOString(); const {data}=await sb.from('olay_log').select('user_id,created').gte('created',bas).limit(20000); const g={}; (data||[]).forEach(x=>{ const gun=(x.created||'').slice(0,10); if(!gun) return; (g[gun]=g[gun]||new Set()).add(x.user_id||'anon'); }); const bugun=new Date(); const cikti=[]; for(let i=6;i>=0;i--){ const d=new Date(bugun.getTime()-i*86400000); const gun=d.toISOString().slice(0,10); cikti.push({gun, etiket:d.toLocaleDateString('tr-TR',{weekday:'short'}), kisi:(g[gun]?g[gun].size:0)}); } return cikti; }catch(e){ return []; } },
   // ---- 10 Takip / Popüler ----
   async takipYaz(oturum, tip, hedefId, hedefAd, ekle){ if(!sb||!oturum) return; try{ if(ekle) await sb.from('takipler').upsert({user_id:oturum.id, tip, hedef_id:String(hedefId), hedef_ad:hedefAd||null}); else await sb.from('takipler').delete().eq('user_id',oturum.id).eq('tip',tip).eq('hedef_id',String(hedefId)); }catch(e){} },
   async populer(tip, n){ if(!sb) return []; try{ const {data}=await sb.from('takipler').select('hedef_id,hedef_ad').eq('tip',tip).limit(4000); const m={}; (data||[]).forEach(x=>{ const k=x.hedef_id; if(!m[k]) m[k]={ad:x.hedef_ad||k,adet:0}; m[k].adet++; }); return Object.values(m).sort((a,b)=>b.adet-a.adet).slice(0,n||5); }catch(e){ return []; } },
@@ -581,6 +585,24 @@ const Db = {
   async transferler(ligId){ if(!sb) return []; try{ const {data}=await sb.from('transferler').select('*').eq('lig_id',ligId).order('talep_tarihi',{ascending:false}); return data||[]; }catch(e){ return []; } },
   async ligBekleyenTransferler(ligId){ if(!sb) return []; try{ const {data}=await sb.from('transferler').select('id,player_id,lig_id,eski_takim_id,yeni_takim_id,asama,talep_tarihi,talep_eden, oyuncular(ad_soyad)').eq('lig_id',ligId).eq('asama','talep').order('talep_tarihi',{ascending:false}).limit(50); return data||[]; }catch(e){ return []; } },
   async oyuncuTransferGecmisi(playerId){ if(!sb) return []; try{ const {data}=await sb.from('transferler').select('id,eski_takim_id,yeni_takim_id,asama,talep_tarihi,yonetici_onay_t').eq('player_id',playerId).eq('asama','tamam').order('yonetici_onay_t',{ascending:false}); return data||[]; }catch(e){ return []; } },
+  // ---- App-içi BİLDİRİM ----
+  async bildirimlerim(){ if(!sb) return []; try{ const {data}=await sb.from('bildirimler').select('*').order('olusma',{ascending:false}).limit(50); return data||[]; }catch(e){ return []; } },
+  async okunmamisSay(){ if(!sb) return 0; try{ const {count}=await sb.from('bildirimler').select('*',{count:'exact',head:true}).eq('okundu',false); return count||0; }catch(e){ return 0; } },
+  async bildirimOku(id){ if(!sb) return; try{ await sb.from('bildirimler').update({okundu:true}).eq('id',id); }catch(e){} },
+  async bildirimHepsiOku(){ if(!sb) return; try{ await sb.from('bildirimler').update({okundu:true}).eq('okundu',false); }catch(e){} },
+  async bildirimSil(id){ if(!sb) return; try{ await sb.from('bildirimler').delete().eq('id',id); }catch(e){} },
+  // ---- SOHBET (Realtime) ----
+  async mesajlar(ligId, takimId){ if(!sb) return []; try{ let q=sb.from('sohbet_mesajlari').select('*').eq('lig_id',ligId).eq('silindi',false).order('olusma',{ascending:true}).limit(200); q = takimId ? q.eq('takim_id',takimId) : q.is('takim_id',null); const {data}=await q; return data||[]; }catch(e){ return []; } },
+  async mesajGonder(ligId, takimId, userId, ad, metin){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('sohbet_mesajlari').insert({lig_id:ligId, takim_id:takimId||null, user_id:userId, ad, metin}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async mesajSil(id){ if(!sb) return; try{ await sb.from('sohbet_mesajlari').update({silindi:true}).eq('id',id); }catch(e){} },
+  sohbetDinle(ligId, takimId, geldi){ if(!sb) return null; try{ const kanal=sb.channel('sohbet:'+ligId+':'+(takimId||'genel')).on('postgres_changes',{event:'INSERT',schema:'public',table:'sohbet_mesajlari',filter:'lig_id=eq.'+ligId},(p)=>{ const m=p.new; const kEsit = takimId ? m.takim_id===takimId : !m.takim_id; if(kEsit && !m.silindi) geldi(m); }).subscribe(); return kanal; }catch(e){ return null; } },
+  sohbetKapat(kanal){ try{ if(kanal&&sb) sb.removeChannel(kanal); }catch(e){} },
+  // ---- OYUNCU PAZARI (müsait oyuncular) ----
+  async oyuncuMusaitAyar(playerId, musait, sehir, not){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('oyuncu_musait_ayar',{p_player_id:playerId, p_musait:musait, p_sehir:sehir||null, p_not:not||null}); return error?{hata:error.message}:{ok:!!data}; }catch(e){ return {hata:String(e)}; } },
+  async pazarOyuncular(sehir){ if(!sb) return []; try{ const {data,error}=await sb.rpc('pazar_oyuncular',{p_sehir:sehir||null}); return error?[]:(data||[]); }catch(e){ return []; } },
+  // ---- PUSH abonelik ----
+  async pushKaydet(userId, sub){ if(!sb) return {hata:"yok"}; try{ const j=sub.toJSON(); const {error}=await sb.from('push_abonelikleri').upsert({user_id:userId, endpoint:j.endpoint, p256dh:j.keys.p256dh, auth:j.keys.auth, cihaz:navigator.userAgent.slice(0,120)},{onConflict:'endpoint'}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async pushSil(endpoint){ if(!sb) return; try{ await sb.from('push_abonelikleri').delete().eq('endpoint',endpoint); }catch(e){} },
   // ---- Maçlar + sonuç (madde 17/18: log otomatik) ----
   async macOlustur(m){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('maclar').insert(m).select('id').single(); return error?{hata:error.message}:{ok:true,id:data.id}; }catch(e){ return {hata:String(e)}; } },
   async macSonuc(id, evSkor, depSkor){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('maclar').update({ev_skor:evSkor, dep_skor:depSkor, oynandi:true}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
@@ -2408,6 +2430,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
         )}
       </div>}
       {ligKurAc && <button onClick={ligKurAc} className="tap" style={{width:"100%",padding:13,borderRadius:12,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,fontSize:14,fontWeight:700,marginBottom:10}}>+ Yeni Lig Kur</button>}
+      {!saltOkunur && <button onClick={()=>git({sayfa:"pazar"})} className="tap" style={{width:"100%",padding:12,borderRadius:12,background:T.gold+"18",color:T.gold,border:"1px solid "+T.gold+"55",fontSize:13.5,fontWeight:700,marginBottom:10}}>🔁 Transfer Pazarı · takım arayan oyuncular</button>}
       {turnuvalar.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:20}}>Henüz lig yok.</div>}
       {turnuvalar.map(t=>{
         const oynanan=t.maclar.filter(m=>m.oynandi).length;
@@ -3311,7 +3334,8 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
     </div>
     <div style={{position:"relative",padding:"0 14px"}}>
       <div style={{position:"absolute",top:-28,left:14,border:"3px solid "+T.bg0,borderRadius:14,overflow:"hidden"}}><Logo renk={turnuva.renk} ad={turnuva.ad} logo={turnuva.logo} renk2={turnuva.renk2} boy={56}/></div>
-      <div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:10}}>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:10,flexWrap:"wrap"}}>
+        {!saltOkunur && oturum && turnuva.iliskisel && <button onClick={()=>git({sayfa:"sohbet",turnuva})} className="tap" style={{background:"transparent",color:T.accent2,border:"1px solid "+T.accent2,borderRadius:20,padding:"0 14px",height:32,fontSize:12,fontWeight:700}}>💬 Sohbet</button>}
         {!saltOkunur && oturum && <button onClick={paylasAc} className="tap" style={{background:turnuva.paylasimSlug?T.accent:"transparent",color:turnuva.paylasimSlug?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.gold,border:"1px solid "+(turnuva.paylasimSlug?T.accent:T.gold),borderRadius:20,padding:"0 14px",height:32,fontSize:12,fontWeight:700}}>{turnuva.paylasimSlug?"🔗 Paylaşımda":"🔗 Paylaş"}</button>}
         {ligTakip && <button onClick={()=>ligTakip(turnuva.id)} className="tap" style={{background:takipte?T.accent:"transparent",color:takipte?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,border:"1px solid "+T.accent,borderRadius:20,padding:"0 16px",height:32,fontSize:12,fontWeight:700}}>{takipte?"✓ Takipte":"+ Takip et"}</button>}
       </div>
@@ -4979,6 +5003,19 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   const [transferHedef,setTransferHedef]=useState("");
   const [transferMesaj,setTransferMesaj]=useState("");
   const [eskiTakimlar,setEskiTakimlar]=useState([]);
+  // Transfer pazarı — "takım arıyorum"
+  const [musaitAcik,setMusaitAcik]=useState(false);
+  const [musait,setMusait]=useState(!!o.musait);
+  const [musaitSehir,setMusaitSehir]=useState(o.musait_sehir||"");
+  const [musaitNot,setMusaitNot]=useState(o.musait_not||"");
+  const [musaitYuk,setMusaitYuk]=useState(false);
+  const musaitKaydet=async(yeniDurum)=>{
+    setMusaitYuk(true);
+    const r=await Db.oyuncuMusaitAyar(o.id, yeniDurum, musaitSehir, musaitNot);
+    setMusaitYuk(false);
+    if(r&&r.ok){ setMusait(yeniDurum); o.musait=yeniDurum; if(yeniDurum) setMusaitAcik(false); }
+    else alert("Kaydedilemedi: "+((r&&r.hata)||"yetki yok"));
+  };
   const oyLig=(turnuvalar||[]).find(t=>t.takimlar.some(tk=>tk.oyuncular.some(p=>p.id===o.id)));
   const oyTakim=oyLig?oyLig.takimlar.find(tk=>tk.oyuncular.some(p=>p.id===o.id)):null;
   const transferHedefler=oyLig?oyLig.takimlar.filter(tk=>tk.id!==(oyTakim&&oyTakim.id)):[];
@@ -5185,6 +5222,28 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
       <div style={{flex:1,background:T.gold+"14",color:T.gold,border:"1px solid "+T.gold+"55",borderRadius:12,padding:12,fontSize:13,fontWeight:800,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>⭐ Bu senin kariyerin</div>
       <label className="tap" title="Fotoğrafını değiştir" style={{flexShrink:0,background:T.accent+"18",color:T.accent,border:"1px solid "+T.accent+"66",borderRadius:12,padding:"0 16px",fontSize:13,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center"}}>{fotoYuk2?"⏳ Yükleniyor":"📷 Fotoğraf"}
         <input type="file" accept="image/*" onChange={kendiFotoDegistir} style={{display:"none"}}/></label>
+    </div>}
+    {/* TRANSFER PAZARI — "takım arıyorum" (sadece kendi kartında) */}
+    {oturum && benimMi && typeof o.id==="string" && <div style={{padding:"10px 14px 0"}}>
+      {musait
+        ? <div style={{background:T.gold+"14",border:"1px solid "+T.gold+"55",borderRadius:12,padding:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:18}}>🔁</span>
+              <div style={{flex:1}}><div style={{fontSize:13,color:T.gold,fontWeight:800}}>Transfer pazarındasın</div><div style={{fontSize:10.5,color:T.textMut}}>Kaptanlar seni "takım arayanlar" listesinde görüyor.</div></div>
+            </div>
+            <button onClick={()=>musaitKaydet(false)} disabled={musaitYuk} className="tap" style={{width:"100%",marginTop:9,background:T.bg2,color:T.textSoft,border:"0.5px solid "+T.line,borderRadius:10,padding:9,fontSize:12,fontWeight:700}}>{musaitYuk?"…":"Listeden çık"}</button>
+          </div>
+        : !musaitAcik
+          ? <button onClick={()=>setMusaitAcik(true)} className="tap" style={{width:"100%",background:"transparent",color:T.gold,border:"1px dashed "+T.gold+"66",borderRadius:12,padding:12,fontSize:13,fontWeight:800}}>🔁 Takım arıyorum (transfer pazarına ekle)</button>
+          : <div style={{background:T.bg1,border:"0.5px solid "+T.gold+"44",borderRadius:12,padding:13}}>
+              <div style={{fontSize:12,color:T.text,fontWeight:700,marginBottom:8}}>🔁 Transfer pazarına eklen</div>
+              <input value={musaitSehir} onChange={e=>setMusaitSehir(e.target.value)} placeholder="Şehir (ör: İstanbul / Kartal)" style={{width:"100%",boxSizing:"border-box",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:10,color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:8}}/>
+              <input value={musaitNot} onChange={e=>setMusaitNot(e.target.value)} placeholder="Kısa not (ör: Kaleci, hafta içi müsait)" style={{width:"100%",boxSizing:"border-box",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:10,color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:10}}/>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>musaitKaydet(true)} disabled={musaitYuk} className="tap" style={{flex:1,background:T.gold,color:"#04070C",border:0,borderRadius:10,padding:11,fontSize:13,fontWeight:800}}>{musaitYuk?"…":"Pazara Ekle"}</button>
+                <button onClick={()=>setMusaitAcik(false)} className="tap" style={{background:T.bg2,color:T.textMut,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px 14px",fontSize:13,fontWeight:700}}>Vazgeç</button>
+              </div>
+            </div>}
     </div>}
 
     {/* STAT ÖZET BARI — hero altında hızlı bakış */}
@@ -7616,7 +7675,52 @@ function TakipLigIcerik({turnuva, ligTab, T, git}){
 }
 
 /* AYARLAR — tema + stres testi */
-function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMod, setAdminMod, yedekle, yukleDosya, kayitDurum, git, adminMi, rehberBaslat}){
+// Push: VAPID base64 → Uint8Array
+function flB64ToU8(b64){ const pad="=".repeat((4-b64.length%4)%4); const s=(b64+pad).replace(/-/g,"+").replace(/_/g,"/"); const raw=atob(s); const arr=new Uint8Array(raw.length); for(let i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i); return arr; }
+// Telefon push bildirim aç/kapat kartı
+function PushAyar({T, oturum}){
+  const [durum,setDurum]=useState("bilinmiyor"); // acik | kapali | destek_yok | ayarli_degil
+  const [mesgul,setMesgul]=useState(false);
+  const vapid=(typeof window!=="undefined"&&window.__FL_VAPID_PUBLIC)||"";
+  useEffect(()=>{
+    (async()=>{
+      if(!("serviceWorker" in navigator)||!("PushManager" in window)){ setDurum("destek_yok"); return; }
+      if(!vapid){ setDurum("ayarli_degil"); return; }
+      try{ const reg=await navigator.serviceWorker.ready; const sub=await reg.pushManager.getSubscription(); setDurum(sub?"acik":"kapali"); }catch(e){ setDurum("kapali"); }
+    })();
+  },[]);
+  const ac=async()=>{
+    if(!oturum){ alert("Bildirim açmak için giriş yap."); return; }
+    setMesgul(true);
+    try{
+      const izin=await Notification.requestPermission();
+      if(izin!=="granted"){ setMesgul(false); alert("Bildirim izni verilmedi."); return; }
+      const reg=await navigator.serviceWorker.ready;
+      const sub=await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:flB64ToU8(vapid)});
+      const r=await Db.pushKaydet(oturum.id, sub);
+      setMesgul(false);
+      if(r&&r.ok){ setDurum("acik"); } else alert("Kaydedilemedi: "+((r&&r.hata)||""));
+    }catch(e){ setMesgul(false); alert("Açılamadı: "+String(e)); }
+  };
+  const kapat=async()=>{
+    setMesgul(true);
+    try{ const reg=await navigator.serviceWorker.ready; const sub=await reg.pushManager.getSubscription(); if(sub){ await Db.pushSil(sub.endpoint); await sub.unsubscribe(); } setDurum("kapali"); }catch(e){}
+    setMesgul(false);
+  };
+  if(durum==="destek_yok") return null;
+  return <div style={{padding:"6px 14px"}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:T.accent2+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>📲</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Telefon Bildirimleri</span></div>
+    <div style={{background:T.bg1,borderRadius:12,padding:"14px",border:"0.5px solid "+T.line}}>
+      {durum==="ayarli_degil"
+        ? <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.5}}>Telefon push bildirimi henüz kurulmadı (VAPID anahtarı gerekiyor). Uygulama içi 🔔 bildirimler zaten çalışıyor. Kurulum tamamlanınca burası aktif olacak.</div>
+        : <>
+          <div style={{fontSize:12,color:T.textSoft,lineHeight:1.5,marginBottom:10}}>Uygulama kapalıyken bile transfer/maç bildirimleri telefonuna düşsün.{" "}<span style={{color:T.textMut}}>(iPhone'da: önce uygulamayı ana ekrana ekle.)</span></div>
+          <button onClick={durum==="acik"?kapat:ac} disabled={mesgul} className="tap" style={{width:"100%",background:durum==="acik"?T.bg2:T.accent2,color:durum==="acik"?T.textSoft:"#04070C",border:durum==="acik"?"0.5px solid "+T.line:0,borderRadius:10,padding:11,fontSize:13,fontWeight:800,opacity:mesgul?.6:1}}>{mesgul?"…":durum==="acik"?"🔕 Bildirimleri Kapat":"🔔 Bildirimleri Aç"}</button>
+        </>}
+    </div>
+  </div>;
+}
+function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMod, setAdminMod, yedekle, yukleDosya, kayitDurum, git, adminMi, rehberBaslat, oturum}){
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     {/* VAV HERO BAŞLIK */}
     <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"22px 18px 18px",background:"linear-gradient(120deg,"+T.accent+"40 0%,"+T.bg0+" 38%,"+T.accent+"22 66%,"+T.bg0+")"}}>
@@ -7638,6 +7742,8 @@ function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMo
         <span style={{color:T.textMut,fontSize:16}}>›</span>
       </button>
     </div>}
+
+    {oturum && <PushAyar T={T} oturum={oturum}/>}
 
     {/* VERİ KALICILIĞI + SÜPER ADMIN — sadece admin görsün */}
     {adminMi && <><div style={{padding:"6px 14px"}}>
@@ -9119,14 +9225,15 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const [online,setOnline]=useState(0);
   const [popLig,setPopLig]=useState([]);
   const [popOyuncu,setPopOyuncu]=useState([]);
+  const [gunTrend,setGunTrend]=useState([]);
   const yenile=async()=>{ setYuk(true);
-    const [l,y,h,p,u,oz,ul,bt,au,ts,ta,on,pl,po]=await Promise.all([
+    const [l,y,h,p,u,oz,ul,bt,au,ts,ta,on,pl,po,gt]=await Promise.all([
       Admin.ligler(), Admin.yetkiListe(), Db.haklariListe(), Db.profillerHepsi(), Db.uyeler(),
       Db.panelOzet(), Db.ulkeDagilim(), Db.bekleyenTransferler(),
       Db.auditListe(), Db.topOlay('sayfa'), Db.topOlay('arama'), Db.onlineSayi(),
-      Db.populer('lig'), Db.populer('oyuncu')]);
+      Db.populer('lig'), Db.populer('oyuncu'), Db.gunlukAktif()]);
     setLigler(l); setYetkiler(y); setUyeler(u||[]); setOzet(oz); setUlkeler(ul||[]); setBekTransfer(bt||[]);
-    setAudit(au||[]); setTopSayfa(ts||[]); setTopArama(ta||[]); setOnline(on||0); setPopLig(pl||[]); setPopOyuncu(po||[]);
+    setAudit(au||[]); setTopSayfa(ts||[]); setTopArama(ta||[]); setOnline(on||0); setPopLig(pl||[]); setPopOyuncu(po||[]); setGunTrend(gt||[]);
     const epostaHarita={}; (p||[]).forEach(pr=>{ epostaHarita[pr.user_id]=pr.email; });
     setHaklar((h||[]).map(x=>({...x, email:epostaHarita[x.user_id]||x.user_id})));
     setYuk(false);
@@ -9456,6 +9563,21 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
             <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,padding:"3px 0"}}><span>{ok?"🟢":"🔴"}</span><span style={{flex:1,color:T.text}}>{ad}</span><span style={{fontSize:10,color:ok?T.accent:T.danger}}>{ok?"çalışıyor":"?"}</span></div>
           )}
         </div>
+        {/* KULLANIM — son 7 gün aktif kullanıcı trendi */}
+        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <div style={{fontSize:11,color:T.textMut,fontWeight:700}}>📈 SON 7 GÜN AKTİF KULLANICI</div>
+            <div style={{fontSize:10,color:T.accent}}>🟢 şu an {online} çevrimiçi</div>
+          </div>
+          {gunTrend.length===0 ? <div style={{fontSize:11,color:T.textMut}}>Veri birikiyor…</div>
+            : (()=>{ const enb=Math.max(1,...gunTrend.map(g=>g.kisi)); return <div style={{display:"flex",alignItems:"flex-end",gap:6,height:80}}>
+                {gunTrend.map((g,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                  <div style={{fontSize:10,color:T.text,fontWeight:700}}>{g.kisi}</div>
+                  <div style={{width:"100%",height:Math.round(6+(g.kisi/enb)*54),background:"linear-gradient(180deg,"+T.accent+","+T.accent2+")",borderRadius:5,minHeight:6}}/>
+                  <div style={{fontSize:9,color:T.textMut}}>{g.etiket}</div>
+                </div>)}
+              </div>; })()}
+        </div>
         {/* 4/8) ANALİTİK — en çok sayfa & arama */}
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px"}}>
@@ -9651,6 +9773,169 @@ function DavetKatil({T, token, oturum, girisYap}){
   </div>);
 }
 
+// ==================== BİLDİRİM MERKEZİ ====================
+function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
+  const [yuk,setYuk]=useState(false);
+  const ikonlar={transfer_istek:"🔄",transfer_onay:"✅",transfer_ret:"🚫",mac:"⚽",sohbet:"💬",duyuru:"📢"};
+  const zamanKisa=(iso)=>{ try{ const d=new Date(iso), fark=(Date.now()-d.getTime())/1000; if(fark<60) return "az önce"; if(fark<3600) return Math.floor(fark/60)+" dk"; if(fark<86400) return Math.floor(fark/3600)+" sa"; return d.toLocaleDateString("tr-TR"); }catch(e){ return ""; } };
+  const ac=async(b)=>{ if(!b.okundu){ await Db.bildirimOku(b.id); yenile&&yenile(); } if(b.link_tip==="turnuva"&&b.link_id){ const t=(turnuvalar||[]).find(x=>x.id===b.link_id); if(t){ git({sayfa:"turnuva",turnuva:t}); return; } } git({sayfa:"ana"}); };
+  const hepsiOku=async()=>{ setYuk(true); await Db.bildirimHepsiOku(); await (yenile&&yenile()); setYuk(false); };
+  const sil=async(b)=>{ await Db.bildirimSil(b.id); yenile&&yenile(); };
+  const varmi=(liste&&liste.length>0);
+  return <div className="fade-in" style={{paddingBottom:90}}>
+    <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"20px 16px 16px",marginBottom:6,background:"linear-gradient(120deg,"+T.accent+"3d 0%,"+T.bg0+" 45%,"+T.accent+"22 75%,"+T.bg0+")"}}>
+      <div className="vav-supurme"/>
+      <div style={{position:"relative",display:"flex",alignItems:"center",gap:12}}>
+        <div className="vav-suzul" style={{width:44,height:44,borderRadius:13,background:T.accent+"2a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🔔</div>
+        <div style={{minWidth:0,flex:1}}>
+          <div style={{fontSize:11,color:T.accent,letterSpacing:1,fontWeight:700}}>BİLDİRİMLER</div>
+          <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1}}>Bildirim Merkezi</div>
+        </div>
+        {varmi && <button onClick={hepsiOku} disabled={yuk} className="tap" style={{background:T.bg1,border:"0.5px solid "+T.line,color:T.textSoft,borderRadius:9,padding:"7px 11px",fontSize:11,fontWeight:600}}>Tümünü oku</button>}
+      </div>
+    </div>
+    <div style={{padding:"6px 14px"}}>
+      {!oturum && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:16,textAlign:"center",fontSize:12.5,color:T.textMut}}>Bildirimleri görmek için giriş yap.</div>}
+      {oturum && !varmi && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:20,textAlign:"center"}}>
+        <div style={{fontSize:30,marginBottom:8}}>🔕</div>
+        <div style={{fontSize:13,color:T.text,fontWeight:600}}>Henüz bildirim yok</div>
+        <div style={{fontSize:11,color:T.textMut,marginTop:4}}>Transfer, maç ve lig olayları burada görünecek.</div>
+      </div>}
+      {varmi && liste.map(b=>
+        <div key={b.id} onClick={()=>ac(b)} className="tap" style={{display:"flex",alignItems:"flex-start",gap:11,background:b.okundu?T.bg1:"linear-gradient(120deg,"+T.accent+"12,"+T.bg1+")",border:"0.5px solid "+(b.okundu?T.line:T.accent+"44"),borderRadius:12,padding:"11px 12px",marginBottom:7}}>
+          <span style={{fontSize:19,flexShrink:0}}>{ikonlar[b.tip]||"🔔"}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,color:T.text,fontWeight:b.okundu?600:800}}>{b.baslik}</div>
+            {b.metin && <div style={{fontSize:11.5,color:T.textSoft,marginTop:2,lineHeight:1.45}}>{b.metin}</div>}
+            <div style={{fontSize:9.5,color:T.textMut,marginTop:3}}>{zamanKisa(b.olusma)}</div>
+          </div>
+          {!b.okundu && <span style={{width:8,height:8,borderRadius:"50%",background:T.accent,flexShrink:0,marginTop:5}}/>}
+          <button onClick={(e)=>{e.stopPropagation(); sil(b);}} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:15,flexShrink:0,padding:"0 2px"}}>×</button>
+        </div>
+      )}
+      {/* Takip akışı (eski özet, otomatik) */}
+      {takipListe && takipListe.length>0 && <div style={{marginTop:14}}>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"2px 2px 8px"}}>📡 TAKİP AKIŞI (otomatik)</div>
+        {takipListe.slice(0,10).map((e,i)=>
+          <div key={i} style={{display:"flex",alignItems:"center",gap:10,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"9px 11px",marginBottom:5}}>
+            <span style={{fontSize:16}}>{e.ikon}</span>
+            <div style={{flex:1,fontSize:12,color:T.textSoft}}>{e.metin}</div>
+          </div>
+        )}
+      </div>}
+    </div>
+  </div>;
+}
+
+// ==================== SOHBET (Realtime) ====================
+function SohbetSayfa({T, git, oturum, turnuva, takim}){
+  const benimTakimlar=(turnuva&&oturum)?(turnuva.takimlar||[]).filter(tk=>tk.yonetici_id===oturum.id):[];
+  const [kanal,setKanal]=useState(takim?("t:"+takim.id):"genel"); // "genel" | "t:<takimId>"
+  const [mesajlar,setMesajlar]=useState([]);
+  const [metin,setMetin]=useState("");
+  const [yuk,setYuk]=useState(true);
+  const [gonderiliyor,setGonderiliyor]=useState(false);
+  const kaydirRef=useRef(null);
+  const aboneRef=useRef(null);
+  const aktifTakimId = kanal.startsWith("t:") ? kanal.slice(2) : null;
+  const ad=(oturum&&((oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email))||"Ben";
+  const dibeKaydir=()=>{ setTimeout(()=>{ try{ if(kaydirRef.current) kaydirRef.current.scrollTop=kaydirRef.current.scrollHeight; }catch(e){} },50); };
+  useEffect(()=>{
+    if(!turnuva||!sb){ setYuk(false); return; }
+    let aktif=true; setYuk(true);
+    Db.mesajlar(turnuva.id, aktifTakimId).then(m=>{ if(!aktif) return; setMesajlar(m); setYuk(false); dibeKaydir(); });
+    // realtime
+    if(aboneRef.current){ Db.sohbetKapat(aboneRef.current); aboneRef.current=null; }
+    aboneRef.current=Db.sohbetDinle(turnuva.id, aktifTakimId, (m)=>{ setMesajlar(p=> p.some(x=>x.id===m.id)?p:[...p,m]); dibeKaydir(); });
+    return ()=>{ aktif=false; if(aboneRef.current){ Db.sohbetKapat(aboneRef.current); aboneRef.current=null; } };
+  },[turnuva&&turnuva.id, kanal]);
+  const gonder=async()=>{
+    const t=metin.trim(); if(!t||!oturum||!turnuva) return;
+    setGonderiliyor(true);
+    const r=await Db.mesajGonder(turnuva.id, aktifTakimId, oturum.id, ad, t);
+    setGonderiliyor(false);
+    if(r&&r.ok){ setMetin(""); } else alert("Gönderilemedi: "+((r&&r.hata)||""));
+  };
+  if(!turnuva) return <div className="fade-in" style={{padding:"40px 20px",textAlign:"center",color:T.textMut}}>
+    <div style={{fontSize:30,marginBottom:10}}>💬</div>
+    <div style={{fontSize:13}}>Sohbeti açmak için bir ligin sayfasından "Sohbet" butonuna bas.</div>
+    <button onClick={()=>git({sayfa:"ligler"})} className="tap" style={{marginTop:14,background:T.accent,color:T.bg0,border:0,borderRadius:10,padding:"9px 16px",fontSize:12.5,fontWeight:800}}>Ligleri Keşfet</button>
+  </div>;
+  return <div className="fade-in" style={{display:"flex",flexDirection:"column",height:"calc(100vh - 52px)"}}>
+    <div style={{padding:"12px 14px 8px",borderBottom:"0.5px solid "+T.line}}>
+      <div style={{fontSize:11,color:T.accent,fontWeight:700,letterSpacing:.5}}>💬 SOHBET</div>
+      <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
+      <div style={{display:"flex",gap:7,marginTop:9,overflowX:"auto"}}>
+        <button onClick={()=>setKanal("genel")} className="tap" style={{flexShrink:0,background:kanal==="genel"?T.accent:T.bg1,color:kanal==="genel"?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="genel"?T.accent:T.line),borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700}}># Lig Geneli</button>
+        {benimTakimlar.map(tk=>
+          <button key={tk.id} onClick={()=>setKanal("t:"+tk.id)} className="tap" style={{flexShrink:0,background:kanal==="t:"+tk.id?T.accent:T.bg1,color:kanal==="t:"+tk.id?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="t:"+tk.id?T.accent:T.line),borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700}}>🛡️ {tk.ad}</button>
+        )}
+      </div>
+    </div>
+    <div ref={kaydirRef} style={{flex:1,overflowY:"auto",padding:"12px 14px",display:"flex",flexDirection:"column",gap:8}}>
+      {yuk ? <div style={{textAlign:"center",color:T.textMut,fontSize:12,padding:30}}>Yükleniyor…</div>
+       : mesajlar.length===0 ? <div style={{textAlign:"center",color:T.textMut,fontSize:12.5,padding:30}}>İlk mesajı sen yaz 👋</div>
+       : mesajlar.map(m=>{ const benim=oturum&&m.user_id===oturum.id; return <div key={m.id} style={{alignSelf:benim?"flex-end":"flex-start",maxWidth:"80%"}}>
+           {!benim && <div style={{fontSize:9.5,color:T.textMut,marginBottom:2,marginLeft:4}}>{m.ad}</div>}
+           <div style={{background:benim?T.accent:T.bg1,color:benim?T.bg0:T.text,border:benim?0:"0.5px solid "+T.line,borderRadius:14,padding:"8px 12px",fontSize:13,lineHeight:1.4,wordBreak:"break-word"}}>{m.metin}</div>
+         </div>; })}
+    </div>
+    {!oturum ? <div style={{padding:14,textAlign:"center",fontSize:12,color:T.textMut,borderTop:"0.5px solid "+T.line}}>Yazmak için giriş yap.</div>
+     : <div style={{display:"flex",gap:8,padding:"10px 12px calc(10px + env(safe-area-inset-bottom))",borderTop:"0.5px solid "+T.line,background:T.bg0}}>
+        <input value={metin} onChange={e=>setMetin(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder="Mesaj yaz…" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:22,padding:"11px 16px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+        <button onClick={gonder} disabled={gonderiliyor||!metin.trim()} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:44,height:44,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim())?.5:1}}>➤</button>
+      </div>}
+  </div>;
+}
+
+// ==================== TRANSFER PAZARI (müsait oyuncular) ====================
+function PazarSayfa({T, git, oturum}){
+  const [sehir,setSehir]=useState("");
+  const [liste,setListe]=useState([]);
+  const [yuk,setYuk]=useState(true);
+  const yenile=async(s)=>{ setYuk(true); const d=await Db.pazarOyuncular(s); setListe(d); setYuk(false); };
+  useEffect(()=>{ yenile(""); },[]);
+  const zamanKisa=(iso)=>{ try{ if(!iso) return ""; const d=new Date(iso), fark=(Date.now()-d.getTime())/86400000; if(fark<1) return "bugün"; if(fark<2) return "dün"; return Math.floor(fark)+" gün önce"; }catch(e){ return ""; } };
+  return <div className="fade-in" style={{paddingBottom:90}}>
+    <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"20px 16px 16px",marginBottom:6,background:"linear-gradient(120deg,"+T.gold+"3a 0%,"+T.bg0+" 45%,"+T.gold+"1f 75%,"+T.bg0+")"}}>
+      <div className="vav-supurme"/>
+      <div style={{position:"relative",display:"flex",alignItems:"center",gap:12}}>
+        <div className="vav-suzul" style={{width:44,height:44,borderRadius:13,background:T.gold+"2a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🔁</div>
+        <div style={{minWidth:0}}>
+          <div style={{fontSize:11,color:T.gold,letterSpacing:1,fontWeight:700}}>SERBEST OYUNCULAR</div>
+          <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1}}>Transfer Pazarı</div>
+        </div>
+      </div>
+    </div>
+    <div style={{padding:"6px 14px"}}>
+      <div style={{fontSize:11,color:T.textMut,lineHeight:1.5,marginBottom:10}}>Takım arayan oyuncular burada listelenir. Kendini eklemek için: profilinde "⭐ bu oyuncu benim" ile kartını sahiplen → oyuncu sayfasından "🔁 Takım arıyorum" düğmesini aç.</div>
+      <div style={{display:"flex",gap:8,marginBottom:12}}>
+        <input value={sehir} onChange={e=>setSehir(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") yenile(sehir); }} placeholder="Şehir ara (ör: İstanbul)" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"10px 13px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+        <button onClick={()=>yenile(sehir)} className="tap" style={{background:T.gold,color:"#04070C",border:0,borderRadius:10,padding:"0 16px",fontSize:13,fontWeight:800}}>Ara</button>
+      </div>
+      {yuk ? <div style={{textAlign:"center",color:T.textMut,fontSize:12,padding:30}}>Yükleniyor…</div>
+       : liste.length===0 ? <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:20,textAlign:"center"}}>
+          <div style={{fontSize:26,marginBottom:6}}>🔍</div>
+          <div style={{fontSize:12.5,color:T.textMut}}>Şu an müsait oyuncu yok{sehir?(' ("'+sehir+'")'):""}.</div>
+        </div>
+       : liste.map(o=>
+          <div key={o.player_id} style={{display:"flex",alignItems:"center",gap:12,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"11px 12px",marginBottom:7}}>
+            <div style={{width:44,height:44,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad_soyad,44,o.foto)}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad_soyad}</div>
+              <div style={{fontSize:11,color:T.textMut,marginTop:1}}>{o.poz||"Oyuncu"}{o.musait_sehir?" · 📍 "+o.musait_sehir:""}</div>
+              {o.musait_not && <div style={{fontSize:11,color:T.textSoft,marginTop:3,fontStyle:"italic"}}>"{o.musait_not}"</div>}
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <div style={{fontSize:9,color:T.gold,fontWeight:700,background:T.gold+"18",borderRadius:6,padding:"2px 7px"}}>MÜSAİT</div>
+              <div style={{fontSize:9,color:T.textMut,marginTop:4}}>{zamanKisa(o.musait_t)}</div>
+            </div>
+          </div>
+        )}
+    </div>
+  </div>;
+}
+
 function App(){
   // localStorage yardımcıları
   const KAYIT="fatihpro_veri_v1";
@@ -9695,6 +9980,9 @@ function App(){
     if(kapi!==null || PAYLASIM_SLUG || DAVET_TOKEN) return;   // kapı açıkken / paylaşım / davet akışında gösterme
     try{ if(!localStorage.getItem(REHBER_FLAG)) setRehberGoster(true); }catch(e){}
   },[kapi]);
+  // ÇEKİRDEK — app-içi bildirim (gerçek, Supabase tabanlı)
+  const [gercekBildirim,setGercekBildirim]=useState([]); // {id,tip,baslik,metin,link_tip,link_id,okundu,olusma}
+  const okunmamis = gercekBildirim.filter(b=>!b.okundu).length;
   // FAZ 8 — online oturum & bulut senkron
   const [oturum,setOturum]=useState(null);      // supabase kullanıcı (null=çıkış)
   const [bulutDurum,setBulutDurum]=useState(""); // kısa senkron göstergesi
@@ -9838,6 +10126,16 @@ function App(){
       setTimeout(()=>{ if(aktif) setBulutDurum(""); },2200);
     })();
     return ()=>{ aktif=false; };
+  },[oturum]);
+
+  // ÇEKİRDEK — bildirimleri yükle + periyodik yenile (girişliyken)
+  const bildirimYenile=async()=>{ if(!sb||!oturum) return; const b=await Db.bildirimlerim(); setGercekBildirim(b); };
+  useEffect(()=>{
+    if(!sb || !oturum || saltOkunur){ setGercekBildirim([]); return; }
+    let aktif=true;
+    bildirimYenile();
+    const t=setInterval(()=>{ if(aktif) bildirimYenile(); }, 30000); // 30sn'de bir
+    return ()=>{ aktif=false; clearInterval(t); };
   },[oturum]);
 
   // FAZ 8 — girişliyken her değişikliği buluta yaz (gecikmeli, ÇAKIŞMA korumalı)
@@ -10362,10 +10660,13 @@ function App(){
       case "sihirbaz": icerik=<MacSihirbaz mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} sihirbazKaydet={sihirbazKaydet}/>; break;
       case "istatistik": icerik=<MacIstatistik mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} onKaydet={(mac,ist)=>{ mac.istatistik=ist; }}/>; break;
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
+      case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
+      case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim}/>; break;
+      case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum}/>; break;
       case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi}/>; break;
       case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async()=>{ const gelen=await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
-      case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat}/>; break;
+      case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
     }
   }
@@ -10412,8 +10713,8 @@ function App(){
           {bulutDurum ? <span style={{fontSize:10,color:T.accent,fontWeight:600,whiteSpace:"nowrap"}}>☁ {bulutDurum}</span>
             : oturum ? <span title="Buluta bağlı" style={{fontSize:12,color:T.accent}}>☁</span> : null}
           <span style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:T.accent}}><span className="live-dot" style={{width:7,height:7,borderRadius:"50%",background:T.accent}}/>Canlı</span>
-          <button onClick={()=>git({sayfa:"takip"})} className="tap" style={{position:"relative",fontSize:18}}>🔔
-            {bildirimler.length>0 && <span style={{position:"absolute",top:-4,right:-6,background:T.danger,color:"#fff",fontSize:9,fontWeight:700,borderRadius:8,padding:"1px 5px"}}>{bildirimler.length}</span>}
+          <button onClick={()=>git({sayfa:"bildirim"})} className="tap" style={{position:"relative",fontSize:18}}>🔔
+            {(okunmamis>0) && <span style={{position:"absolute",top:-4,right:-6,background:T.danger,color:"#fff",fontSize:9,fontWeight:700,borderRadius:8,padding:"1px 5px"}}>{okunmamis>9?"9+":okunmamis}</span>}
           </button>
           </>}
         </div>

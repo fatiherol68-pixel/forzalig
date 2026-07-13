@@ -318,4 +318,56 @@ Transfer spec'e göre uygulandı (kaptan → beklemede → lig yöneticisi onay/
 
 **Kullanıcı görevi**: `supabase/15_transfer_kaptan_rls.sql` Supabase SQL Editor'da çalıştırılmalı.
 
-## ÇEKİRDEK YAPIM SIRASI (kilit): 1) Transfer ✅ → 2) App-içi bildirim → 3) Sohbet(Realtime) → 4) Push(iOS 16.4+ PWA)
+## BU OTURUMDA YAPILANLAR — 10. tur (BÜYÜK PAKET: 8 özellik tek seferde)
+Kullanıcı "a 1 2 3 4 c15 e27 28 29 hepsini tek seferde yap" dedi. Yapılanlar:
+
+**1) App-içi bildirim (çan + merkez)** — `supabase/16_bildirimler.sql`:
+- `bildirimler` tablosu + RLS (kendi bildirimini görür). INSERT sadece SECURITY DEFINER
+  `bildirim_yolla()` RPC ile. Transfer INSERT/UPDATE trigger'ları otomatik bildirim üretir
+  (kaptan istek → lig yön.'e "yeni istek"; onay/ret → istek sahibine sonuç).
+- Client: `gercekBildirim` state + 30sn poll, çan artık `okunmamis` sayısını gösterir,
+  `BildirimSayfa` (yeni "bildirim" rotası): okundu işaretle/sil/tümünü-oku + eski takip akışı altta.
+- Db: bildirimlerim, okunmamisSay, bildirimOku, bildirimHepsiOku, bildirimSil.
+
+**2) Sohbet (Realtime)** — `supabase/17_sohbet.sql`:
+- `sohbet_mesajlari` tablosu (lig geneli: takim_id null; takım kanalı: takim_id dolu) + RLS +
+  supabase_realtime publication'a eklendi. `SohbetSayfa` (yeni "sohbet" rotası): kanal sekmeleri
+  (# Lig Geneli + kaptanı olduğun takımlar), realtime INSERT dinleme, mesaj balonları, gönder kutusu.
+- Giriş: TurnuvaSayfa başlığında "💬 Sohbet" butonu (ilişkisel liglerde).
+- Db: mesajlar, mesajGonder, mesajSil, sohbetDinle (realtime kanal), sohbetKapat.
+
+**3) Push bildirim (telefon)** — `supabase/18_push.sql` + `supabase/functions/push-gonder/index.ts`:
+- `push_abonelikleri` tablosu + RLS. sw.js'e `push` + `notificationclick` handler eklendi.
+- Ayarlar'da "📲 Telefon Bildirimleri" kartı (PushAyar): izin ister, VAPID ile abone olur, kaydeder.
+- `window.__FL_VAPID_PUBLIC` BOŞ (kullanıcı üretecek) → boşken kart "henüz kurulmadı" der, app-içi
+  bildirim yine çalışır. Edge Function web-push yollar (VAPID private secret'ta).
+- **KULLANICI GÖREVİ**: `npx web-push generate-vapid-keys` → public'i index.html'e, private'ı
+  Supabase Edge secret'a; `supabase functions deploy push-gonder`.
+
+**4) Review Tool (Katman A)** — `build/inspector.js` + `.github/workflows/inspector.yml`:
+- Statik denetim (canlı DB'ye DOKUNMAZ): bileşen/rota envanteri, SQL'den tablo/RPC/RLS sayımı,
+  güvenlik/KVKK sinyalleri (service_role sızıntısı, RLS'siz tablo), PWA/perf. Çıktı: rapor.md
+  (AI'ya verilir) + rapor.json, GitHub Actions artifact + step summary. Elle/haftalık cron.
+  Yerel test: skor 100/100. (Katman B "canlı snapshot" ayrı, sonraya bırakıldı.)
+
+**c15) Transfer pazarı** — `supabase/19_oyuncu_pazar.sql`:
+- oyuncular'a musait/musait_sehir/musait_not/musait_t sütunları + `oyuncu_musait_ayar` RPC
+  (sadece kartı sahiplenen) + `pazar_oyuncular` RPC (KVKK-güvenli liste). `PazarSayfa` (yeni "pazar"
+  rotası): şehir filtresi + kart listesi. Giriş: Keşfet'te "🔁 Transfer Pazarı" butonu.
+  Oyuncu kendi kartında "🔁 Takım arıyorum" ile pazara eklenir/çıkar.
+
+**e27) Otomatik yedekleme** — `.github/workflows/yedek.yml`:
+- Günlük cron: Supabase REST ile tabloları JSON'a döküp artifact yükler.
+- **KULLANICI GÖREVİ**: GitHub Secrets → SUPABASE_URL + SUPABASE_SERVICE_KEY. Yoksa iş atlanır.
+
+**e28) Kullanım istatistikleri** — admin panel "sistem" sekmesine "📈 Son 7 gün aktif kullanıcı"
+  bar grafiği + anlık çevrimiçi. `Db.gunlukAktif()` olay_log'dan hesaplar.
+
+**e29) Otomatik test** — `.github/workflows/test.yml` + `build/smoke.mjs`:
+- Her push'ta: derle + Playwright ile compiled.html aç → JS hatası + #root render kontrolü.
+  smoke.mjs yerelde de çalışır: `node build/smoke.mjs`.
+
+**Doğrulama**: derleme temiz (709KB), offline smoke 0 JS hatası, inspector 100/100.
+**KULLANICI SQL GÖREVİ (sırayla çalıştır)**: 16, 17, 18, 19 numaralı supabase/*.sql dosyaları.
+
+## ÇEKİRDEK YAPIM SIRASI (kilit): 1) Transfer ✅ → 2) App-içi bildirim ✅ → 3) Sohbet ✅ → 4) Push ✅ (VAPID bekliyor)

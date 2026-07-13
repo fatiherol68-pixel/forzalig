@@ -1,6 +1,6 @@
 /* ForzaLig service worker — kabuk önbelleği + güncelleme bildirimi
-   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (3649b68-1783964266). */
-const SURUM = "3649b68-1783964266";
+   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (0f2451c-1783966006). */
+const SURUM = "0f2451c-1783966006";
 const KABUK = "forzalig-kabuk-" + SURUM;
 
 // Açılış için gereken çekirdek dosyalar (CDN dosyaları ilk kullanımda önbelleğe alınır)
@@ -24,6 +24,34 @@ self.addEventListener("activate", (e) => {
 // Sayfadan "hemen geç" mesajı gelirse bekleyen sürümü etkinleştir
 self.addEventListener("message", (e) => {
   if (e.data === "FL_SKIP_WAITING") self.skipWaiting();
+});
+
+// PUSH bildirimi geldi → telefonda göster
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) { d = { baslik: "ForzaLig", metin: (e.data && e.data.text()) || "" }; }
+  const baslik = d.baslik || "ForzaLig";
+  e.waitUntil(
+    self.registration.showNotification(baslik, {
+      body: d.metin || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { link: d.link || "/" },
+      tag: d.tag || "forzalig",
+    })
+  );
+});
+
+// Bildirime tıklanınca uygulamayı aç / öne getir
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const hedef = (e.notification.data && e.notification.data.link) || "/";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((liste) => {
+      for (const c of liste) { if ("focus" in c) return c.focus(); }
+      if (self.clients.openWindow) return self.clients.openWindow(hedef);
+    })
+  );
 });
 
 self.addEventListener("fetch", (e) => {
