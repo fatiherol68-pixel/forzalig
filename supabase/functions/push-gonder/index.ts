@@ -72,13 +72,17 @@ Deno.serve(async (req) => {
     }
 
     const sb = createClient(SB_URL, SB_KEY);
-    const { data: abonelikler } = await sb
+    const { data: abonelikler, error: aboneErr } = await sb
       .from("push_abonelikleri")
       .select("id, endpoint, p256dh, auth")
       .eq("user_id", user_id);
 
+    console.log("PUSH user_id:", user_id, "abonelik sayisi:", (abonelikler || []).length,
+      "abone_hata:", aboneErr ? aboneErr.message : "yok");
+
     const payload = JSON.stringify({ baslik, metin: metin || "", link: link || "/" });
     let gonderildi = 0, silindi = 0;
+    const hatalar: any[] = [];
 
     for (const a of abonelikler || []) {
       try {
@@ -87,9 +91,13 @@ Deno.serve(async (req) => {
           payload
         );
         gonderildi++;
+        console.log("  ✅ gonderildi endpoint:", (a.endpoint || "").slice(0, 50));
       } catch (e) {
-        // 404/410 → abonelik ölmüş, temizle
         const code = (e as any)?.statusCode;
+        const mesaj = (e as any)?.body || (e as any)?.message || String(e);
+        hatalar.push({ code, mesaj: String(mesaj).slice(0, 200) });
+        console.log("  ❌ HATA code:", code, "mesaj:", String(mesaj).slice(0, 200));
+        // 404/410 → abonelik ölmüş, temizle
         if (code === 404 || code === 410) {
           await sb.from("push_abonelikleri").delete().eq("id", a.id);
           silindi++;
@@ -97,7 +105,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, gonderildi, silindi }), {
+    console.log("PUSH sonuc → gonderildi:", gonderildi, "silindi:", silindi, "hatalar:", JSON.stringify(hatalar));
+    return new Response(JSON.stringify({ ok: true, gonderildi, silindi, hatalar }), {
       headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (e) {
