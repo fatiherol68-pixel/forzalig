@@ -2750,10 +2750,11 @@ function AnaSayfa({turnuvalar, T, git}){
   const selam = saat<5?"İyi geceler":saat<12?"Günaydın":saat<18?"Merhaba":saat<23?"İyi akşamlar":"İyi geceler";
   const bugun = new Date().toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric",weekday:"long"});
 
-  if(!aktifTurnuva) return <div className="fade-in" style={{padding:40,textAlign:"center",color:T.textMut}}>
-    <div style={{fontSize:40,marginBottom:12}}>🏟️</div>
-    <div style={{fontSize:15,color:T.text,fontWeight:600}}>Henüz turnuva yok</div>
-    <div style={{fontSize:12,marginTop:6}}>Ayarlar → Stres Testi'nden örnek veri üret.</div>
+  if(!aktifTurnuva) return <div className="fade-in" style={{padding:"56px 28px",textAlign:"center"}}>
+    <div style={{fontSize:46,marginBottom:14}}>⚽</div>
+    <div style={{fontSize:19,color:T.text,fontWeight:800,marginBottom:8,fontFamily:T.fontDisplay}}>ForzaLig'e hoş geldin!</div>
+    <div style={{fontSize:13,color:T.textMut,lineHeight:1.65,maxWidth:320,margin:"0 auto 24px"}}>Henüz bir ligin yok. Açık ligleri keşfet, bir takıma katıl ya da kendi ligini kur.</div>
+    <button onClick={()=>git&&git({sayfa:"ligler"})} className="tap" style={{background:T.accent,color:(T.renkCifti&&T.renkCifti[1]==="#FFFFFF")?"#fff":T.bg0,border:"none",borderRadius:12,padding:"14px 30px",fontSize:14,fontWeight:800,boxShadow:"0 8px 22px "+T.accent+"44"}}>🔍 Ligleri Keşfet</button>
   </div>;
 
   const tk = aktifTurnuva;
@@ -8986,7 +8987,7 @@ function BosDurum({T, git, ligKurabilir}){
     <div style={{fontSize:13,color:T.textMut,lineHeight:1.6,maxWidth:340,margin:"0 auto"}}>{ligKurabilir?"Yeni bir lig kur, takımları ve oyuncuları ekle, maçlara başla.":"Bir takım seni davet ettiğinde ligler burada görünür."}</div>
     {ligKurabilir && <button onClick={()=>git({sayfa:"ligkur"})} className="tap" style={{marginTop:20,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,borderRadius:11,padding:"13px 26px",fontSize:14,fontWeight:800,border:"none"}}>+ Yeni Lig Kur</button>}
     <div style={{marginTop:14}}>
-      <button onClick={()=>git({sayfa:"ayar"})} className="tap" style={{background:"transparent",color:T.textMut,borderRadius:10,padding:"9px 18px",fontSize:12,fontWeight:600,border:"0.5px solid "+T.line}}>🧪 Veya örnek veri üret (Ayarlar)</button>
+      <button onClick={()=>git({sayfa:"ligler"})} className="tap" style={{background:"transparent",color:T.textMut,borderRadius:10,padding:"9px 18px",fontSize:12,fontWeight:600,border:"0.5px solid "+T.line}}>🔍 Açık ligleri keşfet</button>
     </div>
   </div>;
 }
@@ -10230,6 +10231,7 @@ function App(){
   const GIRIS_FLAG="forzalig_giris_v1";
   const [kapi,setKapi]=useState(()=>{ if(PAYLASIM_SLUG||DAVET_TOKEN) return null; try{ return localStorage.getItem(GIRIS_FLAG) ? null : "splash"; }catch(e){ return "splash"; } });
   const kapiTamamla=()=>{ try{ localStorage.setItem(GIRIS_FLAG,"1"); }catch(e){} setKapi(null); };
+  const [authHazir,setAuthHazir]=useState(false); // ilk Supabase oturum kontrolü bitti mi
   // FAZ 4 — ilk giriş rehberi (onboarding turu): kapı geçildikten sonra bir kez
   const REHBER_FLAG="forzalig_rehber_v1";
   const [rehberGoster,setRehberGoster]=useState(false);
@@ -10344,7 +10346,7 @@ function App(){
 
   // FAZ 8 — Supabase oturumunu izle (açılışta + değişince)
   useEffect(()=>{
-    if(!sb || saltOkunur) return;
+    if(!sb) return;
     let aktif=true;
     // test modunda izinsiz e-posta (ör. Google/Apple) girerse çıkışa at
     const kapiKontrol=(u)=>{
@@ -10361,14 +10363,27 @@ function App(){
       const u=kapiKontrol(data.session?data.session.user:null);
       setOturum(u);
       if(u) setKapi(null); // zaten girişli → açılış kapısını atla
-    }).catch(()=>{});
+      setAuthHazir(true);
+    }).catch(()=>{ if(aktif) setAuthHazir(true); });
     const {data:sub}=sb.auth.onAuthStateChange((_ev,session)=>{
       const u=kapiKontrol(session?session.user:null);
       setOturum(u);
+      if(u) setKapi(null);            // giriş yapıldı → uygulamayı aç (kilitlenme yok)
       if(!u) bulutHazir.current=false;
+      setAuthHazir(true);
     });
     return ()=>{ aktif=false; try{ sub.subscription.unsubscribe(); }catch(e){} };
   },[]);
+
+  // ÜYELİK ZORUNLU — giriş yoksa uygulamaya girişi engelle (davet akışı hariç).
+  // authHazir: ilk oturum kontrolü bitmeden yönlendirme yapma (girişli kullanıcı yanıp sönmesin).
+  useEffect(()=>{
+    if(!sb || !authHazir || DAVET_TOKEN) return;
+    if(!oturum && kapi===null){
+      let gordu=false; try{ gordu=!!localStorage.getItem(GIRIS_FLAG); }catch(e){}
+      setKapi(gordu ? "giris" : "splash");
+    }
+  },[authHazir, oturum, kapi]);
 
   // FAZ 3 — İLİŞKİSEL yükleme: girişli → kendi ligleri (yönetim), ziyaretçi → tüm public ligler
   useEffect(()=>{
@@ -10413,7 +10428,7 @@ function App(){
   const catismaOnlariniYukle=async()=>{
     const r=await Bulut.yukle(oturum.id);
     if(r && r.veri && Array.isArray(r.veri.turnuvalar)){
-      let gelen=r.veri.turnuvalar; if(!gelen.some(t=>t.id===990001)){ try{ gelen=[demoKupa(),...gelen]; }catch(e){} }
+      let gelen=r.veri.turnuvalar;
       setTurnuvalar(gelen);
       if(r.veri.temaKey)setTemaKey(r.veri.temaKey);
       if(Array.isArray(r.veri.takipLig))setTakipLig(r.veri.takipLig);
