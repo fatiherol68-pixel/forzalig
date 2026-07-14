@@ -596,9 +596,22 @@ const Db = {
   async bildirimHepsiOku(){ if(!sb) return; try{ await sb.from('bildirimler').update({okundu:true}).eq('okundu',false); }catch(e){} },
   async bildirimSil(id){ if(!sb) return; try{ await sb.from('bildirimler').delete().eq('id',id); }catch(e){} },
   // ---- SOHBET (Realtime) ----
-  async mesajlar(ligId, takimId){ if(!sb) return []; try{ let q=sb.from('sohbet_mesajlari').select('*').eq('lig_id',ligId).eq('silindi',false).order('olusma',{ascending:true}).limit(200); q = takimId ? q.eq('takim_id',takimId) : q.is('takim_id',null); const {data}=await q; return data||[]; }catch(e){ return []; } },
-  async mesajGonder(ligId, takimId, userId, ad, metin){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('sohbet_mesajlari').insert({lig_id:ligId, takim_id:takimId||null, user_id:userId, ad, metin}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  // Son N mesajı çeker (sayfalama: ilk açılışta son 30). ravdan (öncesi) getirmek için oncesiTs verilir.
+  async mesajlar(ligId, takimId, oncesiTs){ if(!sb) return []; try{ let q=sb.from('sohbet_mesajlari').select('*').eq('lig_id',ligId).eq('silindi',false); q = takimId ? q.eq('takim_id',takimId) : q.is('takim_id',null); if(oncesiTs) q=q.lt('olusma',oncesiTs); const {data}=await q.order('olusma',{ascending:false}).limit(30); return (data||[]).reverse(); }catch(e){ return []; } },
+  async mesajGonder(ligId, takimId, userId, ad, ek){ if(!sb) return {hata:"yok"}; try{ const kayit=Object.assign({lig_id:ligId, takim_id:takimId||null, user_id:userId, ad}, ek||{}); const {data,error}=await sb.from('sohbet_mesajlari').insert(kayit).select('*').single(); return error?{hata:error.message}:{ok:true, mesaj:data}; }catch(e){ return {hata:String(e)}; } },
   async mesajSil(id){ if(!sb) return; try{ await sb.from('sohbet_mesajlari').update({silindi:true}).eq('id',id); }catch(e){} },
+  // Tepkiler (emoji)
+  async tepkiler(mesajIdler){ if(!sb||!mesajIdler||!mesajIdler.length) return []; try{ const {data}=await sb.from('sohbet_tepkileri').select('mesaj_id,user_id,emoji').in('mesaj_id',mesajIdler); return data||[]; }catch(e){ return []; } },
+  async tepkiEkle(mesajId, userId, emoji){ if(!sb) return; try{ await sb.from('sohbet_tepkileri').insert({mesaj_id:mesajId, user_id:userId, emoji}); }catch(e){} },
+  async tepkiKaldir(mesajId, userId, emoji){ if(!sb) return; try{ await sb.from('sohbet_tepkileri').delete().eq('mesaj_id',mesajId).eq('user_id',userId).eq('emoji',emoji); }catch(e){} },
+  // Okuma takibi (okunmamış badge)
+  async okumaKaydet(userId, ligId, kanal){ if(!sb) return; try{ await sb.from('sohbet_okuma').upsert({user_id:userId, lig_id:ligId, kanal, last_read:new Date().toISOString()},{onConflict:'user_id,lig_id,kanal'}); }catch(e){} },
+  async sonOkumalar(userId, ligId){ if(!sb) return {}; try{ const {data}=await sb.from('sohbet_okuma').select('kanal,last_read').eq('user_id',userId).eq('lig_id',ligId); const m={}; (data||[]).forEach(x=>m[x.kanal]=x.last_read); return m; }catch(e){ return {}; } },
+  async okunmamisSay(ligId, takimId, sinceTs){ if(!sb) return 0; try{ let q=sb.from('sohbet_mesajlari').select('*',{count:'exact',head:true}).eq('lig_id',ligId).eq('silindi',false); q = takimId ? q.eq('takim_id',takimId) : q.is('takim_id',null); if(sinceTs) q=q.gt('olusma',sinceTs); const {count}=await q; return count||0; }catch(e){ return 0; } },
+  // Şikâyet
+  async sikayetEt(mesaj, userId, sebep){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('sohbet_sikayet').insert({mesaj_id:mesaj.id, lig_id:mesaj.lig_id, mesaj_metin:mesaj.metin, gonderen_ad:mesaj.ad, sikayet_eden:userId, sebep:sebep||null}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async sikayetler(){ if(!sb) return []; try{ const {data}=await sb.from('sohbet_sikayet').select('*').eq('durum','yeni').order('olusma',{ascending:false}).limit(50); return data||[]; }catch(e){ return []; } },
+  async sikayetKapat(id){ if(!sb) return; try{ await sb.from('sohbet_sikayet').update({durum:'kapatildi'}).eq('id',id); }catch(e){} },
   sohbetDinle(ligId, takimId, geldi){ if(!sb) return null; try{ const kanal=sb.channel('sohbet:'+ligId+':'+(takimId||'genel')).on('postgres_changes',{event:'INSERT',schema:'public',table:'sohbet_mesajlari',filter:'lig_id=eq.'+ligId},(p)=>{ const m=p.new; const kEsit = takimId ? m.takim_id===takimId : !m.takim_id; if(kEsit && !m.silindi) geldi(m); }).subscribe(); return kanal; }catch(e){ return null; } },
   sohbetKapat(kanal){ try{ if(kanal&&sb) sb.removeChannel(kanal); }catch(e){} },
   // ---- OYUNCU PAZARI (müsait oyuncular) ----
@@ -9234,6 +9247,9 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const [popLig,setPopLig]=useState([]);
   const [popOyuncu,setPopOyuncu]=useState([]);
   const [gunTrend,setGunTrend]=useState([]);
+  const [sikayetler,setSikayetler]=useState([]);
+  const sikayetKapat=async(s)=>{ await Db.sikayetKapat(s.id); setSikayetler(p=>p.filter(x=>x.id!==s.id)); };
+  const sikayetSil=async(s)=>{ if(s.mesaj_id) await Db.mesajSil(s.mesaj_id); await Db.sikayetKapat(s.id); setSikayetler(p=>p.filter(x=>x.id!==s.id)); Db.logla(oturum,"Şikâyetli mesaj kaldırıldı",s.mesaj_metin||""); };
   // 📢 Toplu mesaj/duyuru
   const [msgAcik,setMsgAcik]=useState(false);
   const [msgTip,setMsgTip]=useState("herkes");     // herkes | lig | takim | kisi
@@ -9269,6 +9285,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
       Db.populer('lig'), Db.populer('oyuncu'), Db.gunlukAktif()]);
     setLigler(l); setYetkiler(y); setUyeler(u||[]); setOzet(oz); setUlkeler(ul||[]); setBekTransfer(bt||[]);
     setAudit(au||[]); setTopSayfa(ts||[]); setTopArama(ta||[]); setOnline(on||0); setPopLig(pl||[]); setPopOyuncu(po||[]); setGunTrend(gt||[]);
+    Db.sikayetler().then(s=>setSikayetler(s||[]));
     const epostaHarita={}; (p||[]).forEach(pr=>{ epostaHarita[pr.user_id]=pr.email; });
     setHaklar((h||[]).map(x=>({...x, email:epostaHarita[x.user_id]||x.user_id})));
     setYuk(false);
@@ -9489,6 +9506,20 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
                 </div>
               )}
             </div>}
+        {/* 🚩 SOHBET ŞİKÂYETLERİ */}
+        {sikayetler.length>0 && <div style={{background:"linear-gradient(120deg,"+T.danger+"14,"+T.bg1+")",border:"0.5px solid "+T.danger+"44",borderRadius:12,padding:12,marginBottom:8}}>
+          <div style={{fontSize:12,fontWeight:800,color:T.danger,marginBottom:8}}>🚩 Sohbet Şikâyetleri ({sikayetler.length})</div>
+          {sikayetler.map(s=>
+            <div key={s.id} style={{background:T.bg0,borderRadius:9,padding:"9px 11px",marginBottom:6}}>
+              <div style={{fontSize:12,color:T.text,fontWeight:600}}>"{s.mesaj_metin||"(mesaj silinmiş)"}"</div>
+              <div style={{fontSize:9.5,color:T.textMut,marginTop:2}}>Gönderen: {s.gonderen_ad||"?"}{s.sebep?" · Sebep: "+s.sebep:""}</div>
+              <div style={{display:"flex",gap:7,marginTop:7}}>
+                <button onClick={()=>sikayetSil(s)} className="tap" style={{background:T.danger,color:"#fff",border:0,borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:800}}>🗑 Mesajı kaldır</button>
+                <button onClick={()=>sikayetKapat(s)} className="tap" style={{background:"none",color:T.textMut,border:"0.5px solid "+T.line,borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:700}}>Yoksay</button>
+              </div>
+            </div>
+          )}
+        </div>}
         {/* diğer iş türleri (mekanizması gelince dolacak) */}
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
           <span style={{fontSize:10,color:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"4px 8px"}}>💰 Ödeme: manuel (Lig Hakkı sekmesi)</span>
@@ -9891,72 +9922,174 @@ function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
   </div>;
 }
 
-// ==================== SOHBET (Realtime) ====================
+// ==================== SOHBET v2 (Apple tarzı: tepki/yanıt/sistem/okunmamış) ====================
+const FL_EMOJILER=["👍","❤️","😂","⚽","🔥"];
 function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
-  // Süper admin VEYA lig yöneticisi → tüm takım sohbetlerini görür.
-  // Normal oyuncu → sadece kaptanı olduğu VEYA oyuncusunun (sahiplendiği kart) bulunduğu takım(lar).
   const ligYon=!!(oturum&&turnuva&&(((turnuva.yonetici_id!=null)&&turnuva.yonetici_id===oturum.id)||adminMi));
   const benimTakimlar=(turnuva&&oturum)?(turnuva.takimlar||[]).filter(tk=> ligYon || tk.yonetici_id===oturum.id || (tk.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id) ):[];
-  const [kanal,setKanal]=useState(takim?("t:"+takim.id):"genel"); // "genel" | "t:<takimId>"
+  // Gönderirken kimlik: kendi oyuncumun bulunduğu takım (lig sohbetinde "kim hangi takımdan" görünsün)
+  const benimTakim=(turnuva&&oturum)?(turnuva.takimlar||[]).find(tk=>(tk.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id)):null;
+  const benimOyuncu=benimTakim?(benimTakim.oyuncular||[]).find(o=>o.sahip_user_id===oturum.id):null;
+
+  const [kanal,setKanal]=useState(takim?("t:"+takim.id):"genel");
   const [mesajlar,setMesajlar]=useState([]);
+  const [tepkiMap,setTepkiMap]=useState({});      // {mesajId:[{user_id,emoji}]}
   const [metin,setMetin]=useState("");
   const [yuk,setYuk]=useState(true);
   const [gonderiliyor,setGonderiliyor]=useState(false);
-  const kaydirRef=useRef(null);
-  const aboneRef=useRef(null);
+  const [secili,setSecili]=useState(null);        // aksiyon menüsü açık mesaj id
+  const [yanit,setYanit]=useState(null);          // yanıtlanan mesaj
+  const [yeniVar,setYeniVar]=useState(false);     // "↓ yeni mesaj"
+  const [dahaVar,setDahaVar]=useState(true);      // sayfalama
+  const [eskiYuk,setEskiYuk]=useState(false);
+  const [unread,setUnread]=useState({});          // {kanal:adet}
+  const kaydirRef=useRef(null), aboneRef=useRef(null), taslaklar=useRef({}), dipteRef=useRef(true);
   const aktifTakimId = kanal.startsWith("t:") ? kanal.slice(2) : null;
   const ad=(oturum&&((oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email))||"Ben";
-  const dibeKaydir=()=>{ setTimeout(()=>{ try{ if(kaydirRef.current) kaydirRef.current.scrollTop=kaydirRef.current.scrollHeight; }catch(e){} },50); };
+  const dibeKaydir=()=>{ setTimeout(()=>{ try{ if(kaydirRef.current) kaydirRef.current.scrollTop=kaydirRef.current.scrollHeight; }catch(e){} },40); };
+  const dipteMi=()=>{ const el=kaydirRef.current; if(!el) return true; return (el.scrollHeight-el.scrollTop-el.clientHeight)<80; };
+
+  const tepkileriYukle=async(liste)=>{ const idler=(liste||[]).filter(m=>!m.sistem).map(m=>m.id); if(!idler.length){ setTepkiMap({}); return; } const t=await Db.tepkiler(idler); const mp={}; t.forEach(x=>{ (mp[x.mesaj_id]=mp[x.mesaj_id]||[]).push(x); }); setTepkiMap(mp); };
+
+  // Kanal yüklemesi + realtime
   useEffect(()=>{
     if(!turnuva||!sb){ setYuk(false); return; }
-    let aktif=true; setYuk(true);
-    Db.mesajlar(turnuva.id, aktifTakimId).then(m=>{ if(!aktif) return; setMesajlar(m); setYuk(false); dibeKaydir(); });
-    // realtime
+    let aktif=true; setYuk(true); setDahaVar(true); setSecili(null); setYeniVar(false);
+    Db.mesajlar(turnuva.id, aktifTakimId).then(m=>{ if(!aktif) return; setMesajlar(m); setYuk(false); tepkileriYukle(m); dibeKaydir(); if(m.length<30) setDahaVar(false); if(oturum) Db.okumaKaydet(oturum.id, turnuva.id, aktifTakimId||"genel"); });
     if(aboneRef.current){ Db.sohbetKapat(aboneRef.current); aboneRef.current=null; }
-    aboneRef.current=Db.sohbetDinle(turnuva.id, aktifTakimId, (m)=>{ setMesajlar(p=> p.some(x=>x.id===m.id)?p:[...p,m]); dibeKaydir(); });
+    aboneRef.current=Db.sohbetDinle(turnuva.id, aktifTakimId, (m)=>{ setMesajlar(p=>{ if(p.some(x=>x.id===m.id)) return p; const yeni=[...p,m]; if(dipteRef.current || (oturum&&m.user_id===oturum.id)){ dibeKaydir(); } else setYeniVar(true); return yeni; }); if(oturum) Db.okumaKaydet(oturum.id, turnuva.id, aktifTakimId||"genel"); });
     return ()=>{ aktif=false; if(aboneRef.current){ Db.sohbetKapat(aboneRef.current); aboneRef.current=null; } };
   },[turnuva&&turnuva.id, kanal]);
+
+  // Okunmamış badge (genel + kendi takımım)
+  useEffect(()=>{
+    if(!turnuva||!sb||!oturum) return; let a=true;
+    (async()=>{ const son=await Db.sonOkumalar(oturum.id, turnuva.id); const u={}; const kanallar=[["genel",null]]; benimTakimlar.forEach(tk=>kanallar.push(["t:"+tk.id, tk.id]));
+      for(const [k,tid] of kanallar){ if(k===kanal) continue; u[k]=await Db.okunmamisSay(turnuva.id, tid, son[tid||"genel"]); }
+      if(a) setUnread(u); })();
+    return ()=>{a=false;};
+  },[turnuva&&turnuva.id, kanal]);
+
+  const kanalDegis=(yeni)=>{ taslaklar.current[kanal]=metin; setMetin(taslaklar.current[yeni]||""); setYanit(null); setKanal(yeni); setUnread(u=>({...u,[yeni]:0})); };
+
   const gonder=async()=>{
     const t=metin.trim(); if(!t||!oturum||!turnuva) return;
     setGonderiliyor(true);
-    const r=await Db.mesajGonder(turnuva.id, aktifTakimId, oturum.id, ad, t);
+    const ek={ metin:t, takim_ad:benimTakim?benimTakim.ad:null, takim_logo:benimTakim?(benimTakim.logo||null):null, foto:benimOyuncu?(benimOyuncu.foto||null):null };
+    if(yanit){ ek.yanit_id=yanit.id; ek.yanit_ad=yanit.ad; ek.yanit_metin=(yanit.metin||"").slice(0,120); }
+    const r=await Db.mesajGonder(turnuva.id, aktifTakimId, oturum.id, ad, ek);
     setGonderiliyor(false);
-    if(r&&r.ok){ setMetin(""); } else alert("Gönderilemedi: "+((r&&r.hata)||""));
+    if(r&&r.ok){ setMetin(""); setYanit(null); taslaklar.current[kanal]=""; if(r.mesaj) setMesajlar(p=> p.some(x=>x.id===r.mesaj.id)?p:[...p,r.mesaj]); dibeKaydir(); }
+    else alert("Gönderilemedi: "+((r&&r.hata)||""));
   };
+  const tepkiVer=async(m,emoji)=>{ if(!oturum) return; const mine=(tepkiMap[m.id]||[]).some(x=>x.user_id===oturum.id&&x.emoji===emoji);
+    setSecili(null);
+    if(mine){ await Db.tepkiKaldir(m.id,oturum.id,emoji); } else { await Db.tepkiEkle(m.id,oturum.id,emoji); }
+    setTepkiMap(p=>{ const arr=(p[m.id]||[]).filter(x=>!(x.user_id===oturum.id&&x.emoji===emoji)); if(!mine) arr.push({user_id:oturum.id,emoji}); return {...p,[m.id]:arr}; });
+  };
+  const mesajSil=async(m)=>{ setSecili(null); if(!confirm("Mesaj silinsin mi?")) return; await Db.mesajSil(m.id); setMesajlar(p=>p.filter(x=>x.id!==m.id)); };
+  const sikayet=async(m)=>{ setSecili(null); const s=prompt("Şikâyet sebebi (opsiyonel):",""); if(s===null) return; const r=await Db.sikayetEt(m,oturum.id,s); alert(r&&r.ok?"Şikâyetin iletildi, teşekkürler.":"Gönderilemedi."); };
+  const eskiYukle=async()=>{ if(!mesajlar.length||eskiYuk||!dahaVar) return; setEskiYuk(true); const enEski=mesajlar[0].olusma; const eski=await Db.mesajlar(turnuva.id, aktifTakimId, enEski); const el=kaydirRef.current; const oncekiH=el?el.scrollHeight:0; setMesajlar(p=>[...eski,...p]); if(eski.length<30) setDahaVar(false); tepkileriYukle([...eski,...mesajlar]); setTimeout(()=>{ if(el) el.scrollTop=el.scrollHeight-oncekiH; },30); setEskiYuk(false); };
+  const scrollDinle=(e)=>{ const el=e.target; dipteRef.current=dipteMi(); if(dipteRef.current) setYeniVar(false); if(el.scrollTop<40) eskiYukle(); };
+
   if(!turnuva) return <div className="fade-in" style={{padding:"40px 20px",textAlign:"center",color:T.textMut}}>
     <div style={{fontSize:30,marginBottom:10}}>💬</div>
     <div style={{fontSize:13}}>Sohbeti açmak için bir ligin sayfasından "Sohbet" butonuna bas.</div>
     <button onClick={()=>git({sayfa:"ligler"})} className="tap" style={{marginTop:14,background:T.accent,color:T.bg0,border:0,borderRadius:10,padding:"9px 16px",fontSize:12.5,fontWeight:800}}>Ligleri Keşfet</button>
   </div>;
-  return <div className="fade-in" style={{display:"flex",flexDirection:"column",height:"calc(100vh - 52px)"}}>
-    <div style={{padding:"12px 14px 8px",borderBottom:"0.5px solid "+T.line}}>
-      <div style={{fontSize:11,color:T.accent,fontWeight:700,letterSpacing:.5}}>💬 SOHBET</div>
+
+  const rozet=(n)=> n>0 ? <span style={{marginLeft:6,background:T.accent,color:T.bg0,fontSize:10,fontWeight:800,borderRadius:10,padding:"0 6px",minWidth:16,display:"inline-block",textAlign:"center"}}>{n>99?"99+":n}</span> : null;
+  const zaman=(iso)=>{ try{ return new Date(iso).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } };
+
+  return <div className="fade-in" style={{display:"flex",flexDirection:"column",height:"calc(100vh - 52px)",position:"relative"}}>
+    {/* BAŞLIK + SEKMELER */}
+    <div style={{padding:"12px 14px 10px",borderBottom:"0.5px solid "+T.line,background:T.bg0}}>
       <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
-      <div style={{display:"flex",gap:7,marginTop:9,overflowX:"auto"}}>
-        <button onClick={()=>setKanal("genel")} className="tap" style={{flexShrink:0,background:kanal==="genel"?T.accent:T.bg1,color:kanal==="genel"?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="genel"?T.accent:T.line),borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700}}>🌍 Lig Sohbeti</button>
-        {/* Admin/lig yöneticisi: çok takım olabilir → açılır liste; normal oyuncu: sekme */}
+      <div style={{display:"flex",gap:8,marginTop:10,overflowX:"auto",alignItems:"center"}}>
+        <button onClick={()=>kanalDegis("genel")} className="tap" style={{flexShrink:0,background:kanal==="genel"?T.accent:T.bg1,color:kanal==="genel"?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="genel"?T.accent:T.line),borderRadius:20,padding:"7px 15px",fontSize:12.5,fontWeight:700}}>Lig Sohbeti{rozet(unread["genel"]||0)}</button>
         {ligYon
-          ? <select value={aktifTakimId||""} onChange={e=>setKanal(e.target.value?("t:"+e.target.value):"genel")} style={{flexShrink:0,background:aktifTakimId?T.accent:T.bg1,color:aktifTakimId?T.bg0:T.textSoft,border:"0.5px solid "+(aktifTakimId?T.accent:T.line),borderRadius:20,padding:"7px 12px",fontSize:12,fontWeight:700,fontFamily:"inherit",outline:"none",maxWidth:200}}>
+          ? <select value={aktifTakimId||""} onChange={e=>kanalDegis(e.target.value?("t:"+e.target.value):"genel")} style={{flexShrink:0,background:aktifTakimId?T.accent:T.bg1,color:aktifTakimId?T.bg0:T.textSoft,border:"0.5px solid "+(aktifTakimId?T.accent:T.line),borderRadius:20,padding:"8px 12px",fontSize:12.5,fontWeight:700,fontFamily:"inherit",outline:"none",maxWidth:200}}>
               <option value="">🛡️ Takım sohbeti seç…</option>
               {(turnuva.takimlar||[]).map(tk=><option key={tk.id} value={tk.id}>{tk.ad}</option>)}
             </select>
           : benimTakimlar.map(tk=>
-              <button key={tk.id} onClick={()=>setKanal("t:"+tk.id)} className="tap" style={{flexShrink:0,background:kanal==="t:"+tk.id?T.accent:T.bg1,color:kanal==="t:"+tk.id?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="t:"+tk.id?T.accent:T.line),borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700}}>🛡️ {tk.ad}</button>
+              <button key={tk.id} onClick={()=>kanalDegis("t:"+tk.id)} className="tap" style={{flexShrink:0,display:"flex",alignItems:"center",gap:5,background:kanal==="t:"+tk.id?T.accent:T.bg1,color:kanal==="t:"+tk.id?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="t:"+tk.id?T.accent:T.line),borderRadius:20,padding:"7px 14px",fontSize:12.5,fontWeight:700}}>🛡️ {tk.ad}{rozet(unread["t:"+tk.id]||0)}</button>
             )}
       </div>
     </div>
-    <div ref={kaydirRef} style={{flex:1,overflowY:"auto",padding:"12px 14px",display:"flex",flexDirection:"column",gap:8}}>
+
+    {/* MESAJLAR */}
+    <div ref={kaydirRef} onScroll={scrollDinle} onClick={()=>secili&&setSecili(null)} style={{flex:1,overflowY:"auto",padding:"14px 12px",display:"flex",flexDirection:"column",gap:3}}>
+      {eskiYuk && <div style={{textAlign:"center",color:T.textMut,fontSize:11,padding:6}}>Eski mesajlar yükleniyor…</div>}
       {yuk ? <div style={{textAlign:"center",color:T.textMut,fontSize:12,padding:30}}>Yükleniyor…</div>
-       : mesajlar.length===0 ? <div style={{textAlign:"center",color:T.textMut,fontSize:12.5,padding:30}}>İlk mesajı sen yaz 👋</div>
-       : mesajlar.map(m=>{ const benim=oturum&&m.user_id===oturum.id; return <div key={m.id} style={{alignSelf:benim?"flex-end":"flex-start",maxWidth:"80%"}}>
-           {!benim && <div style={{fontSize:9.5,color:T.textMut,marginBottom:2,marginLeft:4}}>{m.ad}</div>}
-           <div style={{background:benim?T.accent:T.bg1,color:benim?T.bg0:T.text,border:benim?0:"0.5px solid "+T.line,borderRadius:14,padding:"8px 12px",fontSize:13,lineHeight:1.4,wordBreak:"break-word"}}>{m.metin}</div>
-         </div>; })}
+       : mesajlar.length===0 ? <div style={{textAlign:"center",color:T.textMut,fontSize:12.5,padding:40}}>İlk mesajı sen yaz 👋</div>
+       : mesajlar.map((m,i)=>{
+          // SİSTEM MESAJI
+          if(m.sistem){
+            if(m.kart && m.sistem_tip==="mac"){ const k=m.kart;
+              return <div key={m.id} onClick={()=>k.mac_id&&git({sayfa:"ana"})} style={{alignSelf:"center",maxWidth:340,width:"92%",background:"linear-gradient(135deg,"+T.accent2+"14,"+T.bg1+")",border:"0.5px solid "+T.accent2+"44",borderRadius:16,padding:"13px 14px",margin:"8px 0"}}>
+                <div style={{fontSize:9,color:T.accent2,fontWeight:800,letterSpacing:1,textAlign:"center",marginBottom:9}}>⚽ MAÇ SONUCU</div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12}}>
+                  <div style={{flex:1,textAlign:"center"}}><div style={{width:40,height:40,margin:"0 auto 5px"}} dangerouslySetInnerHTML={{__html:svgAmblem(k.takimA||"?",T.accent,40,k.logoA)}}/><div style={{fontSize:10.5,color:T.text,fontWeight:600}}>{k.takimA}</div></div>
+                  <div style={{fontSize:22,fontWeight:800,fontFamily:T.fontDisplay,color:T.text}}>{k.skorA} - {k.skorB}</div>
+                  <div style={{flex:1,textAlign:"center"}}><div style={{width:40,height:40,margin:"0 auto 5px"}} dangerouslySetInnerHTML={{__html:svgAmblem(k.takimB||"?",T.danger,40,k.logoB)}}/><div style={{fontSize:10.5,color:T.text,fontWeight:600}}>{k.takimB}</div></div>
+                </div>
+                <div style={{fontSize:9,color:T.textMut,textAlign:"center",marginTop:9}}>{zaman(m.olusma)}</div>
+              </div>;
+            }
+            return <div key={m.id} style={{alignSelf:"center",maxWidth:"90%",margin:"6px 0",display:"flex",alignItems:"center",gap:8,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:14,padding:"9px 13px"}}>
+              <span style={{width:22,height:22,borderRadius:"50%",background:T.accent,color:T.bg0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0,fontWeight:800}}>✓</span>
+              <div><div style={{fontSize:9,color:T.accent,fontWeight:800,letterSpacing:.5}}>FORZALİG{m.sistem_tip==="yonetim"?" YÖNETİMİ":""}</div><div style={{fontSize:12,color:T.textSoft,marginTop:1}}>{m.metin}</div></div>
+            </div>;
+          }
+          // NORMAL MESAJ
+          const benim=oturum&&m.user_id===oturum.id;
+          const tepk=tepkiMap[m.id]||[]; const grup={}; tepk.forEach(x=>{ grup[x.emoji]=grup[x.emoji]||{n:0,mine:false}; grup[x.emoji].n++; if(oturum&&x.user_id===oturum.id) grup[x.emoji].mine=true; });
+          const oncekiAyni = i>0 && mesajlar[i-1] && !mesajlar[i-1].sistem && mesajlar[i-1].user_id===m.user_id;
+          return <div key={m.id} style={{alignSelf:benim?"flex-end":"flex-start",maxWidth:"82%",marginTop:oncekiAyni?1:8,display:"flex",gap:8,flexDirection:benim?"row-reverse":"row"}}>
+            {!benim && <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0,alignSelf:"flex-end",visibility:oncekiAyni?"hidden":"visible"}} dangerouslySetInnerHTML={{__html:svgAvatar(m.ad,30,m.foto)}}/>}
+            <div style={{minWidth:0}}>
+              {!benim && !oncekiAyni && <div style={{fontSize:10,color:T.textMut,marginBottom:3,marginLeft:4,display:"flex",alignItems:"center",gap:5}}>
+                <b style={{color:T.textSoft}}>{m.ad}</b>{m.takim_ad && <span style={{display:"inline-flex",alignItems:"center",gap:3,color:T.accent2}}>🛡 {m.takim_ad}</span>}
+              </div>}
+              <div onClick={(e)=>{ e.stopPropagation(); setSecili(secili===m.id?null:m.id); }} className="tap" style={{background:benim?T.accent:T.bg1,color:benim?T.bg0:T.text,border:benim?0:"0.5px solid "+T.line,borderRadius:16,borderBottomRightRadius:benim?5:16,borderBottomLeftRadius:benim?16:5,padding:"9px 13px",fontSize:13.5,lineHeight:1.4,wordBreak:"break-word",cursor:"pointer"}}>
+                {m.yanit_id && <div style={{borderLeft:"2px solid "+(benim?T.bg0:T.accent),paddingLeft:7,marginBottom:5,opacity:.85}}><div style={{fontSize:10,fontWeight:700}}>{m.yanit_ad}</div><div style={{fontSize:11,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180}}>{m.yanit_metin}</div></div>}
+                {m.metin}
+                <span style={{fontSize:9,opacity:.6,marginLeft:8,verticalAlign:"bottom"}}>{zaman(m.olusma)}</span>
+              </div>
+              {/* Tepkiler */}
+              {Object.keys(grup).length>0 && <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap",justifyContent:benim?"flex-end":"flex-start"}}>
+                {Object.entries(grup).map(([em,d])=><span key={em} onClick={(e)=>{ e.stopPropagation(); tepkiVer(m,em); }} className="tap" style={{background:d.mine?T.accent+"33":T.bg2,border:"0.5px solid "+(d.mine?T.accent:T.line),borderRadius:12,padding:"1px 7px",fontSize:11,cursor:"pointer"}}>{em} {d.n}</span>)}
+              </div>}
+              {/* Aksiyon menüsü */}
+              {secili===m.id && <div onClick={e=>e.stopPropagation()} style={{marginTop:6,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:14,padding:"7px 9px",display:"flex",flexWrap:"wrap",gap:8,alignItems:"center",boxShadow:"0 6px 20px rgba(0,0,0,.35)"}}>
+                {FL_EMOJILER.map(em=><span key={em} onClick={()=>tepkiVer(m,em)} className="tap" style={{fontSize:19,cursor:"pointer"}}>{em}</span>)}
+                <span style={{width:1,height:18,background:T.line}}/>
+                <button onClick={()=>{ setYanit(m); setSecili(null); }} className="tap" style={{background:"none",border:0,color:T.accent,fontSize:11,fontWeight:700}}>↩ Yanıtla</button>
+                {benim
+                  ? <button onClick={()=>mesajSil(m)} className="tap" style={{background:"none",border:0,color:T.danger,fontSize:11,fontWeight:700}}>🗑 Sil</button>
+                  : <button onClick={()=>sikayet(m)} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:11,fontWeight:700}}>⚑ Şikâyet</button>}
+                {!benim && (ligYon) && <button onClick={()=>mesajSil(m)} className="tap" style={{background:"none",border:0,color:T.danger,fontSize:11,fontWeight:700}}>🗑 Kaldır</button>}
+              </div>}
+            </div>
+          </div>;
+        })}
     </div>
+
+    {/* ↓ yeni mesaj */}
+    {yeniVar && <button onClick={()=>{ dibeKaydir(); setYeniVar(false); }} className="tap" style={{position:"absolute",bottom:oturum?86:70,left:"50%",transform:"translateX(-50%)",background:T.accent,color:T.bg0,border:0,borderRadius:20,padding:"7px 16px",fontSize:12,fontWeight:800,boxShadow:"0 6px 18px rgba(0,0,0,.4)",zIndex:5}}>↓ Yeni mesaj</button>}
+
+    {/* Yanıt önizleme */}
+    {yanit && <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderTop:"0.5px solid "+T.line,background:T.bg1}}>
+      <div style={{flex:1,borderLeft:"2px solid "+T.accent,paddingLeft:8,minWidth:0}}><div style={{fontSize:10,color:T.accent,fontWeight:700}}>{yanit.ad}'a yanıt</div><div style={{fontSize:11,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{yanit.metin}</div></div>
+      <button onClick={()=>setYanit(null)} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:18}}>×</button>
+    </div>}
+
+    {/* MESAJ KUTUSU */}
     {!oturum ? <div style={{padding:14,textAlign:"center",fontSize:12,color:T.textMut,borderTop:"0.5px solid "+T.line}}>Yazmak için giriş yap.</div>
      : <div style={{display:"flex",gap:8,padding:"10px 12px calc(10px + env(safe-area-inset-bottom))",borderTop:"0.5px solid "+T.line,background:T.bg0}}>
-        <input value={metin} onChange={e=>setMetin(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder="Mesaj yaz…" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:22,padding:"11px 16px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
-        <button onClick={gonder} disabled={gonderiliyor||!metin.trim()} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:44,height:44,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim())?.5:1}}>➤</button>
+        <input value={metin} onChange={e=>setMetin(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder="Mesaj yaz…" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:22,padding:"12px 16px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+        <button onClick={gonder} disabled={gonderiliyor||!metin.trim()} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim())?.5:1}}>➤</button>
       </div>}
   </div>;
 }
