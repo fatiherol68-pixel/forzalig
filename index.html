@@ -510,6 +510,10 @@ const Db = {
   async transferOnayla(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('transferler').update({asama:'tamam', yonetici_onay_t:new Date().toISOString()}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async transferReddet(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('transferler').update({asama:'iptal'}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async adminYap(userId, yap){ if(!sb) return {hata:"yok"}; try{ if(yap){ const {error}=await sb.from('adminler').upsert({user_id:userId}); return error?{hata:error.message}:{ok:true}; } else { const {error}=await sb.from('adminler').delete().eq('user_id',userId); return error?{hata:error.message}:{ok:true}; } }catch(e){ return {hata:String(e)}; } },
+  // Toplu bildirim/duyuru (admin) — hedef: herkes|lig|takim|kisi
+  async adminTopluBildirim(tip, id, baslik, metin){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('admin_toplu_bildirim',{p_tip:tip, p_id:id||null, p_baslik:baslik, p_metin:metin||null}); return error?{hata:error.message}:{ok:true,adet:data}; }catch(e){ return {hata:String(e)}; } },
+  async tumLiglerBasit(){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('id,ad').order('olusturma',{ascending:false}).limit(500); return data||[]; }catch(e){ return []; } },
+  async ligTakimlariBasit(ligId){ if(!sb) return []; try{ const {data}=await sb.from('takimlar').select('id,ad').eq('lig_id',ligId).order('ad'); return data||[]; }catch(e){ return []; } },
   // ---- 14 Audit log ----
   async logla(oturum, islem, detay){ if(!sb||!oturum) return; try{ await sb.from('islem_log').insert({user_id:oturum.id, kim:(oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email, islem, detay:detay||null}); }catch(e){} },
   async auditListe(n){ if(!sb) return []; try{ const {data}=await sb.from('islem_log').select('*').order('created',{ascending:false}).limit(n||60); return data||[]; }catch(e){ return []; } },
@@ -9230,6 +9234,33 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const [popLig,setPopLig]=useState([]);
   const [popOyuncu,setPopOyuncu]=useState([]);
   const [gunTrend,setGunTrend]=useState([]);
+  // 📢 Toplu mesaj/duyuru
+  const [msgAcik,setMsgAcik]=useState(false);
+  const [msgTip,setMsgTip]=useState("herkes");     // herkes | lig | takim | kisi
+  const [msgLigId,setMsgLigId]=useState("");
+  const [msgTakimId,setMsgTakimId]=useState("");
+  const [msgEmail,setMsgEmail]=useState("");
+  const [msgBaslik,setMsgBaslik]=useState("");
+  const [msgMetin,setMsgMetin]=useState("");
+  const [msgYuk,setMsgYuk]=useState(false);
+  const [msgSonuc,setMsgSonuc]=useState("");
+  const [msgLigler,setMsgLigler]=useState([]);
+  const [msgTakimlar,setMsgTakimlar]=useState([]);
+  useEffect(()=>{ if(msgAcik && msgLigler.length===0) Db.tumLiglerBasit().then(setMsgLigler); },[msgAcik]);
+  useEffect(()=>{ if(msgTip==="takim" && msgLigId) Db.ligTakimlariBasit(msgLigId).then(setMsgTakimlar); },[msgTip,msgLigId]);
+  const mesajGonder=async()=>{
+    setMsgSonuc("");
+    if(!msgBaslik.trim()){ setMsgSonuc("❌ Başlık gerekli."); return; }
+    let id=null;
+    if(msgTip==="lig"){ if(!msgLigId){ setMsgSonuc("❌ Lig seç."); return; } id=msgLigId; }
+    if(msgTip==="takim"){ if(!msgTakimId){ setMsgSonuc("❌ Takım seç."); return; } id=msgTakimId; }
+    if(msgTip==="kisi"){ const e=msgEmail.trim().toLowerCase(); if(!e){ setMsgSonuc("❌ E-posta yaz."); return; } const pr=await Db.profilBul(e); if(!pr||!pr.user_id){ setMsgSonuc("❌ Bu e-postayla kullanıcı bulunamadı."); return; } id=pr.user_id; }
+    setMsgYuk(true);
+    const r=await Db.adminTopluBildirim(msgTip, id, msgBaslik.trim(), msgMetin.trim());
+    setMsgYuk(false);
+    if(r&&r.ok){ setMsgSonuc("✅ Gönderildi ("+(r.adet||0)+" kişiye)."); setMsgBaslik(""); setMsgMetin(""); Db.logla(oturum,"Toplu bildirim",msgTip+": "+msgBaslik.trim()); }
+    else setMsgSonuc("❌ "+((r&&r.hata)||"olmadı"));
+  };
   const yenile=async()=>{ setYuk(true);
     const [l,y,h,p,u,oz,ul,bt,au,ts,ta,on,pl,po,gt]=await Promise.all([
       Admin.ligler(), Admin.yetkiListe(), Db.haklariListe(), Db.profillerHepsi(), Db.uyeler(),
@@ -9412,6 +9443,35 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
       {yuk && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:20}}>Yükleniyor…</div>}
 
       {!yuk && sekme==="ozet" && <div>
+        {/* 📢 TOPLU MESAJ / DUYURU */}
+        <div style={{background:"linear-gradient(120deg,"+T.accent2+"14,"+T.bg1+")",border:"0.5px solid "+T.accent2+"44",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+          <div onClick={()=>setMsgAcik(a=>!a)} className="tap" style={{display:"flex",alignItems:"center",gap:9,padding:"12px 13px",cursor:"pointer"}}>
+            <span style={{width:30,height:30,borderRadius:8,background:T.accent2+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📢</span>
+            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:T.text}}>Mesaj / Duyuru Gönder</div><div style={{fontSize:10,color:T.textMut}}>Herkese, bir lige, takıma veya tek kişiye bildirim</div></div>
+            <span style={{fontSize:14,color:T.textMut,transform:msgAcik?"rotate(180deg)":"none",transition:"transform .2s"}}>▾</span>
+          </div>
+          {msgAcik && <div className="fade-in" style={{padding:"0 13px 14px"}}>
+            <div style={{fontSize:10.5,color:T.textMut,fontWeight:700,marginBottom:6}}>KİME?</div>
+            <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+              {[["herkes","🌍 Herkese"],["lig","🏆 Bir lige"],["takim","🛡️ Bir takıma"],["kisi","👤 Tek kişiye"]].map(([k,l])=>
+                <button key={k} onClick={()=>{ setMsgTip(k); setMsgSonuc(""); }} className="tap" style={{background:msgTip===k?T.accent2:T.bg0,color:msgTip===k?"#04070C":T.textSoft,border:"0.5px solid "+(msgTip===k?T.accent2:T.line),borderRadius:20,padding:"6px 12px",fontSize:11.5,fontWeight:700}}>{l}</button>
+              )}
+            </div>
+            {(msgTip==="lig"||msgTip==="takim") && <select value={msgLigId} onChange={e=>{ setMsgLigId(e.target.value); setMsgTakimId(""); }} style={{width:"100%",boxSizing:"border-box",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:11,color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:10}}>
+              <option value="">— Lig seç —</option>
+              {msgLigler.map(l=><option key={l.id} value={l.id}>{l.ad}</option>)}
+            </select>}
+            {msgTip==="takim" && msgLigId && <select value={msgTakimId} onChange={e=>setMsgTakimId(e.target.value)} style={{width:"100%",boxSizing:"border-box",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:11,color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:10}}>
+              <option value="">— Takım seç —</option>
+              {msgTakimlar.map(t=><option key={t.id} value={t.id}>{t.ad}</option>)}
+            </select>}
+            {msgTip==="kisi" && <input value={msgEmail} onChange={e=>setMsgEmail(e.target.value)} placeholder="kullanici@mail.com" style={{width:"100%",boxSizing:"border-box",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:11,color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:10}}/>}
+            <input value={msgBaslik} onChange={e=>setMsgBaslik(e.target.value)} placeholder="Başlık (ör: Yeni sezon başlıyor!)" style={{width:"100%",boxSizing:"border-box",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:11,color:T.text,fontSize:13,fontWeight:600,outline:"none",fontFamily:"inherit",marginBottom:9}}/>
+            <textarea value={msgMetin} onChange={e=>setMsgMetin(e.target.value)} placeholder="Mesaj (isteğe bağlı)" rows={3} style={{width:"100%",boxSizing:"border-box",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:11,color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",marginBottom:10,resize:"vertical"}}/>
+            <button onClick={mesajGonder} disabled={msgYuk} className="tap" style={{width:"100%",background:T.accent2,color:"#04070C",border:0,borderRadius:10,padding:12,fontSize:13.5,fontWeight:800,opacity:msgYuk?.6:1}}>{msgYuk?"Gönderiliyor…":"📤 Gönder"}</button>
+            {msgSonuc && <div style={{fontSize:11.5,color:/✅/.test(msgSonuc)?T.accent:T.danger,textAlign:"center",marginTop:9}}>{msgSonuc}</div>}
+          </div>}
+        </div>
         {/* İŞLEM MERKEZİ — yapılacak işler tek ekranda (madde 18) */}
         <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"2px 2px 8px"}}>🎯 YAPILACAK İŞLER</div>
         {bekTransfer.length===0
@@ -9874,9 +9934,15 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
       <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
       <div style={{display:"flex",gap:7,marginTop:9,overflowX:"auto"}}>
         <button onClick={()=>setKanal("genel")} className="tap" style={{flexShrink:0,background:kanal==="genel"?T.accent:T.bg1,color:kanal==="genel"?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="genel"?T.accent:T.line),borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700}}>🌍 Lig Sohbeti</button>
-        {benimTakimlar.map(tk=>
-          <button key={tk.id} onClick={()=>setKanal("t:"+tk.id)} className="tap" style={{flexShrink:0,background:kanal==="t:"+tk.id?T.accent:T.bg1,color:kanal==="t:"+tk.id?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="t:"+tk.id?T.accent:T.line),borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700}}>🛡️ {tk.ad}</button>
-        )}
+        {/* Admin/lig yöneticisi: çok takım olabilir → açılır liste; normal oyuncu: sekme */}
+        {ligYon
+          ? <select value={aktifTakimId||""} onChange={e=>setKanal(e.target.value?("t:"+e.target.value):"genel")} style={{flexShrink:0,background:aktifTakimId?T.accent:T.bg1,color:aktifTakimId?T.bg0:T.textSoft,border:"0.5px solid "+(aktifTakimId?T.accent:T.line),borderRadius:20,padding:"7px 12px",fontSize:12,fontWeight:700,fontFamily:"inherit",outline:"none",maxWidth:200}}>
+              <option value="">🛡️ Takım sohbeti seç…</option>
+              {(turnuva.takimlar||[]).map(tk=><option key={tk.id} value={tk.id}>{tk.ad}</option>)}
+            </select>
+          : benimTakimlar.map(tk=>
+              <button key={tk.id} onClick={()=>setKanal("t:"+tk.id)} className="tap" style={{flexShrink:0,background:kanal==="t:"+tk.id?T.accent:T.bg1,color:kanal==="t:"+tk.id?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="t:"+tk.id?T.accent:T.line),borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700}}>🛡️ {tk.ad}</button>
+            )}
       </div>
     </div>
     <div ref={kaydirRef} style={{flex:1,overflowY:"auto",padding:"12px 14px",display:"flex",flexDirection:"column",gap:8}}>
