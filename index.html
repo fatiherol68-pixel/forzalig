@@ -4696,7 +4696,9 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum}){
       </div>
     </div>
     {/* AKSIYON */}
-    <div style={{display:"flex",justifyContent:"flex-end",padding:"10px 14px 0"}}>
+    <div style={{display:"flex",justifyContent:"flex-end",gap:8,padding:"10px 14px 0"}}>
+      {oturum && turnuva && turnuva.iliskisel && (takimBenim || (takim.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id)) &&
+        <button onClick={()=>git({sayfa:"sohbet",turnuva,takim})} className="tap" style={{background:"transparent",color:T.accent2,border:"1px solid "+T.accent2,borderRadius:20,padding:"0 16px",height:34,fontSize:12,fontWeight:700}}>💬 Sohbet</button>}
       <button onClick={()=>takimTakip&&takimTakip(takim.id)} className="tap" style={{background:takimTakipte?T.accent:"transparent",color:takimTakipte?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,border:"1px solid "+T.accent,borderRadius:20,padding:"0 16px",height:34,fontSize:12,fontWeight:700}}>{takimTakipte?"✓ Takipte":"+ Takip et"}</button>
     </div>
     {/* SEKME ŞERİDİ */}
@@ -9831,7 +9833,8 @@ function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
 
 // ==================== SOHBET (Realtime) ====================
 function SohbetSayfa({T, git, oturum, turnuva, takim}){
-  const benimTakimlar=(turnuva&&oturum)?(turnuva.takimlar||[]).filter(tk=>tk.yonetici_id===oturum.id):[];
+  // Erişebildiğim takım kanalları: kaptanı olduğum VEYA oyuncumun (sahiplendiğim kart) bulunduğu takımlar
+  const benimTakimlar=(turnuva&&oturum)?(turnuva.takimlar||[]).filter(tk=> tk.yonetici_id===oturum.id || (tk.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id) ):[];
   const [kanal,setKanal]=useState(takim?("t:"+takim.id):"genel"); // "genel" | "t:<takimId>"
   const [mesajlar,setMesajlar]=useState([]);
   const [metin,setMetin]=useState("");
@@ -9868,7 +9871,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim}){
       <div style={{fontSize:11,color:T.accent,fontWeight:700,letterSpacing:.5}}>💬 SOHBET</div>
       <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
       <div style={{display:"flex",gap:7,marginTop:9,overflowX:"auto"}}>
-        <button onClick={()=>setKanal("genel")} className="tap" style={{flexShrink:0,background:kanal==="genel"?T.accent:T.bg1,color:kanal==="genel"?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="genel"?T.accent:T.line),borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700}}># Lig Geneli</button>
+        <button onClick={()=>setKanal("genel")} className="tap" style={{flexShrink:0,background:kanal==="genel"?T.accent:T.bg1,color:kanal==="genel"?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="genel"?T.accent:T.line),borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700}}>🌍 Lig Sohbeti</button>
         {benimTakimlar.map(tk=>
           <button key={tk.id} onClick={()=>setKanal("t:"+tk.id)} className="tap" style={{flexShrink:0,background:kanal==="t:"+tk.id?T.accent:T.bg1,color:kanal==="t:"+tk.id?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="t:"+tk.id?T.accent:T.line),borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:700}}>🛡️ {tk.ad}</button>
         )}
