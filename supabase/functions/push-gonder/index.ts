@@ -80,7 +80,9 @@ Deno.serve(async (req) => {
     console.log("PUSH user_id:", user_id, "abonelik sayisi:", (abonelikler || []).length,
       "abone_hata:", aboneErr ? aboneErr.message : "yok");
 
-    const payload = JSON.stringify({ baslik, metin: metin || "", link: link || "/" });
+    // Her bildirime BENZERSİZ etiket → iOS üst üste bindirmesin, ayrı ayrı görünsün.
+    const etiket = kayit.id ? String(kayit.id) : ("fl-" + Date.now());
+    const payload = JSON.stringify({ baslik, metin: metin || "", link: link || "/", tag: etiket });
     let gonderildi = 0, silindi = 0;
     const hatalar: any[] = [];
 
