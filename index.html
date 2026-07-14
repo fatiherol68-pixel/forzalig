@@ -2300,80 +2300,103 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   </div>;
 
   const kullaniciAd = oturum ? ((oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email.split("@")[0]) : "Misafir";
-  // Sahiplendiğin oyuncunun fotoğrafı → profil avatarında da göster
-  let benimOyuncum=null;
-  if(oturum){ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ const f=(tk.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id); if(f){benimOyuncum=f;break;} } if(benimOyuncum)break; } }
+  // Sahiplendiğin oyuncu + takımı + ligi → kariyer & takım kartlarında göster
+  let benimOyuncum=null, benimTakim=null, benimTakimT=null;
+  if(oturum){ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ const f=(tk.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id); if(f){benimOyuncum=f;benimTakim=tk;benimTakimT=t;break;} } if(benimOyuncum)break; } }
   const profilFoto = (benimOyuncum&&benimOyuncum.foto)||null;
+  const beyaz = T.renkCifti&&T.renkCifti[1]==="#FFFFFF";
+  const QA=({ik,l,onClick,renk,rozet})=> <div onClick={onClick} className="tap" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:7,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:15,padding:"14px 4px",cursor:"pointer",position:"relative"}}>
+    <span style={{width:38,height:38,borderRadius:11,background:(renk||T.accent)+"1e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{ik}</span>
+    <span style={{fontSize:11,color:T.textSoft,fontWeight:600}}>{l}</span>
+    {rozet>0 && <span style={{position:"absolute",top:8,right:"calc(50% - 24px)",background:T.danger,color:"#fff",fontSize:9,fontWeight:800,borderRadius:8,padding:"0 5px",minWidth:15,textAlign:"center"}}>{rozet>99?"99+":rozet}</span>}
+  </div>;
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
-    {/* KİŞİSEL HERO */}
-    <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"20px 16px 18px",background:"linear-gradient(120deg,"+T.accent+"3a,"+T.bg0+" 45%,"+(T.accent2||T.accent)+"22 75%,"+T.bg0+")"}}>
+    {/* HEADER */}
+    <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"20px 16px 16px",background:"linear-gradient(120deg,"+T.accent+"3a,"+T.bg0+" 45%,"+(T.accent2||T.accent)+"22 75%,"+T.bg0+")"}}>
       <div className="vav-supurme"/>
       <div style={{position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:13}}>
         <div className="vav-suzul" style={{width:60,height:60,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.accent,flexShrink:0,boxShadow:"0 0 18px "+T.accent+"55"}} dangerouslySetInnerHTML={{__html:svgAvatar(kullaniciAd,60,profilFoto)}}/>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:11,color:T.textSoft}}>{oturum?"Merhaba 👋":"Hoş geldin"}</div>
           <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{kullaniciAd}</div>
-          <div style={{fontSize:10,color:oturum?T.accent:T.textMut,marginTop:2}}>{oturum?"☁ giriş yapıldı · bulutta":"giriş yapılmadı"}</div>
+          <div style={{fontSize:11,color:T.textSoft,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{oturum?oturum.email:"giriş yapılmadı"}</div>
+          {oturum && <div style={{fontSize:10,color:T.accent,marginTop:3}}>☁ bulutta senkron</div>}
         </div>
-        {!oturum && kapiAc && <button onClick={()=>kapiAc("tanitim")} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:20,padding:"8px 14px",fontSize:12,fontWeight:800,whiteSpace:"nowrap"}}>Giriş</button>}
-      </div>
-    </div>
-    {/* KARİYER DURUMU (sade sistem #16): takımı yoksa bilgilendir */}
-    {oturum && !benimOyuncum && !sahiplenme && <div style={{margin:"12px 14px 0",background:"linear-gradient(120deg,"+T.gold+"12,"+T.bg1+")",border:"0.5px solid "+T.gold+"33",borderRadius:14,padding:"14px 15px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:6}}><span style={{fontSize:20}}>⚽</span><div style={{fontSize:13,color:T.text,fontWeight:700}}>Henüz bir oyuncu kariyerin yok</div></div>
-      <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.55}}>Bir takım davetini kabul edip yönetici onayladığında kariyerin otomatik olarak burada oluşur. Gol, asist ve maçların otomatik işlenir.</div>
-    </div>}
-    {/* özet kart */}
-    <div style={{margin:"12px 14px",background:"linear-gradient(160deg,"+T.accent+"18,"+T.bg1+")",border:"0.5px solid "+T.line,borderRadius:16,padding:16}}>
-      <div style={{fontSize:12,color:T.textSoft,marginBottom:12}}>Takip ettiklerin ve istatistiklerin burada.</div>
-      <div style={{display:"flex",justifyContent:"space-around",textAlign:"center"}}>
-        <div><div style={{fontSize:22,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>{toplamTakip}</div><div style={{fontSize:9,color:T.textMut}}>takip</div></div>
-        <div><div style={{fontSize:22,fontWeight:800,color:T.gold,fontFamily:T.fontDisplay}}>{toplamMac}</div><div style={{fontSize:9,color:T.textMut}}>maç</div></div>
-        <div><div style={{fontSize:22,fontWeight:800,color:"#34D399",fontFamily:T.fontDisplay}}>{toplamGol}</div><div style={{fontSize:9,color:T.textMut}}>gol</div></div>
-        <div><div style={{fontSize:22,fontWeight:800,color:T.purple||"#7c4dff",fontFamily:T.fontDisplay}}>{turnuvalar.length}</div><div style={{fontSize:9,color:T.textMut}}>lig</div></div>
+        {oturum
+          ? <button onClick={()=>git({sayfa:"ayar"})} className="tap" aria-label="Ayarlar" style={{width:40,height:40,borderRadius:12,background:T.bg1,border:"0.5px solid "+T.line,color:T.textSoft,fontSize:19,flexShrink:0}}>⚙️</button>
+          : (kapiAc && <button onClick={()=>kapiAc("tanitim")} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:20,padding:"8px 14px",fontSize:12,fontWeight:800}}>Giriş</button>)}
       </div>
     </div>
 
     <div style={{padding:"0 14px"}}>
-      <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"12px 2px 8px"}}>TAKİP ETTİKLERİM</div>
-      <Sat ik="🔔" metin="Bildirimler & Takip" sag={toplamTakip} onClick={()=>git({sayfa:"takip"})}/>
-      {takipTakimList.length>0 && <Sat ik="🛡️" metin="Takip ettiğim takımlar" sag={takipTakimList.length} onClick={()=>git({sayfa:"takip"})}/>}
-      {takipOyuncuList.length>0 && <Sat ik="⚽" metin="Takip ettiğim oyuncular" sag={takipOyuncuList.length} onClick={()=>git({sayfa:"takip"})}/>}
-
-      <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"16px 2px 8px"}}>KEŞFET</div>
-      <Sat ik="🏆" metin="Tüm Enler" onClick={()=>git({sayfa:"tumenler"})}/>
-      <Sat ik="🔍" metin="Ligler, Takımlar, Oyuncular" onClick={()=>git({sayfa:"ligler"})}/>
-
-      <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"16px 2px 8px"}}>HESAP</div>
-      {oturum ? <>
-        <div style={{display:"flex",alignItems:"center",gap:11,background:T.accent+"12",border:"0.5px solid "+T.accent+"44",borderRadius:11,padding:"12px 13px",marginBottom:6}}>
-          <span style={{fontSize:18}}>✅</span>
+      {/* KARİYER KARTIM */}
+      {oturum && benimOyuncum ? <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"16px 2px 9px"}}>KARİYERİM</div>
+        <div onClick={()=>git({sayfa:"oyuncu",oyuncu:{...benimOyuncum,turnuva:benimTakimT&&benimTakimT.ad}})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",display:"flex",gap:14,alignItems:"center",background:"linear-gradient(135deg,"+T.accent+"26,"+T.bg1+" 60%)",border:"0.5px solid "+T.accent+"44",borderRadius:18,padding:15,cursor:"pointer"}}>
+          <div style={{width:60,height:60,borderRadius:16,overflow:"hidden",border:"1.5px solid "+T.accent+"66",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(benimOyuncum.ad,60,benimOyuncum.foto)}}/>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:13,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email}</div>
-            <div style={{fontSize:10,color:T.accent}}>Giriş yapıldı · veriler buluta kaydediliyor</div>
+            <div style={{fontSize:16.5,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimOyuncum.ad}</div>
+            <div style={{fontSize:11.5,color:T.textMut,marginTop:2}}>{benimOyuncum.poz||"Oyuncu"}{benimTakim?" · "+benimTakim.ad:""}</div>
+            <div style={{display:"flex",gap:16,marginTop:9}}>
+              <div><b style={{fontSize:15,color:T.text,fontWeight:900}}>{benimOyuncum.mac||0}</b><span style={{fontSize:9,color:T.textMut,marginLeft:3}}>Maç</span></div>
+              <div><b style={{fontSize:15,color:T.text,fontWeight:900}}>{benimOyuncum.gol||0}</b><span style={{fontSize:9,color:T.textMut,marginLeft:3}}>Gol</span></div>
+              <div><b style={{fontSize:15,color:T.text,fontWeight:900}}>{benimOyuncum.asist||0}</b><span style={{fontSize:9,color:T.textMut,marginLeft:3}}>Asist</span></div>
+            </div>
           </div>
+          {benimOyuncum.ovr>0 && <div style={{flexShrink:0,textAlign:"center",background:T.gold,borderRadius:12,padding:"7px 11px"}}><div style={{fontSize:22,fontWeight:900,color:"#3a2600",lineHeight:1,fontFamily:T.fontDisplay}}>{benimOyuncum.ovr}</div><div style={{fontSize:8,fontWeight:800,color:"#5a3d00"}}>GENEL</div></div>}
         </div>
-        {sahiplenme ? <div style={{display:"flex",alignItems:"center",gap:11,background:T.gold+"14",border:"0.5px solid "+T.gold+"55",borderRadius:11,padding:"12px 13px",marginBottom:6}}>
-          <span style={{fontSize:18}}>⭐</span>
-          <div onClick={kariyereGit} className="tap" style={{flex:1,minWidth:0,cursor:"pointer"}}>
-            <div style={{fontSize:13,color:T.text,fontWeight:600}}>Kariyerim: {sahiplenme.oyuncu_ad}</div>
-            <div style={{fontSize:10,color:T.gold}}>{sahiplenme.lig_ad||"kart & istatistiklerim"} · aç →</div>
-          </div>
-          <button onClick={()=>onSahiplenmeBirak&&onSahiplenmeBirak()} className="tap" style={{fontSize:10,color:T.textMut,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"5px 8px"}}>bırak</button>
-        </div> : null}
-        {oturum && adminMi && <div onClick={()=>git({sayfa:"admin"})} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,background:"linear-gradient(120deg,"+T.danger+"18,"+T.bg1+")",border:"0.5px solid "+T.danger+"44",borderRadius:11,padding:"12px 13px",marginBottom:6}}>
+      </> : oturum && sahiplenme ? <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"16px 2px 9px"}}>KARİYERİM</div>
+        <div onClick={kariyereGit} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:12,background:T.gold+"14",border:"0.5px solid "+T.gold+"55",borderRadius:16,padding:14,cursor:"pointer"}}>
+          <span style={{fontSize:24}}>⭐</span>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,color:T.text,fontWeight:700}}>{sahiplenme.oyuncu_ad}</div><div style={{fontSize:10.5,color:T.gold}}>{sahiplenme.lig_ad||"kart & istatistiklerim"} · aç →</div></div>
+          <button onClick={(e)=>{e.stopPropagation();onSahiplenmeBirak&&onSahiplenmeBirak();}} className="tap" style={{fontSize:10,color:T.textMut,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"5px 8px"}}>bırak</button>
+        </div>
+      </> : oturum ? <div style={{margin:"16px 0 0",background:"linear-gradient(120deg,"+T.gold+"12,"+T.bg1+")",border:"0.5px solid "+T.gold+"33",borderRadius:16,padding:"15px 15px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:6}}><span style={{fontSize:20}}>⚽</span><div style={{fontSize:13,color:T.text,fontWeight:700}}>Henüz bir oyuncu kariyerin yok</div></div>
+        <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.55}}>Bir takım davetini kabul edip yönetici onayladığında kariyerin otomatik burada oluşur.</div>
+      </div> : null}
+
+      {/* TAKIMIM */}
+      {oturum && benimTakim && <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>TAKIMIM</div>
+        <div onClick={()=>git({sayfa:"takim",takim:{...benimTakim,turnuva:benimTakimT&&benimTakimT.ad},turnuva:benimTakimT})} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:13,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:16,padding:14,cursor:"pointer"}}>
+          <Logo renk={benimTakim.renk} ad={benimTakim.ad} logo={benimTakim.logo} renk2={benimTakim.renk2} boy={48}/>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:15.5,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimTakim.ad}</div><div style={{fontSize:11,color:T.textMut,marginTop:2}}>{benimTakimT?benimTakimT.ad:""}</div></div>
+          <span style={{fontSize:20,color:T.textMut}}>›</span>
+        </div>
+      </>}
+
+      {/* HIZLI ERİŞİM */}
+      {oturum && <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>HIZLI ERİŞİM</div>
+        <div style={{display:"flex",gap:10}}>
+          <QA ik="💬" l="Sohbet" renk={T.accent2} onClick={()=>git({sayfa:"sohbet"})}/>
+          <QA ik="🔔" l="Bildirim" renk={T.gold} onClick={()=>git({sayfa:"bildirim"})}/>
+          <QA ik="⭐" l="Takip" renk={T.accent} rozet={toplamTakip} onClick={()=>git({sayfa:"takip"})}/>
+          <QA ik="🏆" l="En'ler" renk={T.purple||"#7c4dff"} onClick={()=>git({sayfa:"tumenler"})}/>
+        </div>
+      </>}
+
+      {/* ÖZET */}
+      <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>ÖZET</div>
+      <div style={{display:"flex",gap:9}}>
+        <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:13,padding:"13px 4px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:T.accent,fontFamily:T.fontDisplay}}>{toplamTakip}</div><div style={{fontSize:9,color:T.textMut}}>Takip</div></div>
+        <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:13,padding:"13px 4px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:T.gold,fontFamily:T.fontDisplay}}>{toplamMac}</div><div style={{fontSize:9,color:T.textMut}}>Maç</div></div>
+        <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:13,padding:"13px 4px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:"#34D399",fontFamily:T.fontDisplay}}>{toplamGol}</div><div style={{fontSize:9,color:T.textMut}}>Gol</div></div>
+        <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:13,padding:"13px 4px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:T.purple||"#7c4dff",fontFamily:T.fontDisplay}}>{turnuvalar.length}</div><div style={{fontSize:9,color:T.textMut}}>Lig</div></div>
+      </div>
+
+      {/* HESAP */}
+      <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>HESAP</div>
+      {oturum ? <>
+        {adminMi && <div onClick={()=>git({sayfa:"admin"})} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,background:"linear-gradient(120deg,"+T.danger+"18,"+T.bg1+")",border:"0.5px solid "+T.danger+"44",borderRadius:12,padding:"12px 13px",marginBottom:7}}>
           <span style={{fontSize:18}}>🛡️</span><span style={{flex:1,fontSize:13,color:T.text,fontWeight:700}}>Süper Admin Paneli</span><span style={{fontSize:9,color:T.danger,fontWeight:700}}>ADMIN</span><span style={{fontSize:12,color:T.textMut}}>›</span>
         </div>}
+        <Sat ik="⚙️" metin="Uygulama Ayarları" onClick={()=>git({sayfa:"ayar"})}/>
         <Sat ik="🚪" metin="Çıkış Yap" onClick={()=>cikisYap&&cikisYap()}/>
-      </> : <Sat ik="🔑" metin="Giriş Yap / Üye Ol" sag="online" onClick={()=>kapiAc&&kapiAc("tanitim")}/>}
+      </> : <Sat ik="🔑" metin="Giriş Yap / Üye Ol" onClick={()=>kapiAc&&kapiAc("tanitim")}/>}
 
-      <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"16px 2px 8px"}}>AYARLAR</div>
-      <Sat ik="⚙️" metin="Uygulama Ayarları" onClick={()=>git({sayfa:"ayar"})}/>
-      {adminMi && <Sat ik="💾" metin="Yedekleme & Veri" onClick={()=>git({sayfa:"ayar"})}/>}
-
-      <div style={{fontSize:9,color:T.textMut,textAlign:"center",margin:"20px 0",lineHeight:1.6}}>
-        Kişisel kartın, kariyerin ve takımın<br/>online sürümde (üyelikle) burada olacak.
-      </div>
+      <div style={{fontSize:9,color:T.textMut,textAlign:"center",margin:"22px 0",lineHeight:1.6}}>ForzaLig · halı saha ligin cebinde ⚽</div>
     </div>
   </div>;
 }
@@ -2441,37 +2464,58 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
       </div>}
     </div>}
 
-    {/* LİGLER */}
+    {/* LİGLER — premium katalog */}
     {tab==="lig" && <div style={{padding:"12px 14px"}}>
-      {acikLigler.length>0 && <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:T.gold,fontWeight:700,margin:"2px 2px 8px"}}>🌍 HERKESE AÇIK LİGLER</div>
-        {acikLigler.map(l=>
-          <a key={l.slug} href={PAYLASIM_URL(l.slug)} className="tap kart-hover" style={{display:"flex",gap:11,alignItems:"center",background:"linear-gradient(120deg,"+T.gold+"14,"+T.bg1+")",borderRadius:12,padding:11,marginBottom:7,border:"0.5px solid "+T.gold+"33",textDecoration:"none"}}>
-            <div style={{width:38,height:38,borderRadius:11,background:T.gold+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🏟️</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13.5,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad}</div>
-              <div style={{fontSize:10,color:T.textMut}}>{l.sehir||"halı saha ligi"} · herkese açık</div>
-            </div>
-            <span style={{fontSize:11,color:T.gold}}>›</span>
-          </a>
-        )}
+      {/* Transfer Pazarı hero */}
+      {!saltOkunur && <div onClick={()=>git({sayfa:"pazar"})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",borderRadius:18,border:"1px solid "+T.accent+"55",background:"radial-gradient(120% 140% at 85% 20%,"+T.accent+"3a,"+T.bg1+" 55%)",padding:"16px 15px",marginBottom:14,display:"flex",alignItems:"center",gap:13,cursor:"pointer"}}>
+        <div style={{width:46,height:46,flexShrink:0,borderRadius:13,background:T.accent+"22",border:"1px solid "+T.accent+"55",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🔁</div>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:16,fontWeight:800,color:T.text}}>Transfer Pazarı</div><div style={{fontSize:11.5,color:T.textMut,marginTop:2}}>Takım arayan oyuncular &amp; transferler</div></div>
+        <span style={{flexShrink:0,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,fontWeight:800,fontSize:12.5,padding:"9px 15px",borderRadius:11}}>Keşfet</span>
       </div>}
-      {ligKurAc && <button onClick={ligKurAc} className="tap" style={{width:"100%",padding:13,borderRadius:12,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,fontSize:14,fontWeight:700,marginBottom:10}}>+ Yeni Lig Kur</button>}
-      {!saltOkunur && <button onClick={()=>git({sayfa:"pazar"})} className="tap" style={{width:"100%",padding:12,borderRadius:12,background:T.gold+"18",color:T.gold,border:"1px solid "+T.gold+"55",fontSize:13.5,fontWeight:700,marginBottom:10}}>🔁 Transfer Pazarı · takım arayan oyuncular</button>}
-      {turnuvalar.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:20}}>Henüz lig yok.</div>}
+
+      {/* Başlık + Lig Kur */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"4px 2px 12px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:9}}>
+          <span style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>Lig Kataloğu</span>
+          {(turnuvalar.length+acikLigler.length)>0 && <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accent+"1e",border:"0.5px solid "+T.accent+"44",padding:"3px 9px",borderRadius:20}}>{turnuvalar.length+acikLigler.length} Lig</span>}
+        </div>
+        {ligKurAc && <button onClick={ligKurAc} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:11,padding:"9px 14px",fontSize:12.5,fontWeight:800}}>+ Lig Kur</button>}
+      </div>
+
+      {/* Herkese açık ligler */}
+      {acikLigler.map(l=>
+        <a key={l.slug} href={PAYLASIM_URL(l.slug)} className="tap kart-hover" style={{display:"flex",gap:12,alignItems:"center",background:T.bg1,borderRadius:16,padding:13,marginBottom:10,border:"0.5px solid "+T.gold+"44",textDecoration:"none",position:"relative",overflow:"hidden"}}>
+          <div style={{position:"absolute",inset:0,left:"auto",width:"55%",background:"radial-gradient(90% 120% at 90% 30%,"+T.gold+"22,transparent 60%)",pointerEvents:"none"}}/>
+          <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(145deg,"+T.gold+","+T.gold+"99)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,position:"relative",zIndex:1}}>🏟️</div>
+          <div style={{flex:1,minWidth:0,position:"relative",zIndex:1}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:15,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad}</span><span style={{fontSize:9,fontWeight:800,color:T.gold,background:T.gold+"1e",border:"0.5px solid "+T.gold+"44",padding:"1px 6px",borderRadius:10,flexShrink:0}}>AÇIK</span></div>
+            <div style={{fontSize:11,color:T.textMut,marginTop:3}}>📍 {l.sehir||"halı saha ligi"}</div>
+          </div>
+          <span style={{fontSize:20,color:T.gold,position:"relative",zIndex:1}}>›</span>
+        </a>
+      )}
+
+      {/* Kullanıcının ligleri — zengin kartlar */}
+      {turnuvalar.length===0 && acikLigler.length===0 && <div style={{fontSize:12.5,color:T.textMut,textAlign:"center",padding:"30px 20px",lineHeight:1.6}}>Henüz lig yok.<br/>{ligKurAc?"Yukarıdan kendi ligini kurabilirsin.":"Bir lige katıldığında burada görünür."}</div>}
       {turnuvalar.map(t=>{
         const oynanan=t.maclar.filter(m=>m.oynandi).length;
         const lider=[...t.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
-        const toplamGol=t.maclar.reduce((s,m)=>s+(m.oynandi?(m.skorA||0)+(m.skorB||0):0),0);
-        return <div key={t.id} onClick={()=>git({sayfa:"turnuva",turnuva:t})} className="tap kart-hover" style={{background:T.bg1,borderRadius:14,padding:13,marginBottom:9,border:"0.5px solid "+T.line}}>
-          <div style={{display:"flex",gap:11,alignItems:"center"}}>
-            <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={46}/>
+        const ilkTakimlar=(t.takimlar||[]).slice(0,3);
+        return <div key={t.id} onClick={()=>git({sayfa:"turnuva",turnuva:t})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",background:T.bg1,borderRadius:18,padding:14,marginBottom:11,border:"0.5px solid "+T.line,cursor:"pointer"}}>
+          <div style={{position:"absolute",inset:0,left:"auto",width:"58%",background:"radial-gradient(90% 120% at 92% 35%,"+(t.renk||T.accent)+"26,transparent 62%)",pointerEvents:"none"}}/>
+          <div style={{display:"flex",gap:13,alignItems:"center",position:"relative",zIndex:1}}>
+            <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={54}/>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:15,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
-              <div style={{fontSize:10,color:T.textMut,marginTop:2}}>{t.sehir||""}{t.sehir?" · ":""}{t.takimlar.length} takım · {oynanan} maç</div>
-              {lider && oynanan>0 && <div style={{fontSize:10,color:T.gold,marginTop:3}}>🏆 {lider.ad}</div>}
+              <div style={{fontSize:16,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
+              <div style={{display:"flex",gap:12,marginTop:6,flexWrap:"wrap"}}>
+                {t.sehir && <span style={{fontSize:11,color:T.textMut}}>📍 {t.sehir}</span>}
+                <span style={{fontSize:11,color:T.textMut}}>👥 {t.takimlar.length} takım</span>
+                <span style={{fontSize:11,color:T.textMut}}>⚽ {oynanan} maç</span>
+              </div>
+              {lider && oynanan>0 && <div style={{fontSize:11,color:T.gold,marginTop:6,fontWeight:700}}>🏆 {lider.ad}</div>}
             </div>
-            <span style={{fontSize:12,color:T.textMut}}>›</span>
+            {ilkTakimlar.length>0 && <div style={{display:"flex",flexShrink:0,paddingLeft:4}}>{ilkTakimlar.map((tk,i)=><div key={i} style={{marginLeft:i?-10:0,borderRadius:9,overflow:"hidden",border:"2px solid "+T.bg1}}><Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} renk2={tk.renk2} boy={28}/></div>)}</div>}
+            <span style={{fontSize:18,color:T.textMut,flexShrink:0}}>›</span>
           </div>
         </div>;
       })}
@@ -9963,7 +10007,7 @@ function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
 
 // ==================== SOHBET v2 (Apple tarzı: tepki/yanıt/sistem/okunmamış) ====================
 const FL_EMOJILER=["👍","❤️","😂","⚽","🔥"];
-function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
+function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
   const ligYon=!!(oturum&&turnuva&&(((turnuva.yonetici_id!=null)&&turnuva.yonetici_id===oturum.id)||adminMi));
   const benimTakimlar=(turnuva&&oturum)?(turnuva.takimlar||[]).filter(tk=> ligYon || tk.yonetici_id===oturum.id || (tk.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id) ):[];
   // Gönderirken kimlik: kendi oyuncumun bulunduğu takım (lig sohbetinde "kim hangi takımdan" görünsün)
@@ -10033,11 +10077,39 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
   const eskiYukle=async()=>{ if(!mesajlar.length||eskiYuk||!dahaVar) return; setEskiYuk(true); const enEski=mesajlar[0].olusma; const eski=await Db.mesajlar(turnuva.id, aktifTakimId, enEski); const el=kaydirRef.current; const oncekiH=el?el.scrollHeight:0; setMesajlar(p=>[...eski,...p]); if(eski.length<30) setDahaVar(false); tepkileriYukle([...eski,...mesajlar]); setTimeout(()=>{ if(el) el.scrollTop=el.scrollHeight-oncekiH; },30); setEskiYuk(false); };
   const scrollDinle=(e)=>{ const el=e.target; dipteRef.current=dipteMi(); if(dipteRef.current) setYeniVar(false); if(el.scrollTop<40) eskiYukle(); };
 
-  if(!turnuva) return <div className="fade-in" style={{padding:"40px 20px",textAlign:"center",color:T.textMut}}>
-    <div style={{fontSize:30,marginBottom:10}}>💬</div>
-    <div style={{fontSize:13}}>Sohbeti açmak için bir ligin sayfasından "Sohbet" butonuna bas.</div>
-    <button onClick={()=>git({sayfa:"ligler"})} className="tap" style={{marginTop:14,background:T.accent,color:T.bg0,border:0,borderRadius:10,padding:"9px 16px",fontSize:12.5,fontWeight:800}}>Ligleri Keşfet</button>
-  </div>;
+  // GLOBAL SOHBET HUB — belirli lig seçilmemişse: sohbet edilebilir ligleri listele
+  if(!turnuva){
+    const ligler=(turnuvalar||[]).filter(t=>t.iliskisel && (t.durum||'aktif')!=='arsiv');
+    return <div className="fade-in main-area" style={{paddingBottom:90}}>
+      <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"22px 18px 18px",background:"linear-gradient(120deg,"+T.accent2+"33,"+T.bg0+" 45%,"+T.accent+"22 75%,"+T.bg0+")"}}>
+        <div className="vav-supurme"/>
+        <div style={{position:"relative",display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:44,height:44,borderRadius:13,background:T.accent2+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:"0 0 18px "+T.accent2+"44"}}>💬</div>
+          <div><div style={{fontSize:11,color:T.accent2,letterSpacing:1,fontWeight:700}}>SOHBET</div><div style={{fontSize:22,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1}}>Sohbetlerim</div></div>
+        </div>
+      </div>
+      {!oturum && <div style={{padding:30,textAlign:"center",color:T.textMut,fontSize:13}}>Sohbet için giriş yapmalısın.</div>}
+      {oturum && ligler.length===0 && <div style={{padding:"40px 26px",textAlign:"center"}}>
+        <div style={{fontSize:38,marginBottom:12}}>💬</div>
+        <div style={{fontSize:14,color:T.text,fontWeight:700,marginBottom:6}}>Henüz sohbet edecek ligin yok</div>
+        <div style={{fontSize:12,color:T.textMut,lineHeight:1.6,maxWidth:300,margin:"0 auto 18px"}}>Bir lige katıl veya kur — takım ve lig sohbetlerin burada açılır.</div>
+        <button onClick={()=>git({sayfa:"ligler"})} className="tap" style={{background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:11,padding:"12px 26px",fontSize:13.5,fontWeight:800}}>🔍 Ligleri Keşfet</button>
+      </div>}
+      {oturum && ligler.length>0 && <div style={{padding:"12px 14px"}}>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"4px 2px 10px"}}>LİG & TAKIM SOHBETLERİ</div>
+        {ligler.map(t=>
+          <div key={t.id} onClick={()=>git({sayfa:"sohbet",turnuva:t})} className="tap kart-hover" style={{display:"flex",gap:12,alignItems:"center",background:T.bg1,borderRadius:14,padding:13,marginBottom:9,border:"0.5px solid "+T.line}}>
+            <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={44}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:15,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
+              <div style={{fontSize:11,color:T.textMut,marginTop:2}}>💬 Lig sohbeti · takım sohbetleri</div>
+            </div>
+            <span style={{fontSize:20,color:T.accent2}}>›</span>
+          </div>
+        )}
+      </div>}
+    </div>;
+  }
 
   const rozet=(n)=> n>0 ? <span style={{marginLeft:6,background:T.accent,color:T.bg0,fontSize:10,fontWeight:800,borderRadius:10,padding:"0 6px",minWidth:16,display:"inline-block",textAlign:"center"}}>{n>99?"99+":n}</span> : null;
   const zaman=(iso)=>{ try{ return new Date(iso).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } };
@@ -10950,7 +11022,7 @@ function App(){
       case "istatistik": icerik=<MacIstatistik mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} onKaydet={ligYetkim(nav.turnuva)?(mac,ist)=>{ mac.istatistik=ist; }:kilitliKaydet}/>; break;
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
       case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
-      case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} adminMi={adminMi}/>; break;
+      case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} adminMi={adminMi} turnuvalar={turnuvalar}/>; break;
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum}/>; break;
       case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi}/>; break;
       case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async()=>{ const gelen=await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }}/>; break;
@@ -10961,10 +11033,10 @@ function App(){
   }
 
   const geriVar = !["ana","ligler","ayar","takip"].includes(nav.sayfa);
-  const aktifTab = nav.sayfa==="ana"?"ana":nav.sayfa==="ligler"?"lig":nav.sayfa==="profil"?"profil":nav.sayfa==="ayar"?"ayar":"";
+  const aktifTab = nav.sayfa==="ana"?"ana":nav.sayfa==="ligler"?"lig":nav.sayfa==="sohbet"?"sohbet":nav.sayfa==="profil"?"profil":"";
 
-  const menuItems=[["ana","🏠","Ana"],["lig","🔍","Keşfet"],["profil","👤","Profil"],["ayar","⚙️","Ayarlar"]];
-  const menuGit=(k)=>{ titret(); setNavGecmis([]); if(k==="ana")setNav({sayfa:"ana"}); if(k==="lig")setNav({sayfa:"ligler"}); if(k==="profil")setNav({sayfa:"profil"}); if(k==="ayar")setNav({sayfa:"ayar"}); window.scrollTo(0,0); };
+  const menuItems=[["ana","🏠","Ana"],["lig","🔍","Keşfet"],["sohbet","💬","Sohbet"],["profil","👤","Profil"]];
+  const menuGit=(k)=>{ titret(); setNavGecmis([]); if(k==="ana")setNav({sayfa:"ana"}); if(k==="lig")setNav({sayfa:"ligler"}); if(k==="sohbet")setNav({sayfa:"sohbet"}); if(k==="profil")setNav({sayfa:"profil"}); window.scrollTo(0,0); };
 
   return <div style={{minHeight:"100vh",background:T.bg0,fontFamily:T.fontBody}}>
     {/* DAVET — ?davet=TOKEN ile takım/oyuncu katılım (auth kapısı yoksa) */}
@@ -11091,7 +11163,7 @@ function App(){
     </div>
 
     {/* mobil alt menü */}
-    {!saltOkunur && nav.sayfa!=="sohbet" && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
+    {!saltOkunur && !(nav.sayfa==="sohbet"&&nav.turnuva) && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
       {menuItems.map(([k,ik,l])=>
         <button key={k} onClick={()=>menuGit(k)} style={{flex:1,textAlign:"center",position:"relative"}}>
           <div className="nav-ic" style={{fontSize:19,display:"inline-block",padding:"3px 16px",borderRadius:14,filter:aktifTab===k?"none":"grayscale(1) opacity(.5)",background:aktifTab===k?T.accent+"22":"transparent"}}>{ik}</div>
