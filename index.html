@@ -531,6 +531,10 @@ const Db = {
   async takimDavetiKullan(token, ad, renk, renk2, logo){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('takim_daveti_kullan',{p_token:token, p_ad:ad, p_renk:renk||null, p_renk2:renk2||null, p_logo:logo||null}); return error?{hata:error.message}:{ok:true, takimId:(data&&data.takim_id)||null, oyuncuToken:(data&&data.oyuncu_token)||null}; }catch(e){ return {hata:String(e)}; } },
   async oyuncuDavetiKullan(token, bilgi){ if(!sb) return {hata:"yok"}; const b=bilgi||{}; try{ const {data,error}=await sb.rpc('oyuncu_daveti_kullan',{p_token:token, p_ad:b.ad, p_no:b.no||null, p_poz:b.poz||null, p_foto:b.foto||null, p_dogum:b.dogum||null, p_boy:b.boy||null, p_kilo:b.kilo||null, p_uyruk:b.uyruk||null, p_ayak:b.ayak||null}); return error?{hata:error.message}:{ok:true, player_id:data}; }catch(e){ return {hata:String(e)}; } },
   async oyuncuSahiplenRel(playerId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('oyuncu_sahiplen',{p_player_id:playerId}); return error?{hata:error.message}:{ok:!!data, zaten:!data}; }catch(e){ return {hata:String(e)}; } },
+  // Davet onay akışı — bekleyen katılım istekleri
+  async bekleyenKatilimlar(ligId){ if(!sb) return []; try{ const {data,error}=await sb.rpc('bekleyen_katilimlar',{p_lig:ligId}); return error?[]:(data||[]); }catch(e){ return []; } },
+  async katilimOnayla(otId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('katilim_onayla',{p_ot:otId}); return error?{hata:error.message}:{ok:!!data}; }catch(e){ return {hata:String(e)}; } },
+  async katilimReddet(otId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('katilim_reddet',{p_ot:otId}); return error?{hata:error.message}:{ok:!!data}; }catch(e){ return {hata:String(e)}; } },
   // Tüm üyeler + yetki bilgisi (admin panel "Üyeler" sekmesi)
   async uyeler(){
     if(!sb) return [];
@@ -3619,6 +3623,13 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
   },[turnuva.id]);
   const trfOnayla=async(t)=>{ setTrfYuk(true); setTrfMesaj(""); const r=await yonetim.transferKabulEt(t); setTrfYuk(false); if(r&&r.ok){ setBekTransfer(p=>p.filter(x=>x.id!==t.id)); setTrfMesaj("✓ Transfer onaylandı"); } else setTrfMesaj("Hata: "+((r&&r.hata)||"")); };
   const trfReddet=async(t)=>{ setTrfYuk(true); setTrfMesaj(""); const r=await yonetim.transferRedEt(t.id); setTrfYuk(false); if(r&&r.ok){ setBekTransfer(p=>p.filter(x=>x.id!==t.id)); setTrfMesaj("Transfer reddedildi"); } else setTrfMesaj("Hata: "+((r&&r.hata)||"")); };
+  // bekleyen katılım istekleri (davet onay akışı)
+  const [bekKatilim,setBekKatilim]=useState([]);
+  const [katYuk,setKatYuk]=useState(false);
+  const [katMesaj,setKatMesaj]=useState("");
+  useEffect(()=>{ if(iliskisel2 && sb){ Db.bekleyenKatilimlar(turnuva.id).then(d=>setBekKatilim(d||[])); } },[turnuva.id]);
+  const katOnayla=async(k)=>{ setKatYuk(true); setKatMesaj(""); const r=await Db.katilimOnayla(k.ot_id); setKatYuk(false); if(r&&r.ok){ setBekKatilim(p=>p.filter(x=>x.ot_id!==k.ot_id)); setKatMesaj("✓ Onaylandı — oyuncu eklendi (yenileyince kadroda görünür)"); Db.logla(oturum,"Katılım onayladı",k.ad_soyad||""); } else setKatMesaj("Hata: "+((r&&r.hata)||"yetki yok")); };
+  const katReddet=async(k)=>{ setKatYuk(true); setKatMesaj(""); const r=await Db.katilimReddet(k.ot_id); setKatYuk(false); if(r&&r.ok){ setBekKatilim(p=>p.filter(x=>x.ot_id!==k.ot_id)); setKatMesaj("İstek reddedildi"); } else setKatMesaj("Hata: "+((r&&r.hata)||"")); };
   // lig bilgileri düzenleme
   const [ligAcik,setLigAcik]=useState(false);
   const [lAd,setLAd]=useState(turnuva.ad||"");
@@ -3696,6 +3707,22 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
       </div>}
     </div>}
     {/* BEKLEYEN TRANSFER İSTEKLERİ */}
+    {/* BEKLEYEN KATILIM İSTEKLERİ (davet onay akışı) */}
+    {iliskisel2 && bekKatilim.length>0 && <div style={{background:"linear-gradient(120deg,"+T.accent+"14,"+T.bg1+")",border:"0.5px solid "+T.accent+"44",borderRadius:12,padding:13,marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:700,color:T.accent,marginBottom:8}}>🙋 Bekleyen Katılım İstekleri <span style={{fontSize:11}}>({bekKatilim.length})</span></div>
+      {bekKatilim.map(k=>
+        <div key={k.ot_id} style={{display:"flex",alignItems:"center",gap:9,background:T.bg0,borderRadius:10,padding:"9px 11px",marginBottom:6}}>
+          <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(k.ad_soyad||"?",34,k.foto)}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{k.ad_soyad}</div>
+            <div style={{fontSize:10,color:T.textMut}}>{k.poz||"Oyuncu"}{k.forma_no?" · #"+k.forma_no:""} → {k.takim_ad}</div>
+          </div>
+          <button onClick={()=>katOnayla(k)} disabled={katYuk} className="tap" style={{background:T.accent,color:"#04070C",border:0,borderRadius:8,padding:"7px 11px",fontSize:12,fontWeight:800,opacity:katYuk?.6:1}}>✓ Onayla</button>
+          <button onClick={()=>katReddet(k)} disabled={katYuk} className="tap" style={{background:"none",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:8,padding:"7px 10px",fontSize:12,fontWeight:700,opacity:katYuk?.6:1}}>✗</button>
+        </div>
+      )}
+      {katMesaj && <div style={{fontSize:11,color:/✓/.test(katMesaj)?T.accent:T.danger,textAlign:"center",marginTop:6}}>{katMesaj}</div>}
+    </div>}
     {iliskisel2 && <div style={{background:bekTransfer.length?"linear-gradient(120deg,"+T.gold+"14,"+T.bg1+")":T.bg1,border:"0.5px solid "+(bekTransfer.length?T.gold+"44":T.line),borderRadius:12,padding:13,marginBottom:14}}>
       <div style={{fontSize:13,fontWeight:700,color:bekTransfer.length?T.gold:T.text,marginBottom:bekTransfer.length?8:0}}>🔄 Bekleyen Transfer İstekleri {bekTransfer.length>0 && <span style={{fontSize:11}}>({bekTransfer.length})</span>}</div>
       {bekTransfer.length===0
@@ -9783,7 +9810,7 @@ function DavetKatil({T, token, oturum, girisYap}){
     } else {
       const r=await Db.oyuncuDavetiKullan(token, {ad:ad.trim(), no:parseInt(no)||null, poz, foto:foto||null, dogum:dogum||null, boy:parseInt(boy)||null, kilo:parseInt(kilo)||null, uyruk:uyruk||null, ayak});
       setYuk(false);
-      if(r.ok){ setMesaj("✅ Takıma katıldın!"); setTimeout(cik,1500); } else setMesaj("❌ "+(r.hata||"olmadı"));
+      if(r.ok){ setMesaj("✅ İsteğin gönderildi! Takım yöneticisi onayladığında kariyerin başlar."); setTimeout(cik,3000); } else setMesaj("❌ "+(r.hata||"olmadı"));
     }
   };
   const kopyala=()=>{ try{ navigator.clipboard.writeText(oyuncuLink); setKopyalandi(true); setTimeout(()=>setKopyalandi(false),1600); }catch(e){} };
