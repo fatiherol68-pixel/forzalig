@@ -2313,6 +2313,11 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
         {!oturum && kapiAc && <button onClick={()=>kapiAc("tanitim")} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:20,padding:"8px 14px",fontSize:12,fontWeight:800,whiteSpace:"nowrap"}}>Giriş</button>}
       </div>
     </div>
+    {/* KARİYER DURUMU (sade sistem #16): takımı yoksa bilgilendir */}
+    {oturum && !benimOyuncum && !sahiplenme && <div style={{margin:"12px 14px 0",background:"linear-gradient(120deg,"+T.gold+"12,"+T.bg1+")",border:"0.5px solid "+T.gold+"33",borderRadius:14,padding:"14px 15px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:6}}><span style={{fontSize:20}}>⚽</span><div style={{fontSize:13,color:T.text,fontWeight:700}}>Henüz bir oyuncu kariyerin yok</div></div>
+      <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.55}}>Bir takım davetini kabul edip yönetici onayladığında kariyerin otomatik olarak burada oluşur. Gol, asist ve maçların otomatik işlenir.</div>
+    </div>}
     {/* özet kart */}
     <div style={{margin:"12px 14px",background:"linear-gradient(160deg,"+T.accent+"18,"+T.bg1+")",border:"0.5px solid "+T.line,borderRadius:16,padding:16}}>
       <div style={{fontSize:12,color:T.textSoft,marginBottom:12}}>Takip ettiklerin ve istatistiklerin burada.</div>
@@ -5232,11 +5237,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
             {transferMesaj && <div style={{fontSize:11,color:/✅/.test(transferMesaj)?T.accent:/❌/.test(transferMesaj)?T.danger:T.textSoft,textAlign:"center",marginTop:8}}>{transferMesaj}</div>}
           </div>}
     </div>}
-    {/* SAHİPLENME — bu oyuncu benim (kariyer) */}
-    {oturum && !benimMi && !o.sahip_user_id && <div style={{padding:"10px 14px 0"}}>
-      <button onClick={sahiplen} disabled={sahipYuk} className="tap" style={{width:"100%",background:T.gold+"18",color:T.gold,border:"1px solid "+T.gold+"66",borderRadius:12,padding:12,fontSize:13,fontWeight:800,opacity:sahipYuk?.7:1}}>{sahipYuk?"Kaydediliyor…":"⭐ Bu oyuncu benim (kariyerime ekle)"}</button>
-      {sahipMesaj && <div style={{fontSize:11,color:T.textSoft,textAlign:"center",marginTop:7}}>{sahipMesaj}</div>}
-    </div>}
+    {/* SAHİPLENME (self-claim) KALDIRILDI — kariyer artık sadece takım daveti ile oluşur. */}
     {oturum && benimMi && <div style={{padding:"10px 14px 0",display:"flex",gap:8,alignItems:"stretch"}}>
       <div style={{flex:1,background:T.gold+"14",color:T.gold,border:"1px solid "+T.gold+"55",borderRadius:12,padding:12,fontSize:13,fontWeight:800,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>⭐ Bu senin kariyerin</div>
       <label className="tap" title="Fotoğrafını değiştir" style={{flexShrink:0,background:T.accent+"18",color:T.accent,border:"1px solid "+T.accent+"66",borderRadius:12,padding:"0 16px",fontSize:13,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center"}}>{fotoYuk2?"⏳ Yükleniyor":"📷 Fotoğraf"}
@@ -7860,7 +7861,13 @@ function LigKur({T, git, ligKur, oturum}){
     ["kupa","🏆 Kupa (Eleme)","Tek maç eleme — kaybeden elenir, kazanan tura çıkar"],
   ];
   const formatAd={serbest:"Serbest",tek:"Tek Devre",cift:"Çift Devre",gruplu:"Gruplu",kupa:"Kupa"}[format];
-  const kur=()=>{ if(!ad.trim()){return;} ligKur({ad:ad.trim(), sehir, ilce:ilce.trim(), renk, kisi, format, grupSayi:format==="gruplu"?grupSayi:0, baslangic, hedefTakim}); };
+  const yetkiliKur = !!oturum && (adminMi || (hakBilgi && hakBilgi.kalan>0));
+  const kur=()=>{
+    if(!oturum){ alert("Lig kurmak için önce Google ile giriş yap."); return; }
+    if(!yetkiliKur){ alert("⚠️ Lig açma hakkın yok.\n\nLig oluşturmak için Süper Admin'in sana lig hakkı vermesi gerekiyor."); return; }
+    if(!ad.trim()){return;}
+    ligKur({ad:ad.trim(), sehir, ilce:ilce.trim(), renk, kisi, format, grupSayi:format==="gruplu"?grupSayi:0, baslangic, hedefTakim});
+  };
 
   return <div className="fade-in" style={{paddingBottom:100}}>
     <Baslik ust="YENİ LİG" ana="Lig Kur" T={T}/>
@@ -7958,7 +7965,8 @@ function LigKur({T, git, ligKur, oturum}){
         <div style={{fontSize:11,color:T.textMut,marginTop:3}}>📍 {sehir}{ilce?" / "+ilce:""} · ⚽ {kisi} kişi · {formatAd}{hedefTakim?" · "+hedefTakim+" takım hedef":""}</div>
       </div>
 
-      <button onClick={kur} disabled={!ad.trim()} className="tap" style={{width:"100%",padding:"14px",borderRadius:12,background:ad.trim()?T.accent:T.bg2,color:ad.trim()?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut,fontSize:15,fontWeight:800,border:"none"}}>
+      {!yetkiliKur && <div style={{margin:"0 0 10px",background:T.danger+"14",border:"0.5px solid "+T.danger+"44",borderRadius:11,padding:"11px 13px",fontSize:12,color:T.danger,lineHeight:1.5,fontWeight:600}}>{!oturum?"Lig kurmak için önce Google ile giriş yap.":"Lig açma hakkın yok. Süper Admin'den lig hakkı alman gerekiyor."}</div>}
+      <button onClick={kur} disabled={!ad.trim()||!yetkiliKur} className="tap" style={{width:"100%",padding:"14px",borderRadius:12,background:(ad.trim()&&yetkiliKur)?T.accent:T.bg2,color:(ad.trim()&&yetkiliKur)?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut,fontSize:15,fontWeight:800,border:"none",opacity:yetkiliKur?1:.7}}>
         ✓ Ligi Oluştur
       </button>
       <div style={{fontSize:11,color:T.textMut,textAlign:"center",marginTop:10}}>Oluşturduktan sonra takım ve maç ekleyebilirsin</div>
@@ -10003,7 +10011,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
   const rozet=(n)=> n>0 ? <span style={{marginLeft:6,background:T.accent,color:T.bg0,fontSize:10,fontWeight:800,borderRadius:10,padding:"0 6px",minWidth:16,display:"inline-block",textAlign:"center"}}>{n>99?"99+":n}</span> : null;
   const zaman=(iso)=>{ try{ return new Date(iso).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } };
 
-  return <div className="fade-in" style={{display:"flex",flexDirection:"column",height:"calc(100vh - 52px)",position:"relative"}}>
+  return <div className="fade-in" style={{display:"flex",flexDirection:"column",height:"calc(100dvh - 52px)",position:"relative"}}>
     {/* BAŞLIK + SEKMELER */}
     <div style={{padding:"12px 14px 10px",borderBottom:"0.5px solid "+T.line,background:T.bg0}}>
       <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
@@ -10575,7 +10583,9 @@ function App(){
       setTimeout(()=>git({sayfa:"turnuva",turnuva:yeni}),0);
       return;
     }
-    // Çevrimdışı yedek (giriş yoksa) — eski davranış
+    // Canlı sitede giriş yoksa lig kurulamaz (yetki: sadece hak verilen üye/admin)
+    if(sb && !oturum){ alert("Lig kurmak için önce Google ile giriş yap ve Süper Admin'den lig hakkı al."); return; }
+    // Çevrimdışı yedek (sb yok = demo modu) — eski davranış
     setTurnuvalar(p=>{
       const id=yeniId(p,"turnuva");
       const yeni={ id, ...bilgi, takimlar:[], maclar:[] };
@@ -11030,7 +11040,7 @@ function App(){
     </div>
 
     {/* mobil alt menü */}
-    {!saltOkunur && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
+    {!saltOkunur && nav.sayfa!=="sohbet" && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
       {menuItems.map(([k,ik,l])=>
         <button key={k} onClick={()=>menuGit(k)} style={{flex:1,textAlign:"center",position:"relative"}}>
           <div className="nav-ic" style={{fontSize:19,display:"inline-block",padding:"3px 16px",borderRadius:14,filter:aktifTab===k?"none":"grayscale(1) opacity(.5)",background:aktifTab===k?T.accent+"22":"transparent"}}>{ik}</div>
