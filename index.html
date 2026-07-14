@@ -562,6 +562,7 @@ const Db = {
   },
   async ligGuncelle(id, alanlar){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('ligler').update(alanlar).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ligSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('ligler').delete().eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async ligSilAdmin(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_sil_admin',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ligArsivle(id, arsiv){ return this.ligGuncelle(id, {durum: arsiv?'arsiv':'aktif'}); },
   async ligGetir(id){ if(!sb) return null; try{ const {data}=await sb.from('ligler').select('*').eq('id',id).maybeSingle(); return data||null; }catch(e){ return null; } },
   async liglerim(userId){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('*').eq('yonetici_id',userId).order('olusturma',{ascending:false}); return data||[]; }catch(e){ return []; } },
@@ -3926,7 +3927,9 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
         : <button onClick={()=>{ if(confirm("Ligi arşivle? Puan/maç geçmişi korunur, listeden gizlenir. İstediğinde geri açarsın.")) yonetim.ligArsivle(turnuva,true); }} className="tap" style={{width:"100%",background:T.gold+"18",color:T.gold,border:"0.5px solid "+T.gold+"55",borderRadius:9,padding:"10px",fontSize:12.5,fontWeight:700,marginBottom:8}}>📦 Ligi Arşivle</button>}
       {!turnuva.maclar.some(m=>m.oynandi)
         ? <button onClick={()=>{ if(confirm("Ligi TAMAMEN sil? Bu geri alınamaz. (Maç oynanmadığı için silinebilir)")) yonetim.ligSilTam(turnuva); }} className="tap" style={{width:"100%",background:"none",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:9,padding:"10px",fontSize:12.5,fontWeight:700}}>🗑️ Ligi tamamen sil</button>
-        : <div style={{fontSize:10,color:T.textMut,textAlign:"center",lineHeight:1.5}}>Maç oynandığı için lig <b>silinemez</b> — sadece arşivlenebilir (madde 22). Kalıcı silme yalnızca Süper Admin'de.</div>}
+        : (yonetim.adminMi
+            ? <button onClick={()=>{ if(confirm("SÜPER ADMIN — \""+turnuva.ad+"\" ligini ve TÜM verisini (takımlar, oyuncular, maçlar, olaylar) KALICI sil?\n\nBu işlem GERİ ALINAMAZ.") && confirm("Son onay: gerçekten silinsin mi?")) yonetim.ligSilAdmin(turnuva); }} className="tap" style={{width:"100%",background:T.danger+"18",color:T.danger,border:"0.5px solid "+T.danger+"88",borderRadius:9,padding:"10px",fontSize:12,fontWeight:800}}>🗑️ Süper Admin: Ligi ve tüm verisini kalıcı sil</button>
+            : <div style={{fontSize:10,color:T.textMut,textAlign:"center",lineHeight:1.5}}>Maç oynandığı için lig <b>silinemez</b> — sadece arşivlenebilir (madde 22). Kalıcı silme yalnızca Süper Admin'de.</div>)}
     </div>
     </div>
   </div>;
@@ -10676,6 +10679,11 @@ function App(){
     if(iliskiselMi(turnuva)){ const r=await Db.ligSil(turnuva.id); if(r.hata){ alert("Silinemedi (maç oynanmış olabilir — arşivle): "+r.hata); return; } Db.logla(oturum, "Lig sildi", turnuva.ad); }
     setTurnuvalar(p=>p.filter(t=>t.id!==turnuva.id)); git({sayfa:"ana"});
   };
+  // Süper Admin: ligi ve TÜM verisini (oyuncular dahil) kalıcı sil — maç oynanmış olsa bile
+  const ligSilAdmin=async(turnuva)=>{
+    if(iliskiselMi(turnuva)){ const r=await Db.ligSilAdmin(turnuva.id); if(r.hata){ alert("Silinemedi: "+r.hata); return; } Db.logla(oturum, "Lig KALICI sildi (admin)", turnuva.ad); }
+    setTurnuvalar(p=>p.filter(t=>t.id!==turnuva.id)); git({sayfa:"ana"});
+  };
   // TRANSFER — kaptan istek gönderir → lig yöneticisi onaylar/reddeder
   const transferEt=async(oyuncu, yeniTakimId)=>{
     let trn, eski;
@@ -10925,7 +10933,7 @@ function App(){
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={ligKurYetkim?()=>git({sayfa:"ligkur"}):null} saltOkunur={saltOkunur}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
-      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
+      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur}/>; break;
