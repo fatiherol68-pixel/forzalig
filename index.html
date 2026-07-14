@@ -45,7 +45,7 @@
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
-  window.__FL_VAPID_PUBLIC = "";
+  window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
   (function(){
     var dsn = window.__FL_SENTRY_DSN;
     if(!dsn) return;
@@ -10141,7 +10141,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
     {/* MESAJ KUTUSU */}
     {!oturum ? <div style={{padding:14,textAlign:"center",fontSize:12,color:T.textMut,borderTop:"0.5px solid "+T.line}}>Yazmak için giriş yap.</div>
      : <div style={{display:"flex",gap:8,padding:"10px 12px calc(10px + env(safe-area-inset-bottom))",borderTop:yonetimMod?"none":"0.5px solid "+T.line,background:T.bg0}}>
-        <input value={metin} onChange={e=>setMetin(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder={yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…"} style={{flex:1,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+        <input value={metin} onChange={e=>setMetin(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder={yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…"} style={{flex:1,minWidth:0,width:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
         <button onClick={gonder} disabled={gonderiliyor||!metin.trim()} className="tap" style={{background:yonetimMod?T.gold:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim())?.5:1}}>➤</button>
       </div>}
   </div>;
