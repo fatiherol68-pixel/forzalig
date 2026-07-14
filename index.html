@@ -8952,12 +8952,12 @@ function SihirbazOzetSatir({ik,et,deger,T}){
 /* ============================================================
    ANA UYGULAMA
    ============================================================ */
-function BosDurum({T, git}){
+function BosDurum({T, git, ligKurabilir}){
   return <div style={{padding:"70px 30px",textAlign:"center"}}>
     <div style={{fontSize:40,marginBottom:12}}>🏆</div>
     <div style={{fontSize:17,color:T.text,fontWeight:700,marginBottom:6}}>Henüz lig yok</div>
-    <div style={{fontSize:13,color:T.textMut,lineHeight:1.6,maxWidth:340,margin:"0 auto"}}>Yeni bir lig kur, takımları ve oyuncuları ekle, maçlara başla.</div>
-    <button onClick={()=>git({sayfa:"ligkur"})} className="tap" style={{marginTop:20,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,borderRadius:11,padding:"13px 26px",fontSize:14,fontWeight:800,border:"none"}}>+ Yeni Lig Kur</button>
+    <div style={{fontSize:13,color:T.textMut,lineHeight:1.6,maxWidth:340,margin:"0 auto"}}>{ligKurabilir?"Yeni bir lig kur, takımları ve oyuncuları ekle, maçlara başla.":"Bir takım seni davet ettiğinde ligler burada görünür."}</div>
+    {ligKurabilir && <button onClick={()=>git({sayfa:"ligkur"})} className="tap" style={{marginTop:20,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,borderRadius:11,padding:"13px 26px",fontSize:14,fontWeight:800,border:"none"}}>+ Yeni Lig Kur</button>}
     <div style={{marginTop:14}}>
       <button onClick={()=>git({sayfa:"ayar"})} className="tap" style={{background:"transparent",color:T.textMut,borderRadius:10,padding:"9px 18px",fontSize:12,fontWeight:600,border:"0.5px solid "+T.line}}>🧪 Veya örnek veri üret (Ayarlar)</button>
     </div>
@@ -10223,6 +10223,7 @@ function App(){
   const [catisma,setCatisma]=useState(false);    // başka cihaz veriyi değiştirdi
   const [iliskiselModu,setIliskiselModu]=useState(false); // stres testi: ilişkiselden yüklendi → buluta YAZMA (gerçek veriyi koru)
   const [adminMi,setAdminMi]=useState(false);   // giriş yapan kişi Süper Admin mi
+  const [ligKurYetkim,setLigKurYetkim]=useState(false); // lig hakkı olan üye VEYA admin
   // FAZ 9 — paylaşılan lig (salt-okunur public görünüm)
   const [saltOkunur]=useState(()=> !!PAYLASIM_SLUG);
   const [paylasimYuk,setPaylasimYuk]=useState(()=> !!PAYLASIM_SLUG);
@@ -10349,7 +10350,7 @@ function App(){
     (async()=>{
       const ligler = oturum ? await Db.liglerYukle(oturum.id, false) : await Db.liglerYukleAcik();
       if(!aktif) return;
-      if(oturum){ Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); } else setAdminMi(false);
+      if(oturum){ Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); } else { setAdminMi(false); setLigKurYetkim(false); }
       ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
       setIliskiselModu(true);            // blob otomatik kaydı/yeniden yayını KAPALI
       setTurnuvalar(ligler);
@@ -10871,7 +10872,7 @@ function App(){
       <a href={(window.location.origin+window.location.pathname)} style={{display:"inline-block",marginTop:20,background:T.accent,color:T.bg0,borderRadius:11,padding:"12px 24px",fontSize:14,fontWeight:800,textDecoration:"none"}}>ForzaLig'e Git →</a>
     </div>;
   } else if(bosMu){
-    icerik=<BosDurum T={T} git={git}/>;
+    icerik=<BosDurum T={T} git={git} ligKurabilir={ligKurYetkim}/>;
   } else {
     // YETKİ: bu ligi yönetebilir miyim? (lig sahibi VEYA süper admin) — misafir/başka üye DÜZENLEYEMEZ
     const ligYetkim=(t)=> !saltOkunur && !!oturum && !!t && (((t.yonetici_id!=null) && t.yonetici_id===oturum.id) || adminMi);
@@ -10880,7 +10881,7 @@ function App(){
     switch(nav.sayfa){
       case "ana": icerik=<AnaSayfa turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git}/>; break;
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
-      case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={()=>git({sayfa:"ligkur"})} saltOkunur={saltOkunur}/>; break;
+      case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={ligKurYetkim?()=>git({sayfa:"ligkur"}):null} saltOkunur={saltOkunur}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
       case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
