@@ -7,13 +7,19 @@
 //  2) Supabase → Edge Functions → Secrets:
 //       VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:...)
 //     (SERVICE_ROLE_KEY ve SUPABASE_URL otomatik gelir)
-//  3) Deploy:  supabase functions deploy push-gonder
-//  4) İstersen: bildirimler tablosuna bir DB webhook / trigger bağla →
-//     yeni bildirim eklenince bu fonksiyonu çağırsın. (Opsiyonel;
-//     app-içi bildirim zaten çalışır, bu sadece telefon push'u içindir.)
+//  3) Deploy:  supabase functions deploy push-gonder --no-verify-jwt
+//     (verify-jwt kapalı: DB webhook JWT olmadan çağırabilsin. Kötüye
+//      kullanımı önlemek için PUSH_SECRET kontrolü var — aşağıya bak.)
+//  4) bildirimler tablosuna Database Webhook bağla (Supabase → Database →
+//     Webhooks): INSERT olayında bu fonksiyonu çağırsın. Böylece her yeni
+//     app-içi bildirim, otomatik telefon push'una da dönüşür.
 //
-// Çağrı örneği (server-to-server, Authorization: Bearer <service_role>):
-//   POST { "user_id": "...", "baslik": "...", "metin": "...", "link": "/" }
+// İKİ ÇAĞRI BİÇİMİ DE DESTEKLENİR:
+//  A) Elle:   POST { "user_id": "...", "baslik": "...", "metin": "...", "link": "/" }
+//  B) Webhook: POST { "type":"INSERT", "record": { user_id, baslik, metin, ... } }
+//
+// GÜVENLİK: PUSH_SECRET secret'ı ayarlıysa, gelen isteğin
+//   x-push-secret header'ı bununla eşleşmek zorundadır (webhook header'ına ekle).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "https://esm.sh/web-push@3.6.7";
@@ -40,7 +46,25 @@ Deno.serve(async (req) => {
     }
     webpush.setVapidDetails(SUBJ, PUB, PRIV);
 
-    const { user_id, baslik, metin, link } = await req.json();
+    // Opsiyonel paylaşımlı sır: PUSH_SECRET ayarlıysa, gelen istek eşleşmeli.
+    const SECRET = Deno.env.get("PUSH_SECRET");
+    if (SECRET) {
+      const gelen = req.headers.get("x-push-secret");
+      if (gelen !== SECRET) {
+        return new Response(JSON.stringify({ hata: "yetkisiz" }), {
+          status: 401, headers: { ...cors, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    const govde = await req.json();
+    // İki biçim: (A) elle {user_id,...}  (B) DB webhook {type,record:{...}}
+    const kayit = govde && govde.record ? govde.record : govde;
+    const user_id = kayit.user_id;
+    const baslik = kayit.baslik;
+    const metin = kayit.metin;
+    // Webhook'ta düz "link" olmayabilir; link_tip/link_id'den kur, yoksa "/"
+    const link = kayit.link || (kayit.link_tip ? "/?" + kayit.link_tip + "=" + (kayit.link_id || "") : "/");
     if (!user_id || !baslik) {
       return new Response(JSON.stringify({ hata: "user_id ve baslik zorunlu" }), {
         status: 400, headers: { ...cors, "Content-Type": "application/json" },
