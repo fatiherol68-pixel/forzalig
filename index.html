@@ -9939,6 +9939,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
   const [gonderiliyor,setGonderiliyor]=useState(false);
   const [secili,setSecili]=useState(null);        // aksiyon menüsü açık mesaj id
   const [yanit,setYanit]=useState(null);          // yanıtlanan mesaj
+  const [yonetimMod,setYonetimMod]=useState(false); // admin/lig yön.: yönetim mesajı gönder
   const [yeniVar,setYeniVar]=useState(false);     // "↓ yeni mesaj"
   const [dahaVar,setDahaVar]=useState(true);      // sayfalama
   const [eskiYuk,setEskiYuk]=useState(false);
@@ -9976,6 +9977,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
     const t=metin.trim(); if(!t||!oturum||!turnuva) return;
     setGonderiliyor(true);
     const ek={ metin:t, takim_ad:benimTakim?benimTakim.ad:null, takim_logo:benimTakim?(benimTakim.logo||null):null, foto:benimOyuncu?(benimOyuncu.foto||null):null };
+    if(yonetimMod && ligYon){ ek.yonetim=true; ek.takim_ad=null; ek.takim_logo=null; }
     if(yanit){ ek.yanit_id=yanit.id; ek.yanit_ad=yanit.ad; ek.yanit_metin=(yanit.metin||"").slice(0,120); }
     const r=await Db.mesajGonder(turnuva.id, aktifTakimId, oturum.id, ad, ek);
     setGonderiliyor(false);
@@ -10042,6 +10044,17 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
               <div><div style={{fontSize:9,color:T.accent,fontWeight:800,letterSpacing:.5}}>FORZALİG{m.sistem_tip==="yonetim"?" YÖNETİMİ":""}</div><div style={{fontSize:12,color:T.textSoft,marginTop:1}}>{m.metin}</div></div>
             </div>;
           }
+          // YÖNETİM MESAJI (doğrulanmış, normal mesajdan ayrı)
+          if(m.yonetim){
+            return <div key={m.id} style={{alignSelf:"center",maxWidth:360,width:"94%",margin:"9px 0",background:"linear-gradient(135deg,"+T.gold+"1a,"+T.bg1+")",border:"1px solid "+T.gold+"66",borderRadius:16,padding:"12px 14px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:6}}>
+                <span style={{width:22,height:22,borderRadius:"50%",background:T.gold,color:"#04070C",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800}}>✓</span>
+                <span style={{fontSize:10.5,color:T.gold,fontWeight:800,letterSpacing:.5}}>📢 FORZALİG YÖNETİMİ</span>
+              </div>
+              <div style={{fontSize:13,color:T.text,lineHeight:1.45}}>{m.metin}</div>
+              <div style={{fontSize:9,color:T.textMut,marginTop:6,textAlign:"right"}}>{zaman(m.olusma)}</div>
+            </div>;
+          }
           // NORMAL MESAJ
           const benim=oturum&&m.user_id===oturum.id;
           const tepk=tepkiMap[m.id]||[]; const grup={}; tepk.forEach(x=>{ grup[x.emoji]=grup[x.emoji]||{n:0,mine:false}; grup[x.emoji].n++; if(oturum&&x.user_id===oturum.id) grup[x.emoji].mine=true; });
@@ -10050,7 +10063,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
             {!benim && <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0,alignSelf:"flex-end",visibility:oncekiAyni?"hidden":"visible"}} dangerouslySetInnerHTML={{__html:svgAvatar(m.ad,30,m.foto)}}/>}
             <div style={{minWidth:0}}>
               {!benim && !oncekiAyni && <div style={{fontSize:10,color:T.textMut,marginBottom:3,marginLeft:4,display:"flex",alignItems:"center",gap:5}}>
-                <b style={{color:T.textSoft}}>{m.ad}</b>{m.takim_ad && <span style={{display:"inline-flex",alignItems:"center",gap:3,color:T.accent2}}>🛡 {m.takim_ad}</span>}
+                <b style={{color:T.textSoft}}>{m.ad}</b>{m.takim_ad && <span style={{display:"inline-flex",alignItems:"center",gap:4,color:T.accent2}}><span style={{width:14,height:14,display:"inline-block"}} dangerouslySetInnerHTML={{__html:svgAmblem(m.takim_ad,T.accent2,14,m.takim_logo)}}/>{m.takim_ad}</span>}
               </div>}
               <div onClick={(e)=>{ e.stopPropagation(); setSecili(secili===m.id?null:m.id); }} className="tap" style={{background:benim?T.accent:T.bg1,color:benim?T.bg0:T.text,border:benim?0:"0.5px solid "+T.line,borderRadius:16,borderBottomRightRadius:benim?5:16,borderBottomLeftRadius:benim?16:5,padding:"9px 13px",fontSize:13.5,lineHeight:1.4,wordBreak:"break-word",cursor:"pointer"}}>
                 {m.yanit_id && <div style={{borderLeft:"2px solid "+(benim?T.bg0:T.accent),paddingLeft:7,marginBottom:5,opacity:.85}}><div style={{fontSize:10,fontWeight:700}}>{m.yanit_ad}</div><div style={{fontSize:11,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180}}>{m.yanit_metin}</div></div>}
@@ -10085,11 +10098,16 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi}){
       <button onClick={()=>setYanit(null)} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:18}}>×</button>
     </div>}
 
+    {/* Yönetim modu bandı (sadece admin / lig yöneticisi) */}
+    {oturum && ligYon && <div onClick={()=>setYonetimMod(v=>!v)} className="tap" style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderTop:"0.5px solid "+T.line,background:yonetimMod?T.gold+"14":T.bg0,cursor:"pointer"}}>
+      <span style={{width:32,height:18,borderRadius:9,background:yonetimMod?T.gold:T.bg2,position:"relative",flexShrink:0,transition:"background .2s"}}><span style={{position:"absolute",top:2,left:yonetimMod?16:2,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/></span>
+      <span style={{fontSize:11.5,color:yonetimMod?T.gold:T.textMut,fontWeight:700}}>📢 Yönetim mesajı olarak gönder</span>
+    </div>}
     {/* MESAJ KUTUSU */}
     {!oturum ? <div style={{padding:14,textAlign:"center",fontSize:12,color:T.textMut,borderTop:"0.5px solid "+T.line}}>Yazmak için giriş yap.</div>
-     : <div style={{display:"flex",gap:8,padding:"10px 12px calc(10px + env(safe-area-inset-bottom))",borderTop:"0.5px solid "+T.line,background:T.bg0}}>
-        <input value={metin} onChange={e=>setMetin(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder="Mesaj yaz…" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:22,padding:"12px 16px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
-        <button onClick={gonder} disabled={gonderiliyor||!metin.trim()} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim())?.5:1}}>➤</button>
+     : <div style={{display:"flex",gap:8,padding:"10px 12px calc(10px + env(safe-area-inset-bottom))",borderTop:yonetimMod?"none":"0.5px solid "+T.line,background:T.bg0}}>
+        <input value={metin} onChange={e=>setMetin(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder={yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…"} style={{flex:1,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+        <button onClick={gonder} disabled={gonderiliyor||!metin.trim()} className="tap" style={{background:yonetimMod?T.gold:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim())?.5:1}}>➤</button>
       </div>}
   </div>;
 }
