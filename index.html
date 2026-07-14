@@ -3273,8 +3273,8 @@ function KupaBracket({turnuva, T, git, yonetim}){
   </div>;
 }
 
-function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, saltOkunur, onPaylas, onPaylasKaldir}){
-  const [tab,setTab]=useState("genel");
+function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, saltOkunur, onPaylas, onPaylasKaldir, ilkTab}){
+  const [tab,setTab]=useState((ilkTab&&yonetim)?ilkTab:"genel");
   const [paylasAcik,setPaylasAcik]=useState(false);
   const [paylasUrl,setPaylasUrl]=useState(turnuva.paylasimSlug?PAYLASIM_URL(turnuva.paylasimSlug):"");
   const [paylasYuk,setPaylasYuk]=useState(false);
@@ -9908,7 +9908,7 @@ function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
   const [yuk,setYuk]=useState(false);
   const ikonlar={transfer_istek:"🔄",transfer_onay:"✅",transfer_ret:"🚫",mac:"⚽",sohbet:"💬",duyuru:"📢"};
   const zamanKisa=(iso)=>{ try{ const d=new Date(iso), fark=(Date.now()-d.getTime())/1000; if(fark<60) return "az önce"; if(fark<3600) return Math.floor(fark/60)+" dk"; if(fark<86400) return Math.floor(fark/3600)+" sa"; return d.toLocaleDateString("tr-TR"); }catch(e){ return ""; } };
-  const ac=async(b)=>{ if(!b.okundu){ await Db.bildirimOku(b.id); yenile&&yenile(); } if(b.link_tip==="turnuva"&&b.link_id){ const t=(turnuvalar||[]).find(x=>x.id===b.link_id); if(t){ git({sayfa:"turnuva",turnuva:t}); return; } } git({sayfa:"ana"}); };
+  const ac=async(b)=>{ if(!b.okundu){ await Db.bildirimOku(b.id); yenile&&yenile(); } if(b.link_tip==="turnuva"&&b.link_id){ const t=(turnuvalar||[]).find(x=>x.id===b.link_id); if(t){ const yonetimeGit=["transfer_istek","katilim"].includes(b.tip); git({sayfa:"turnuva",turnuva:t,tab:yonetimeGit?"yonet":undefined}); return; } } git({sayfa:"ana"}); };
   const hepsiOku=async()=>{ setYuk(true); await Db.bildirimHepsiOku(); await (yenile&&yenile()); setYuk(false); };
   const sil=async(b)=>{ await Db.bildirimSil(b.id); yenile&&yenile(); };
   const varmi=(liste&&liste.length>0);
@@ -10910,7 +10910,7 @@ function App(){
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={ligKurYetkim?()=>git({sayfa:"ligkur"}):null} saltOkunur={saltOkunur}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
-      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir}/>; break;
+      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur}/>; break;
