@@ -511,6 +511,11 @@ const Db = {
   async hataKaydet(mesaj, sayfa, userId){ if(!sb||!mesaj) return; try{ await sb.from('hata_log').insert({mesaj:String(mesaj).slice(0,2000), sayfa:sayfa||null, user_id:userId||null, cihaz:((navigator&&navigator.userAgent)||"").slice(0,200)}); }catch(e){} },
   async hataListe(){ if(!sb) return []; try{ const {data}=await sb.from('hata_log').select('id,mesaj,sayfa,user_id,cihaz,olusma').order('olusma',{ascending:false}).limit(50); return data||[]; }catch(e){ return []; } },
   async hataTemizle(){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('hata_log').delete().gte('olusma','1970-01-01'); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  // YARDIMCI (YEDEK) LİG YÖNETİCİSİ
+  async yardimciLiglerim(userId){ if(!sb||!userId) return []; try{ const {data}=await sb.from('lig_yardimci').select('lig_id').eq('user_id',userId); return (data||[]).map(x=>x.lig_id); }catch(e){ return []; } },
+  async yardimciListe(ligId){ if(!sb||!ligId) return []; try{ const {data}=await sb.from('lig_yardimci').select('user_id,tarih').eq('lig_id',ligId); const ids=(data||[]).map(x=>x.user_id); if(!ids.length) return []; const {data:pr}=await sb.from('profiller').select('user_id,email,ad').in('user_id',ids); const m={}; (pr||[]).forEach(p=>{ m[p.user_id]=p; }); return (data||[]).map(x=>({user_id:x.user_id, email:(m[x.user_id]&&m[x.user_id].email)||x.user_id, ad:(m[x.user_id]&&m[x.user_id].ad)||null, tarih:x.tarih})); }catch(e){ return []; } },
+  async yardimciEkle(ligId, email){ if(!sb) return {hata:"yok"}; try{ const pr=await Db.profilBul((email||"").trim().toLowerCase()); if(!pr||!pr.user_id) return {hata:"Bu e-postayla üye bulunamadı — kişi önce uygulamaya üye olmalı."}; let ekleyen=null; try{ const u=(await sb.auth.getUser()).data.user; ekleyen=u?u.id:null; }catch(e){} const {error}=await sb.from('lig_yardimci').insert({lig_id:ligId, user_id:pr.user_id, ekleyen}); if(error){ if(/duplicate|unique/i.test(error.message)) return {hata:"Bu kişi zaten yardımcı yönetici."}; return {hata:error.message}; } return {ok:true, user_id:pr.user_id, ad:pr.ad, email:pr.email}; }catch(e){ return {hata:String(e)}; } },
+  async yardimciKaldir(ligId, userId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('lig_yardimci').delete().eq('lig_id',ligId).eq('user_id',userId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   // ---- Lig hakları (K3/K4) ----
   async hakGetir(userId){
     if(!sb||!userId) return {toplam:0,kullanilan:0,kalan:0};
@@ -3459,6 +3464,47 @@ function KupaBracket({turnuva, T, git, yonetim}){
   </div>;
 }
 
+/* YARDIMCI (YEDEK) LİG YÖNETİCİLERİ — asıl sahip ekler/çıkarır; yardımcı sadece bu ligi yönetir */
+function YardimciYonetim({turnuva, T, oturum, sahip}){
+  const [liste,setListe]=useState([]);
+  const [mail,setMail]=useState("");
+  const [yuk,setYuk]=useState(true);
+  const [mesaj,setMesaj]=useState("");
+  const yukle=()=>{ Db.yardimciListe(turnuva.id).then(l=>{ setListe(l||[]); setYuk(false); }); };
+  useEffect(()=>{ yukle(); },[turnuva.id]);
+  const ekle=async()=>{ const e=(mail||"").trim().toLowerCase(); if(!e) return; setMesaj(""); const r=await Db.yardimciEkle(turnuva.id, e); if(r&&r.ok){ setMail(""); setMesaj("✓ Eklendi"); yukle(); } else setMesaj("⚠️ "+((r&&r.hata)||"olmadı")); };
+  const cikar=async(u)=>{ if(!confirm((u.ad||u.email)+" yardımcı yöneticilikten çıkarılsın mı?")) return; const r=await Db.yardimciKaldir(turnuva.id, u.user_id); if(r&&r.ok){ setListe(p=>p.filter(x=>x.user_id!==u.user_id)); } else setMesaj("⚠️ "+((r&&r.hata)||"olmadı")); };
+  return <div style={{padding:"6px 14px 24px"}}>
+    <div style={{background:"linear-gradient(180deg,"+T.bg1+","+T.bg2+")",border:"1px solid "+T.line,borderRadius:16,padding:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:8}}>
+        <span style={{width:34,height:34,borderRadius:10,background:T.accent+"1e",display:"grid",placeItems:"center",fontSize:17}}>👥</span>
+        <div style={{minWidth:0}}><div style={{fontSize:14,fontWeight:800,color:T.text}}>Yardımcı Yöneticiler</div><div style={{fontSize:10.5,color:T.textMut}}>Bu ligi seninle birlikte yönetenler (yedek)</div></div>
+      </div>
+      <div style={{fontSize:11.5,color:T.textSoft,lineHeight:1.55,background:T.bg0,borderRadius:10,padding:"10px 12px",margin:"4px 0 12px",border:"0.5px solid "+T.line}}>
+        💡 Yardımcı yönetici <b style={{color:T.text}}>sadece bu ligi</b> yönetir (takım / maç / oyuncu). <b style={{color:T.text}}>Kendine lig hakkı almaz</b>, yeni lig kuramaz. İstediğin an çıkarabilirsin.
+      </div>
+      {yuk ? <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:12}}>Yükleniyor…</div> : <>
+        {liste.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:"10px 0"}}>Henüz yardımcı yönetici yok.</div>}
+        {liste.map(u=>
+          <div key={u.user_id} style={{display:"flex",alignItems:"center",gap:10,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:11,padding:"9px 12px",marginBottom:6}}>
+            <span style={{width:30,height:30,borderRadius:"50%",background:T.accent2+"22",display:"grid",placeItems:"center",fontSize:13,color:T.accent2,fontWeight:800,flexShrink:0}}>{((u.ad||u.email||"?").charAt(0)||"?").toUpperCase()}</span>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.ad||u.email}</div><div style={{fontSize:10,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div></div>
+            <span style={{fontSize:9,fontWeight:800,color:T.accent2,background:T.accent2+"1a",borderRadius:6,padding:"3px 7px",whiteSpace:"nowrap"}}>YARDIMCI</span>
+            {sahip && <button onClick={()=>cikar(u)} className="tap" style={{fontSize:11,color:T.danger,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"5px 9px",fontWeight:700}}>Çıkar</button>}
+          </div>
+        )}
+        {sahip
+          ? <div style={{display:"flex",gap:8,marginTop:10}}>
+              <input value={mail} onChange={e=>setMail(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") ekle(); }} placeholder="yardimci@mail.com" style={{flex:1,minWidth:0,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+              <button onClick={ekle} className="tap" style={{background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:10,padding:"0 18px",fontSize:13,fontWeight:800}}>+ Ekle</button>
+            </div>
+          : <div style={{fontSize:11,color:T.textMut,marginTop:8,lineHeight:1.5}}>Sen bu ligin <b style={{color:T.accent2}}>yardımcı yöneticisisin</b>. Yeni yardımcı ekleme yetkisi ligin asıl sahibinde.</div>}
+        {mesaj && <div style={{fontSize:11.5,color:/✓/.test(mesaj)?T.accent:T.danger,textAlign:"center",marginTop:8}}>{mesaj}</div>}
+      </>}
+    </div>
+  </div>;
+}
+
 function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, saltOkunur, onPaylas, onPaylasKaldir, ilkTab}){
   const [tab,setTab]=useState((ilkTab&&yonetim)?ilkTab:"genel");
   const [paylasAcik,setPaylasAcik]=useState(false);
@@ -3677,7 +3723,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
     {/* ===== İSTATİSTİK ===== */}
     {tab==="ist" && <LigIstatistik turnuva={turnuva} ist={ist} T={T} git={git} onbirAltin={Motor.ideal11(turnuva,"altin")} pozKisa={pozKisa}/>}
 
-    {tab==="yonet" && yonetim && <YonetimPaneli turnuva={turnuva} T={T} git={git} yonetim={yonetim}/>}
+    {tab==="yonet" && yonetim && <><YonetimPaneli turnuva={turnuva} T={T} git={git} yonetim={yonetim}/><YardimciYonetim turnuva={turnuva} T={T} oturum={oturum} sahip={!!(oturum && ((turnuva.yonetici_id===oturum.id) || yonetim.adminMi))}/></>}
   </div>;
 }
 
@@ -10877,6 +10923,7 @@ function App(){
   const [iliskiselModu,setIliskiselModu]=useState(false); // stres testi: ilişkiselden yüklendi → buluta YAZMA (gerçek veriyi koru)
   const [adminMi,setAdminMi]=useState(false);   // giriş yapan kişi Süper Admin mi
   const [yasakli,setYasakli]=useState(null);    // {sebep} → hesap askıya alındı ekranı
+  const [yardimciLigler,setYardimciLigler]=useState(()=>new Set()); // yardımcı yönetici olduğum lig id'leri
   const [ligKurYetkim,setLigKurYetkim]=useState(false); // lig hakkı olan üye VEYA admin
   // FAZ 9 — paylaşılan lig (salt-okunur public görünüm)
   const [saltOkunur]=useState(()=> !!PAYLASIM_SLUG);
@@ -11017,7 +11064,7 @@ function App(){
     (async()=>{
       const ligler = oturum ? await Db.liglerYukle(oturum.id, false) : await Db.liglerYukleAcik();
       if(!aktif) return;
-      if(oturum){ window.__FL_UID=oturum.id; Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); Db.yasakliMi(oturum.id).then(y=>{ if(aktif && y) setYasakli(true); }); } else { window.__FL_UID=null; setAdminMi(false); setLigKurYetkim(false); setYasakli(null); }
+      if(oturum){ window.__FL_UID=oturum.id; Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); Db.yasakliMi(oturum.id).then(y=>{ if(aktif && y) setYasakli(true); }); Db.yardimciLiglerim(oturum.id).then(ids=>{ if(aktif) setYardimciLigler(new Set(ids)); }); } else { window.__FL_UID=null; setAdminMi(false); setLigKurYetkim(false); setYasakli(null); setYardimciLigler(new Set()); }
       ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
       setIliskiselModu(true);            // blob otomatik kaydı/yeniden yayını KAPALI
       setTurnuvalar(ligler);
@@ -11575,7 +11622,7 @@ function App(){
     icerik=<BosDurum T={T} git={git} ligKurabilir={ligKurYetkim}/>;
   } else {
     // YETKİ: bu ligi yönetebilir miyim? (lig sahibi VEYA süper admin) — misafir/başka üye DÜZENLEYEMEZ
-    const ligYetkim=(t)=> !saltOkunur && !!oturum && !!t && (((t.yonetici_id!=null) && t.yonetici_id===oturum.id) || adminMi);
+    const ligYetkim=(t)=> !saltOkunur && !!oturum && !!t && (((t.yonetici_id!=null) && t.yonetici_id===oturum.id) || adminMi || (t.id && yardimciLigler.has(t.id)));
     // Yetkisiz kişi düzenleme ekranına gelirse: kaydetmeyi engelle (sunucu RLS de engeller, bu arayüz kapısı)
     const kilitliKaydet=()=>{ alert("Bu maçı yalnızca ligin yöneticisi düzenleyebilir."); return Promise.resolve({hata:"yetki yok"}); };
     switch(nav.sayfa){
