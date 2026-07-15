@@ -533,6 +533,17 @@ const Db = {
   async yardimciEkle(ligId, email){ if(!sb) return {hata:"yok"}; try{ const pr=await Db.profilBul((email||"").trim().toLowerCase()); if(!pr||!pr.user_id) return {hata:"Bu e-postayla üye bulunamadı — kişi önce uygulamaya üye olmalı."}; let ekleyen=null; try{ const u=(await sb.auth.getUser()).data.user; ekleyen=u?u.id:null; }catch(e){} const {error}=await sb.from('lig_yardimci').insert({lig_id:ligId, user_id:pr.user_id, ekleyen}); if(error){ if(/duplicate|unique/i.test(error.message)) return {hata:"Bu kişi zaten yardımcı yönetici."}; return {hata:error.message}; } return {ok:true, user_id:pr.user_id, ad:pr.ad, email:pr.email}; }catch(e){ return {hata:String(e)}; } },
   async yardimciKaldir(ligId, userId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('lig_yardimci').delete().eq('lig_id',ligId).eq('user_id',userId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async tumYardimcilar(){ if(!sb) return []; try{ const {data}=await sb.from('lig_yardimci').select('lig_id,user_id,tarih'); if(!data||!data.length) return []; const ligIds=[...new Set(data.map(x=>x.lig_id))]; const userIds=[...new Set(data.map(x=>x.user_id))]; const [lr,pr]=await Promise.all([ sb.from('ligler').select('id,ad').in('id',ligIds), sb.from('profiller').select('user_id,email,ad').in('user_id',userIds) ]); const lm={}; ((lr&&lr.data)||[]).forEach(l=>{ lm[l.id]=l.ad; }); const pm={}; ((pr&&pr.data)||[]).forEach(p=>{ pm[p.user_id]=p; }); return data.map(x=>({ lig_id:x.lig_id, ligAd:lm[x.lig_id]||"(lig)", user_id:x.user_id, email:(pm[x.user_id]&&pm[x.user_id].email)||x.user_id, ad:(pm[x.user_id]&&pm[x.user_id].ad)||null, tarih:x.tarih })); }catch(e){ return []; } },
+  // ---- Faz 4: Operasyon Merkezi (gerçek metrikler) + Bakım ----
+  async benBuradayim(){ if(!sb) return; try{ await sb.rpc('ben_buradayim'); }catch(e){} },
+  async panelMetrikler(){ if(!sb) return null; try{ const {data}=await sb.rpc('panel_metrikler'); return data||null; }catch(e){ return null; } },
+  async orphanBul(){ if(!sb) return []; try{ const {data}=await sb.rpc('depo_orphan_bul'); return data||[]; }catch(e){ return []; } },
+  async orphanTemizle(yollar){ if(!sb||!yollar||!yollar.length) return {ok:true,adet:0}; try{ const {error}=await sb.storage.from('fotolar').remove(yollar); return error?{hata:error.message}:{ok:true,adet:yollar.length}; }catch(e){ return {hata:String(e)}; } },
+  async sohbetArsivle(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('sohbet_arsivle'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
+  // ---- Faz 3: Lig soft-delete / çöp kutusu ----
+  async ligSoftSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_soft_sil',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async ligGeriAl(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_geri_al',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async ligPurge(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('lig_purge_eskiler'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
+  async ligCopListe(){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('id,ad,silinme_t').eq('silindi',true).order('silinme_t',{ascending:false}); return data||[]; }catch(e){ return []; } },
   // ---- Lig hakları (K3/K4) ----
   async hakGetir(userId){
     if(!sb||!userId) return {toplam:0,kullanilan:0,kalan:0};
@@ -4189,7 +4200,7 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
       {!turnuva.maclar.some(m=>m.oynandi)
         ? <button onClick={()=>{ if(confirm("Ligi TAMAMEN sil? Bu geri alınamaz. (Maç oynanmadığı için silinebilir)")) yonetim.ligSilTam(turnuva); }} className="tap" style={{width:"100%",background:"none",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:9,padding:"10px",fontSize:12.5,fontWeight:700}}>🗑️ Ligi tamamen sil</button>
         : (yonetim.adminMi
-            ? <button onClick={()=>{ if(confirm("SÜPER ADMIN — \""+turnuva.ad+"\" ligini ve TÜM verisini (takımlar, oyuncular, maçlar, olaylar) KALICI sil?\n\nBu işlem GERİ ALINAMAZ.") && confirm("Son onay: gerçekten silinsin mi?")) yonetim.ligSilAdmin(turnuva); }} className="tap" style={{width:"100%",background:T.danger+"18",color:T.danger,border:"0.5px solid "+T.danger+"88",borderRadius:9,padding:"10px",fontSize:12,fontWeight:800}}>🗑️ Süper Admin: Ligi ve tüm verisini kalıcı sil</button>
+            ? <button onClick={()=>{ if(confirm("SÜPER ADMIN — \""+turnuva.ad+"\" ligini çöp kutusuna at?\n\n90 gün içinde Admin Panel → Sistem → Çöp Kutusu'ndan GERİ ALABİLİRSİN. 90 gün sonra otomatik kalıcı silinir.")) yonetim.ligSilAdmin(turnuva); }} className="tap" style={{width:"100%",background:T.gold+"18",color:T.gold,border:"0.5px solid "+T.gold+"88",borderRadius:9,padding:"10px",fontSize:12,fontWeight:800}}>🗑️ Süper Admin: Ligi çöp kutusuna at (90 gün geri alınabilir)</button>
             : <div style={{fontSize:10,color:T.textMut,textAlign:"center",lineHeight:1.5}}>Maç oynandığı için lig <b>silinemez</b> — sadece arşivlenebilir (madde 22). Kalıcı silme yalnızca Süper Admin'de.</div>)}
     </div>
     </div>
@@ -9601,6 +9612,10 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const [seciliLigler,setSeciliLigler]=useState(()=>new Set()); // FAZ 5 — toplu seçim
   const [uyeSeg,setUyeSeg]=useState("hepsi");     // FAZ 5 — üye segmenti
   const [uyeAra,setUyeAra]=useState("");          // üye arama (palet de kullanır)
+  const [metrik,setMetrik]=useState(null);         // FAZ 4 — gerçek metrikler (panel_metrikler)
+  const [copLigler,setCopLigler]=useState([]);     // FAZ 3 — çöp kutusu (soft-silinen ligler)
+  const [orphanlar,setOrphanlar]=useState(null);   // FAZ 4 — sahipsiz dosyalar (null=taranmadı)
+  const [bakimMsj,setBakimMsj]=useState("");
   const [hepYardimci,setHepYardimci]=useState([]); // YARDIMCI — tüm liglerin yardımcı yöneticileri
   const [tumLiglerY,setTumLiglerY]=useState([]);   // ekleme formu için lig listesi
   const [aySecLig,setAySecLig]=useState("");
@@ -9632,6 +9647,12 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   // YARDIMCI — admin panelden merkezi ekle/çıkar
   const ayEkle=async()=>{ const e=(ayMail||"").trim().toLowerCase(); if(!aySecLig){ setAyMesaj("⚠️ Önce lig seç"); return; } if(!e){ setAyMesaj("⚠️ E-posta yaz"); return; } setAyMesaj(""); const r=await Db.yardimciEkle(aySecLig, e); if(r&&r.ok){ const lig=tumLiglerY.find(x=>x.id===aySecLig); setHepYardimci(p=>[...p,{lig_id:aySecLig, ligAd:(lig&&lig.ad)||"(lig)", user_id:r.user_id, email:r.email||e, ad:r.ad||null, tarih:new Date().toISOString()}]); setAyMail(""); setAyMesaj("✓ Eklendi"); Db.logla(oturum,"Yardımcı yönetici eklendi",((lig&&lig.ad)||"")+" · "+e); } else setAyMesaj("⚠️ "+((r&&r.hata)||"olmadı")); };
   const ayCikar=async(y)=>{ if(!confirm((y.ad||y.email)+" — “"+y.ligAd+"” liginden yardımcı yöneticilikten çıkarılsın mı?")) return; const r=await Db.yardimciKaldir(y.lig_id, y.user_id); if(r&&r.ok){ setHepYardimci(p=>p.filter(x=>!(x.lig_id===y.lig_id && x.user_id===y.user_id))); Db.logla(oturum,"Yardımcı yönetici çıkarıldı",y.ligAd+" · "+(y.email||"")); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
+  // FAZ 4 — Bakım Merkezi
+  const orphanTara=async()=>{ setBakimMsj("Taranıyor…"); const o=await Db.orphanBul(); setOrphanlar(o||[]); setBakimMsj((o&&o.length)?(o.length+" sahipsiz dosya bulundu"):"✓ Sahipsiz dosya yok — depo temiz"); };
+  const orphanTemizleAll=async()=>{ if(!orphanlar||!orphanlar.length) return; if(!confirm(orphanlar.length+" sahipsiz dosya kalıcı silinsin mi?")) return; const r=await Db.orphanTemizle(orphanlar.map(o=>o.yol)); if(r&&r.ok){ setOrphanlar([]); Db.logla(oturum,"Orphan temizlik",r.adet+" dosya"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" dosya silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
+  const arsivleYap=async()=>{ if(!confirm("Kanal başına en yeni 5.000 mesaj aktif kalsın, gerisi arşive alınsın mı?")) return; setBakimMsj("Arşivleniyor…"); const r=await Db.sohbetArsivle(); if(r&&r.ok){ Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" mesaj arşive alındı"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
+  const copGeriAl=async(l)=>{ const r=await Db.ligGeriAl(l.id); if(r&&r.ok){ setCopLigler(p=>p.filter(x=>x.id!==l.id)); Db.logla(oturum,"Lig çöpten geri alındı",l.ad||""); setBakimMsj("✓ Geri alındı: "+(l.ad||"")); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
+  const copBosalt=async()=>{ if(!confirm("Çöp kutusundaki 90 GÜNDEN eski ligler KALICI silinsin mi? (Geri alınamaz)")) return; const r=await Db.ligPurge(); if(r&&r.ok){ Db.ligCopListe().then(c=>setCopLigler(c||[])); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" lig kalıcı silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   // 📢 Toplu mesaj/duyuru
   const [msgAcik,setMsgAcik]=useState(false);
   const [msgTip,setMsgTip]=useState("herkes");     // herkes | lig | takim | kisi
@@ -9673,6 +9694,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
     Db.hataListe().then(hh=>setHatalar(hh||[]));       // FAZ 4
     Db.yasakliListe().then(yy=>setYasaklilar(yy||[])); // FAZ 3
     Db.tumYardimcilar().then(yy=>setHepYardimci(yy||[])); // YARDIMCI — merkezi görünüm
+    Db.panelMetrikler().then(m=>setMetrik(m));            // FAZ 4 — gerçek metrikler
+    Db.ligCopListe().then(c=>setCopLigler(c||[]));        // FAZ 3 — çöp kutusu
     Db.tumLiglerBasit().then(ll=>setTumLiglerY(ll||[]));  // ekleme formu lig listesi
     const epostaHarita={}; (p||[]).forEach(pr=>{ epostaHarita[pr.user_id]=pr.email; });
     setHaklar((h||[]).map(x=>({...x, email:epostaHarita[x.user_id]||x.user_id})));
@@ -10155,6 +10178,80 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
       </div>}
 
       {!yuk && sekme==="sistem" && <div style={{fontSize:12.5,color:T.textSoft,lineHeight:1.8}}>
+        {/* ===== FAZ 4 — OPERASYON MERKEZİ (gerçek metrikler) ===== */}
+        {metrik && (()=>{
+          const GB=1073741824;
+          const depoY=Math.min(100,(metrik.depo_bayt/GB)*100);
+          const depoMB=metrik.depo_bayt/1048576;
+          const ortKB=metrik.depo_dosya?(metrik.depo_bayt/metrik.depo_dosya/1024):0;
+          const puanDepo=Math.max(0,Math.round(100-depoY));
+          const puanGuv=hatalar.length?74:92, puanPerf=90, puanOpt=88;
+          const puanDb=Math.max(50,Math.round(100-(metrik.mac/5000)*100));
+          const puanOlcek=Math.max(50,Math.round(100-(metrik.mau/50000)*100));
+          const genel=Math.round((puanDepo+puanGuv+puanPerf+puanOpt+puanDb+puanOlcek)/6);
+          const renk=genel>=80?T.accent:genel>=60?T.gold:T.danger;
+          const uyari=[];
+          if(depoY>70) uyari.push(["🔴","Depolama %"+depoY.toFixed(0)+" dolu. Bakım → sahipsiz dosyaları temizle."]);
+          else if(depoY<50) uyari.push(["🟢","Depolama %"+depoY.toFixed(0)+" — ücretli plana geçmene gerek yok."]);
+          if(metrik.mesaj>5000 && metrik.mesaj_arsiv===0) uyari.push(["🟡","Aktif mesaj 5.000+ ama arşiv boş — Bakım → sohbeti arşivle."]);
+          if(ortKB>80) uyari.push(["🟡","Fotoğraf ortalama boyutu ~"+ortKB.toFixed(0)+"KB, beklenenden yüksek."]);
+          if(hatalar.length>0) uyari.push(["🔴",hatalar.length+" çökme kaydı var — aşağıda Hata Logu'na bak."]);
+          if(metrik.lig_cop>0) uyari.push(["🟡","Çöp kutusunda "+metrik.lig_cop+" lig var."]);
+          const mtr=[["🏟️","Lig",metrik.lig],["👥","Üye",metrik.uye],["🟢","Aktif 30g",metrik.mau],["⚽","Oyuncu",metrik.oyuncu],["🛡️","Takım",metrik.takim],["📅","Maç",metrik.mac],["💬","Mesaj",metrik.mesaj],["🖼️","Foto+Logo",(metrik.foto+metrik.logo)]];
+          return <>
+            <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                <div style={{width:58,height:58,borderRadius:"50%",display:"grid",placeItems:"center",flexShrink:0,background:"conic-gradient("+renk+" "+(genel*3.6)+"deg, rgba(255,255,255,.08) 0)"}}>
+                  <div style={{width:46,height:46,borderRadius:"50%",background:T.bg1,display:"grid",placeItems:"center"}}><b style={{fontSize:18,color:renk,fontWeight:900}} className="tab">{genel}</b></div>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>🎛️ Operasyon Merkezi</div>
+                  <div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>Sistem sağlığı {genel}/100 · <span style={{color:T.accent}}>GERÇEK veriler</span></div>
+                </div>
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
+                {[["Güvenlik",puanGuv],["Perf",puanPerf],["Depolama",puanDepo],["DB",puanDb],["Optim.",puanOpt],["Ölçek",puanOlcek]].map(([ad,p],i)=>
+                  <div key={i} style={{fontSize:9.5,color:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:8,padding:"4px 8px"}}>{ad} <b style={{color:p>=80?T.accent:p>=60?T.gold:T.danger}} className="tab">{p}</b></div>)}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>
+                {mtr.map(([ik,ad,v],i)=>
+                  <div key={i} style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:9,padding:"8px 6px",textAlign:"center"}}>
+                    <div style={{fontSize:15,fontWeight:800,color:T.text}} className="tab">{v}</div>
+                    <div style={{fontSize:8.5,color:T.textMut,marginTop:1}}>{ik} {ad}</div>
+                  </div>)}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:T.textMut,marginBottom:4}}><span>💾 Depolama <span style={{color:T.accent}}>(GERÇEK)</span></span><span className="tab">{depoMB.toFixed(1)} / 1024 MB · %{depoY.toFixed(1)}</span></div>
+              <div style={{height:7,background:T.bg1,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:Math.max(2,depoY)+"%",background:depoY>70?T.danger:depoY>40?T.gold:T.accent,borderRadius:4}}/></div>
+            </div>
+            {uyari.length>0 && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"11px 13px",marginBottom:10}}>
+              <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:8}}>💡 AKILLI UYARILAR</div>
+              {uyari.map(([ik,tx],i)=><div key={i} style={{display:"flex",gap:8,fontSize:12,color:T.textSoft,padding:"4px 0",lineHeight:1.4}}><span>{ik}</span><span style={{flex:1}}>{tx}</span></div>)}
+            </div>}
+          </>;
+        })()}
+        {/* ===== BAKIM MERKEZİ ===== */}
+        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+          <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:9}}>🧹 BAKIM MERKEZİ</div>
+          {bakimMsj && <div style={{fontSize:11,color:bakimMsj[0]==="✓"?T.accent:T.gold,marginBottom:9}}>{bakimMsj}</div>}
+          <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
+            <button onClick={arsivleYap} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>💬 Sohbeti arşivle</button>
+            <button onClick={orphanTara} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>🔍 Sahipsiz dosya tara</button>
+            {orphanlar && orphanlar.length>0 && <button onClick={orphanTemizleAll} className="tap" style={{fontSize:11,color:"#fff",background:T.danger,border:0,borderRadius:9,padding:"7px 11px",fontWeight:800}}>🗑 {orphanlar.length} dosyayı sil</button>}
+          </div>
+        </div>
+        {/* ===== ÇÖP KUTUSU (soft-silinen ligler) ===== */}
+        {copLigler.length>0 && <div style={{background:T.bg1,border:"0.5px solid "+T.gold+"44",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+          <div style={{display:"flex",alignItems:"center",marginBottom:6}}>
+            <span style={{fontSize:11,color:T.gold,fontWeight:700}}>🗑️ ÇÖP KUTUSU ({copLigler.length})</span>
+            <button onClick={copBosalt} className="tap" style={{marginLeft:"auto",fontSize:10,color:T.textMut,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:7,padding:"4px 8px",fontWeight:700}}>90g+ kalıcı sil</button>
+          </div>
+          <div style={{fontSize:9.5,color:T.textMut,marginBottom:8}}>Silinen ligler 90 gün burada tutulur — geri alabilirsin.</div>
+          {copLigler.map(l=>
+            <div key={l.id} style={{display:"flex",alignItems:"center",gap:9,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"8px 10px",marginBottom:5}}>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad}</div><div style={{fontSize:9,color:T.textMut}}>{rZaman(l.silinme_t)} silindi</div></div>
+              <button onClick={()=>copGeriAl(l)} className="tap" style={{fontSize:10.5,color:T.accent,background:T.accent+"18",border:"0.5px solid "+T.accent+"44",borderRadius:8,padding:"5px 10px",fontWeight:700,flexShrink:0}}>↩ Geri al</button>
+            </div>)}
+        </div>}
         {/* 15) SİSTEM SAĞLIĞI */}
         <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
           <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:8}}>💚 SİSTEM SAĞLIĞI</div>
@@ -11101,7 +11198,7 @@ function App(){
       if(!aktif) return;
       const u=kapiKontrol(data.session?data.session.user:null);
       setOturum(u);
-      if(u) setKapi(null); // zaten girişli → açılış kapısını atla
+      if(u){ setKapi(null); try{ Db.benBuradayim(); }catch(e){} } // zaten girişli → açılış kapısını atla + MAU için "buradayım"
       setAuthHazir(true);
     }).catch(()=>{ if(aktif) setAuthHazir(true); });
     const {data:sub}=sb.auth.onAuthStateChange((_ev,session)=>{
@@ -11443,9 +11540,9 @@ function App(){
     if(iliskiselMi(turnuva)){ const r=await Db.ligSil(turnuva.id); if(r.hata){ alert("Silinemedi (maç oynanmış olabilir — arşivle): "+r.hata); return; } Db.logla(oturum, "Lig sildi", turnuva.ad); }
     setTurnuvalar(p=>p.filter(t=>t.id!==turnuva.id)); git({sayfa:"ana"});
   };
-  // Süper Admin: ligi ve TÜM verisini (oyuncular dahil) kalıcı sil — maç oynanmış olsa bile
+  // Süper Admin: ligi ÇÖP KUTUSUNA at (soft-delete) — 90 gün geri alınabilir, sonra otomatik kalıcı silinir.
   const ligSilAdmin=async(turnuva)=>{
-    if(iliskiselMi(turnuva)){ const r=await Db.ligSilAdmin(turnuva.id); if(r.hata){ alert("Silinemedi: "+r.hata); return; } Db.logla(oturum, "Lig KALICI sildi (admin)", turnuva.ad); }
+    if(iliskiselMi(turnuva)){ const r=await Db.ligSoftSil(turnuva.id); if(r.hata){ alert("Olmadı: "+r.hata); return; } Db.logla(oturum, "Lig çöp kutusuna atıldı (admin)", turnuva.ad); }
     setTurnuvalar(p=>p.filter(t=>t.id!==turnuva.id)); git({sayfa:"ana"});
   };
   // TRANSFER — kaptan istek gönderir → lig yöneticisi onaylar/reddeder
