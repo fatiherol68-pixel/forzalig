@@ -9962,7 +9962,7 @@ function DavetKatil({T, token, oturum, girisYap}){
 // ==================== BİLDİRİM MERKEZİ ====================
 function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
   const [yuk,setYuk]=useState(false);
-  const ikonlar={transfer_istek:"🔄",transfer_onay:"✅",transfer_ret:"🚫",mac:"⚽",sohbet:"💬",duyuru:"📢",katilim:"🙋",rakip_yanit:"🆚",eksik_yanit:"🙋",rakip_karar:"✅",eksik_karar:"✅"};
+  const ikonlar={transfer_istek:"🔄",transfer_onay:"✅",transfer_ret:"🚫",mac:"⚽",sohbet:"💬",duyuru:"📢",katilim:"🙋",rakip_yanit:"🆚",eksik_yanit:"🙋",oyuncu_yanit:"🏃",rakip_karar:"✅",eksik_karar:"✅",oyuncu_karar:"✅"};
   const zamanKisa=(iso)=>{ try{ const d=new Date(iso), fark=(Date.now()-d.getTime())/1000; if(fark<60) return "az önce"; if(fark<3600) return Math.floor(fark/60)+" dk"; if(fark<86400) return Math.floor(fark/3600)+" sa"; return d.toLocaleDateString("tr-TR"); }catch(e){ return ""; } };
   const ac=async(b)=>{ if(!b.okundu){ await Db.bildirimOku(b.id); yenile&&yenile(); } if(b.link_tip==="pazar"){ git({sayfa:"pazar"}); return; } if(b.link_tip==="turnuva"&&b.link_id){ const t=(turnuvalar||[]).find(x=>x.id===b.link_id); if(t){ const yonetimeGit=["transfer_istek","katilim"].includes(b.tip); git({sayfa:"turnuva",turnuva:t,tab:yonetimeGit?"yonet":undefined}); return; } } git({sayfa:"ana"}); };
   const hepsiOku=async()=>{ setYuk(true); await Db.bildirimHepsiOku(); await (yenile&&yenile()); setYuk(false); };
@@ -10233,13 +10233,14 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
 
 // ==================== TRANSFER PAZARI (müsait oyuncular) ====================
 function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
-  const [tab,setTab]=useState(ilkTip==="eksik"?"eksik":ilkTip==="transfer"?"transfer":"rakip");
+  const [tab,setTab]=useState(ilkTip==="eksik"?"eksik":ilkTip==="oyuncu"?"oyuncu":"rakip");
   const [sehir,setSehir]=useState("");
   const [rakip,setRakip]=useState([]);
   const [eksik,setEksik]=useState([]);
+  const [oyuncu,setOyuncu]=useState([]);
   const [transfer,setTransfer]=useState([]);
   const [yuk,setYuk]=useState(true);
-  const [yeni,setYeni]=useState(ilkTip==="rakip"||ilkTip==="eksik"?ilkTip:null); // create modal tipi
+  const [yeni,setYeni]=useState(["rakip","eksik","oyuncu"].includes(ilkTip)?ilkTip:null); // create modal tipi
   const [ilanlarim,setIlanlarim]=useState([]);
   const [yonetIlan,setYonetIlan]=useState(null); // yanıtları yönetilen ilan
   const benad=(oturum&&((oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email.split("@")[0]))||"Bir kullanıcı";
@@ -10249,44 +10250,51 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
   const yenile=async()=>{ setYuk(true);
     if(tab==="rakip") setRakip(await Db.ilanlar("rakip", sehir||null));
     else if(tab==="eksik") setEksik(await Db.ilanlar("eksik", sehir||null));
-    else setTransfer(await Db.pazarOyuncular(sehir||null));
+    else { setOyuncu(await Db.ilanlar("oyuncu", sehir||null)); setTransfer(await Db.pazarOyuncular(sehir||null)); }
     setYuk(false);
   };
   const ilanlarimYenile=async()=>{ if(oturum) setIlanlarim(await Db.ilanlarim(oturum.id)); };
   useEffect(()=>{ yenile(); },[tab]);
   useEffect(()=>{ ilanlarimYenile(); },[]);
 
-  const yanitla=async(il, mesaj)=>{ if(!oturum){ alert("Yanıt için giriş yap."); return; } const r=await Db.ilanYanitVer(il.id, benad, mesaj||null); if(r.ok){ alert(il.tip==="rakip"?"🆚 Meydan okundu! İlan sahibine bildirim gitti.":"🙋 'Geliyorum' dedin! Kaptana bildirim gitti."); } else alert(r.hata||"Gönderilemedi"); };
+  const yanitla=async(il, mesaj)=>{ if(!oturum){ alert("Yanıt için giriş yap."); return; } const r=await Db.ilanYanitVer(il.id, benad, mesaj||null); if(r.ok){ alert(il.tip==="rakip"?"🆚 Meydan okundu! İlan sahibine bildirim gitti.":il.tip==="oyuncu"?"📞 İlgilendiğini bildirdin! Oyuncuya bildirim gitti.":"🙋 'Geliyorum' dedin! Kaptana bildirim gitti."); } else alert(r.hata||"Gönderilemedi"); };
 
   const TAB=({k,ik,l})=> <button onClick={()=>setTab(k)} className="tap" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:tab===k?T.accent+"1e":T.bg1,border:"0.5px solid "+(tab===k?T.accent:T.line),color:tab===k?T.accent:T.textMut,borderRadius:12,padding:"10px 4px",fontSize:12.5,fontWeight:700}}>{ik} {l}</button>;
   const zamanKisa=(iso)=>{ try{ if(!iso) return ""; const d=new Date(iso), fark=(Date.now()-d.getTime())/86400000; if(fark<1) return "bugün"; if(fark<2) return "dün"; return Math.floor(fark)+" gün önce"; }catch(e){ return ""; } };
   const beyaz=T.renkCifti&&T.renkCifti[1]==="#FFFFFF";
 
   const IlanKart=(il)=>{
-    const acil=il.tip==="eksik";
+    const oyuncuMu=il.tip==="oyuncu", acil=il.tip==="eksik";
+    const anaRenk=oyuncuMu?(T.accent2||T.accent):acil?T.danger:T.accent;
+    const rozet=oyuncuMu?"Maça Gelir":acil?"Oyuncu Arıyor":"Rakip Arıyor";
+    const btn=oyuncuMu?"📞 İlgileniyorum":acil?"🙋 Geliyorum":"🆚 Meydan Oku";
+    const chip={fontSize:11.5,color:T.text,background:T.bg2||T.bg0,border:"0.5px solid "+T.line,padding:"6px 10px",borderRadius:9};
     return <div key={il.id} style={{position:"relative",overflow:"hidden",background:T.bg1,border:"0.5px solid "+(acil?T.danger+"44":T.line),borderRadius:16,padding:14,marginBottom:11}}>
-      <div style={{position:"absolute",inset:0,left:"auto",width:"55%",background:"radial-gradient(90% 120% at 90% 20%,"+(acil?T.danger:T.accent)+"1e,transparent 60%)",pointerEvents:"none"}}/>
+      <div style={{position:"absolute",inset:0,left:"auto",width:"55%",background:"radial-gradient(90% 120% at 90% 20%,"+anaRenk+"1e,transparent 60%)",pointerEvents:"none"}}/>
       <div style={{position:"relative",zIndex:1}}>
         <div style={{display:"flex",alignItems:"center",gap:11}}>
-          <Logo renk={il.takim_renk||T.accent} ad={il.takim_ad||"?"} logo={il.takim_logo} boy={44}/>
+          {oyuncuMu
+            ? <div style={{width:44,height:44,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(il.takim_ad||"?",44,il.takim_logo)}}/>
+            : <Logo renk={il.takim_renk||T.accent} ad={il.takim_ad||"?"} logo={il.takim_logo} boy={44}/>}
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:15,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{il.takim_ad||"Takım"}</div>
-            <div style={{fontSize:10.5,color:T.textMut,marginTop:1}}>{il.lig_ad||"halı saha"}</div>
+            <div style={{fontSize:15,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{il.takim_ad||(oyuncuMu?"Oyuncu":"Takım")}</div>
+            <div style={{fontSize:10.5,color:T.textMut,marginTop:1}}>{oyuncuMu?(il.pozisyon||"Oyuncu"):(il.lig_ad||"halı saha")}</div>
           </div>
-          <span style={{flexShrink:0,fontSize:9.5,fontWeight:800,textTransform:"uppercase",letterSpacing:.4,color:acil?T.danger:T.accent,background:(acil?T.danger:T.accent)+"1a",border:"0.5px solid "+(acil?T.danger:T.accent)+"55",padding:"3px 8px",borderRadius:20}}>{acil?"Oyuncu Arıyor":"Rakip Arıyor"}</span>
+          <span style={{flexShrink:0,fontSize:9.5,fontWeight:800,textTransform:"uppercase",letterSpacing:.4,color:anaRenk,background:anaRenk+"1a",border:"0.5px solid "+anaRenk+"55",padding:"3px 8px",borderRadius:20}}>{rozet}</span>
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:7,margin:"12px 0 13px"}}>
-          {acil && il.pozisyon && <span style={{fontSize:11.5,color:T.text,background:T.bg2||T.bg0,border:"0.5px solid "+T.line,padding:"6px 10px",borderRadius:9}}>🎯 {il.adet>1?il.adet+" ":""}{il.pozisyon}</span>}
-          {il.tarih_text && <span style={{fontSize:11.5,color:T.text,background:T.bg2||T.bg0,border:"0.5px solid "+T.line,padding:"6px 10px",borderRadius:9}}>🕐 {il.tarih_text}</span>}
-          {il.sehir && <span style={{fontSize:11.5,color:T.text,background:T.bg2||T.bg0,border:"0.5px solid "+T.line,padding:"6px 10px",borderRadius:9}}>📍 {il.sehir}</span>}
-          {il.saha && <span style={{fontSize:11.5,color:T.text,background:T.bg2||T.bg0,border:"0.5px solid "+T.line,padding:"6px 10px",borderRadius:9}}>🏟️ {il.saha}</span>}
-          {!acil && il.seviye && <span style={{fontSize:11.5,color:T.text,background:T.bg2||T.bg0,border:"0.5px solid "+T.line,padding:"6px 10px",borderRadius:9}}>⭐ {il.seviye}</span>}
+          {acil && il.pozisyon && <span style={chip}>🎯 {il.adet>1?il.adet+" ":""}{il.pozisyon}</span>}
+          {oyuncuMu && il.pozisyon && <span style={chip}>🎯 {il.pozisyon}</span>}
+          {il.tarih_text && <span style={chip}>🕐 {il.tarih_text}</span>}
+          {il.sehir && <span style={chip}>📍 {il.sehir}</span>}
+          {il.saha && <span style={chip}>🏟️ {il.saha}</span>}
+          {!acil && !oyuncuMu && il.seviye && <span style={chip}>⭐ {il.seviye}</span>}
         </div>
         {il.aciklama && <div style={{fontSize:11.5,color:T.textSoft,fontStyle:"italic",marginBottom:12,lineHeight:1.5}}>"{il.aciklama}"</div>}
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           {oturum && il.user_id===oturum.id
             ? <div style={{flex:1,fontSize:11.5,color:T.textMut,textAlign:"center",padding:"11px",background:T.bg2||T.bg0,borderRadius:11}}>Senin ilanın · {zamanKisa(il.olusma)}</div>
-            : <button onClick={()=>yanitla(il, null)} className="tap" style={{flex:1,background:acil?T.danger:T.accent,color:acil?"#fff":(beyaz?"#fff":T.bg0),border:0,borderRadius:11,padding:12,fontSize:13.5,fontWeight:800}}>{acil?"🙋 Geliyorum":"🆚 Meydan Oku"}</button>}
+            : <button onClick={()=>yanitla(il, null)} className="tap" style={{flex:1,background:anaRenk,color:acil?"#fff":(beyaz?"#fff":T.bg0),border:0,borderRadius:11,padding:12,fontSize:13.5,fontWeight:800}}>{btn}</button>}
         </div>
       </div>
     </div>;
@@ -10305,7 +10313,7 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
     <div style={{padding:"12px 14px 0",display:"flex",gap:7}}>
       <TAB k="rakip" ik="🆚" l="Rakip Bul"/>
       <TAB k="eksik" ik="🙋" l="Eksik Oyuncu"/>
-      <TAB k="transfer" ik="🔁" l="Transfer"/>
+      <TAB k="oyuncu" ik="🏃" l="Maça Katıl"/>
     </div>
 
     {oturum && ilanlarim.length>0 && <div style={{padding:"12px 14px 0"}}>
@@ -10314,8 +10322,8 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
       </div>
       {yonetIlan==="list" && <div style={{marginTop:8}}>{ilanlarim.map(i=>
         <div key={i.id} style={{display:"flex",alignItems:"center",gap:10,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"10px 12px",marginBottom:6}}>
-          <span style={{fontSize:16}}>{i.tip==="rakip"?"🆚":"🙋"}</span>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i.takim_ad} · {i.tip==="rakip"?"rakip":i.pozisyon||"oyuncu"}</div><div style={{fontSize:10,color:i.durum==="aktif"?T.accent:T.textMut}}>{i.durum==="aktif"?"aktif":"kapandı"} · {zamanKisa(i.olusma)}</div></div>
+          <span style={{fontSize:16}}>{i.tip==="rakip"?"🆚":i.tip==="oyuncu"?"🏃":"🙋"}</span>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i.takim_ad} · {i.tip==="rakip"?"rakip":i.tip==="oyuncu"?"maça katıl":i.pozisyon||"oyuncu"}</div><div style={{fontSize:10,color:i.durum==="aktif"?T.accent:T.textMut}}>{i.durum==="aktif"?"aktif":"kapandı"} · {zamanKisa(i.olusma)}</div></div>
           <button onClick={()=>setYonetIlan(i)} className="tap" style={{fontSize:11,color:T.accent2,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"5px 9px",fontWeight:700}}>Yanıtlar</button>
           {i.durum==="aktif" && <button onClick={async()=>{ if(confirm("İlanı kapat?")){ await Db.ilanKapat(i.id); ilanlarimYenile(); yenile(); } }} className="tap" style={{fontSize:11,color:T.textMut,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"5px 9px"}}>Kapat</button>}
         </div>
@@ -10328,22 +10336,27 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
         <button onClick={()=>yenile()} className="tap" style={{background:T.accent,color:beyaz?"#fff":T.bg0,border:0,borderRadius:10,padding:"0 16px",fontSize:13,fontWeight:800}}>Ara</button>
       </div>
 
-      {(tab==="rakip"||tab==="eksik") && oturum && <button onClick={()=>setYeni(tab)} className="tap" style={{width:"100%",marginBottom:12,background:(tab==="eksik"?T.danger:T.accent)+"18",color:tab==="eksik"?T.danger:T.accent,border:"1px solid "+(tab==="eksik"?T.danger:T.accent)+"55",borderRadius:12,padding:12,fontSize:13.5,fontWeight:800}}>{tab==="eksik"?"+ Eksik Oyuncu İlanı Ver":"+ Rakip İlanı Ver"}</button>}
+      {oturum && (()=>{ const r=tab==="eksik"?T.danger:tab==="oyuncu"?(T.accent2||T.accent):T.accent; return <button onClick={()=>setYeni(tab)} className="tap" style={{width:"100%",marginBottom:12,background:r+"18",color:r,border:"1px solid "+r+"55",borderRadius:12,padding:12,fontSize:13.5,fontWeight:800}}>{tab==="eksik"?"+ Eksik Oyuncu İlanı Ver":tab==="oyuncu"?"+ Ben Oyuncuyum · Maça Gelirim":"+ Rakip İlanı Ver"}</button>; })()}
 
       {yuk ? <div style={{textAlign:"center",color:T.textMut,fontSize:12,padding:30}}>Yükleniyor…</div>
        : tab==="rakip" ? (rakip.length?rakip.map(IlanKart):<BosPazar T={T} ik="🆚" metin="Şu an rakip arayan takım yok." alt="İlk ilanı sen ver!"/>)
        : tab==="eksik" ? (eksik.length?eksik.map(IlanKart):<BosPazar T={T} ik="🙋" metin="Şu an oyuncu arayan takım yok." alt="Maça oyuncu lazımsa ilan ver."/>)
-       : (transfer.length?transfer.map(o=>
-          <div key={o.player_id} style={{display:"flex",alignItems:"center",gap:12,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"11px 12px",marginBottom:7}}>
-            <div style={{width:44,height:44,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad_soyad,44,o.foto)}}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:14,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad_soyad}</div>
-              <div style={{fontSize:11,color:T.textMut,marginTop:1}}>{o.poz||"Oyuncu"}{o.musait_sehir?" · 📍 "+o.musait_sehir:""}</div>
-              {o.musait_not && <div style={{fontSize:11,color:T.textSoft,marginTop:3,fontStyle:"italic"}}>"{o.musait_not}"</div>}
+       : <>
+          {oyuncu.map(IlanKart)}
+          {transfer.length>0 && <div style={{fontSize:11,color:T.textMut,fontWeight:700,margin:"6px 2px 8px"}}>🔁 KART SAHİBİ MÜSAİT OYUNCULAR</div>}
+          {transfer.map(o=>
+            <div key={o.player_id} style={{display:"flex",alignItems:"center",gap:12,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"11px 12px",marginBottom:7}}>
+              <div style={{width:44,height:44,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad_soyad,44,o.foto)}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad_soyad}</div>
+                <div style={{fontSize:11,color:T.textMut,marginTop:1}}>{o.poz||"Oyuncu"}{o.musait_sehir?" · 📍 "+o.musait_sehir:""}</div>
+                {o.musait_not && <div style={{fontSize:11,color:T.textSoft,marginTop:3,fontStyle:"italic"}}>"{o.musait_not}"</div>}
+              </div>
+              <div style={{fontSize:9,color:T.gold,fontWeight:700,background:T.gold+"18",borderRadius:6,padding:"2px 7px",flexShrink:0}}>MÜSAİT</div>
             </div>
-            <div style={{fontSize:9,color:T.gold,fontWeight:700,background:T.gold+"18",borderRadius:6,padding:"2px 7px",flexShrink:0}}>MÜSAİT</div>
-          </div>
-        ):<BosPazar T={T} ik="🔁" metin="Şu an müsait oyuncu yok." alt="Oyuncular 'takım arıyorum' derse burada görünür."/>)}
+          )}
+          {oyuncu.length===0 && transfer.length===0 && <BosPazar T={T} ik="🏃" metin="Şu an maça gelmek isteyen oyuncu yok." alt="'+ Ben Oyuncuyum' ile ilk ilanı sen ver!"/>}
+        </>}
     </div>
 
     {yeni && <IlanVerModal T={T} tip={yeni} takimlar={benimTakimlar} oturum={oturum} onKapat={()=>setYeni(null)} onOk={()=>{ setYeni(null); yenile(); ilanlarimYenile(); }}/>}
@@ -10360,20 +10373,23 @@ function BosPazar({T,ik,metin,alt}){
 }
 
 function IlanVerModal({T, tip, takimlar, oturum, onKapat, onOk}){
-  const eksik=tip==="eksik";
+  const eksik=tip==="eksik", oyuncuMu=tip==="oyuncu";
+  const benad=(oturum&&((oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email.split("@")[0]))||"";
   const [tkIdx,setTkIdx]=useState(takimlar.length?0:-1);
   const [elTakim,setElTakim]=useState("");
+  const [ad,setAd]=useState(benad);
   const [tarih,setTarih]=useState(""); const [saha,setSaha]=useState(""); const [sehir,setSehir]=useState(takimlar[0]?takimlar[0].sehir:"");
   const [seviye,setSeviye]=useState("Orta"); const [poz,setPoz]=useState("Kaleci"); const [adet,setAdet]=useState(1);
   const [aciklama,setAciklama]=useState(""); const [kaydet,setKaydet]=useState(false);
-  const sec=tkIdx>=0?takimlar[tkIdx]:null;
+  const sec=(!oyuncuMu&&tkIdx>=0)?takimlar[tkIdx]:null;
+  const anaRenk=eksik?T.danger:oyuncuMu?(T.accent2||T.accent):T.accent;
   const gonder=async()=>{
-    const takimAd = sec?sec.takim_ad:elTakim.trim();
-    if(!takimAd){ alert("Takım seç veya adını yaz."); return; }
-    if(!tarih.trim()){ alert("Tarih/saat yaz (ör: Cuma 21:00)."); return; }
+    const takimAd = oyuncuMu ? ad.trim() : (sec?sec.takim_ad:elTakim.trim());
+    if(!takimAd){ alert(oyuncuMu?"Adını yaz.":"Takım seç veya adını yaz."); return; }
+    if(!tarih.trim()){ alert(oyuncuMu?"Ne zaman müsaitsin yaz (ör: Hafta içi akşam).":"Tarih/saat yaz (ör: Cuma 21:00)."); return; }
     setKaydet(true);
     const il={ tip, user_id:oturum.id, takim_id:sec?sec.takim_id:null, takim_ad:takimAd, takim_logo:sec?sec.takim_logo:null, takim_renk:sec?sec.takim_renk:null, lig_id:sec?sec.lig_id:null, lig_ad:sec?sec.lig_ad:null, sehir:sehir.trim()||null, tarih_text:tarih.trim(), aciklama:aciklama.trim()||null };
-    if(eksik){ il.pozisyon=poz; il.adet=Number(adet)||1; } else { il.saha=saha.trim()||null; il.seviye=seviye; }
+    if(eksik){ il.pozisyon=poz; il.adet=Number(adet)||1; } else if(oyuncuMu){ il.pozisyon=poz; } else { il.saha=saha.trim()||null; il.seviye=seviye; }
     const r=await Db.ilanOlustur(il); setKaydet(false);
     if(r.ok){ alert("✅ İlan yayınlandı!"); onOk(); } else alert("Olmadı: "+(r.hata||""));
   };
@@ -10382,40 +10398,48 @@ function IlanVerModal({T, tip, takimlar, oturum, onKapat, onOk}){
   return <div onClick={e=>{ if(e.target===e.currentTarget) onKapat(); }} style={{position:"fixed",inset:0,zIndex:1200,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
     <div style={{width:"100%",maxWidth:480,background:T.bg0,borderTopLeftRadius:22,borderTopRightRadius:22,border:"0.5px solid "+T.line,padding:"8px 16px calc(20px + env(safe-area-inset-bottom))",maxHeight:"88vh",overflowY:"auto"}}>
       <div style={{width:40,height:4,borderRadius:3,background:T.line,margin:"8px auto 14px"}}/>
-      <div style={{fontSize:17,fontWeight:800,color:T.text,marginBottom:4}}>{eksik?"🙋 Eksik Oyuncu İlanı":"🆚 Rakip İlanı"}</div>
-      <div style={{fontSize:11.5,color:T.textMut,marginBottom:6}}>{eksik?"Maça oyuncu bul — herkes görür, 'geliyorum' diyen olursa bildirim gelir.":"Takımına maç ayarla — meydan okuyan olursa bildirim gelir."}</div>
-      <label style={lbl}>TAKIM</label>
-      {takimlar.length>0
-        ? <select value={tkIdx} onChange={e=>{ const v=Number(e.target.value); setTkIdx(v); if(v>=0&&takimlar[v].sehir) setSehir(takimlar[v].sehir); }} style={inp}>
-            {takimlar.map((t,i)=><option key={i} value={i}>{t.takim_ad} · {t.lig_ad}</option>)}
-            <option value={-1}>+ Elle takım adı yaz…</option>
-          </select>
-        : <input value={elTakim} onChange={e=>setElTakim(e.target.value)} placeholder="Takım adı" style={inp}/>}
-      {takimlar.length>0 && tkIdx===-1 && <input value={elTakim} onChange={e=>setElTakim(e.target.value)} placeholder="Takım adı" style={{...inp,marginTop:8}}/>}
-      {eksik ? <>
-        <label style={lbl}>POZİSYON & ADET</label>
-        <div style={{display:"flex",gap:8}}>
-          <select value={poz} onChange={e=>setPoz(e.target.value)} style={{...inp,flex:2}}>{["Kaleci","Defans","Ortasaha","Forvet","Farketmez"].map(p=><option key={p} value={p}>{p}</option>)}</select>
-          <select value={adet} onChange={e=>setAdet(e.target.value)} style={{...inp,flex:1}}>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n} kişi</option>)}</select>
-        </div>
+      <div style={{fontSize:17,fontWeight:800,color:T.text,marginBottom:4}}>{eksik?"🙋 Eksik Oyuncu İlanı":oyuncuMu?"🏃 Maça Gelirim":"🆚 Rakip İlanı"}</div>
+      <div style={{fontSize:11.5,color:T.textMut,marginBottom:6}}>{eksik?"Maça oyuncu bul — herkes görür, 'geliyorum' diyen olursa bildirim gelir.":oyuncuMu?"Bir oyuncu olarak maç ara — takımlar seni görüp çağırır, ilgilenen olursa bildirim gelir.":"Takımına maç ayarla — meydan okuyan olursa bildirim gelir."}</div>
+      {oyuncuMu ? <>
+        <label style={lbl}>ADIN</label>
+        <input value={ad} onChange={e=>setAd(e.target.value)} placeholder="Ad Soyad" style={inp}/>
+        <label style={lbl}>POZİSYON</label>
+        <select value={poz} onChange={e=>setPoz(e.target.value)} style={inp}>{["Kaleci","Defans","Ortasaha","Forvet","Farketmez"].map(p=><option key={p} value={p}>{p}</option>)}</select>
       </> : <>
-        <label style={lbl}>SEVİYE</label>
-        <select value={seviye} onChange={e=>setSeviye(e.target.value)} style={inp}>{["Başlangıç","Orta","İyi","Rekabetçi"].map(s=><option key={s} value={s}>{s}</option>)}</select>
+        <label style={lbl}>TAKIM</label>
+        {takimlar.length>0
+          ? <select value={tkIdx} onChange={e=>{ const v=Number(e.target.value); setTkIdx(v); if(v>=0&&takimlar[v].sehir) setSehir(takimlar[v].sehir); }} style={inp}>
+              {takimlar.map((t,i)=><option key={i} value={i}>{t.takim_ad} · {t.lig_ad}</option>)}
+              <option value={-1}>+ Elle takım adı yaz…</option>
+            </select>
+          : <input value={elTakim} onChange={e=>setElTakim(e.target.value)} placeholder="Takım adı" style={inp}/>}
+        {takimlar.length>0 && tkIdx===-1 && <input value={elTakim} onChange={e=>setElTakim(e.target.value)} placeholder="Takım adı" style={{...inp,marginTop:8}}/>}
+        {eksik ? <>
+          <label style={lbl}>POZİSYON & ADET</label>
+          <div style={{display:"flex",gap:8}}>
+            <select value={poz} onChange={e=>setPoz(e.target.value)} style={{...inp,flex:2}}>{["Kaleci","Defans","Ortasaha","Forvet","Farketmez"].map(p=><option key={p} value={p}>{p}</option>)}</select>
+            <select value={adet} onChange={e=>setAdet(e.target.value)} style={{...inp,flex:1}}>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n} kişi</option>)}</select>
+          </div>
+        </> : <>
+          <label style={lbl}>SEVİYE</label>
+          <select value={seviye} onChange={e=>setSeviye(e.target.value)} style={inp}>{["Başlangıç","Orta","İyi","Rekabetçi"].map(s=><option key={s} value={s}>{s}</option>)}</select>
+        </>}
       </>}
-      <label style={lbl}>TARİH / SAAT</label>
-      <input value={tarih} onChange={e=>setTarih(e.target.value)} placeholder="ör: Cuma 21:00" style={inp}/>
+      <label style={lbl}>{oyuncuMu?"MÜSAİT ZAMAN":"TARİH / SAAT"}</label>
+      <input value={tarih} onChange={e=>setTarih(e.target.value)} placeholder={oyuncuMu?"ör: Hafta içi akşamları":"ör: Cuma 21:00"} style={inp}/>
       <label style={lbl}>ŞEHİR / BÖLGE</label>
       <input value={sehir} onChange={e=>setSehir(e.target.value)} placeholder="ör: İstanbul · Kadıköy" style={inp}/>
-      {!eksik && <><label style={lbl}>SAHA (opsiyonel)</label><input value={saha} onChange={e=>setSaha(e.target.value)} placeholder="ör: Fenerbahçe Halı Saha" style={inp}/></>}
-      <label style={lbl}>AÇIKLAMA (opsiyonel)</label>
-      <textarea value={aciklama} onChange={e=>setAciklama(e.target.value)} placeholder="Ek not…" rows={2} style={{...inp,resize:"vertical"}}/>
+      {!eksik && !oyuncuMu && <><label style={lbl}>SAHA (opsiyonel)</label><input value={saha} onChange={e=>setSaha(e.target.value)} placeholder="ör: Fenerbahçe Halı Saha" style={inp}/></>}
+      <label style={lbl}>AÇIKLAMA & İLETİŞİM (opsiyonel)</label>
+      <textarea value={aciklama} onChange={e=>setAciklama(e.target.value)} placeholder="Ek not + istersen telefon/WhatsApp numaran (ör: 05xx… arayın)" rows={2} style={{...inp,resize:"vertical"}}/>
       <div style={{display:"flex",gap:10,marginTop:16}}>
         <button onClick={onKapat} className="tap" style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,color:T.textSoft,borderRadius:12,padding:13,fontSize:13.5,fontWeight:700}}>Vazgeç</button>
-        <button onClick={gonder} disabled={kaydet} className="tap" style={{flex:2,background:eksik?T.danger:T.accent,color:eksik?"#fff":(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0),border:0,borderRadius:12,padding:13,fontSize:13.5,fontWeight:800,opacity:kaydet?.6:1}}>{kaydet?"…":"Yayınla"}</button>
+        <button onClick={gonder} disabled={kaydet} className="tap" style={{flex:2,background:anaRenk,color:eksik?"#fff":(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0),border:0,borderRadius:12,padding:13,fontSize:13.5,fontWeight:800,opacity:kaydet?.6:1}}>{kaydet?"…":"Yayınla"}</button>
       </div>
     </div>
   </div>;
 }
+
 
 function IlanYanitModal({T, ilan, onKapat}){
   const [yanitlar,setYanitlar]=useState([]); const [yuk,setYuk]=useState(true);
@@ -11352,6 +11376,7 @@ function App(){
           ligKurYetkim && ["🏆","Yeni Lig","Kendi ligini kur",T.gold,()=>git({sayfa:"ligkur"})],
           ["🆚","Rakip İlanı Ver","Takımına maç ayarla",T.accent,()=>git({sayfa:"pazar",pazarYeni:"rakip"})],
           ["🙋","Eksik Oyuncu İlanı","Maça oyuncu bul",T.danger,()=>git({sayfa:"pazar",pazarYeni:"eksik"})],
+          ["🏃","Ben Oyuncuyum","Maça gelirim — takım beni bulsun",(T.accent2||T.accent),()=>git({sayfa:"pazar",pazarYeni:"oyuncu"})],
         ].filter(Boolean).map((o,i)=>
           <div key={i} onClick={()=>{ setEkleAcik(false); o[4](); }} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:13,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:14,padding:14,marginBottom:9,cursor:"pointer"}}>
             <span style={{width:42,height:42,borderRadius:12,background:o[3]+"1e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,flexShrink:0}}>{o[0]}</span>

@@ -90,9 +90,11 @@ begin
   if v_sahip is not null and v_sahip <> new.user_id then
     perform public.bildirim_yolla(
       v_sahip,
-      case when v_tip='rakip' then 'rakip_yanit' else 'eksik_yanit' end,
-      case when v_tip='rakip' then '🆚 Maç teklifi geldi' else '🙋 Oyuncu başvurusu' end,
-      coalesce(new.ad,'Biri') || case when v_tip='rakip' then ' takımınla maç yapmak istiyor.' else ' ilanına "geliyorum" dedi.' end,
+      case when v_tip='rakip' then 'rakip_yanit' when v_tip='oyuncu' then 'oyuncu_yanit' else 'eksik_yanit' end,
+      case when v_tip='rakip' then '🆚 Maç teklifi geldi' when v_tip='oyuncu' then '🏃 Bir takım seni istiyor' else '🙋 Oyuncu başvurusu' end,
+      coalesce(new.ad,'Biri') || case when v_tip='rakip' then ' takımınla maç yapmak istiyor.'
+                                       when v_tip='oyuncu' then ' seni takımına çağırıyor.'
+                                       else ' ilanına "geliyorum" dedi.' end,
       'pazar', new.ilan_id::text);
   end if;
   return new;
