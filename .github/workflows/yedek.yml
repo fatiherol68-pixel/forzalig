@@ -1,52 +1,59 @@
-name: Otomatik Yedekleme (Supabase → JSON)
+name: Otomatik Yedekleme (şifreli, tam pg_dump)
 
-# Supabase verisini düzenli olarak JSON'a döküp indirilebilir yedek üretir.
-# GEREKLİ AYARLAR (GitHub → Settings → Secrets and variables → Actions):
-#   SUPABASE_URL          → https://crkestykdsnmfcmamxav.supabase.co
-#   SUPABASE_SERVICE_KEY  → Supabase service_role anahtarı (GİZLİ! sadece burada)
-# Secret girilmemişse iş atlanır (hata vermez).
+# Supabase veritabanının TAM yedeğini alır (şema + TÜM satırlar), ŞİFRELER,
+# indirilebilir dosya yapar. Repo herkese açık olsa bile yedek şifreli → güvenli.
+# (Eski sürüm REST ile sadece ilk 1000 satırı alıyor ve şifresizdi — düzeltildi.)
+#
+# GEREKLİ 2 SECRET (GitHub → Settings → Secrets and variables → Actions → New repository secret):
+#   SUPABASE_DB_URL    → Supabase → Project Settings → Database → "Connection string"
+#                        → "Session pooler" sekmesi → URI'yi kopyala, [YOUR-PASSWORD] yerine
+#                        veritabanı şifreni yaz. Örn:
+#                        postgresql://postgres.xxxx:SIFREN@aws-0-...pooler.supabase.com:5432/postgres
+#   BACKUP_PASSPHRASE  → yedeği açmak için KENDİ belirlediğin bir parola (güvenli sakla!)
+# Secret'lar yoksa iş sessizce atlanır (hata vermez).
+#
+# GERİ YÜKLEME: yedeği indir → bir terminalde:
+#   gpg -d yedek.sql.gz.gpg | gunzip > yedek.sql   (parolayı sorar)
+#   psql "SUPABASE_DB_URL" < yedek.sql
+
 on:
   schedule:
-    - cron: "0 3 * * *"   # her gün 03:00 UTC
-  workflow_dispatch:
+    - cron: "0 3 * * 0"   # her Pazar 03:00 UTC (haftalık)
+  workflow_dispatch:        # istersen elle de çalıştır
 
 jobs:
   yedek:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Secret var mı kontrol et
-        id: kontrol
+      - name: Secret kontrol
+        id: k
         run: |
-          if [ -n "${{ secrets.SUPABASE_URL }}" ] && [ -n "${{ secrets.SUPABASE_SERVICE_KEY }}" ]; then
+          if [ -n "${{ secrets.SUPABASE_DB_URL }}" ] && [ -n "${{ secrets.BACKUP_PASSPHRASE }}" ]; then
             echo "hazir=evet" >> "$GITHUB_OUTPUT"
           else
             echo "hazir=hayir" >> "$GITHUB_OUTPUT"
-            echo "::notice::SUPABASE_URL / SUPABASE_SERVICE_KEY secret'ları girilmemiş — yedek atlandı."
+            echo "::notice::SUPABASE_DB_URL / BACKUP_PASSPHRASE girilmemis - yedek atlandi."
           fi
 
-      - name: Tabloları JSON'a dök
-        if: steps.kontrol.outputs.hazir == 'evet'
+      - name: Tam yedek (pg_dump v16) + AES256 sifrele
+        if: steps.k.outputs.hazir == 'evet'
         env:
-          SB_URL: ${{ secrets.SUPABASE_URL }}
-          SB_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
-          mkdir -p yedek
-          TABLOLAR="ligler takimlar oyuncular oyuncu_takim transferler maclar mac_olaylari profiller davetler bildirimler sohbet_mesajlari"
-          for t in $TABLOLAR; do
-            echo "Yedekleniyor: $t"
-            curl -s "$SB_URL/rest/v1/$t?select=*" \
-              -H "apikey: $SB_KEY" \
-              -H "Authorization: Bearer $SB_KEY" \
-              -o "yedek/$t.json" || echo "  ($t atlandı)"
-          done
-          echo "Tarih: $(date -u +%Y-%m-%dT%H:%M:%SZ)" > yedek/BILGI.txt
+          set -e
+          # postgres:16 imaji -> surum-uyumlu pg_dump. URL container'a env ile girer (argv'de gorunmez).
+          docker run --rm -e PGURL="$DB_URL" postgres:16 \
+            sh -c 'pg_dump "$PGURL" --no-owner --no-privileges' | gzip > yedek.sql.gz
+          gpg --batch --yes --passphrase "$PASS" --cipher-algo AES256 \
+            --symmetric -o yedek.sql.gz.gpg yedek.sql.gz
+          rm -f yedek.sql.gz
+          echo "Sifreli yedek boyutu: $(du -h yedek.sql.gz.gpg | cut -f1)"
 
-      - name: Yedeği indirilebilir yap
-        if: steps.kontrol.outputs.hazir == 'evet'
+      - name: Indirilebilir yap (sifreli - public olsa bile guvenli)
+        if: steps.k.outputs.hazir == 'evet'
         uses: actions/upload-artifact@v4
         with:
           name: forzalig-yedek-${{ github.run_number }}
-          path: yedek/
-          retention-days: 30
+          path: yedek.sql.gz.gpg
+          retention-days: 90

@@ -322,33 +322,47 @@ const qrData = (url)=>{ try{ if(typeof qrcode==="undefined"||!url) return ""; co
 
 /* Fotoğraf/logo yükleme — telefon fotoğrafını küçültür (max 512px, jpeg) → Supabase Storage → herkese açık URL.
    Giriş yapılmamışsa/sb yoksa hata döner (çağıran yer avatar'a düşer). */
-function resimKucult(dosya, maxBoy=512, kalite=0.82){
+let _webpTamam=null;
+function _webpDestek(){ if(_webpTamam!==null) return _webpTamam; try{ _webpTamam=document.createElement("canvas").toDataURL("image/webp").indexOf("data:image/webp")===0; }catch(e){ _webpTamam=false; } return _webpTamam; }
+/* 1:1 kare (merkez) kırp + 512px + WebP (destek yoksa JPEG) → en küçük dosya, gözle fark edilmez kalite */
+function resimKucult(dosya, boy=512, kalite=0.82){
   return new Promise((res,rej)=>{
     try{
       const img=new Image(); const url=URL.createObjectURL(dosya);
       img.onload=()=>{
-        let w=img.width, h=img.height; const o=Math.min(1, maxBoy/Math.max(w,h));
-        w=Math.round(w*o); h=Math.round(h*o);
-        const c=document.createElement("canvas"); c.width=w; c.height=h;
-        c.getContext("2d").drawImage(img,0,0,w,h);
+        const kaynak=Math.min(img.width,img.height);              // kısa kenar → kare
+        const sx=(img.width-kaynak)/2, sy=(img.height-kaynak)/2;   // merkezden kırp
+        const c=document.createElement("canvas"); c.width=boy; c.height=boy;
+        const ctx=c.getContext("2d"); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
+        ctx.drawImage(img, sx, sy, kaynak, kaynak, 0, 0, boy, boy);
         URL.revokeObjectURL(url);
-        c.toBlob(b=> b?res(b):rej(new Error("kucultme")), "image/jpeg", kalite);
+        const tur=_webpDestek()?"image/webp":"image/jpeg";
+        c.toBlob(b=> b?res(b):rej(new Error("kucultme")), tur, kalite);
       };
       img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error("resim okunamadi")); };
       img.src=url;
     }catch(e){ rej(e); }
   });
 }
-async function fotoYukle(dosya, klasor){
+/* Yükleme: dosyayı kendi klasörüne yazar → {uid}/{oyuncu|logo}/{uuid}.webp
+   (Storage RLS: kullanıcı sadece kendi klasörüne yazabilir/silebilir.)
+   eskiUrl verilirse ve bizim klasörümüzdeyse eski dosyayı siler (yer tutmasın). */
+async function fotoYukle(dosya, klasor, eskiUrl){
   if(!sb) return {hata:"Giriş gerekli (bulut kapalı)."};
   if(!dosya) return {hata:"Dosya yok."};
   if(dosya.size>15*1024*1024) return {hata:"Fotoğraf çok büyük (max 15MB)."};
   try{
+    let uid=null; try{ uid=((await sb.auth.getUser()).data.user||{}).id||null; }catch(e){}
+    if(!uid) return {hata:"Giriş gerekli."};
     const kucuk = await resimKucult(dosya);
-    const yol = (klasor||"genel")+"/"+Date.now()+"_"+Math.random().toString(36).slice(2,9)+".jpg";
-    const {error}=await sb.storage.from("fotolar").upload(yol, kucuk, {contentType:"image/jpeg", upsert:false});
+    const ext = (kucuk.type==="image/webp")?"webp":"jpg";
+    const uuid = (window.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now()+"-"+Math.random().toString(36).slice(2,10));
+    const yol = uid+"/"+(klasor||"genel")+"/"+uuid+"."+ext;
+    const {error}=await sb.storage.from("fotolar").upload(yol, kucuk, {contentType:kucuk.type, upsert:false});
     if(error) return {hata:error.message};
     const {data}=sb.storage.from("fotolar").getPublicUrl(yol);
+    // Eski dosyayı temizle (sadece bizim bucket + bizim uid klasörümüzdeyse RLS izin verir)
+    try{ if(eskiUrl){ const p=String(eskiUrl).split("/fotolar/")[1]; if(p && p.indexOf(uid+"/")===0){ await sb.storage.from("fotolar").remove([decodeURIComponent(p.split("?")[0])]); } } }catch(e){}
     return {url:(data&&data.publicUrl)||""};
   }catch(e){ return {hata:String(e&&e.message||e)}; }
 }
@@ -4094,7 +4108,7 @@ function YonetimPaneli({turnuva, T, git, yonetim}){
         </label>
         <label className="tap" title={t.logo?"Logoyu değiştir":"Logo yükle"} style={{cursor:"pointer",flexShrink:0,fontSize:13,opacity:t.logo?1:.6}}>
           {t.logo?"🖼️":"📷"}
-          <input type="file" accept="image/*" onChange={async e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; const r=await fotoYukle(f,"logo"); if(r&&r.url) yonetim.takimDuzenle(turnuva,t.id,{logo:r.url}); else alert((r&&r.hata)||"Yüklenemedi"); e.target.value=""; }} style={{display:"none"}}/>
+          <input type="file" accept="image/*" onChange={async e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; const r=await fotoYukle(f,"logo",t.logo); if(r&&r.url) yonetim.takimDuzenle(turnuva,t.id,{logo:r.url}); else alert((r&&r.hata)||"Yüklenemedi"); e.target.value=""; }} style={{display:"none"}}/>
         </label>
         <span onClick={()=>git({sayfa:"takim",takim:t,turnuva})} className="tap" style={{flex:1,fontSize:13,color:T.text,fontWeight:600,cursor:"pointer",minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span>
         <button onClick={()=>{ const y=prompt("Takım adı:", t.ad); if(y&&y.trim()) yonetim.takimDuzenle(turnuva,t.id,{ad:y.trim()}); }} className="tap" title="Adı düzenle" style={{color:T.textMut,fontSize:12,background:"none",border:"none",padding:"0 3px"}}>✏️</button>
@@ -4896,7 +4910,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum}){
   const logoDegistir=async(e)=>{
     const f=e.target.files&&e.target.files[0]; if(!f)return;
     setLogoYuk(true);
-    const r=await fotoYukle(f,"logo");
+    const r=await fotoYukle(f,"logo",takim.logo);
     if(r&&r.url){ takim.logo=r.url;
       if(sb && typeof takim.id==="string"){ try{ await sb.from('takimlar').update({logo:r.url}).eq('id',takim.id); }catch(err){} }
       setLogoTik(x=>x+1);
@@ -5355,7 +5369,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   const kendiFotoDegistir=async(e)=>{
     const f=e.target.files&&e.target.files[0]; if(!f)return;
     setFotoYuk2(true);
-    const r=await fotoYukle(f,"oyuncu");
+    const r=await fotoYukle(f,"oyuncu",o.foto);
     if(r&&r.url){ o.foto=r.url; const pid=o.player_id||(typeof o.id==="string"?o.id:null);
       if(sb && pid){ try{ await sb.from('oyuncular').update({foto:r.url}).eq('player_id',pid); }catch(err){} }
       setFotoTik(x=>x+1);
