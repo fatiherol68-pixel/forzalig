@@ -6,6 +6,8 @@
 <title>ForzaLig — Halı Saha Liginin Dijital Merkezi</title>
 <meta name="description" content="ForzaLig: halı saha ligini yönet, puan durumu, fikstür, kral listeleri, FIFA tarzı oyuncu kartları ve canlı skorlar. Ligini link/QR ile paylaş, herkes görsün.">
 <meta name="theme-color" content="#070B12">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="shortcut icon" href="/favicon.ico" sizes="any">
 <meta name="keywords" content="halı saha, lig, fikstür, puan durumu, gol kralı, futbol, turnuva, forzalig">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23070B12'/><circle cx='32' cy='32' r='18' fill='%23ffffff'/><path d='M32 21L42.5 28.6 38.5 40.9 25.5 40.9 21.5 28.6Z' fill='%230B0F17'/></svg>">
 <link rel="canonical" href="https://forzalig.com/">
@@ -987,6 +989,10 @@ function temaHesapla(stilKey, renkKey){
   const s = STILLER[stilKey] || STILLER.zumrut;
   const r = renkKey && RENK_TEMA[renkKey];
   const t = r ? { ...s, accent:r.accent, accent2:r.accent2, renkCifti:r.renkCifti } : { ...s };
+  // Açık ("Aydınlık") stilde vurgu rengi hem METİN hem DOLGU olarak açık zeminde kullanılıyor.
+  // Canlı yeşil/mavi vb. beyaz üstünde WCAG AA kontrastını geçmez → açık stilde vurguyu koyulaştır.
+  // Tek yerde: taban renk + üzerine seçilen RENK katmanı, ikisi de kapsanır. (Koyu stiller etkilenmez.)
+  if(s.acik){ try{ t.accent=_hexMix(t.accent,"#0A0A0A",0.34); t.accent2=_hexMix(t.accent2,"#0A0A0A",0.30); }catch(e){} }
   // #3 — kart kenarlarına çok hafif accent tonu (renge göre bütünsel görünüm)
   try{ t.line = _hexMix(s.line, t.accent, 0.13); }catch(e){}
   return t;
