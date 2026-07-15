@@ -11401,7 +11401,25 @@ function App(){
   </div>;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+// HATA KALKANI — çökünce boş ekran yerine hatayı göster (kalıcı iyileştirme + teşhis)
+class HataSiniri extends React.Component {
+  constructor(p){ super(p); this.state={hata:null}; }
+  static getDerivedStateFromError(e){ return {hata:e}; }
+  componentDidCatch(e,info){ try{ console.error("FL crash:", e, info&&info.componentStack); window.__FL_SON_HATA = String((e&&(e.stack||e.message))||e); }catch(x){} }
+  render(){
+    if(this.state.hata){
+      const m=String((this.state.hata&&(this.state.hata.stack||this.state.hata.message))||this.state.hata).slice(0,800);
+      return <div style={{padding:"34px 20px",fontFamily:"system-ui,-apple-system,sans-serif",color:"#fff",background:"#0b0b0f",minHeight:"100vh"}}>
+        <div style={{fontSize:20,fontWeight:800,marginBottom:8}}>⚠️ Bir hata oluştu</div>
+        <div style={{fontSize:12,color:"#9aa",marginBottom:14}}>Ekranı yenile; sürerse bu yazının fotoğrafını gönder.</div>
+        <div style={{fontSize:12,color:"#ff8a8a",marginBottom:18,whiteSpace:"pre-wrap",wordBreak:"break-word",lineHeight:1.5,background:"#16161c",border:"1px solid #333",borderRadius:10,padding:12}}>{m}</div>
+        <button onClick={()=>{ try{ location.reload(); }catch(e){} }} style={{background:"#39FF7A",color:"#04140c",border:0,borderRadius:10,padding:"12px 22px",fontWeight:800,fontSize:14}}>Yeniden Yükle</button>
+      </div>;
+    }
+    return this.props.children;
+  }
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<HataSiniri><App/></HataSiniri>);
 </script>
 </body>
 </html>
