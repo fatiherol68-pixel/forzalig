@@ -516,6 +516,7 @@ const Db = {
   async yardimciListe(ligId){ if(!sb||!ligId) return []; try{ const {data}=await sb.from('lig_yardimci').select('user_id,tarih').eq('lig_id',ligId); const ids=(data||[]).map(x=>x.user_id); if(!ids.length) return []; const {data:pr}=await sb.from('profiller').select('user_id,email,ad').in('user_id',ids); const m={}; (pr||[]).forEach(p=>{ m[p.user_id]=p; }); return (data||[]).map(x=>({user_id:x.user_id, email:(m[x.user_id]&&m[x.user_id].email)||x.user_id, ad:(m[x.user_id]&&m[x.user_id].ad)||null, tarih:x.tarih})); }catch(e){ return []; } },
   async yardimciEkle(ligId, email){ if(!sb) return {hata:"yok"}; try{ const pr=await Db.profilBul((email||"").trim().toLowerCase()); if(!pr||!pr.user_id) return {hata:"Bu e-postayla üye bulunamadı — kişi önce uygulamaya üye olmalı."}; let ekleyen=null; try{ const u=(await sb.auth.getUser()).data.user; ekleyen=u?u.id:null; }catch(e){} const {error}=await sb.from('lig_yardimci').insert({lig_id:ligId, user_id:pr.user_id, ekleyen}); if(error){ if(/duplicate|unique/i.test(error.message)) return {hata:"Bu kişi zaten yardımcı yönetici."}; return {hata:error.message}; } return {ok:true, user_id:pr.user_id, ad:pr.ad, email:pr.email}; }catch(e){ return {hata:String(e)}; } },
   async yardimciKaldir(ligId, userId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('lig_yardimci').delete().eq('lig_id',ligId).eq('user_id',userId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async tumYardimcilar(){ if(!sb) return []; try{ const {data}=await sb.from('lig_yardimci').select('lig_id,user_id,tarih'); if(!data||!data.length) return []; const ligIds=[...new Set(data.map(x=>x.lig_id))]; const userIds=[...new Set(data.map(x=>x.user_id))]; const [lr,pr]=await Promise.all([ sb.from('ligler').select('id,ad').in('id',ligIds), sb.from('profiller').select('user_id,email,ad').in('user_id',userIds) ]); const lm={}; ((lr&&lr.data)||[]).forEach(l=>{ lm[l.id]=l.ad; }); const pm={}; ((pr&&pr.data)||[]).forEach(p=>{ pm[p.user_id]=p; }); return data.map(x=>({ lig_id:x.lig_id, ligAd:lm[x.lig_id]||"(lig)", user_id:x.user_id, email:(pm[x.user_id]&&pm[x.user_id].email)||x.user_id, ad:(pm[x.user_id]&&pm[x.user_id].ad)||null, tarih:x.tarih })); }catch(e){ return []; } },
   // ---- Lig hakları (K3/K4) ----
   async hakGetir(userId){
     if(!sb||!userId) return {toplam:0,kullanilan:0,kalan:0};
@@ -9580,6 +9581,11 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const [seciliLigler,setSeciliLigler]=useState(()=>new Set()); // FAZ 5 — toplu seçim
   const [uyeSeg,setUyeSeg]=useState("hepsi");     // FAZ 5 — üye segmenti
   const [uyeAra,setUyeAra]=useState("");          // üye arama (palet de kullanır)
+  const [hepYardimci,setHepYardimci]=useState([]); // YARDIMCI — tüm liglerin yardımcı yöneticileri
+  const [tumLiglerY,setTumLiglerY]=useState([]);   // ekleme formu için lig listesi
+  const [aySecLig,setAySecLig]=useState("");
+  const [ayMail,setAyMail]=useState("");
+  const [ayMesaj,setAyMesaj]=useState("");
   const [paletAcik,setPaletAcik]=useState(false); // FAZ 6 — komut paleti
   const [paletQ,setPaletQ]=useState("");
   // FAZ 2 — Geri Al (Undo): yıkıcı işlemi 5 sn geciktir; bu arada UI'dan kaldır
@@ -9603,6 +9609,9 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const yasakla=async(u)=>{ const sebep=prompt("Yasaklama sebebi (kullanıcıya gösterilmez, log için):",""); if(sebep===null) return; if(!confirm((u.ad||u.email)+" askıya alınsın mı? Giriş yapamaz.")) return; const r=await Db.yasakla(u.user_id, sebep, oturum&&oturum.id); if(r.ok){ setYasaklilar(p=>[...p,{user_id:u.user_id,sebep}]); Db.logla(oturum,"Kullanıcı askıya alındı",(u.email||"")+(sebep?" · "+sebep:"")); setMesaj("🚫 Askıya alındı"); } else setMesaj("Olmadı: "+(r.hata||"")); };
   const yasakKaldir=async(u)=>{ const r=await Db.yasakKaldir(u.user_id); if(r.ok){ setYasaklilar(p=>p.filter(x=>x.user_id!==u.user_id)); Db.logla(oturum,"Yasak kaldırıldı",u.email||""); setMesaj("✓ Yasak kaldırıldı"); } else setMesaj("Olmadı: "+(r.hata||"")); };
   const yasakliMi=(uid)=> yasaklilar.some(x=>x.user_id===uid);
+  // YARDIMCI — admin panelden merkezi ekle/çıkar
+  const ayEkle=async()=>{ const e=(ayMail||"").trim().toLowerCase(); if(!aySecLig){ setAyMesaj("⚠️ Önce lig seç"); return; } if(!e){ setAyMesaj("⚠️ E-posta yaz"); return; } setAyMesaj(""); const r=await Db.yardimciEkle(aySecLig, e); if(r&&r.ok){ const lig=tumLiglerY.find(x=>x.id===aySecLig); setHepYardimci(p=>[...p,{lig_id:aySecLig, ligAd:(lig&&lig.ad)||"(lig)", user_id:r.user_id, email:r.email||e, ad:r.ad||null, tarih:new Date().toISOString()}]); setAyMail(""); setAyMesaj("✓ Eklendi"); Db.logla(oturum,"Yardımcı yönetici eklendi",((lig&&lig.ad)||"")+" · "+e); } else setAyMesaj("⚠️ "+((r&&r.hata)||"olmadı")); };
+  const ayCikar=async(y)=>{ if(!confirm((y.ad||y.email)+" — “"+y.ligAd+"” liginden yardımcı yöneticilikten çıkarılsın mı?")) return; const r=await Db.yardimciKaldir(y.lig_id, y.user_id); if(r&&r.ok){ setHepYardimci(p=>p.filter(x=>!(x.lig_id===y.lig_id && x.user_id===y.user_id))); Db.logla(oturum,"Yardımcı yönetici çıkarıldı",y.ligAd+" · "+(y.email||"")); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   // 📢 Toplu mesaj/duyuru
   const [msgAcik,setMsgAcik]=useState(false);
   const [msgTip,setMsgTip]=useState("herkes");     // herkes | lig | takim | kisi
@@ -9643,6 +9652,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
     Db.sikayetler().then(s=>setSikayetler(s||[]));
     Db.hataListe().then(hh=>setHatalar(hh||[]));       // FAZ 4
     Db.yasakliListe().then(yy=>setYasaklilar(yy||[])); // FAZ 3
+    Db.tumYardimcilar().then(yy=>setHepYardimci(yy||[])); // YARDIMCI — merkezi görünüm
+    Db.tumLiglerBasit().then(ll=>setTumLiglerY(ll||[]));  // ekleme formu lig listesi
     const epostaHarita={}; (p||[]).forEach(pr=>{ epostaHarita[pr.user_id]=pr.email; });
     setHaklar((h||[]).map(x=>({...x, email:epostaHarita[x.user_id]||x.user_id})));
     setYuk(false);
@@ -10049,6 +10060,42 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
       </div>}
 
       {!yuk && sekme==="ligler" && <div>
+        {/* 👥 YARDIMCI (YEDEK) LİG YÖNETİCİLERİ — merkezi görünüm + ekle/çıkar */}
+        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:14,padding:"13px 14px",marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+            <span style={{fontSize:13,fontWeight:800,color:T.text}}>👥 Yardımcı Yöneticiler</span>
+            <span style={{fontSize:10,color:T.textMut,background:T.bg2,borderRadius:20,padding:"2px 8px",fontWeight:700}}>{hepYardimci.length}</span>
+          </div>
+          <div style={{fontSize:10.5,color:T.textMut,lineHeight:1.55,marginBottom:11}}>Bir ligin yedek yöneticisi. O ligi yönetir (takım/maç/oyuncu) ama <b>kendine lig hakkı almaz</b>. Dilediğinde çıkar.</div>
+          {/* ekleme formu */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:ayMesaj?6:11}}>
+            <select value={aySecLig} onChange={e=>{setAySecLig(e.target.value);setAyMesaj("");}} style={{flex:"1 1 140px",minWidth:0,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"9px 10px",color:aySecLig?T.text:T.textMut,fontSize:12,outline:"none",fontFamily:"inherit"}}>
+              <option value="">Lig seç…</option>
+              {tumLiglerY.map(l=><option key={l.id} value={l.id}>{l.ad}</option>)}
+            </select>
+            <input value={ayMail} onChange={e=>{setAyMail(e.target.value);setAyMesaj("");}} onKeyDown={e=>{if(e.key==="Enter")ayEkle();}} placeholder="yardımcı@mail.com" style={{flex:"2 1 150px",minWidth:0,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"9px 10px",color:T.text,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+            <button onClick={ayEkle} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:9,padding:"0 15px",fontSize:12.5,fontWeight:800}}>Ekle</button>
+          </div>
+          {ayMesaj && <div style={{fontSize:11,color:ayMesaj[0]==="✓"?T.accent:T.gold,marginBottom:10}}>{ayMesaj}</div>}
+          {/* lige göre gruplanmış liste */}
+          {hepYardimci.length===0
+            ? <div style={{fontSize:11.5,color:T.textMut,textAlign:"center",padding:"8px 0"}}>Henüz atanmış yardımcı yönetici yok.</div>
+            : Object.entries(hepYardimci.reduce((m,y)=>{ (m[y.lig_id]=m[y.lig_id]||{ad:y.ligAd,uyeler:[]}).uyeler.push(y); return m; },{})).map(([lid,g])=>
+              <div key={lid} style={{marginBottom:8}}>
+                <div style={{fontSize:10.5,color:T.textMut,fontWeight:700,margin:"0 2px 4px",display:"flex",alignItems:"center",gap:6}}><span>🏟️</span><span style={{color:T.textSoft}}>{g.ad}</span></div>
+                {g.uyeler.map(y=>
+                  <div key={y.user_id} style={{display:"flex",alignItems:"center",gap:9,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"8px 10px",marginBottom:4}}>
+                    <div style={{width:26,height:26,borderRadius:8,background:T.accent+"22",color:T.accent,display:"grid",placeItems:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{((y.ad||y.email||"?")[0]||"?").toUpperCase()}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{y.ad||y.email}</div>
+                      {y.ad && <div style={{fontSize:9.5,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{y.email}</div>}
+                    </div>
+                    <button onClick={()=>ayCikar(y)} className="tap" style={{fontSize:10.5,color:T.danger,background:T.danger+"14",border:"0.5px solid "+T.danger+"44",borderRadius:8,padding:"5px 10px",fontWeight:700,flexShrink:0}}>Çıkar</button>
+                  </div>
+                )}
+              </div>
+            )}
+        </div>
         {ligler.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:20}}>Henüz herkese açık lig yok.</div>}
         {ligler.length>0 && <div style={{fontSize:9.5,color:T.textMut,margin:"0 2px 8px",display:"flex",gap:12}}><span>🟢 aktif</span><span>🟡 yavaşlıyor</span><span>🔴 sessiz (30g+)</span></div>}
         {ligler.map(l=>{ const sg=ligSagligi(l); const secili=seciliLigler.has(l.slug); return
