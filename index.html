@@ -11273,7 +11273,7 @@ function App(){
           : ("Lig açılamadı: "+r.hata));
         return;
       }
-      const yeni={ id:r.id, ...bilgi, takimlar:[], maclar:[], iliskisel:true };
+      const yeni={ id:r.id, yonetici_id:oturum.id, ...bilgi, takimlar:[], maclar:[], iliskisel:true };
       setIliskiselModu(true);
       setTurnuvalar(p=>[...p, yeni]);
       setTimeout(()=>git({sayfa:"turnuva",turnuva:yeni}),0);
