@@ -32,12 +32,12 @@
 <meta name="twitter:title" content="ForzaLig — Halı Saha Ligi">
 <meta name="twitter:description" content="Ligini yönet, paylaş, herkes görsün.">
 <meta name="twitter:image" content="https://forzalig.com/og.png">
-<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<!-- React kendi sunucumuzdan (aynı köken + Cloudflare edge cache). Dış CDN bağımlılığı yok. defer: render'ı bloklamaz, sıra korunur. -->
+<script defer src="/react.production.min.js"></script>
+<script defer src="/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <!-- Chart.js statik yüklenmez; sadece grafik gerektiğinde chartYukle() ile getirilir (hız). -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
