@@ -193,17 +193,19 @@
   .kpi-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
   /* ============ PREMIUM KATMAN ============ */
-  /* Gradyan atmosfer — sayfa arkası hafif ışık lekeleri */
+  /* Gradyan atmosfer — sayfa arkası seçilen stil+renge göre renklenir */
   #root::before {
-    content:""; position:fixed; top:-15%; right:-25%; width:70vw; height:60vh;
-    background: radial-gradient(circle, var(--glowA, rgba(80,140,255,.10)), transparent 70%);
+    content:""; position:fixed; top:-18%; right:-22%; width:88vw; height:72vh;
+    background: radial-gradient(circle, var(--glowA, rgba(80,140,255,.16)), transparent 68%);
     pointer-events:none; z-index:0;
   }
   #root::after {
-    content:""; position:fixed; bottom:-15%; left:-25%; width:70vw; height:60vh;
-    background: radial-gradient(circle, var(--glowB, rgba(124,92,255,.08)), transparent 70%);
+    content:""; position:fixed; bottom:-20%; left:-24%; width:82vw; height:68vh;
+    background: radial-gradient(circle, var(--glowB, rgba(124,92,255,.12)), transparent 68%);
     pointer-events:none; z-index:0;
   }
+  /* Üst şerit — accent'ten ince bir renk yıkaması (tema bağı belirgin) */
+  #root { background-image: linear-gradient(180deg, var(--glowA, transparent) 0%, transparent 34%); background-repeat:no-repeat; }
   .wrap { z-index:1; }
   /* Premium gölge — kartlar havada dursun */
   .prem-shadow { box-shadow: 0 8px 26px rgba(0,0,0,.38), 0 2px 6px rgba(0,0,0,.25); }
@@ -3487,21 +3489,36 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   const ODULLER=[["altin","🥇 Altın Top"],["gumus","🥈 Gümüş Top"],["forvet","⚡ En İyi Forvet"],["ortasaha","⚙️ En İyi Orta Saha"],["defans","🛡️ En İyi Defans"],["kaleci","🧤 En İyi Kaleci"],["macinGolu","🎯 Maçın Golü"],["centilmen","🤝 Centilmen"],["enerjik","🔥 Enerjik"]];
 
   return <div className="fade-in" style={{paddingBottom:90}}>
-    {/* KAPAK */}
-    <div style={{position:"relative",height:90,background:"linear-gradient(135deg,"+turnuva.renk+"55,"+T.bg1+" 80%)",overflow:"hidden"}}>
-      <div style={{position:"absolute",inset:0,background:"repeating-linear-gradient(115deg,transparent,transparent 22px,"+T.accent+"0A 22px,"+T.accent+"0A 24px)"}}/>
-      <div style={{position:"absolute",top:12,right:14,display:"flex",gap:14,textAlign:"center"}}>
-        {[["TAKIM",turnuva.takimlar.length],["HAFTA",sonHafta||"—"],["DURUM",durumYazi==="DEVAM"?"●":durumYazi==="BİTTİ"?"✓":"○"]].map(([k,v])=>
-          <div key={k}><div style={{fontSize:15,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1}}>{v}</div><div style={{fontSize:7,color:T.textSoft,letterSpacing:.5,marginTop:2}}>{k}</div></div>
-        )}
-      </div>
-    </div>
-    <div style={{position:"relative",padding:"0 14px"}}>
-      <div style={{position:"absolute",top:-28,left:14,border:"3px solid "+T.bg0,borderRadius:14,overflow:"hidden"}}><Logo renk={turnuva.renk} ad={turnuva.ad} logo={turnuva.logo} renk2={turnuva.renk2} boy={56}/></div>
-      <div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:10,flexWrap:"wrap"}}>
-        {!saltOkunur && oturum && turnuva.iliskisel && <button onClick={()=>git({sayfa:"sohbet",turnuva})} className="tap" style={{background:"transparent",color:T.accent2,border:"1px solid "+T.accent2,borderRadius:20,padding:"0 14px",height:32,fontSize:12,fontWeight:700}}>💬 Sohbet</button>}
-        {!saltOkunur && oturum && <button onClick={paylasAc} className="tap" style={{background:turnuva.paylasimSlug?T.accent:"transparent",color:turnuva.paylasimSlug?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.gold,border:"1px solid "+(turnuva.paylasimSlug?T.accent:T.gold),borderRadius:20,padding:"0 14px",height:32,fontSize:12,fontWeight:700}}>{turnuva.paylasimSlug?"🔗 Paylaşımda":"🔗 Paylaş"}</button>}
-        {ligTakip && <button onClick={()=>ligTakip(turnuva.id)} className="tap" style={{background:takipte?T.accent:"transparent",color:takipte?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,border:"1px solid "+T.accent,borderRadius:20,padding:"0 16px",height:32,fontSize:12,fontWeight:700}}>{takipte?"✓ Takipte":"+ Takip et"}</button>}
+    {/* PREMIUM KAPAK HERO */}
+    <div style={{padding:"12px 14px 0"}}>
+      <div style={{position:"relative",overflow:"hidden",borderRadius:20,padding:"15px 16px 14px",border:"1px solid "+turnuva.renk+"55",
+        background:"radial-gradient(120% 150% at 88% 0%,"+turnuva.renk+"4d,transparent 55%), linear-gradient(160deg,"+T.bg1+","+T.bg0+" 72%)",boxShadow:"0 18px 46px rgba(0,0,0,.34)"}}>
+        <div style={{position:"absolute",inset:0,pointerEvents:"none",opacity:.55,background:"repeating-linear-gradient(115deg,transparent,transparent 22px,"+T.accent+"0A 22px,"+T.accent+"0A 24px)"}}/>
+        {/* durum + stat şerit */}
+        <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+          <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:9.5,fontWeight:800,letterSpacing:.6,color:durumRenk,background:durumRenk+"1e",border:"1px solid "+durumRenk+"44",borderRadius:20,padding:"4px 10px"}}>
+            {durumYazi==="DEVAM" && <span className="fz-nabiz" style={{width:6,height:6,borderRadius:"50%",background:durumRenk}}/>}{durumYazi}
+          </span>
+          <div style={{display:"flex",gap:14,textAlign:"center"}}>
+            {[["TAKIM",turnuva.takimlar.length],["HAFTA",sonHafta||"—"],["MAÇ",oynanan+"/"+toplamMac]].map(([k,v])=>
+              <div key={k}><div style={{fontSize:15,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1}}>{v}</div><div style={{fontSize:7.5,color:T.textSoft,letterSpacing:.5,marginTop:2}}>{k}</div></div>
+            )}
+          </div>
+        </div>
+        {/* logo + başlık */}
+        <div style={{position:"relative",display:"flex",alignItems:"center",gap:13,marginTop:14}}>
+          <div style={{borderRadius:15,overflow:"hidden",flexShrink:0,boxShadow:"0 8px 20px rgba(0,0,0,.4)"}}><Logo renk={turnuva.renk} ad={turnuva.ad} logo={turnuva.logo} renk2={turnuva.renk2} boy={54}/></div>
+          <div style={{minWidth:0}}>
+            <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
+            <div style={{fontSize:11,color:T.textSoft,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>📍 {turnuva.sehir}{turnuva.ilce?" · "+turnuva.ilce:""} · ⚽ {turnuva.kisi} kişi · {formatAd}</div>
+          </div>
+        </div>
+        {/* aksiyonlar */}
+        <div style={{position:"relative",display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+          {!saltOkunur && oturum && turnuva.iliskisel && <button onClick={()=>git({sayfa:"sohbet",turnuva})} className="tap" style={{background:"transparent",color:T.accent2,border:"1px solid "+T.accent2,borderRadius:20,padding:"0 14px",height:32,fontSize:12,fontWeight:700}}>💬 Sohbet</button>}
+          {!saltOkunur && oturum && <button onClick={paylasAc} className="tap" style={{background:turnuva.paylasimSlug?T.accent:"transparent",color:turnuva.paylasimSlug?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.gold,border:"1px solid "+(turnuva.paylasimSlug?T.accent:T.gold),borderRadius:20,padding:"0 14px",height:32,fontSize:12,fontWeight:700}}>{turnuva.paylasimSlug?"🔗 Paylaşımda":"🔗 Paylaş"}</button>}
+          {ligTakip && <button onClick={()=>ligTakip(turnuva.id)} className="tap" style={{background:takipte?T.accent:"transparent",color:takipte?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,border:"1px solid "+T.accent,borderRadius:20,padding:"0 16px",height:32,fontSize:12,fontWeight:700}}>{takipte?"✓ Takipte":"+ Takip et"}</button>}
+        </div>
       </div>
     </div>
 
@@ -3527,11 +3544,6 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
         <button onClick={()=>setPaylasAcik(false)} className="tap" style={{width:"100%",background:"transparent",color:T.textMut,border:0,padding:10,fontSize:12.5,marginTop:6}}>Kapat</button>
       </div>
     </div>}
-    <div style={{padding:"6px 16px 4px"}}>
-      <div style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{turnuva.ad}</div>
-      <div style={{fontSize:11,color:T.textMut}}>📍 {turnuva.sehir}{turnuva.ilce?" · "+turnuva.ilce:""} · ⚽ {turnuva.kisi} kişi · {formatAd}</div>
-    </div>
-
     {/* SPONSOR BARI */}
     {turnuva.sponsorAd && <div style={{margin:"6px 14px 2px",display:"flex",alignItems:"center",gap:10,background:"linear-gradient(120deg,"+T.gold+"1f,"+T.bg1+")",border:"1px solid "+T.gold+"44",borderRadius:12,padding:"9px 12px"}}>
       <div style={{width:34,height:34,borderRadius:9,background:T.gold+"2a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{turnuva.sponsorEmoji||"🏟️"}</div>
@@ -10961,7 +10973,8 @@ function App(){
     const stil=STILLER[stilKey]||STILLER.zumrut;
     try{
       const [ar,ag,ab]=hex2rgb(T.accent), [br,bg,bb]=hex2rgb(T.accent2||T.accent);
-      const gA=stil.neon?.18:.10, gB=stil.neon?.14:.08;
+      // açık modda yumuşak, neon'da güçlü, diğerlerinde belirgin
+      const gA=stil.acik?.09:(stil.neon?.24:.16), gB=stil.acik?.06:(stil.neon?.17:.11);
       r.setProperty("--glowA",`rgba(${ar},${ag},${ab},${gA})`);
       r.setProperty("--glowB",`rgba(${br},${bg},${bb},${gB})`);
     }catch(e){}
