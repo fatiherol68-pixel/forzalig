@@ -2330,9 +2330,20 @@ function IsiHarita({form, T}){
    SAYFALAR
    ============================================================ */
 function Baslik({ust, ana, T, ikon}){
-  return <div style={{padding:"16px 18px 12px"}}>
-    <div style={{fontSize:11,color:T.textMut,letterSpacing:1,fontWeight:600}}>{ust}</div>
-    <div style={{fontSize:22,fontWeight:700,color:T.text,fontFamily:T.fontDisplay}}>{ana}</div>
+  return <div style={{padding:"12px 14px 8px"}}>
+    <div style={{position:"relative",overflow:"hidden",borderRadius:16,padding:"14px 16px",border:"1px solid "+T.line,
+      background:"radial-gradient(120% 160% at 92% 0%,"+T.accent+"22,transparent 55%), linear-gradient(160deg,"+T.bg1+","+T.bg0+" 80%)"}}>
+      <div style={{position:"relative",display:"flex",alignItems:"center",gap:11}}>
+        {ikon && <div style={{width:40,height:40,borderRadius:12,flexShrink:0,background:T.accent+"1e",border:"1px solid "+T.accent+"3a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{ikon}</div>}
+        <div style={{minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:7}}>
+            <span style={{width:14,height:2,borderRadius:2,background:T.accent}}/>
+            <span style={{fontSize:10.5,color:T.accent,letterSpacing:1,fontWeight:800}}>{ust}</span>
+          </div>
+          <div style={{fontSize:21,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,marginTop:4,lineHeight:1.1}}>{ana}</div>
+        </div>
+      </div>
+    </div>
   </div>;
 }
 
@@ -2794,10 +2805,17 @@ function TumEnler({turnuvalar, T, git, gomulu}){
                     : Motor.enListe(turnuvalar,kat,10);
 
   return <div className={gomulu?"":"fade-in main-area"} style={{paddingBottom:gomulu?10:90}}>
-    {!gomulu && <div style={{padding:"10px 16px 0"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}>
-        {git && <span onClick={()=>git({sayfa:"ana"})} className="tap" style={{fontSize:18,color:T.textSoft}}>‹</span>}
-        <span style={{fontSize:18,fontWeight:800,color:T.text}}>🏆 Tüm Enler</span>
+    {!gomulu && <div style={{padding:"12px 14px 0"}}>
+      <div style={{position:"relative",overflow:"hidden",borderRadius:16,padding:"14px 16px",border:"1px solid "+T.line,
+        background:"radial-gradient(120% 160% at 92% 0%,"+T.gold+"26,transparent 55%), linear-gradient(160deg,"+T.bg1+","+T.bg0+" 80%)"}}>
+        <div style={{position:"relative",display:"flex",alignItems:"center",gap:11}}>
+          {git && <span onClick={()=>git({sayfa:"ana"})} className="tap" style={{fontSize:20,color:T.textSoft,marginRight:-2}}>‹</span>}
+          <div style={{width:40,height:40,borderRadius:12,flexShrink:0,background:T.gold+"1e",border:"1px solid "+T.gold+"3a",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🏆</div>
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:14,height:2,borderRadius:2,background:T.gold}}/><span style={{fontSize:10.5,color:T.gold,letterSpacing:1,fontWeight:800}}>REKORLAR</span></div>
+            <div style={{fontSize:21,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,marginTop:4,lineHeight:1.1}}>Tüm Enler</div>
+          </div>
+        </div>
       </div>
     </div>}
     {/* sekmeler — 2 sıra (flex wrap) */}
@@ -6089,8 +6107,8 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
   const macSekmeler=[["ozet","📋","Özet"],["ist","📊","İst."],["kadro","👥","Kadro"],["odul","🏅","Ödül"],["lig","🏆","Lig"]];
 
   return <div className="fade-in" style={{paddingBottom:90}}>
-    {/* KAPAK + SKOR */}
-    <div style={{background:`linear-gradient(135deg, ${m.renkA}33, ${T.bg1} 50%, ${m.renkB}33)`,padding:"16px 14px 14px"}}>
+    {/* KAPAK + SKOR — premium çift-renk hero */}
+    <div style={{margin:"12px 14px 2px",borderRadius:20,overflow:"hidden",border:"1px solid "+T.line,boxShadow:"0 16px 40px rgba(0,0,0,.3)",background:`radial-gradient(120% 130% at 0% 0%, ${m.renkA}40, transparent 46%), radial-gradient(120% 130% at 100% 0%, ${m.renkB}40, transparent 46%), linear-gradient(160deg, ${T.bg1}, ${T.bg0} 78%)`,padding:"16px 14px 14px"}}>
       <div style={{textAlign:"center",fontSize:10,color:T.textSoft,fontWeight:600,letterSpacing:1,marginBottom:4}}>{turnuva?turnuva.ad+" · ":""}{m.hafta}. HAFTA</div>
       {/* tarih · saat · stad */}
       {(m.tarih||m.saat||m.stad) && <div style={{textAlign:"center",fontSize:10,color:T.textMut,marginBottom:12,display:"flex",justifyContent:"center",alignItems:"center",gap:6,flexWrap:"wrap"}}>
