@@ -266,7 +266,14 @@
   /* Cam: kartlarda ince cam parlaması (üst kenar highlight) */
   body.stil-cam #root { --cam:1; }
   /* Açık mod: kaydırma çubuğu tonu */
-  body.stil-acik ::-webkit-scrollbar-thumb { background:#c4d0c8; }</style>
+  body.stil-acik ::-webkit-scrollbar-thumb { background:#c4d0c8; }
+  /* #1 — Input odak halkası: yazdığın kutu seçili renkte ışık alsın (a11y + premium) */
+  input:focus, textarea:focus, select:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #20E07A) 30%, transparent);
+    transition: box-shadow .15s ease;
+  }
+  /* #4 — Metin seçim rengi temaya uysun */
+  ::selection { background: color-mix(in srgb, var(--accent, #20E07A) 32%, transparent); }</style>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash">
@@ -954,11 +961,20 @@ const RENK_TEMA = {
 };
 /* Eski tek-tema kaydını yeni RENK anahtarına çevir (geri uyum) */
 const ESKI_TEMA_RENK = { neon:"yesil", kirmizi:"kirmizi", altin:"altin", mavi:"mavi", mor:"mor", turuncu:"turuncu" };
+/* İki hex rengi karıştır (t: 0..1) — kart kenarına hafif accent tonu için */
+function _hexMix(a, b, t){
+  const p=(h)=>{ h=(h||"#000").replace("#",""); if(h.length===3) h=h.split("").map(c=>c+c).join(""); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; };
+  const A=p(a), B=p(b), h=(v)=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0");
+  return "#"+h(A[0]+(B[0]-A[0])*t)+h(A[1]+(B[1]-A[1])*t)+h(A[2]+(B[2]-A[2])*t);
+}
 /* Stil + Renk'ten nihai tema üret */
 function temaHesapla(stilKey, renkKey){
   const s = STILLER[stilKey] || STILLER.zumrut;
   const r = renkKey && RENK_TEMA[renkKey];
-  return r ? { ...s, accent:r.accent, accent2:r.accent2, renkCifti:r.renkCifti } : s;
+  const t = r ? { ...s, accent:r.accent, accent2:r.accent2, renkCifti:r.renkCifti } : { ...s };
+  // #3 — kart kenarlarına çok hafif accent tonu (renge göre bütünsel görünüm)
+  try{ t.line = _hexMix(s.line, t.accent, 0.13); }catch(e){}
+  return t;
 }
 
 /* ============================================================
