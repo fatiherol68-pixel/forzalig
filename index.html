@@ -9531,6 +9531,11 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const [sikayetler,setSikayetler]=useState([]);
   const [hatalar,setHatalar]=useState([]);        // FAZ 4 — çökme logları
   const [yasaklilar,setYasaklilar]=useState([]);  // FAZ 3 — yasaklı user_id listesi
+  const [seciliLigler,setSeciliLigler]=useState(()=>new Set()); // FAZ 5 — toplu seçim
+  const [uyeSeg,setUyeSeg]=useState("hepsi");     // FAZ 5 — üye segmenti
+  const [uyeAra,setUyeAra]=useState("");          // üye arama (palet de kullanır)
+  const [paletAcik,setPaletAcik]=useState(false); // FAZ 6 — komut paleti
+  const [paletQ,setPaletQ]=useState("");
   // FAZ 2 — Geri Al (Undo): yıkıcı işlemi 5 sn geciktir; bu arada UI'dan kaldır
   const [undoBox,setUndoBox]=useState(null);       // {mesaj, geriAl}
   const undoRef=useRef(null);
@@ -9573,6 +9578,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
     if(msgTip==="lig"){ if(!msgLigId){ setMsgSonuc("❌ Lig seç."); return; } id=msgLigId; }
     if(msgTip==="takim"){ if(!msgTakimId){ setMsgSonuc("❌ Takım seç."); return; } id=msgTakimId; }
     if(msgTip==="kisi"){ const e=msgEmail.trim().toLowerCase(); if(!e){ setMsgSonuc("❌ E-posta yaz."); return; } const pr=await Db.profilBul(e); if(!pr||!pr.user_id){ setMsgSonuc("❌ Bu e-postayla kullanıcı bulunamadı."); return; } id=pr.user_id; }
+    // FAZ 6 — Blast guard: herkese giden büyük gönderimde onay iste
+    if(msgTip==="herkes"){ const kac=(ozet&&ozet.uye)||"tüm"; if(!confirm("Bu duyuru "+kac+" kullanıcıya gidecek.\n\nBaşlık: "+msgBaslik.trim()+"\n\nGöndermek istediğine emin misin?")) return; }
     setMsgYuk(true);
     const r=await Db.adminTopluBildirim(msgTip, id, msgBaslik.trim(), msgMetin.trim());
     setMsgYuk(false);
@@ -9597,6 +9604,12 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   // Bayrak + ülke adı (harita yerine sade liste)
   const ULKE_AD={TR:"🇹🇷 Türkiye",DE:"🇩🇪 Almanya",AT:"🇦🇹 Avusturya",AZ:"🇦🇿 Azerbaycan",NL:"🇳🇱 Hollanda",FR:"🇫🇷 Fransa",GB:"🇬🇧 İngiltere",US:"🇺🇸 ABD",BE:"🇧🇪 Belçika"};
   const rZaman=(iso)=>{ try{ const d=new Date(iso), f=(Date.now()-d.getTime())/1000; if(f<60)return "az önce"; if(f<3600)return Math.floor(f/60)+" dk önce"; if(f<86400)return Math.floor(f/3600)+" sa önce"; if(f<604800)return Math.floor(f/86400)+" gün önce"; return d.toLocaleDateString("tr-TR"); }catch(e){ return ""; } };
+  // FAZ 5 — lig sağlık rozeti (son güncelleme tazeliğine göre)
+  const ligSagligi=(l)=>{ try{ const g=(Date.now()-new Date(l.guncelleme).getTime())/86400000; if(g<7) return {r:"#22c55e",t:"aktif",ik:"🟢"}; if(g<30) return {r:T.gold,t:"yavaşlıyor",ik:"🟡"}; return {r:T.danger,t:"sessiz",ik:"🔴"}; }catch(e){ return {r:T.textMut,t:"—",ik:"⚪"}; } };
+  const ligSecToggle=(slug)=>{ setSeciliLigler(p=>{ const n=new Set(p); n.has(slug)?n.delete(slug):n.add(slug); return n; }); };
+  const topluLigKaldir=async()=>{ const slugs=[...seciliLigler]; if(!slugs.length) return; if(!confirm(slugs.length+" lig yayından kaldırılsın mı? (moderasyon)")) return; for(const s of slugs){ try{ await Admin.ligSil(s); }catch(e){} } setLigler(p=>p.filter(x=>!seciliLigler.has(x.slug))); setSeciliLigler(new Set()); Db.logla(oturum,"Toplu lig kaldırma",slugs.length+" lig"); setMesaj("✓ "+slugs.length+" lig kaldırıldı"); };
+  // FAZ 6 — Komut Paleti klavye kısayolu (Cmd/Ctrl + K)
+  useEffect(()=>{ const h=(e)=>{ if((e.metaKey||e.ctrlKey) && (e.key==="k"||e.key==="K")){ e.preventDefault(); setPaletAcik(a=>!a); setPaletQ(""); } if(e.key==="Escape") setPaletAcik(false); }; window.addEventListener("keydown",h); return ()=>window.removeEventListener("keydown",h); },[]);
   const transferOnay=async(id,onay)=>{ const r=onay?await Db.transferOnayla(id):await Db.transferReddet(id); if(r.ok){ setBekTransfer(p=>p.filter(x=>x.id!==id)); Db.logla(oturum, onay?"Transfer onayladı":"Transfer reddetti", ""); setMesaj(onay?"✓ Transfer onaylandı":"Transfer reddedildi"); } else setMesaj("Olmadı: "+(r.hata||"")); };
   useEffect(()=>{ yenile(); },[]);
   const ligSil=async(slug)=>{ if(!confirm("Bu ligi yayından kaldır? (moderasyon)")) return; const r=await Admin.ligSil(slug); if(r.ok){ setLigler(p=>p.filter(x=>x.slug!==slug)); } else setMesaj("Silinemedi: "+(r.hata||"")); };
@@ -9744,7 +9757,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
       <div style={{position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:10}}>
         <span style={{fontSize:24}}>🛡️</span>
         <div><div style={{fontSize:19,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>Süper Admin</div><div style={{fontSize:10.5,color:T.textSoft}}>{oturum?oturum.email:""}</div></div>
-        <button onClick={yenile} className="tap" style={{marginLeft:"auto",fontSize:11,color:T.accent,background:T.accent+"18",border:"0.5px solid "+T.accent+"44",borderRadius:9,padding:"6px 10px",fontWeight:700}}>↻ Yenile</button>
+        <button onClick={()=>{ setPaletAcik(true); setPaletQ(""); }} className="tap" title="Ara (Cmd/Ctrl+K)" style={{marginLeft:"auto",fontSize:12,color:T.textSoft,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:9,padding:"6px 10px",fontWeight:700}}>🔍 Ara</button>
+        <button onClick={yenile} className="tap" style={{fontSize:11,color:T.accent,background:T.accent+"18",border:"0.5px solid "+T.accent+"44",borderRadius:9,padding:"6px 10px",fontWeight:700}}>↻ Yenile</button>
       </div>
     </div>
 
@@ -9908,14 +9922,34 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
       </div>}
 
       {!yuk && sekme==="uyeler" && <div>
-        {(()=>{ const yetkili=uyeler.filter(u=>u.hak&&u.hak.toplam>0); const normal=uyeler.filter(u=>!(u.hak&&u.hak.toplam>0)); return <div>
+        {(()=>{ const yetkili=uyeler.filter(u=>u.hak&&u.hak.toplam>0); const normal=uyeler.filter(u=>!(u.hak&&u.hak.toplam>0)&&!u.admin);
+          const yeniSay=uyeler.filter(u=>{ try{ return (Date.now()-new Date(u.created).getTime())<7*86400000; }catch(e){ return false; } }).length;
+          const askiSay=uyeler.filter(u=>yasakliMi(u.user_id)).length;
+          const q=uyeAra.trim().toLowerCase();
+          const gosterilen=uyeler.filter(u=>{
+            if(uyeSeg==="yeni"){ try{ if((Date.now()-new Date(u.created).getTime())>=7*86400000) return false; }catch(e){ return false; } }
+            else if(uyeSeg==="yetkili"){ if(!(u.hak&&u.hak.toplam>0)) return false; }
+            else if(uyeSeg==="normal"){ if((u.hak&&u.hak.toplam>0)||u.admin) return false; }
+            else if(uyeSeg==="askida"){ if(!yasakliMi(u.user_id)) return false; }
+            if(q && !((u.ad||"").toLowerCase().indexOf(q)>-1 || (u.email||"").toLowerCase().indexOf(q)>-1)) return false;
+            return true;
+          });
+          return <div>
           <div style={{display:"flex",gap:8,marginBottom:12}}>
             <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"11px 8px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:T.accent2,fontFamily:T.fontDisplay}}>{uyeler.length}</div><div style={{fontSize:9.5,color:T.textMut}}>toplam üye</div></div>
             <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"11px 8px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:T.gold,fontFamily:T.fontDisplay}}>{yetkili.length}</div><div style={{fontSize:9.5,color:T.textMut}}>lig yetkisi olan</div></div>
             <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"11px 8px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:T.textSoft,fontFamily:T.fontDisplay}}>{normal.length}</div><div style={{fontSize:9.5,color:T.textMut}}>normal üye</div></div>
           </div>
+          {/* FAZ 5 — segment çipleri + arama */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+            {[["hepsi","Tümü",uyeler.length],["yeni","Yeni 7g",yeniSay],["yetkili","Yetkili",yetkili.length],["normal","Normal",normal.length],["askida","Askıda",askiSay]].map(x=>
+              <button key={x[0]} onClick={()=>setUyeSeg(x[0])} className="tap" style={{fontSize:11,fontWeight:700,padding:"6px 11px",borderRadius:20,border:"0.5px solid "+(uyeSeg===x[0]?T.accent:T.line),background:uyeSeg===x[0]?T.accent:T.bg1,color:uyeSeg===x[0]?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut}}>{x[1]}{x[2]>0?" · "+x[2]:""}</button>
+            )}
+          </div>
+          <input value={uyeAra} onChange={e=>setUyeAra(e.target.value)} placeholder="🔍 İsim / e-posta ara…" style={{width:"100%",boxSizing:"border-box",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:12.5,outline:"none",fontFamily:"inherit",marginBottom:10}}/>
           {uyeler.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Henüz üye yok. İnsanlar üye oldukça burada görünür.</div>}
-          {uyeler.map(u=>{ const yetki=u.hak&&u.hak.toplam>0; const kalan=yetki?Math.max(0,(u.hak.toplam||0)-(u.hak.kullanilan||0)):0; const ikon=u.admin?"👑":yetki?"🎟️":"👤"; const kenar=u.admin?T.danger+"55":yetki?T.gold+"44":T.line; return (
+          {uyeler.length>0 && gosterilen.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Bu filtreye uyan üye yok.</div>}
+          {gosterilen.map(u=>{ const yetki=u.hak&&u.hak.toplam>0; const kalan=yetki?Math.max(0,(u.hak.toplam||0)-(u.hak.kullanilan||0)):0; const ikon=u.admin?"👑":yetki?"🎟️":"👤"; const kenar=u.admin?T.danger+"55":yetki?T.gold+"44":T.line; return (
             <div key={u.user_id} style={{display:"flex",alignItems:"center",gap:10,background:T.bg1,border:"0.5px solid "+kenar,borderRadius:11,padding:"10px 12px",marginBottom:6}}>
               <div style={{width:34,height:34,borderRadius:"50%",background:(u.admin?T.danger:yetki?T.gold:T.accent2)+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{ikon}</div>
               <div style={{flex:1,minWidth:0}}>
@@ -9970,17 +10004,25 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
 
       {!yuk && sekme==="ligler" && <div>
         {ligler.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:20}}>Henüz herkese açık lig yok.</div>}
-        {ligler.map(l=>
-          <div key={l.slug} style={{display:"flex",alignItems:"center",gap:10,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"10px 12px",marginBottom:6}}>
-            <div style={{width:34,height:34,borderRadius:9,background:T.gold+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🏟️</div>
+        {ligler.length>0 && <div style={{fontSize:9.5,color:T.textMut,margin:"0 2px 8px",display:"flex",gap:12}}><span>🟢 aktif</span><span>🟡 yavaşlıyor</span><span>🔴 sessiz (30g+)</span></div>}
+        {ligler.map(l=>{ const sg=ligSagligi(l); const secili=seciliLigler.has(l.slug); return
+          <div key={l.slug} style={{display:"flex",alignItems:"center",gap:10,background:secili?T.accent+"12":T.bg1,border:"0.5px solid "+(secili?T.accent+"55":T.line),borderRadius:11,padding:"10px 12px",marginBottom:6}}>
+            <button onClick={()=>ligSecToggle(l.slug)} className="tap" title="Seç" style={{width:20,height:20,borderRadius:6,flexShrink:0,border:"1.5px solid "+(secili?T.accent:T.line),background:secili?T.accent:"transparent",color:"#04140c",fontSize:12,fontWeight:900,display:"grid",placeItems:"center"}}>{secili?"✓":""}</button>
+            <div style={{width:34,height:34,borderRadius:9,background:T.gold+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,position:"relative"}}>🏟️
+              <span title={sg.t} style={{position:"absolute",bottom:-2,right:-2,width:11,height:11,borderRadius:"50%",background:sg.r,border:"2px solid "+T.bg1}}/></div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad}</div>
-              <div style={{fontSize:9.5,color:T.textMut}}>{l.sehir||"—"} · {l.slug}</div>
+              <div style={{fontSize:9.5,color:T.textMut}}>{l.sehir||"—"} · <span style={{color:sg.r}}>{sg.t}</span> · {rZaman(l.guncelleme)}</div>
             </div>
             <a href={PAYLASIM_URL(l.slug)} className="tap" style={{fontSize:11,color:T.accent,textDecoration:"none",background:T.accent+"18",borderRadius:8,padding:"6px 9px",fontWeight:700}}>Aç</a>
             <button onClick={()=>ligSil(l.slug)} className="tap" style={{fontSize:11,color:T.danger,background:T.danger+"18",border:"0.5px solid "+T.danger+"44",borderRadius:8,padding:"6px 9px",fontWeight:700}}>Kaldır</button>
-          </div>
-        )}
+          </div>; })}
+        {/* toplu işlem çubuğu */}
+        {seciliLigler.size>0 && <div className="fade-in" style={{position:"sticky",bottom:8,marginTop:10,display:"flex",alignItems:"center",gap:10,background:T.bg2,border:"1px solid "+T.accent+"55",borderRadius:12,padding:"11px 14px",boxShadow:"0 10px 26px rgba(0,0,0,.5)"}}>
+          <span style={{fontSize:12.5,color:T.text,fontWeight:700}}>{seciliLigler.size} lig seçildi</span>
+          <button onClick={()=>setSeciliLigler(new Set())} className="tap" style={{marginLeft:"auto",fontSize:11.5,color:T.textMut,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"7px 12px",fontWeight:700}}>Vazgeç</button>
+          <button onClick={topluLigKaldir} className="tap" style={{fontSize:11.5,color:"#fff",background:T.danger,border:0,borderRadius:8,padding:"7px 14px",fontWeight:800}}>🗑 Seçilenleri Kaldır</button>
+        </div>}
       </div>}
 
       {!yuk && sekme==="yetki" && <div>
@@ -10021,7 +10063,6 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
                   <div style={{fontSize:9.5,color:T.textMut,marginTop:4}}>{h.sayfa?("📄 "+h.sayfa+" · "):""}{rZaman(h.olusma)}{h.cihaz?(" · "+(/Mobile|iPhone|Android/.test(h.cihaz)?"📱 mobil":"💻 web")):""}</div>
                 </div>
               )}
-          {hatalar.length===0 && <div style={{fontSize:9.5,color:T.textMut,marginTop:6,lineHeight:1.5}}>Not: Bu tablo çalışması için Supabase'de <b>33_hata_log.sql</b> çalıştırılmalı.</div>}
         </div>
         {/* KULLANIM — son 7 gün aktif kullanıcı trendi */}
         <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
@@ -10116,6 +10157,30 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
     {undoBox && <div className="fade-in" style={{position:"fixed",left:"50%",transform:"translateX(-50%)",bottom:"calc(20px + env(safe-area-inset-bottom))",zIndex:2000,display:"flex",alignItems:"center",gap:12,background:T.bg1,border:"1px solid "+T.accent+"55",borderRadius:12,padding:"11px 14px",boxShadow:"0 12px 30px rgba(0,0,0,.5)",maxWidth:"90vw"}}>
       <span style={{fontSize:13,color:T.text,fontWeight:600}}>{undoBox.mesaj}</span>
       <button onClick={undoBox.geriAl} className="tap" style={{background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:9,padding:"7px 14px",fontSize:12,fontWeight:800}}>↶ Geri Al</button>
+    </div>}
+    {/* FAZ 6 — Komut Paleti (Cmd/Ctrl + K) */}
+    {paletAcik && <div onClick={()=>setPaletAcik(false)} style={{position:"fixed",inset:0,zIndex:3000,background:"rgba(0,0,0,.55)",backdropFilter:"blur(3px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"64px 16px 16px"}}>
+      <div onClick={e=>e.stopPropagation()} className="fade-in" style={{width:"100%",maxWidth:470,background:T.bg1,border:"1px solid "+T.accent+"55",borderRadius:16,boxShadow:"0 24px 60px rgba(0,0,0,.6)",overflow:"hidden"}}>
+        <input autoFocus value={paletQ} onChange={e=>setPaletQ(e.target.value)} placeholder="Ara: üye, lig veya komut…" style={{width:"100%",boxSizing:"border-box",background:T.bg0,border:0,borderBottom:"1px solid "+T.line,padding:"14px 16px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+        <div style={{maxHeight:"52vh",overflowY:"auto",padding:8}}>
+          {(()=>{ const q=paletQ.trim().toLowerCase();
+            const akts=[["ozet","🎯","İşlem Merkezi"],["uyeler","👥","Üyeler"],["ligler","🌍","Açık Ligler"],["yetki","✅","Yetkiler"],["sistem","⚙️","Sistem / Hata Log"]].filter(a=>!q||a[2].toLowerCase().indexOf(q)>-1);
+            const us=(q?uyeler.filter(u=>((u.ad||"")+" "+(u.email||"")).toLowerCase().indexOf(q)>-1):[]).slice(0,6);
+            const ls=(q?ligler.filter(l=>(l.ad||"").toLowerCase().indexOf(q)>-1):[]).slice(0,6);
+            const calistir=(fn)=>{ fn(); setPaletAcik(false); };
+            return <>
+              {akts.length>0 && <div style={{fontSize:9.5,color:T.textMut,fontWeight:700,padding:"6px 8px 4px"}}>KOMUTLAR</div>}
+              {akts.map(a=><button key={a[0]} onClick={()=>calistir(()=>setSekme(a[0]))} className="tap satir-hover" style={{width:"100%",display:"flex",alignItems:"center",gap:10,background:"none",border:0,borderRadius:9,padding:"10px",color:T.text,textAlign:"left"}}><span style={{fontSize:15}}>{a[1]}</span><span style={{fontSize:13,fontWeight:600}}>{a[2]}</span></button>)}
+              {us.length>0 && <div style={{fontSize:9.5,color:T.textMut,fontWeight:700,padding:"8px 8px 4px"}}>ÜYELER</div>}
+              {us.map(u=><button key={u.user_id} onClick={()=>calistir(()=>{ setSekme("uyeler"); setUyeSeg("hepsi"); setUyeAra(u.email||u.ad||""); })} className="tap satir-hover" style={{width:"100%",display:"flex",alignItems:"center",gap:10,background:"none",border:0,borderRadius:9,padding:"9px 10px",color:T.text,textAlign:"left"}}><span style={{fontSize:14}}>{u.admin?"👑":"👤"}</span><div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.ad||u.email}</div><div style={{fontSize:10,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div></div></button>)}
+              {ls.length>0 && <div style={{fontSize:9.5,color:T.textMut,fontWeight:700,padding:"8px 8px 4px"}}>LİGLER</div>}
+              {ls.map(l=><button key={l.slug} onClick={()=>calistir(()=>setSekme("ligler"))} className="tap satir-hover" style={{width:"100%",display:"flex",alignItems:"center",gap:10,background:"none",border:0,borderRadius:9,padding:"9px 10px",color:T.text,textAlign:"left"}}><span style={{fontSize:14}}>🏟️</span><span style={{fontSize:12.5,fontWeight:600}}>{l.ad}</span></button>)}
+              {q && akts.length===0 && us.length===0 && ls.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:20}}>Sonuç yok</div>}
+              {!q && <div style={{fontSize:11,color:T.textMut,padding:"10px 8px",lineHeight:1.5}}>Üye adı, lig adı veya komut yaz. <b>Esc</b> ile kapat.</div>}
+            </>;
+          })()}
+        </div>
+      </div>
     </div>}
   </div>;
 }
