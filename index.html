@@ -913,13 +913,13 @@ const TEMALAR = {
    ============================================================ */
 const STILLER = {
   zumrut: {
-    ad:"Zümrüt", bg0:"#070B09", bg1:"#111A15", bg2:"#0C1310", line:"#1E2A22",
+    ad:"Zümrüt", bg0:"#08160E", bg1:"#0F2018", bg2:"#0B1A12", line:"#213328",
     text:"#EAF3EE", textMut:"#8A9C92", textSoft:"#B9CEC3",
     accent:"#20E07A", accent2:"#12B45F", gold:"#F5C24B", danger:"#F5615C",
     fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#20E07A","#04140C"]
   },
   gece: {
-    ad:"Gece Neon", bg0:"#05060A", bg1:"#0E1424", bg2:"#0A0F1C", line:"#1B2740",
+    ad:"Gece Neon", bg0:"#060C1E", bg1:"#0F1836", bg2:"#0A1228", line:"#1E2E52",
     text:"#EAF1FF", textMut:"#8792B8", textSoft:"#9FB4E0",
     accent:"#00E5FF", accent2:"#0077FF", gold:"#FFE14D", danger:"#FF5D7A",
     fontBody:"'Sora', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#00E5FF","#02121A"], neon:true
@@ -931,13 +931,13 @@ const STILLER = {
     fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#0FAE57","#FFFFFF"], acik:true
   },
   enerji: {
-    ad:"Enerji", bg0:"#0C0A08", bg1:"#181310", bg2:"#120E0B", line:"#3A2A1A",
+    ad:"Enerji", bg0:"#150C05", bg1:"#22160B", bg2:"#1A1108", line:"#42301C",
     text:"#FBF3EA", textMut:"#B09884", textSoft:"#D0A98F",
     accent:"#FF6A00", accent2:"#E24A00", gold:"#FFC93C", danger:"#FF4D4D",
     fontBody:"'Oswald', sans-serif", fontDisplay:"'Bebas Neue', sans-serif", renkCifti:["#FF6A00","#1A0D02"], buyukHarf:true
   },
   cam: {
-    ad:"Cam", bg0:"#0A0E1A", bg1:"#161B2E", bg2:"#10131F", line:"#2A3350",
+    ad:"Cam", bg0:"#0C1028", bg1:"#181E42", bg2:"#121634", line:"#2E3A64",
     text:"#F2F3FF", textMut:"#B9BCDA", textSoft:"#CFD2F0",
     accent:"#8B7BFF", accent2:"#6D5CFF", gold:"#FFD75E", danger:"#FF6B9A",
     fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#8B7BFF","#0E0A2A"], cam:true
@@ -10997,7 +10997,7 @@ function App(){
     try{
       const [ar,ag,ab]=hex2rgb(T.accent), [br,bg,bb]=hex2rgb(T.accent2||T.accent);
       // açık modda yumuşak, neon'da güçlü, diğerlerinde belirgin
-      const gA=stil.acik?.09:(stil.neon?.24:.16), gB=stil.acik?.06:(stil.neon?.17:.11);
+      const gA=stil.acik?.10:(stil.neon?.30:.22), gB=stil.acik?.07:(stil.neon?.20:.15);
       r.setProperty("--glowA",`rgba(${ar},${ag},${ab},${gA})`);
       r.setProperty("--glowB",`rgba(${br},${bg},${bb},${gB})`);
     }catch(e){}
