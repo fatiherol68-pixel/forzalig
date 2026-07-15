@@ -2790,9 +2790,17 @@ function TumEnler({turnuvalar, T, git, gomulu}){
 function AnaSayfa({turnuvalar, T, git}){
   // Öne çıkan turnuva = en çok maç oynanmış (en aktif) lig
   const aktifTurnuva = useMemo(()=>{
-    if(!turnuvalar.length) return null;
-    return [...turnuvalar].sort((a,b)=>b.maclar.length-a.maclar.length)[0];
+    // Sadece takımı OLAN ligler (takımsız yeni lig lider/puan okurken çökmesin)
+    const dolu = turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0);
+    if(!dolu.length) return null;
+    return [...dolu].sort((a,b)=>b.maclar.length-a.maclar.length)[0];
   },[turnuvalar]);
+  // Hook'lar erken return'DEN ÖNCE olmalı (Rules of Hooks) — null'a karşı korumalı
+  const yukselenTakim = useMemo(()=>{
+    if(!aktifTurnuva || !aktifTurnuva.takimlar) return null;
+    const puanla=(t)=>(t.form||[]).slice(-5).reduce((s,f)=>s+(f==="G"?3:f==="B"?1:0),0);
+    return [...aktifTurnuva.takimlar].map(t=>({t,p:puanla(t)})).sort((a,b)=>b.p-a.p)[0];
+  },[aktifTurnuva]);
 
   const tumO = Motor.tumOyuncular(turnuvalar);
   const topTakim = turnuvalar.reduce((s,t)=>s+t.takimlar.length,0);
@@ -2843,10 +2851,6 @@ function AnaSayfa({turnuvalar, T, git}){
 
   // ÖNE ÇIKANLAR — haftanın oyuncusu (en çok gol+asist) + yükselen takım (son formu iyi)
   const haftaninOyuncusu = golK[0] || asistK[0] || null;
-  const yukselenTakim = useMemo(()=>{
-    const puanla=(t)=>(t.form||[]).slice(-5).reduce((s,f)=>s+(f==="G"?3:f==="B"?1:0),0);
-    return [...tk.takimlar].map(t=>({t,p:puanla(t)})).sort((a,b)=>b.p-a.p)[0];
-  },[tk.id]);
 
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
 
