@@ -492,6 +492,9 @@ const Db = {
     catch(e){ return false; }
   },
   async adminListe(){ if(!sb) return []; try{ const {data}=await sb.from('adminler').select('user_id,eklenme'); return data||[]; }catch(e){ return []; } },
+  // GLOBAL SİTE GÖRÜNÜMÜ — herkes okur, sadece süper admin yazar
+  async siteGorunum(){ if(!sb) return null; try{ const {data}=await sb.from('site_ayar').select('stil_key,renk_key').eq('id',1).maybeSingle(); return data||null; }catch(e){ return null; } },
+  async siteGorunumKaydet(stil, renk, userId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('site_ayar').update({stil_key:stil, renk_key:renk||"", guncelleyen:userId||null, guncelleme:new Date().toISOString()}).eq('id',1); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   // ---- Lig hakları (K3/K4) ----
   async hakGetir(userId){
     if(!sb||!userId) return {toplam:0,kullanilan:0,kalan:0};
@@ -7997,7 +8000,7 @@ function Ayarlar({T, stilKey, setStilKey, renkKey, setRenkKey, veriUret, veriSil
     </div></>}
 
     <div style={{padding:"6px 14px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:"#7c4dff22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🎨</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Görünüm</span><span style={{fontSize:10,color:T.textMut,fontWeight:500}}>· stil + renk seç, istediğin gibi karıştır</span></div>
+      <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:"#7c4dff22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🎨</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Görünüm</span><span style={{fontSize:10,color:T.textMut,fontWeight:500}}>· {adminMi?"tüm site için görünüm":"süper admin belirler"}</span></div>
 
       {/* CANLI ÖNİZLEME — seçince anında burada değişir */}
       <div style={{position:"relative",overflow:"hidden",borderRadius:16,padding:"16px",border:"1px solid "+T.accent+"40",marginBottom:4,
@@ -8018,12 +8021,13 @@ function Ayarlar({T, stilKey, setStilKey, renkKey, setRenkKey, veriUret, veriSil
         </div>
       </div>
 
+      {adminMi ? <>
       {/* STİL (5) — sayfanın havası */}
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.4,margin:"10px 4px 7px"}}>STİL</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         {Object.entries(STILLER).map(([k,st])=>{
           const secili=stilKey===k;
-          return <div key={k} onClick={()=>setStilKey(k)} className="tap" style={{position:"relative",overflow:"hidden",background:st.bg1,borderRadius:12,padding:"12px 13px",border:secili?"2px solid "+st.accent:"0.5px solid "+T.line,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+          return <div key={k} onClick={()=>{ setStilKey(k); Db.siteGorunumKaydet(k, renkKey, oturum&&oturum.id); }} className="tap" style={{position:"relative",overflow:"hidden",background:st.bg1,borderRadius:12,padding:"12px 13px",border:secili?"2px solid "+st.accent:"0.5px solid "+T.line,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
             <div style={{width:30,height:30,borderRadius:9,flexShrink:0,background:"linear-gradient(135deg,"+st.accent+","+st.accent2+")",boxShadow:"0 3px 10px "+st.accent+"55"}}/>
             <div style={{minWidth:0}}>
               <div style={{fontSize:12.5,color:st.text,fontWeight:secili?800:600,whiteSpace:"nowrap"}}>{st.ad}</div>
@@ -8036,20 +8040,23 @@ function Ayarlar({T, stilKey, setStilKey, renkKey, setRenkKey, veriUret, veriSil
       {/* RENK — vurgu rengi (opsiyonel) */}
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.4,margin:"14px 4px 7px"}}>RENK <span style={{fontWeight:400,textTransform:"none"}}>(vurgu)</span></div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        <div onClick={()=>setRenkKey("")} className="tap" style={{display:"flex",alignItems:"center",gap:7,background:T.bg1,borderRadius:20,padding:"7px 12px",border:!renkKey?"2px solid "+T.accent:"0.5px solid "+T.line,cursor:"pointer"}}>
+        <div onClick={()=>{ setRenkKey(""); Db.siteGorunumKaydet(stilKey, "", oturum&&oturum.id); }} className="tap" style={{display:"flex",alignItems:"center",gap:7,background:T.bg1,borderRadius:20,padding:"7px 12px",border:!renkKey?"2px solid "+T.accent:"0.5px solid "+T.line,cursor:"pointer"}}>
           <span style={{width:14,height:14,borderRadius:"50%",background:"conic-gradient(from 0deg,#20e07a,#00e5ff,#8b7bff,#ff6a00,#20e07a)"}}/>
           <span style={{fontSize:11.5,color:T.text,fontWeight:!renkKey?700:500}}>Stil Rengi</span>
         </div>
         {Object.entries(RENK_TEMA).map(([k,r])=>{
           const secili=renkKey===k;
-          return <div key={k} onClick={()=>setRenkKey(k)} className="tap" style={{display:"flex",alignItems:"center",gap:7,background:T.bg1,borderRadius:20,padding:"7px 12px",border:secili?"2px solid "+r.accent:"0.5px solid "+T.line,cursor:"pointer"}}>
+          return <div key={k} onClick={()=>{ setRenkKey(k); Db.siteGorunumKaydet(stilKey, k, oturum&&oturum.id); }} className="tap" style={{display:"flex",alignItems:"center",gap:7,background:T.bg1,borderRadius:20,padding:"7px 12px",border:secili?"2px solid "+r.accent:"0.5px solid "+T.line,cursor:"pointer"}}>
             <span style={{width:14,height:14,borderRadius:"50%",background:r.accent}}/>
             <span style={{fontSize:11.5,color:T.text,fontWeight:secili?700:500}}>{r.ad}</span>
           </div>;
         })}
       </div>
 
-      {adminMi && <div style={{fontSize:10.5,color:T.textMut,marginTop:12,lineHeight:1.5,background:T.bg1,borderRadius:10,padding:"10px 12px",border:"0.5px solid "+T.line}}>👑 Süper admin: seçtiğin görünüm cihazına kaydedilir; giriş yaptığın her yerde aynı kalır. 5 stil × 6 renk = 30 kombinasyon.</div>}
+      <div style={{fontSize:10.5,color:T.textMut,marginTop:12,lineHeight:1.5,background:"linear-gradient(120deg,"+T.accent+"12,"+T.bg1+")",borderRadius:10,padding:"10px 12px",border:"0.5px solid "+T.accent+"33"}}>👑 Süper admin: seçtiğin görünüm <b style={{color:T.accent}}>sitenin tamamına</b> uygulanır — tüm kullanıcılar (bütün cihazlarda) aynı anda bunu görür. 5 stil × 6 renk = 30 kombinasyon.</div>
+      </> : <div style={{fontSize:11.5,color:T.textMut,marginTop:6,lineHeight:1.6,background:T.bg1,borderRadius:12,padding:"14px",border:"0.5px solid "+T.line}}>
+        Site görünümünü <b style={{color:T.text}}>süper admin</b> belirler. Şu anki görünüm: <b style={{color:T.accent}}>{(STILLER[stilKey]||{}).ad}{renkKey&&RENK_TEMA[renkKey]?" + "+RENK_TEMA[renkKey].ad:""}</b>
+      </div>}
     </div>
     <div style={{padding:"12px 14px"}}>
       {!sb && <><div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:"#34D39922",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🧪</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Stres Testi <span style={{fontSize:11,color:T.textMut,fontWeight:400}}>(örnek veri)</span></span></div>
@@ -10868,9 +10875,7 @@ function App(){
     if(r && r.veri && Array.isArray(r.veri.turnuvalar)){
       let gelen=r.veri.turnuvalar;
       setTurnuvalar(gelen);
-      if(r.veri.stilKey)setStilKey(r.veri.stilKey);
-      if(r.veri.renkKey!==undefined)setRenkKey(r.veri.renkKey);
-      else if(r.veri.temaKey&&ESKI_TEMA_RENK[r.veri.temaKey])setRenkKey(ESKI_TEMA_RENK[r.veri.temaKey]);
+      // NOT: stil/renk artık GLOBAL (site_ayar) — kişisel buluttan uygulanmaz
       if(Array.isArray(r.veri.takipLig))setTakipLig(r.veri.takipLig);
       if(Array.isArray(r.veri.takipOyuncu))setTakipOyuncu(r.veri.takipOyuncu);
       if(Array.isArray(r.veri.takipTakim))setTakipTakim(r.veri.takipTakim);
@@ -11004,6 +11009,21 @@ function App(){
     document.body.classList.toggle("stil-cam", !!stil.cam);
   },[stilKey, renkKey]);
 
+  // GLOBAL SİTE GÖRÜNÜMÜ — süper adminin seçtiği stil/renk herkeste görünür.
+  // Açılışta sunucudan yükle + realtime dinle (admin değiştirince anında herkese düşer).
+  useEffect(()=>{
+    if(!sb) return; let aktif=true;
+    Db.siteGorunum().then(g=>{ if(!aktif||!g) return; if(g.stil_key) setStilKey(g.stil_key); setRenkKey(g.renk_key||""); });
+    let kanal=null;
+    try{
+      kanal=sb.channel("site_gorunum")
+        .on("postgres_changes",{event:"UPDATE",schema:"public",table:"site_ayar"},(p)=>{
+          const g=p&&p.new; if(!g) return; if(g.stil_key) setStilKey(g.stil_key); setRenkKey(g.renk_key||"");
+        }).subscribe();
+    }catch(e){}
+    return ()=>{ aktif=false; try{ if(kanal) sb.removeChannel(kanal); }catch(e){} };
+  },[]);
+
   // GEZİNME + TARAYICI GEÇMİŞİ — telefonun geri tuşu uygulamadan atmasın:
   // git() her sayfa geçişinde history'ye kayıt ekler; geri tuşu (popstate) iç yığından döner.
   const titret=(ms)=>{ try{ if(navigator.vibrate) navigator.vibrate(ms||8); }catch(e){} }; // haptik: kısa dokunuş hissi (destekleyen cihazlarda)
@@ -11040,9 +11060,7 @@ function App(){
         const v=JSON.parse(e.target.result);
         if(v && Array.isArray(v.turnuvalar)){
           setTurnuvalar(v.turnuvalar);
-          if(v.stilKey)setStilKey(v.stilKey);
-          if(v.renkKey!==undefined)setRenkKey(v.renkKey);
-          else if(v.temaKey&&ESKI_TEMA_RENK[v.temaKey])setRenkKey(ESKI_TEMA_RENK[v.temaKey]);
+          // NOT: stil/renk artık GLOBAL (site_ayar) — yedek dosyadan uygulanmaz
           if(v.takipLig)setTakipLig(v.takipLig);
           if(v.takipOyuncu)setTakipOyuncu(v.takipOyuncu);
           if(v.takipTakim)setTakipTakim(v.takipTakim);
