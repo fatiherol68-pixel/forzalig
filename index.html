@@ -7969,6 +7969,25 @@ function Ayarlar({T, stilKey, setStilKey, renkKey, setRenkKey, veriUret, veriSil
     <div style={{padding:"6px 14px"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:"#7c4dff22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🎨</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Görünüm</span><span style={{fontSize:10,color:T.textMut,fontWeight:500}}>· stil + renk seç, istediğin gibi karıştır</span></div>
 
+      {/* CANLI ÖNİZLEME — seçince anında burada değişir */}
+      <div style={{position:"relative",overflow:"hidden",borderRadius:16,padding:"16px",border:"1px solid "+T.accent+"40",marginBottom:4,
+        background:"radial-gradient(120% 140% at 88% 4%,"+T.accent+"33,transparent 52%), linear-gradient(155deg,"+T.bg1+","+T.bg0+" 70%)"}}>
+        <div style={{position:"absolute",right:-24,top:-30,width:130,height:130,borderRadius:"50%",pointerEvents:"none",background:"radial-gradient(circle at 40% 35%,"+T.accent+",transparent 62%)",opacity:.3,filter:"blur(4px)"}}/>
+        <div style={{position:"relative",display:"flex",alignItems:"center",gap:7,fontSize:9.5,fontWeight:800,letterSpacing:.6,textTransform:"uppercase",color:T.accent}}>
+          <span className="fz-nabiz" style={{width:6,height:6,borderRadius:"50%",background:T.accent,boxShadow:"0 0 8px "+T.accent}}/>
+          Canlı Önizleme · {(STILLER[stilKey]||{}).ad}{renkKey&&RENK_TEMA[renkKey]?" + "+RENK_TEMA[renkKey].ad:""}
+        </div>
+        <div style={{position:"relative",fontSize:19,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,marginTop:8,lineHeight:1.1}}>68 Alayhan zirvede! 🏆</div>
+        <div style={{position:"relative",display:"flex",gap:14,marginTop:12,alignItems:"center"}}>
+          <div><span style={{fontSize:20,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>34</span><span style={{fontSize:10,color:T.textMut,marginLeft:3}}>puan</span></div>
+          <div><span style={{fontSize:20,fontWeight:800,color:T.gold,fontFamily:T.fontDisplay}}>+28</span><span style={{fontSize:10,color:T.textMut,marginLeft:3}}>averaj</span></div>
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            <span style={{background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,fontSize:11,fontWeight:800,padding:"7px 14px",borderRadius:10}}>Ligi Aç</span>
+            <span style={{background:T.bg2,color:T.textSoft,fontSize:11,fontWeight:700,padding:"7px 12px",borderRadius:10,border:"1px solid "+T.line}}>Paylaş</span>
+          </div>
+        </div>
+      </div>
+
       {/* STİL (5) — sayfanın havası */}
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.4,margin:"10px 4px 7px"}}>STİL</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
