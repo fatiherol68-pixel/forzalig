@@ -255,7 +255,16 @@
   @keyframes fzSplashKapan { from{opacity:1;transform:scale(1);} to{opacity:0;transform:scale(1.18);visibility:hidden;} }
   .fz-splash-kapan { animation:fzSplashKapan .7s ease-in .1s forwards; }
   @keyframes fzGiris { from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:none;} }
-  .fz-giris { animation:fzGiris .5s ease both; }</style>
+  .fz-giris { animation:fzGiris .5s ease both; }
+  /* PREMIUM MOTOR — canlı nabız noktası + stil imzaları */
+  @keyframes fzNabiz { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.5;transform:scale(.82);} }
+  .fz-nabiz { animation:fzNabiz 2s ease-in-out infinite; }
+  /* Gece Neon: vurgu rengi metinlerde hafif ışıma */
+  body.stil-neon .fz-nabiz { box-shadow:0 0 10px var(--accent, #00E5FF); }
+  /* Cam: kartlarda ince cam parlaması (üst kenar highlight) */
+  body.stil-cam #root { --cam:1; }
+  /* Açık mod: kaydırma çubuğu tonu */
+  body.stil-acik ::-webkit-scrollbar-thumb { background:#c4d0c8; }</style>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash">
@@ -888,6 +897,64 @@ const TEMALAR = {
     fontBody:"'Oswald', sans-serif", fontDisplay:"'Bebas Neue', sans-serif", renkCifti:["#FF7A1A","#FFFFFF"]
   },
 };
+
+/* ============================================================
+   PREMIUM TASARIM MOTORU — İKİ KATMAN
+   STİL (5) = sayfanın kasası/havası (arka plan, yazı, font, his)
+   RENK     = vurgu rengi (isteğe bağlı; seçilmezse stilin kendi rengi)
+   Nihai tema T = STIL + (varsa) RENK override.
+   Not: tüm renkler 6 haneli HEX olmalı — kod yer yer T.accent+"44" gibi
+   alfa ekliyor; rgba/8-hane bozar.
+   ============================================================ */
+const STILLER = {
+  zumrut: {
+    ad:"Zümrüt", bg0:"#070B09", bg1:"#111A15", bg2:"#0C1310", line:"#1E2A22",
+    text:"#EAF3EE", textMut:"#8A9C92", textSoft:"#B9CEC3",
+    accent:"#20E07A", accent2:"#12B45F", gold:"#F5C24B", danger:"#F5615C",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#20E07A","#04140C"]
+  },
+  gece: {
+    ad:"Gece Neon", bg0:"#05060A", bg1:"#0E1424", bg2:"#0A0F1C", line:"#1B2740",
+    text:"#EAF1FF", textMut:"#8792B8", textSoft:"#9FB4E0",
+    accent:"#00E5FF", accent2:"#0077FF", gold:"#FFE14D", danger:"#FF5D7A",
+    fontBody:"'Sora', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#00E5FF","#02121A"], neon:true
+  },
+  aydinlik: {
+    ad:"Aydınlık", bg0:"#F4F7F5", bg1:"#FFFFFF", bg2:"#EEF2EF", line:"#E2E8E4",
+    text:"#0F1A14", textMut:"#5F6F66", textSoft:"#3F4F47",
+    accent:"#0FAE57", accent2:"#0B8F47", gold:"#C98A15", danger:"#E0483F",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#0FAE57","#FFFFFF"], acik:true
+  },
+  enerji: {
+    ad:"Enerji", bg0:"#0C0A08", bg1:"#181310", bg2:"#120E0B", line:"#3A2A1A",
+    text:"#FBF3EA", textMut:"#B09884", textSoft:"#D0A98F",
+    accent:"#FF6A00", accent2:"#E24A00", gold:"#FFC93C", danger:"#FF4D4D",
+    fontBody:"'Oswald', sans-serif", fontDisplay:"'Bebas Neue', sans-serif", renkCifti:["#FF6A00","#1A0D02"], buyukHarf:true
+  },
+  cam: {
+    ad:"Cam", bg0:"#0A0E1A", bg1:"#161B2E", bg2:"#10131F", line:"#2A3350",
+    text:"#F2F3FF", textMut:"#B9BCDA", textSoft:"#CFD2F0",
+    accent:"#8B7BFF", accent2:"#6D5CFF", gold:"#FFD75E", danger:"#FF6B9A",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#8B7BFF","#0E0A2A"], cam:true
+  },
+};
+/* RENK katmanı — sadece vurgu (accent) + renkCifti değişir; stilin bg/yazı/font'u kalır */
+const RENK_TEMA = {
+  yesil:   { ad:"Yeşil",   accent:"#34D399", accent2:"#38BDF8", renkCifti:["#34D399","#04140C"] },
+  kirmizi: { ad:"Kırmızı", accent:"#FF5252", accent2:"#FF8A80", renkCifti:["#FF5252","#FFFFFF"] },
+  altin:   { ad:"Altın",   accent:"#E5B84B", accent2:"#F0CB6E", renkCifti:["#E5B84B","#1A1505"] },
+  mavi:    { ad:"Mavi",    accent:"#3B9EFF", accent2:"#5BC0FF", renkCifti:["#3B9EFF","#FFFFFF"] },
+  mor:     { ad:"Mor",     accent:"#A855F7", accent2:"#C77DFF", renkCifti:["#A855F7","#0A0612"] },
+  turuncu: { ad:"Turuncu", accent:"#FF7A1A", accent2:"#FFA04D", renkCifti:["#FF7A1A","#FFFFFF"] },
+};
+/* Eski tek-tema kaydını yeni RENK anahtarına çevir (geri uyum) */
+const ESKI_TEMA_RENK = { neon:"yesil", kirmizi:"kirmizi", altin:"altin", mavi:"mavi", mor:"mor", turuncu:"turuncu" };
+/* Stil + Renk'ten nihai tema üret */
+function temaHesapla(stilKey, renkKey){
+  const s = STILLER[stilKey] || STILLER.zumrut;
+  const r = renkKey && RENK_TEMA[renkKey];
+  return r ? { ...s, accent:r.accent, accent2:r.accent2, renkCifti:r.renkCifti } : s;
+}
 
 /* ============================================================
    STRES TESTİ — sahte veri üreteci
@@ -2854,10 +2921,23 @@ function AnaSayfa({turnuvalar, T, git}){
 
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
 
-    {/* KARŞILAMA */}
-    <div style={{padding:"20px 18px 10px"}}>
-      <div style={{fontSize:24,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1}}>{selam}! 👋</div>
-      <div style={{fontSize:12,color:T.textMut,marginTop:6}}>{bugun} · {topTakim} takım, {tumO.length} oyuncu, {topMac} maç</div>
+    {/* KARŞILAMA — premium kokpit hero */}
+    <div style={{padding:"14px 14px 4px"}}>
+      <div style={{position:"relative",overflow:"hidden",borderRadius:20,padding:"20px 20px 18px",border:"1px solid "+T.accent+"3a",
+        background:"radial-gradient(120% 140% at 90% 2%,"+T.accent+"2e,transparent 52%), linear-gradient(155deg,"+T.bg1+","+T.bg0+" 66%)",boxShadow:"0 18px 50px rgba(0,0,0,.35)"}}>
+        <div style={{position:"absolute",right:-30,top:-40,width:190,height:190,borderRadius:"50%",pointerEvents:"none",background:"radial-gradient(circle at 40% 35%,"+T.accent+",transparent 62%)",opacity:.26,filter:"blur(6px)"}}/>
+        <div style={{position:"relative",display:"flex",alignItems:"center",gap:7,fontSize:10.5,fontWeight:800,letterSpacing:.8,textTransform:"uppercase",color:T.accent}}>
+          <span style={{width:7,height:7,borderRadius:"50%",background:T.accent,boxShadow:"0 0 8px "+T.accent}} className="fz-nabiz"/>
+          {aktifTurnuva.ad}
+        </div>
+        <div style={{position:"relative",fontSize:26,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.05,marginTop:8,letterSpacing:-.5}}>{selam}, hoş geldin! 👋</div>
+        <div style={{position:"relative",fontSize:12,color:T.textSoft,marginTop:7}}>{bugun}</div>
+        <div style={{position:"relative",display:"flex",gap:16,marginTop:14}}>
+          <div><span style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{topTakim}</span><span style={{fontSize:10,color:T.textMut,marginLeft:4}}>takım</span></div>
+          <div><span style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{tumO.length}</span><span style={{fontSize:10,color:T.textMut,marginLeft:4}}>oyuncu</span></div>
+          <div><span style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{topMac}</span><span style={{fontSize:10,color:T.textMut,marginLeft:4}}>maç</span></div>
+        </div>
+      </div>
     </div>
 
     {/* FAZ 4 — HIZLI LİG GEÇİŞİ: birden çok lig varsa yatay şeritle tek dokunuşta gir */}
@@ -7827,7 +7907,7 @@ function PushAyar({T, oturum}){
     </div>
   </div>;
 }
-function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMod, setAdminMod, yedekle, yukleDosya, kayitDurum, git, adminMi, rehberBaslat, oturum}){
+function Ayarlar({T, stilKey, setStilKey, renkKey, setRenkKey, veriUret, veriSil, turnuvalar, adminMod, setAdminMod, yedekle, yukleDosya, kayitDurum, git, adminMi, rehberBaslat, oturum}){
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     {/* VAV HERO BAŞLIK */}
     <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"22px 18px 18px",background:"linear-gradient(120deg,"+T.accent+"40 0%,"+T.bg0+" 38%,"+T.accent+"22 66%,"+T.bg0+")"}}>
@@ -7887,15 +7967,40 @@ function Ayarlar({T, temaKey, setTemaKey, veriUret, veriSil, turnuvalar, adminMo
     </div></>}
 
     <div style={{padding:"6px 14px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:"#7c4dff22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🎨</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Tema</span></div>
+      <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:"#7c4dff22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🎨</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Görünüm</span><span style={{fontSize:10,color:T.textMut,fontWeight:500}}>· stil + renk seç, istediğin gibi karıştır</span></div>
+
+      {/* STİL (5) — sayfanın havası */}
+      <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.4,margin:"10px 4px 7px"}}>STİL</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        {Object.entries(TEMALAR).map(([k,tm])=>
-          <div key={k} onClick={()=>setTemaKey(k)} className="tap" style={{background:T.bg1,borderRadius:12,padding:"12px 14px",border:temaKey===k?"2px solid "+tm.accent:"0.5px solid "+T.line,display:"flex",alignItems:"center",gap:10}}>
-            <div style={{display:"flex",gap:3}}><span style={{width:16,height:16,borderRadius:"50%",background:tm.renkCifti[0]}}/><span style={{width:16,height:16,borderRadius:"50%",background:tm.renkCifti[1],border:"1px solid "+T.line}}/></div>
-            <span style={{fontSize:12,color:T.text,fontWeight:temaKey===k?600:400}}>{tm.ad}</span>
-          </div>
-        )}
+        {Object.entries(STILLER).map(([k,st])=>{
+          const secili=stilKey===k;
+          return <div key={k} onClick={()=>setStilKey(k)} className="tap" style={{position:"relative",overflow:"hidden",background:st.bg1,borderRadius:12,padding:"12px 13px",border:secili?"2px solid "+st.accent:"0.5px solid "+T.line,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+            <div style={{width:30,height:30,borderRadius:9,flexShrink:0,background:"linear-gradient(135deg,"+st.accent+","+st.accent2+")",boxShadow:"0 3px 10px "+st.accent+"55"}}/>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:12.5,color:st.text,fontWeight:secili?800:600,whiteSpace:"nowrap"}}>{st.ad}</div>
+              <div style={{fontSize:9.5,color:st.textMut}}>{secili?"✓ seçili":"dokun"}</div>
+            </div>
+          </div>;
+        })}
       </div>
+
+      {/* RENK — vurgu rengi (opsiyonel) */}
+      <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.4,margin:"14px 4px 7px"}}>RENK <span style={{fontWeight:400,textTransform:"none"}}>(vurgu)</span></div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <div onClick={()=>setRenkKey("")} className="tap" style={{display:"flex",alignItems:"center",gap:7,background:T.bg1,borderRadius:20,padding:"7px 12px",border:!renkKey?"2px solid "+T.accent:"0.5px solid "+T.line,cursor:"pointer"}}>
+          <span style={{width:14,height:14,borderRadius:"50%",background:"conic-gradient(from 0deg,#20e07a,#00e5ff,#8b7bff,#ff6a00,#20e07a)"}}/>
+          <span style={{fontSize:11.5,color:T.text,fontWeight:!renkKey?700:500}}>Stil Rengi</span>
+        </div>
+        {Object.entries(RENK_TEMA).map(([k,r])=>{
+          const secili=renkKey===k;
+          return <div key={k} onClick={()=>setRenkKey(k)} className="tap" style={{display:"flex",alignItems:"center",gap:7,background:T.bg1,borderRadius:20,padding:"7px 12px",border:secili?"2px solid "+r.accent:"0.5px solid "+T.line,cursor:"pointer"}}>
+            <span style={{width:14,height:14,borderRadius:"50%",background:r.accent}}/>
+            <span style={{fontSize:11.5,color:T.text,fontWeight:secili?700:500}}>{r.ad}</span>
+          </div>;
+        })}
+      </div>
+
+      {adminMi && <div style={{fontSize:10.5,color:T.textMut,marginTop:12,lineHeight:1.5,background:T.bg1,borderRadius:10,padding:"10px 12px",border:"0.5px solid "+T.line}}>👑 Süper admin: seçtiğin görünüm cihazına kaydedilir; giriş yaptığın her yerde aynı kalır. 5 stil × 6 renk = 30 kombinasyon.</div>}
     </div>
     <div style={{padding:"12px 14px"}}>
       {!sb && <><div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:"#34D39922",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>🧪</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Stres Testi <span style={{fontSize:11,color:T.textMut,fontWeight:400}}>(örnek veri)</span></span></div>
@@ -10499,7 +10604,13 @@ function App(){
     });
   }
 
-  const [temaKey,setTemaKey]=useState(()=> (ilk&&ilk.temaKey)||"neon");
+  // PREMIUM MOTOR — iki katman: STİL (5) + RENK (opsiyonel vurgu)
+  const [stilKey,setStilKey]=useState(()=> (ilk&&ilk.stilKey) || "zumrut");
+  const [renkKey,setRenkKey]=useState(()=>{
+    if(ilk&&ilk.renkKey!==undefined) return ilk.renkKey;                 // yeni kayıt
+    if(ilk&&ilk.temaKey&&ESKI_TEMA_RENK[ilk.temaKey]) return ESKI_TEMA_RENK[ilk.temaKey]; // eski tek-tema → renk
+    return ""; // stilin kendi rengi
+  });
   // Supabase varsa (canlı): başlangıçta BOŞ — ligler ilişkiselden yüklenir (eski yerel demo karışmasın)
   const [turnuvalar,setTurnuvalar]=useState(()=> sb ? [] : ((ilk&&ilk.turnuvalar)||uretVeri(5,9,12)));
   const [nav,setNav]=useState({sayfa:"ana"});
@@ -10543,7 +10654,7 @@ function App(){
   const [takipTakim,setTakipTakim]=useState(()=> (ilk&&ilk.takipTakim)||[]); // takip edilen takım id'leri
   const [adminMod,setAdminMod]=useState(false); // süper admin: kart düzenleme yetkisi
   const [kayitDurum,setKayitDurum]=useState(""); // "kaydedildi" göstergesi
-  const T=TEMALAR[temaKey];
+  const T=useMemo(()=>temaHesapla(stilKey, renkKey),[stilKey, renkKey]);
 
   // AÇILIŞTA bir kez: tüm turnuvaları yeniden hesapla (eski kayıtlı veride ödül/kurtarış işlenmemişse düzelt)
   useEffect(()=>{
@@ -10555,9 +10666,9 @@ function App(){
   useEffect(()=>{
     if(saltOkunur) return; // paylaşılan ligi izleyen kişinin verisini bozma
     try{
-      localStorage.setItem(KAYIT, JSON.stringify({turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1, ts:Date.now()}));
+      localStorage.setItem(KAYIT, JSON.stringify({turnuvalar, stilKey, renkKey, takipLig, takipOyuncu, takipTakim, v:1, ts:Date.now()}));
     }catch(e){ /* kota dolarsa sessizce geç */ }
-  },[turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim]);
+  },[turnuvalar, stilKey, renkKey, takipLig, takipOyuncu, takipTakim]);
 
   // AÇILIŞTA YENİDEN HESAPLA — eski kayıtlı veride ödül/istatistik sayaçları
   // güncel mantıkla yeniden işlensin (tek seferlik, mount'ta)
@@ -10695,12 +10806,12 @@ function App(){
   useEffect(()=>{
     if(!sb || !oturum || !bulutHazir.current || saltOkunur || catisma || iliskiselModu) return;
     const t=setTimeout(async()=>{
-      const r=await Bulut.kaydetGuvenli(oturum.id, {turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1}, bulutZaman.current);
+      const r=await Bulut.kaydetGuvenli(oturum.id, {turnuvalar, stilKey, renkKey, takipLig, takipOyuncu, takipTakim, v:1}, bulutZaman.current);
       if(r.catisma){ setCatisma(true); }                       // başka cihaz değiştirmiş → SESSİZCE EZME, sor
       else if(r.ok){ bulutZaman.current=r.zaman; setBulutDurum("Senkron ✓"); setTimeout(()=>setBulutDurum(""),1500); }
     },1400);
     return ()=>clearTimeout(t);
-  },[turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, oturum, catisma, iliskiselModu]);
+  },[turnuvalar, stilKey, renkKey, takipLig, takipOyuncu, takipTakim, oturum, catisma, iliskiselModu]);
 
   // ÇAKIŞMA çözümü — kullanıcı seçer
   const catismaOnlariniYukle=async()=>{
@@ -10708,7 +10819,9 @@ function App(){
     if(r && r.veri && Array.isArray(r.veri.turnuvalar)){
       let gelen=r.veri.turnuvalar;
       setTurnuvalar(gelen);
-      if(r.veri.temaKey)setTemaKey(r.veri.temaKey);
+      if(r.veri.stilKey)setStilKey(r.veri.stilKey);
+      if(r.veri.renkKey!==undefined)setRenkKey(r.veri.renkKey);
+      else if(r.veri.temaKey&&ESKI_TEMA_RENK[r.veri.temaKey])setRenkKey(ESKI_TEMA_RENK[r.veri.temaKey]);
       if(Array.isArray(r.veri.takipLig))setTakipLig(r.veri.takipLig);
       if(Array.isArray(r.veri.takipOyuncu))setTakipOyuncu(r.veri.takipOyuncu);
       if(Array.isArray(r.veri.takipTakim))setTakipTakim(r.veri.takipTakim);
@@ -10717,7 +10830,7 @@ function App(){
     setCatisma(false);
   };
   const catismaBenimkiniYaz=async()=>{
-    const ok=await Bulut.kaydet(oturum.id, {turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1});
+    const ok=await Bulut.kaydet(oturum.id, {turnuvalar, stilKey, renkKey, takipLig, takipOyuncu, takipTakim, v:1});
     if(ok){ bulutZaman.current=await Bulut.buluttakiZaman(oturum.id); }
     setCatisma(false);
   };
@@ -10817,20 +10930,29 @@ function App(){
       if(benim) b.push({ikon:"👤",metin:`Kariyerin: ${benim.ad} — ${benim.gol||0} gol, ${benim.asist||0} asist`,renk:T.accent});
     }
     return b.slice(0,12);
-  },[turnuvalar,takipLig,takipOyuncu,takipTakim,sahiplenme,temaKey]);
+  },[turnuvalar,takipLig,takipOyuncu,takipTakim,sahiplenme,stilKey,renkKey]);
 
   useEffect(()=>{
     const r=document.documentElement.style;
-    r.setProperty("--bg0",T.bg0); r.setProperty("--text",T.text); r.setProperty("--font-body",T.fontBody); r.setProperty("--accent",T.accent);
-    // premium gradyan atmosfer — tema accent'inden türet
+    r.setProperty("--bg0",T.bg0); r.setProperty("--text",T.text); r.setProperty("--font-body",T.fontBody);
+    r.setProperty("--font-display",T.fontDisplay); r.setProperty("--accent",T.accent);
+    r.setProperty("--bg1",T.bg1); r.setProperty("--line",T.line);
+    // premium gradyan atmosfer — tema accent'inden türet (neon stilde daha güçlü)
     const hex2rgb=(h)=>{ h=h.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; };
+    const stil=STILLER[stilKey]||STILLER.zumrut;
     try{
       const [ar,ag,ab]=hex2rgb(T.accent), [br,bg,bb]=hex2rgb(T.accent2||T.accent);
-      r.setProperty("--glowA",`rgba(${ar},${ag},${ab},.10)`);
-      r.setProperty("--glowB",`rgba(${br},${bg},${bb},.08)`);
+      const gA=stil.neon?.18:.10, gB=stil.neon?.14:.08;
+      r.setProperty("--glowA",`rgba(${ar},${ag},${ab},${gA})`);
+      r.setProperty("--glowB",`rgba(${br},${bg},${bb},${gB})`);
     }catch(e){}
     document.body.style.background=T.bg0;
-  },[temaKey]);
+    // stil imzası → global CSS kancaları (büyük harf / neon / açık / cam)
+    document.body.classList.toggle("stil-buyukharf", !!stil.buyukHarf);
+    document.body.classList.toggle("stil-neon", !!stil.neon);
+    document.body.classList.toggle("stil-acik", !!stil.acik);
+    document.body.classList.toggle("stil-cam", !!stil.cam);
+  },[stilKey, renkKey]);
 
   // GEZİNME + TARAYICI GEÇMİŞİ — telefonun geri tuşu uygulamadan atmasın:
   // git() her sayfa geçişinde history'ye kayıt ekler; geri tuşu (popstate) iç yığından döner.
@@ -10851,7 +10973,7 @@ function App(){
 
   // YEDEKLE — tüm veriyi dosya olarak indir
   const yedekle=()=>{
-    const veri={turnuvalar, temaKey, takipLig, takipOyuncu, takipTakim, v:1, ts:Date.now()};
+    const veri={turnuvalar, stilKey, renkKey, takipLig, takipOyuncu, takipTakim, v:1, ts:Date.now()};
     const blob=new Blob([JSON.stringify(veri,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
@@ -10868,7 +10990,9 @@ function App(){
         const v=JSON.parse(e.target.result);
         if(v && Array.isArray(v.turnuvalar)){
           setTurnuvalar(v.turnuvalar);
-          if(v.temaKey)setTemaKey(v.temaKey);
+          if(v.stilKey)setStilKey(v.stilKey);
+          if(v.renkKey!==undefined)setRenkKey(v.renkKey);
+          else if(v.temaKey&&ESKI_TEMA_RENK[v.temaKey])setRenkKey(ESKI_TEMA_RENK[v.temaKey]);
           if(v.takipLig)setTakipLig(v.takipLig);
           if(v.takipOyuncu)setTakipOyuncu(v.takipOyuncu);
           if(v.takipTakim)setTakipTakim(v.takipTakim);
@@ -11230,7 +11354,7 @@ function App(){
       case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi}/>; break;
       case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async()=>{ const gelen=await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
-      case "ayar": icerik=<Ayarlar T={T} temaKey={temaKey} setTemaKey={setTemaKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
+      case "ayar": icerik=<Ayarlar T={T} stilKey={stilKey} setStilKey={setStilKey} renkKey={renkKey} setRenkKey={setRenkKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
     }
   }
