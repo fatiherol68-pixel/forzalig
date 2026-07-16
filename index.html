@@ -10964,6 +10964,7 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
           <span style={{flexShrink:0,fontSize:9.5,fontWeight:800,textTransform:"uppercase",letterSpacing:.4,color:anaRenk,background:anaRenk+"1a",border:"0.5px solid "+anaRenk+"55",padding:"3px 8px",borderRadius:20}}>{rozet}</span>
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:7,margin:"12px 0 13px"}}>
+          {(acil||oyuncuMu) && <span style={{fontSize:11,fontWeight:800,padding:"6px 10px",borderRadius:9,background:(il.kalici?T.accent:"#c2670f")+"1e",color:il.kalici?T.accent:"#c2670f",border:"0.5px solid "+(il.kalici?T.accent:"#c2670f")+"55"}}>{il.kalici?"🟢 KALICI":"🟠 BU MAÇ"}</span>}
           {acil && il.pozisyon && <span style={chip}>🎯 {il.adet>1?il.adet+" ":""}{il.pozisyon}</span>}
           {oyuncuMu && il.pozisyon && <span style={chip}>🎯 {il.pozisyon}</span>}
           {il.tarih_text && <span style={chip}>🕐 {il.tarih_text}</span>}
@@ -11062,15 +11063,16 @@ function IlanVerModal({T, tip, takimlar, oturum, onKapat, onOk}){
   const [tarih,setTarih]=useState(""); const [saha,setSaha]=useState(""); const [sehir,setSehir]=useState(takimlar[0]?takimlar[0].sehir:"");
   const [seviye,setSeviye]=useState("Orta"); const [poz,setPoz]=useState("Kaleci"); const [adet,setAdet]=useState(1);
   const [aciklama,setAciklama]=useState(""); const [kaydet,setKaydet]=useState(false);
+  const [kalici,setKalici]=useState(false);   // false=🟠 bu maç · true=🟢 kalıcı/kadro
   const sec=(!oyuncuMu&&tkIdx>=0)?takimlar[tkIdx]:null;
   const anaRenk=eksik?T.danger:oyuncuMu?(T.accent2||T.accent):T.accent;
   const gonder=async()=>{
     const takimAd = oyuncuMu ? ad.trim() : (sec?sec.takim_ad:elTakim.trim());
     if(!takimAd){ alert(oyuncuMu?"Adını yaz.":"Takım seç veya adını yaz."); return; }
-    if(!tarih.trim()){ alert(oyuncuMu?"Ne zaman müsaitsin yaz (ör: Hafta içi akşam).":"Tarih/saat yaz (ör: Cuma 21:00)."); return; }
+    if(!kalici && !tarih.trim()){ alert(oyuncuMu?"Ne zaman müsaitsin yaz (ör: Hafta içi akşam).":"Tarih/saat yaz (ör: Cuma 21:00)."); return; }
     setKaydet(true);
     const il={ tip, user_id:oturum.id, takim_id:sec?sec.takim_id:null, takim_ad:takimAd, takim_logo:sec?sec.takim_logo:null, takim_renk:sec?sec.takim_renk:null, lig_id:sec?sec.lig_id:null, lig_ad:sec?sec.lig_ad:null, sehir:sehir.trim()||null, tarih_text:tarih.trim(), aciklama:aciklama.trim()||null };
-    if(eksik){ il.pozisyon=poz; il.adet=Number(adet)||1; } else if(oyuncuMu){ il.pozisyon=poz; } else { il.saha=saha.trim()||null; il.seviye=seviye; }
+    if(eksik){ il.pozisyon=poz; il.adet=Number(adet)||1; il.kalici=kalici; } else if(oyuncuMu){ il.pozisyon=poz; il.kalici=kalici; } else { il.saha=saha.trim()||null; il.seviye=seviye; }
     const r=await Db.ilanOlustur(il); setKaydet(false);
     if(r.ok){ alert("✅ İlan yayınlandı!"); onOk(); } else alert("Olmadı: "+(r.hata||""));
   };
@@ -11081,6 +11083,10 @@ function IlanVerModal({T, tip, takimlar, oturum, onKapat, onOk}){
       <div style={{width:40,height:4,borderRadius:3,background:T.line,margin:"8px auto 14px"}}/>
       <div style={{fontSize:17,fontWeight:800,color:T.text,marginBottom:4}}>{eksik?"🙋 Eksik Oyuncu İlanı":oyuncuMu?"🏃 Maça Gelirim":"🆚 Rakip İlanı"}</div>
       <div style={{fontSize:11.5,color:T.textMut,marginBottom:6}}>{eksik?"Maça oyuncu bul — herkes görür, 'geliyorum' diyen olursa bildirim gelir.":oyuncuMu?"Bir oyuncu olarak maç ara — takımlar seni görüp çağırır, ilgilenen olursa bildirim gelir.":"Takımına maç ayarla — meydan okuyan olursa bildirim gelir."}</div>
+      {(eksik||oyuncuMu) && <div style={{display:"flex",gap:8,margin:"6px 0 2px"}}>
+        <button onClick={()=>setKalici(false)} className="tap" style={{flex:1,padding:"10px 6px",borderRadius:11,fontSize:12.5,fontWeight:800,border:"1px solid "+(!kalici?"#c2670f":T.line),background:!kalici?"#c2670f1e":T.bg1,color:!kalici?"#c2670f":T.textMut,lineHeight:1.3}}>🟠 Bu maç<span style={{display:"block",fontSize:9,fontWeight:600,opacity:.85}}>{eksik?"misafir gelsin":"boştayım, gelirim"}</span></button>
+        <button onClick={()=>setKalici(true)} className="tap" style={{flex:1,padding:"10px 6px",borderRadius:11,fontSize:12.5,fontWeight:800,border:"1px solid "+(kalici?T.accent:T.line),background:kalici?T.accent+"1e":T.bg1,color:kalici?T.accent:T.textMut,lineHeight:1.3}}>🟢 Kalıcı<span style={{display:"block",fontSize:9,fontWeight:600,opacity:.85}}>{eksik?"kadroya sürekli":"takım arıyorum"}</span></button>
+      </div>}
       {oyuncuMu ? <>
         <label style={lbl}>ADIN</label>
         <input value={ad} onChange={e=>setAd(e.target.value)} placeholder="Ad Soyad" style={inp}/>
