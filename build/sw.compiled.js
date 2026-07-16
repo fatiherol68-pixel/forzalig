@@ -1,6 +1,6 @@
 /* ForzaLig service worker — kabuk önbelleği + güncelleme bildirimi
-   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (c78e29f-1784157629). */
-const SURUM = "c78e29f-1784157629";
+   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (a324828-1784185851). */
+const SURUM = "a324828-1784185851";
 const KABUK = "forzalig-kabuk-" + SURUM;
 
 // Açılış için gereken çekirdek dosyalar (CDN dosyaları ilk kullanımda önbelleğe alınır)

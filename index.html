@@ -344,6 +344,49 @@ function resimKucult(dosya, boy=512, kalite=0.82){
     }catch(e){ rej(e); }
   });
 }
+/* İnteraktif kırpma penceresi (sürükle + yakınlaştır → 1:1 kare). Vanilla DOM,
+   React mount gerekmez. Blob döndürür (Kullan) veya null (Otomatik/kapat → çağıran
+   merkezden otomatik kırpar). Böylece hiçbir çağrı noktası değişmez. */
+function kirpDialog(dosya){
+  return new Promise((resolve)=>{
+    try{
+      const acc=(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())||'#20E07A';
+      const F=Math.min(300, (window.innerWidth||360)-72);
+      const ov=document.createElement('div');
+      ov.style.cssText='position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;';
+      const box=document.createElement('div');
+      box.style.cssText='background:#0c1219;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px;max-width:360px;width:100%;text-align:center;font-family:system-ui,-apple-system,sans-serif;';
+      box.innerHTML='<div style="font-size:14px;font-weight:800;color:#eaf3ee;margin-bottom:3px">Fotoğrafı ayarla</div><div style="font-size:11px;color:#8ea298;margin-bottom:14px">Sürükle · yakınlaştır · kare seç</div>';
+      const fw=document.createElement('div');
+      fw.style.cssText='position:relative;width:'+F+'px;height:'+F+'px;margin:0 auto;border-radius:14px;overflow:hidden;background:#000;touch-action:none;cursor:grab;';
+      const im=document.createElement('img');
+      im.style.cssText='position:absolute;left:0;top:0;transform-origin:0 0;user-select:none;pointer-events:none;will-change:transform;';
+      const ring=document.createElement('div'); ring.style.cssText='position:absolute;inset:0;border:2px solid '+acc+';border-radius:14px;pointer-events:none;';
+      fw.appendChild(im); fw.appendChild(ring); box.appendChild(fw);
+      const zr=document.createElement('input'); zr.type='range'; zr.min='1'; zr.max='4'; zr.step='0.01'; zr.value='1';
+      zr.style.cssText='width:100%;margin:14px 0 2px;accent-color:'+acc+';'; box.appendChild(zr);
+      const bt=document.createElement('div'); bt.style.cssText='display:flex;gap:9px;margin-top:12px;';
+      const bA=document.createElement('button'); bA.textContent='Otomatik'; bA.style.cssText='flex:1;padding:11px;border-radius:11px;border:1px solid rgba(255,255,255,.14);background:transparent;color:#b7c8bf;font-weight:700;font-size:13px;cursor:pointer;';
+      const bK=document.createElement('button'); bK.textContent='Kullan'; bK.style.cssText='flex:1.4;padding:11px;border-radius:11px;border:0;background:'+acc+';color:#04140c;font-weight:800;font-size:13px;cursor:pointer;';
+      bt.appendChild(bA); bt.appendChild(bK); box.appendChild(bt);
+      ov.appendChild(box); document.body.appendChild(ov);
+      let iw=0,ih=0,base=1,zoom=1,ox=0,oy=0,drag=false,lx=0,ly=0;
+      const url=URL.createObjectURL(dosya);
+      function clamp(){ const dw=iw*base*zoom, dh=ih*base*zoom; ox=Math.min(0,Math.max(F-dw,ox)); oy=Math.min(0,Math.max(F-dh,oy)); }
+      function render(){ clamp(); im.style.transform='translate('+ox+'px,'+oy+'px) scale('+(base*zoom)+')'; }
+      im.onload=()=>{ iw=im.naturalWidth; ih=im.naturalHeight; base=F/Math.min(iw,ih); ox=(F-iw*base)/2; oy=(F-ih*base)/2; im.style.width=iw+'px'; im.style.height=ih+'px'; render(); };
+      im.src=url;
+      zr.oninput=()=>{ const c=F/2, pre=base*zoom, nx=(c-ox)/pre, ny=(c-oy)/pre; zoom=parseFloat(zr.value); const post=base*zoom; ox=c-nx*post; oy=c-ny*post; render(); };
+      fw.onpointerdown=(e)=>{ drag=true; lx=e.clientX; ly=e.clientY; try{fw.setPointerCapture(e.pointerId);}catch(x){} fw.style.cursor='grabbing'; };
+      fw.onpointermove=(e)=>{ if(!drag)return; ox+=e.clientX-lx; oy+=e.clientY-ly; lx=e.clientX; ly=e.clientY; render(); };
+      fw.onpointerup=fw.onpointercancel=()=>{ drag=false; fw.style.cursor='grab'; };
+      function kapat(r){ try{URL.revokeObjectURL(url);}catch(x){} try{document.body.removeChild(ov);}catch(x){} resolve(r); }
+      bA.onclick=()=>kapat(null);
+      ov.onclick=(e)=>{ if(e.target===ov) kapat(null); };
+      bK.onclick=()=>{ try{ const s=base*zoom; const out=document.createElement('canvas'); out.width=512; out.height=512; const cx=out.getContext('2d'); cx.imageSmoothingEnabled=true; cx.imageSmoothingQuality='high'; cx.drawImage(im, -ox/s, -oy/s, F/s, F/s, 0,0,512,512); out.toBlob(b=>kapat(b||null),'image/webp',0.92); }catch(e){ kapat(null); } };
+    }catch(e){ resolve(null); }
+  });
+}
 /* Yükleme: dosyayı kendi klasörüne yazar → {uid}/{oyuncu|logo}/{uuid}.webp
    (Storage RLS: kullanıcı sadece kendi klasörüne yazabilir/silebilir.)
    eskiUrl verilirse ve bizim klasörümüzdeyse eski dosyayı siler (yer tutmasın). */
@@ -354,7 +397,9 @@ async function fotoYukle(dosya, klasor, eskiUrl){
   try{
     let uid=null; try{ uid=((await sb.auth.getUser()).data.user||{}).id||null; }catch(e){}
     if(!uid) return {hata:"Giriş gerekli."};
-    const kucuk = await resimKucult(dosya);
+    let kaynak = dosya;
+    try{ if(typeof kirpDialog==='function'){ const c = await kirpDialog(dosya); if(c) kaynak = c; } }catch(e){}  // sürükle/yakınlaştır → kare; kapatırsa otomatik merkez-kare
+    const kucuk = await resimKucult(kaynak);
     const ext = (kucuk.type==="image/webp")?"webp":"jpg";
     const uuid = (window.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now()+"-"+Math.random().toString(36).slice(2,10));
     const yol = uid+"/"+(klasor||"genel")+"/"+uuid+"."+ext;
@@ -4913,10 +4958,10 @@ function FiltreCip({aktif, onClick, T, children}){
 }
 
 /* TAKIM SAYFASI */
-function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum}){
+function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adminMi}){
   const [sekme,setSekme]=useState("akis");
   // Kaptan kendi takımının logosunu değiştirebilir (RLS: takim_yoneticim)
-  const takimBenim = !!(oturum && takim.yonetici_id && takim.yonetici_id===oturum.id);
+  const takimBenim = !!(oturum && ((takim.yonetici_id && takim.yonetici_id===oturum.id) || adminMi));
   const [logoYuk,setLogoYuk]=useState(false); const [,setLogoTik]=useState(0);
   const logoDegistir=async(e)=>{
     const f=e.target.files&&e.target.files[0]; if(!f)return;
@@ -5321,7 +5366,7 @@ function LisansKarti({o, turnuva, T}){
   </div>;
 }
 
-function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turnuvalar, oturum, sahiplenme, onSahiplen, onTransfer, saltOkunur}){
+function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turnuvalar, oturum, sahiplenme, onSahiplen, onTransfer, saltOkunur, adminMi}){
   const [duzenle,setDuzenle]=useState(false);
   const [sahipYuk,setSahipYuk]=useState(false);
   const [sahipMesaj,setSahipMesaj]=useState("");
@@ -5541,9 +5586,9 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
           </div>}
     </div>}
     {/* SAHİPLENME (self-claim) KALDIRILDI — kariyer artık sadece takım daveti ile oluşur. */}
-    {oturum && benimMi && <div style={{padding:"10px 14px 0",display:"flex",gap:8,alignItems:"stretch"}}>
-      <div style={{flex:1,background:T.gold+"14",color:T.gold,border:"1px solid "+T.gold+"55",borderRadius:12,padding:12,fontSize:13,fontWeight:800,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>⭐ Bu senin kariyerin</div>
-      <label className="tap" title="Fotoğrafını değiştir" style={{flexShrink:0,background:T.accent+"18",color:T.accent,border:"1px solid "+T.accent+"66",borderRadius:12,padding:"0 16px",fontSize:13,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center"}}>{fotoYuk2?"⏳ Yükleniyor":"📷 Fotoğraf"}
+    {oturum && (benimMi||adminMi) && <div style={{padding:"10px 14px 0",display:"flex",gap:8,alignItems:"stretch"}}>
+      <div style={{flex:1,background:(benimMi?T.gold:T.danger)+"14",color:benimMi?T.gold:T.danger,border:"1px solid "+(benimMi?T.gold:T.danger)+"55",borderRadius:12,padding:12,fontSize:13,fontWeight:800,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center"}}>{benimMi?"⭐ Bu senin kariyerin":"🛡️ Süper Admin"}</div>
+      <label className="tap" title="Fotoğrafı değiştir" style={{flexShrink:0,background:T.accent+"18",color:T.accent,border:"1px solid "+T.accent+"66",borderRadius:12,padding:"0 16px",fontSize:13,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center"}}>{fotoYuk2?"⏳ Yükleniyor":"📷 Fotoğraf"}
         <input type="file" accept="image/*" onChange={kendiFotoDegistir} style={{display:"none"}}/></label>
     </div>}
     {/* TRANSFER PAZARI — "takım arıyorum" (kendi kartın VEYA lig yöneticisi) */}
@@ -11796,8 +11841,8 @@ function App(){
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
       case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
-      case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum}/>; break;
-      case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur}/>; break;
+      case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum} adminMi={adminMi}/>; break;
+      case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur} adminMi={adminMi}/>; break;
       case "mac": icerik=<MacSayfa mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} oturum={oturum} sahiplenme={sahiplenme} yetkili={ligYetkim(nav.turnuva)}/>; break;
       case "skorgir": icerik=<SkorGir mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} skorKaydet={ligYetkim(nav.turnuva)?skorKaydet:kilitliKaydet}/>; break;
       case "gazete": icerik=<MacGazete mac={nav.mac} turnuva={nav.turnuva} T={T} git={git}/>; break;
