@@ -2681,6 +2681,13 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
         <span style={{flexShrink:0,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,fontWeight:800,fontSize:12.5,padding:"9px 15px",borderRadius:11}}>Keşfet</span>
       </div>}
 
+      {/* Arama — lig/şehir */}
+      <div style={{display:"flex",alignItems:"center",gap:8,background:T.bg1,border:"1px solid "+T.accent+"40",borderRadius:13,padding:"12px 13px",marginBottom:12}}>
+        <span style={{fontSize:15,opacity:.7}}>🔎</span>
+        <input value={ara} onChange={e=>setAra(e.target.value)} placeholder="Lig veya şehir ara…" style={{flex:1,background:"none",border:0,color:T.text,fontSize:13.5,outline:"none",fontFamily:"inherit"}}/>
+        {ara && <span onClick={()=>setAra("")} className="tap" style={{fontSize:15,color:T.textMut,cursor:"pointer"}}>✕</span>}
+      </div>
+
       {/* Başlık + Lig Kur */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"4px 2px 12px"}}>
         <div style={{display:"flex",alignItems:"center",gap:9}}>
@@ -2691,7 +2698,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
       </div>
 
       {/* Herkese açık ligler */}
-      {acikLigler.map(l=>
+      {acikLigler.filter(l=>!q||((l.ad||"")+" "+(l.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(l=>
         <a key={l.slug} href={PAYLASIM_URL(l.slug)} className="tap kart-hover" style={{display:"flex",gap:12,alignItems:"center",background:T.bg1,borderRadius:16,padding:13,marginBottom:10,border:"0.5px solid "+T.gold+"44",textDecoration:"none",position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",inset:0,left:"auto",width:"55%",background:"radial-gradient(90% 120% at 90% 30%,"+T.gold+"22,transparent 60%)",pointerEvents:"none"}}/>
           <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(145deg,"+T.gold+","+T.gold+"99)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,position:"relative",zIndex:1}}>🏟️</div>
@@ -2705,7 +2712,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
 
       {/* Kullanıcının ligleri — zengin kartlar */}
       {turnuvalar.length===0 && acikLigler.length===0 && <div style={{fontSize:12.5,color:T.textMut,textAlign:"center",padding:"30px 20px",lineHeight:1.6}}>Henüz lig yok.<br/>{ligKurAc?"Yukarıdan kendi ligini kurabilirsin.":"Bir lige katıldığında burada görünür."}</div>}
-      {turnuvalar.map(t=>{
+      {turnuvalar.filter(t=>!q||((t.ad||"")+" "+(t.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(t=>{
         const oynanan=t.maclar.filter(m=>m.oynandi).length;
         const lider=[...t.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
         const ilkTakimlar=(t.takimlar||[]).slice(0,3);
@@ -10735,6 +10742,8 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
   },[turnuva&&turnuva.id, kanal]);
 
   // Okunmamış badge (genel + kendi takımım)
+  // Tek dokunuş: tek aktif ligi olan kullanıcı Sohbet'e basınca direkt o ligin sohbetine girer
+  useEffect(()=>{ if(!turnuva && oturum){ const ls=(turnuvalar||[]).filter(t=>t.iliskisel && (t.durum||'aktif')!=='arsiv'); if(ls.length===1) git({sayfa:"sohbet",turnuva:ls[0]}); } },[turnuva]);
   useEffect(()=>{
     if(!turnuva||!sb||!oturum) return; let a=true;
     (async()=>{ const son=await Db.sonOkumalar(oturum.id, turnuva.id); const u={}; const kanallar=[["genel",null]]; benimTakimlar.forEach(tk=>kanallar.push(["t:"+tk.id, tk.id]));
