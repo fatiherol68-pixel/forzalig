@@ -895,7 +895,7 @@ const Db = {
       return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', yonetici_id:L.yonetici_id, takimlar, maclar, format:L.format||'tek',
         grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
         sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
-        kurallarKilit:!!L.kurallar_kilit, iliskisel:true };
+        kurallarKilit:!!L.kurallar_kilit, kurallar:L.kurallar||"", iliskisel:true };
     }catch(e){ console.warn('ligYukle',e); return null; }
   },
   // Test verisini temizle: kullanıcının tüm ligleri + öksüz oyuncular (admin)
@@ -3582,6 +3582,59 @@ function YardimciYonetim({turnuva, T, oturum, sahip}){
   </div>;
 }
 
+/* Düz metni (Word/not defterinden yapıştırılan) başlık + madde bloklarına ayır */
+function _kuralAyristir(metin){
+  const bloklar=[];
+  (metin||"").replace(/\r/g,"").split("\n").forEach(ham=>{
+    const s=ham.trim(); let m;
+    if(!s){ bloklar.push({t:"bos"}); return; }
+    if(m=s.match(/^#{1,3}\s+(.*)/)){ bloklar.push({t:"h",x:m[1]}); return; }
+    if(m=s.match(/^(\d+)[\.\)]\s+(.*)/)){ bloklar.push({t:"h",x:m[2],n:m[1]}); return; }
+    if(m=s.match(/^[-•*·]\s+(.*)/)){ bloklar.push({t:"li",x:m[1]}); return; }
+    if(/:$/.test(s) && s.length<=46){ bloklar.push({t:"h",x:s.replace(/:$/,"")}); return; }
+    if(s.length<=46 && s===s.toLocaleUpperCase("tr") && /[A-ZÇĞİÖŞÜ]/.test(s)){ bloklar.push({t:"h",x:s}); return; }
+    bloklar.push({t:"p",x:s});
+  });
+  return bloklar;
+}
+function LigKurallar({turnuva, T, yonetim}){
+  const yonetici=!!yonetim;
+  const [kur,setKur]=React.useState(turnuva.kurallar||"");
+  const [duzenle,setDuzenle]=React.useState(false);
+  const [metin,setMetin]=React.useState(turnuva.kurallar||"");
+  const [kayit,setKayit]=React.useState("");
+  const kaydet=()=>{ const v=(metin||"").trim(); setKur(v); turnuva.kurallar=v; if(yonetim&&yonetim.ligGuncelle) yonetim.ligGuncelle(turnuva,{kurallar:v}); setDuzenle(false); setKayit("✓ Kaydedildi ve yayınlandı"); setTimeout(()=>setKayit(""),2600); };
+  let no=0; const bloklar=_kuralAyristir(kur);
+  return <div className="fade-in" style={{padding:"12px 14px"}}>
+    {kayit && <div style={{fontSize:12,color:T.accent,fontWeight:700,marginBottom:10,textAlign:"center"}}>{kayit}</div>}
+    {duzenle
+      ? <div style={{background:T.bg1,border:"1px dashed "+T.accent+"66",borderRadius:14,padding:14}}>
+          <div style={{fontSize:12,color:T.textMut,marginBottom:9,display:"flex",alignItems:"center",gap:7}}>📋 Word / not defterinden kopyalayıp buraya yapıştır — otomatik düzenli görünür.</div>
+          <textarea value={metin} onChange={e=>setMetin(e.target.value)} placeholder={"Örnek:\n1. Genel\n- Maçlar Cuma 20:00 başlar\n- Takım en az 5 oyuncu\n2. Ödemeler\n- Saha ücreti kişi 50 TL"} style={{width:"100%",minHeight:220,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:11,padding:13,color:T.text,fontSize:13.5,lineHeight:1.6,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
+          <div style={{fontSize:10.5,color:T.textMut,margin:"7px 2px 12px",lineHeight:1.5}}>İpucu: <b style={{color:T.textSoft}}>1.</b> veya <b style={{color:T.textSoft}}>#</b> ile başlayan satır → başlık · <b style={{color:T.textSoft}}>-</b> ile başlayan satır → madde.</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={kaydet} className="tap" style={{flex:1.4,background:T.accent,color:T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:11,padding:"11px",fontSize:13,fontWeight:800}}>💾 Kaydet ve yayınla</button>
+            <button onClick={()=>{ setMetin(kur); setDuzenle(false); }} className="tap" style={{flex:1,background:T.bg2,color:T.textSoft,border:"0.5px solid "+T.line,borderRadius:11,padding:"11px",fontSize:13,fontWeight:700}}>Vazgeç</button>
+          </div>
+        </div>
+      : <>
+          {yonetici && <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+            <button onClick={()=>{ setMetin(kur); setDuzenle(true); }} className="tap" style={{fontSize:12,color:T.accent,background:T.accent+"14",border:"0.5px solid "+T.accent+"44",borderRadius:9,padding:"7px 13px",fontWeight:800}}>✍️ {kur?"Düzenle":"Kural ekle"}</button>
+          </div>}
+          {!kur
+            ? <BosUyari T={T} metin={yonetici?"Henüz kural yok. “Kural ekle” ile Word'den kopyala-yapıştır yapabilirsin.":"Lig yöneticisi henüz kural eklemedi."} ikon="📋"/>
+            : <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:14,padding:"20px 20px"}}>
+                <div style={{fontSize:17,fontWeight:850,color:T.text,letterSpacing:"-.3px",marginBottom:14,paddingBottom:12,borderBottom:"1px solid "+T.line}}>{turnuva.ad} · Kuralları</div>
+                {bloklar.map((b,i)=>{
+                  if(b.t==="bos") return <div key={i} style={{height:7}}/>;
+                  if(b.t==="h"){ no++; return <div key={i} style={{fontSize:13.5,fontWeight:800,color:T.accent,margin:(i?"15px":"0")+" 0 7px",display:"flex",alignItems:"center",gap:8}}>{b.n&&<span style={{width:20,height:20,borderRadius:6,background:T.accent+"1f",color:T.accent,display:"grid",placeItems:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{b.n}</span>}<span>{b.x}</span></div>; }
+                  if(b.t==="li") return <div key={i} style={{fontSize:13,color:T.textSoft,display:"flex",gap:9,lineHeight:1.55,padding:"3px 0"}}><span style={{flexShrink:0,width:5,height:5,borderRadius:"50%",background:T.accent,marginTop:8}}/><span>{b.x}</span></div>;
+                  return <div key={i} style={{fontSize:13,color:T.textSoft,lineHeight:1.6,padding:"2px 0"}}>{b.x}</div>;
+                })}
+              </div>}
+        </>}
+  </div>;
+}
 function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, saltOkunur, onPaylas, onPaylasKaldir, ilkTab}){
   const [tab,setTab]=useState((ilkTab&&yonetim)?ilkTab:"genel");
   const [paylasAcik,setPaylasAcik]=useState(false);
@@ -3650,7 +3703,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   const kupaMi = turnuva.format==="kupa";
   const sekmeler = kupaMi
     ? [["kupa","🏆 Kupa"],["genel","Genel"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]]
-    : [["genel","Genel"],["akis","Akış"],["puan","Puan Durumu"],["fikstur","Fikstür"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]];
+    : [["genel","Genel"],["akis","Akış"],["puan","Puan Durumu"],["takimlar","🛡️ Takımlar"],["fikstur","Fikstür"],["kurallar","📋 Kurallar"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]];
   if(yonetim) sekmeler.push(["yonet","⚙️ Yönet"]);
   useEffect(()=>{ if(kupaMi) setTab("kupa"); },[]);
 
@@ -3799,6 +3852,25 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
 
     {/* ===== İSTATİSTİK ===== */}
     {tab==="ist" && <LigIstatistik turnuva={turnuva} ist={ist} T={T} git={git} onbirAltin={Motor.ideal11(turnuva,"altin")} pozKisa={pozKisa}/>}
+
+    {tab==="takimlar" && <div className="fade-in" style={{padding:"12px 14px"}}>
+      {(turnuva.takimlar||[]).length===0
+        ? <BosUyari T={T} metin="Henüz takım yok. Yönet sekmesinden takım ekle." />
+        : <><div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:10}}>LİGDEKİ TAKIMLAR · {turnuva.takimlar.length}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+            {turnuva.takimlar.map(t=>
+              <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva})} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:13,padding:"11px 12px"}}>
+                <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={38}/>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{fontSize:13.5,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
+                  <div style={{fontSize:10.5,color:T.textMut,marginTop:1}}>{(t.oyuncular||[]).length} oyuncu</div>
+                </div>
+                <span style={{color:T.textMut,fontSize:15}}>›</span>
+              </div>)}
+          </div></>}
+    </div>}
+
+    {tab==="kurallar" && <LigKurallar turnuva={turnuva} T={T} yonetim={yonetim}/>}
 
     {tab==="yonet" && yonetim && <><YonetimPaneli turnuva={turnuva} T={T} git={git} yonetim={yonetim}/><YardimciYonetim turnuva={turnuva} T={T} oturum={oturum} sahip={!!(oturum && ((turnuva.yonetici_id===oturum.id) || yonetim.adminMi))}/></>}
   </div>;
@@ -11570,7 +11642,7 @@ function App(){
   // Lig bilgilerini güncelle
   const ligGuncelle=(turnuva, alanlar)=>{
     Object.assign(turnuva, alanlar);
-    if(iliskiselMi(turnuva)){ const db={}; if(alanlar.ad!=null)db.ad=alanlar.ad; if(alanlar.renk!=null)db.renk=alanlar.renk; if(alanlar.sehir!=null)db.sehir=alanlar.sehir; if(alanlar.ilce!=null)db.ilce=alanlar.ilce; if(alanlar.logo!=null)db.logo=alanlar.logo; if(alanlar.bitisTarihi!=null)db.bitis_tarihi=alanlar.bitisTarihi; if(Object.keys(db).length) Db.ligGuncelle(turnuva.id, db); }
+    if(iliskiselMi(turnuva)){ const db={}; if(alanlar.ad!=null)db.ad=alanlar.ad; if(alanlar.renk!=null)db.renk=alanlar.renk; if(alanlar.sehir!=null)db.sehir=alanlar.sehir; if(alanlar.ilce!=null)db.ilce=alanlar.ilce; if(alanlar.logo!=null)db.logo=alanlar.logo; if(alanlar.bitisTarihi!=null)db.bitis_tarihi=alanlar.bitisTarihi; if(alanlar.kurallar!=null)db.kurallar=alanlar.kurallar; if(Object.keys(db).length) Db.ligGuncelle(turnuva.id, db); }
     guncelle();
   };
   // Lig arşivle / aktif yap (madde 22) — maç oynanmışsa silinemez, arşivlenir
