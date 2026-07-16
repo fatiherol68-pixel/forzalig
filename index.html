@@ -2564,6 +2564,16 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
         </div>
       </>}
 
+      {/* LİGİM */}
+      {oturum && benimTakimT && <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>LİGİM</div>
+        <div onClick={()=>git({sayfa:"turnuva",turnuva:benimTakimT})} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:13,background:"linear-gradient(135deg,"+T.gold+"1e,"+T.bg1+" 60%)",border:"0.5px solid "+T.gold+"44",borderRadius:16,padding:14,cursor:"pointer"}}>
+          <span style={{width:48,height:48,borderRadius:14,flexShrink:0,background:T.gold+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>🏆</span>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:15.5,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimTakimT.ad}</div><div style={{fontSize:11,color:T.textMut,marginTop:2}}>{(benimTakimT.takimlar||[]).length} takım · lige git</div></div>
+          <span style={{fontSize:20,color:T.textMut}}>›</span>
+        </div>
+      </>}
+
       {/* HIZLI ERİŞİM */}
       {oturum && <>
         <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>HIZLI ERİŞİM</div>
