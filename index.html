@@ -11280,6 +11280,7 @@ function App(){
   const [tab,setTab]=useState("ana");
   const [aramaAcik,setAramaAcik]=useState(false); // arama overlay
   const [aramaMetin,setAramaMetin]=useState("");
+  useEffect(()=>{ setAramaAcik(false); },[nav]); // sayfa degisince arama katmanini kapat (takilma onlemi)
   const [takipLig,setTakipLig]=useState(()=> (ilk&&ilk.takipLig)||[]);      // takip edilen turnuva id'leri
   const [takipOyuncu,setTakipOyuncu]=useState(()=> (ilk&&ilk.takipOyuncu)||[]); // takip edilen oyuncu id'leri
   const [takipTakim,setTakipTakim]=useState(()=> (ilk&&ilk.takipTakim)||[]); // takip edilen takım id'leri
@@ -12078,8 +12079,8 @@ function App(){
         }
         const kapat=()=>{setAramaAcik(false);setAramaMetin("");};
         const go=(n)=>{kapat();git(n);};
-        return <div style={{position:"fixed",inset:0,background:T.bg0,zIndex:50,display:"flex",flexDirection:"column"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderBottom:"0.5px solid "+T.line}}>
+        return <div style={{position:"fixed",inset:0,background:T.bg0,zIndex:1600,display:"flex",flexDirection:"column"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"calc(12px + env(safe-area-inset-top)) 14px 12px",borderBottom:"0.5px solid "+T.line}}>
             <span style={{fontSize:16,color:T.textMut}}>🔍</span>
             <input autoFocus value={aramaMetin} onChange={e=>setAramaMetin(e.target.value)} placeholder="Oyuncu, takım veya lig ara..." style={{flex:1,background:"none",border:0,color:T.text,fontSize:15,outline:"none",fontFamily:"inherit"}}/>
             <button onClick={kapat} className="tap" style={{fontSize:14,color:T.textMut,background:"none",border:0}}>İptal</button>
