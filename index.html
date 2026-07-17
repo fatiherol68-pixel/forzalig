@@ -843,14 +843,15 @@ const Db = {
   async katilimIsaretle(macId, pid, durum){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('katilim').upsert({mac_id:macId, player_id:pid, durum, guncelleme:new Date().toISOString()},{onConflict:'mac_id,player_id'}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async katilim(macId){ if(!sb) return []; try{ const {data}=await sb.from('katilim').select('*').eq('mac_id',macId); return data||[]; }catch(e){ return []; } },
   // ================= KAYDEDİCİ: turnuva nesnesi -> ilişkisel tablolar =================
-  async ligKaydet(turnuva, yoneticiId){
+  async ligKaydet(turnuva, yoneticiId, evren){
     if(!sb) return {hata:"bağlantı yok"};
     const T=turnuva;
     try{
       const {data:ligRow,error:e1}=await sb.from('ligler').insert({
         yonetici_id:yoneticiId, ad:T.ad, ulke:'TR', sehir:T.sehir||'', ilce:T.ilce||null,
         renk:T.renk||null, format:T.format||'tek', grup_sayi:T.grupSayi||0, kisi:T.kisi||8,
-        sponsor_ad:T.sponsorAd||null, sponsor_emoji:T.sponsorEmoji||null, fikstur_tipi:T.format||'tek'
+        sponsor_ad:T.sponsorAd||null, sponsor_emoji:T.sponsorEmoji||null, fikstur_tipi:T.format||'tek',
+        evren: evren||null   // demo evren marker (gerçek lig = null)
       }).select('id').single();
       if(e1) return {hata:e1.message};
       const ligId=ligRow.id;
@@ -979,11 +980,12 @@ const Db = {
     try{
       const idSet=new Set();
       if(hepsi){
-        const {data}=await sb.from('ligler').select('id').order('olusturma',{ascending:false}).limit(300);
+        // GERÇEK ligler (demo evren HARİÇ — evren null) — demo asla gerçekle karışmaz
+        const {data}=await sb.from('ligler').select('id').is('evren',null).order('olusturma',{ascending:false}).limit(300);
         (data||[]).forEach(x=>idSet.add(x.id));
       } else if(yoneticiId){
-        // 1) sahibi olduğun ligler
-        try{ const {data}=await sb.from('ligler').select('id').eq('yonetici_id',yoneticiId).limit(300); (data||[]).forEach(x=>idSet.add(x.id)); }catch(e){}
+        // 1) sahibi olduğun ligler (demo evren HARİÇ)
+        try{ const {data}=await sb.from('ligler').select('id').eq('yonetici_id',yoneticiId).is('evren',null).limit(300); (data||[]).forEach(x=>idSet.add(x.id)); }catch(e){}
         // 2) takım sorumlusu (kaptan) olduğun ligler
         try{ const {data}=await sb.from('takimlar').select('lig_id').eq('yonetici_id',yoneticiId).limit(300); (data||[]).forEach(x=>x.lig_id&&idSet.add(x.lig_id)); }catch(e){}
         // 3) oyuncu olarak katıldığın ligler
@@ -998,12 +1000,24 @@ const Db = {
   async liglerYukleAcik(limit){
     if(!sb) return [];
     try{
-      const {data}=await sb.from('ligler').select('id').eq('durum','aktif').order('olusturma',{ascending:false}).limit(limit||60);
+      const {data}=await sb.from('ligler').select('id').eq('durum','aktif').is('evren',null).order('olusturma',{ascending:false}).limit(limit||60);
       const idler=(data||[]).map(x=>x.id);
       const sonuc=(await Promise.all(idler.map(id=>this.ligYukle(id)))).filter(Boolean);
       return sonuc;
     }catch(e){ return []; }
   },
+  // DEMO EVREN — sadece verilen evren markerlı ligleri yükle (gerçekten AYRI)
+  async liglerEvrenYukle(evren){
+    if(!sb || !evren) return [];
+    try{
+      const {data}=await sb.from('ligler').select('id').eq('evren',evren).order('olusturma',{ascending:false}).limit(300);
+      const idler=(data||[]).map(x=>x.id);
+      const sonuc=(await Promise.all(idler.map(id=>this.ligYukle(id)))).filter(Boolean);
+      return sonuc;
+    }catch(e){ return []; }
+  },
+  // DEMO EVREN — sadece bu evreni sil (gerçek liglere dokunmaz). evren=null → tüm demo.
+  async evrenSil(evren){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('evren_sil',{p_evren:evren||null}); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
 };
 /* Supabase hata mesajlarını Türkçeye çevir */
 const authHata = (m)=>{ m=(m||"").toLowerCase();
@@ -10151,7 +10165,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const [cfgOyuncu,setCfgOyuncu]=useState(12);
   const [cfgFormat,setCfgFormat]=useState("tek");
   const [cfgOran,setCfgOran]=useState(80);   // % oynanmış maç
-  const [cfgKupa,setCfgKupa]=useState(true);  // örnek kupa da eklensin mi
+  const [cfgKupa,setCfgKupa]=useState(false);  // örnek kupa — varsayılan KAPALI (2 lig = tam 2 lig)
   // ForzaLig Evreni — ek alanlar
   const [cfgEvrenAd,setCfgEvrenAd]=useState("ForzaLig Evreni");
   const [cfgHakem,setCfgHakem]=useState(8);
@@ -10182,7 +10196,12 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
     const oran=Math.max(0,Math.min(1,(parseInt(cfgOran)||100)/100));
     const grup=cfgFormat==="gruplu"?Math.max(2,Math.round(nTk/4)):0;
     const sehirler=["İstanbul","Ankara","İzmir","Bursa","Antalya","Adana","Konya","Eskişehir"];
+    const evrenAd=(cfgEvrenAd||"").trim()||"ForzaLig Evreni";
+    // KURAL 1: mevcut demo evren silinsin mi? Evet → sil+oluştur, İptal → oluşturma
+    if(!confirm("Mevcut Demo Evren silinsin mi?\n\n• Tamam → eski demo evren tamamen silinir, yenisi oluşturulur.\n• İptal → yeni evren oluşturulmaz.\n\n(Gerçek kullanıcı liglerine dokunulmaz.)")) return;
     setStresYuk(true); setStresPct(0);
+    setStresLog("🧹 Eski demo evren temizleniyor…");
+    await Db.evrenSil(null);   // birikme olmasın: tüm demo evrenleri temizle
     const olan=[];
     try{
       for(let i=0;i<nLig;i++){
@@ -10191,25 +10210,26 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
         T2.ad=(STRES_LIG_ADI[i]||("Lig "+(i+1)));
         T2.sehir=pick(sehirler);
         setStresLog("💾 Kaydediliyor "+(i+1)+"/"+nLig+": "+T2.ad+" …");
-        const r=await Db.ligKaydet(T2, oturum.id);
+        const r=await Db.ligKaydet(T2, oturum.id, evrenAd);
         if(!r.ok){ setStresLog("❌ Hata ("+T2.ad+"): "+(r.hata||"")); setStresYuk(false); return; }
         olan.push(T2.ad);
         setStresPct(Math.round((i+1)/(nLig+(cfgKupa?1:0))*100));
       }
       if(cfgKupa){
-        setStresLog("Kaydediliyor: Kupa …");
-        const kupa=demoKupa(); kupa.ad="⭐ Şampiyonlar Kupası (Stres)";
-        const rk=await Db.ligKaydet(kupa, oturum.id);
+        setStresLog("💾 Kaydediliyor: Kupa …");
+        const kupa=demoKupa(); kupa.ad="⭐ Şampiyonlar Kupası";
+        const rk=await Db.ligKaydet(kupa, oturum.id, evrenAd);
         if(rk.ok) olan.push(kupa.ad);
       }
-      setStresLog("✅ "+olan.length+" lig kaydedildi ("+cfgFormat+", %"+Math.round(oran*100)+" oynanmış, ~"+macOnizle.toplam+" maç). Şimdi 'İlişkiselden Yükle' ile görüntüle.");
+      setStresPct(100);
+      setStresLog("✅ \""+evrenAd+"\" oluşturuldu: "+olan.length+" lig ("+cfgFormat+", %"+Math.round(oran*100)+" oynanmış). Şimdi 👁 Göster ile yalnızca bu evreni yükle.");
     }catch(e){ setStresLog("❌ "+String(e&&e.message||e)); }
     setStresYuk(false);
   };
   const iliskiselYukleFn=async()=>{
     if(!onIliskiselYukle) return;
-    setStresYuk(true); setStresLog("İlişkiselden yükleniyor…");
-    const n=await onIliskiselYukle();
+    setStresYuk(true); setStresLog("👁 Evren yükleniyor…");
+    const n=await onIliskiselYukle((cfgEvrenAd||"").trim()||"ForzaLig Evreni");
     setStresYuk(false); setStresLog("✅ "+n+" lig yüklendi. Ana sayfada görebilirsin.");
   };
   // 🔍 SİSTEM TARAMASI — canlı veritabanını tarar, ✅/⚠️/❌ raporu üretir (kopyalanabilir)
@@ -10267,11 +10287,12 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const taramaKopyala=()=>{ try{ navigator.clipboard.writeText(taramaMetin()); setTaramaKopyalandi(true); setTimeout(()=>setTaramaKopyalandi(false),2000); }catch(e){} };
   const testTemizleFn=async()=>{
     if(!oturum||!oturum.id) return;
-    if(!confirm("İlişkisel veritabanındaki TÜM test liglerini (ve öksüz oyuncuları) silmek istediğine emin misin? Bu geri alınamaz.")) return;
-    setStresYuk(true); setStresLog("Test verisi siliniyor…");
-    const r=await Db.testVerisiSil(oturum.id);
+    const evrenAd=(cfgEvrenAd||"").trim()||"ForzaLig Evreni";
+    if(!confirm("\""+evrenAd+"\" evrenini VE tüm verisini kalıcı sil?\n\n⚠️ Geri alınamaz. Gerçek kullanıcı liglerine ASLA dokunulmaz.")) return;
+    setStresYuk(true); setStresLog("🗑️ Evren siliniyor…");
+    const r=await Db.evrenSil(evrenAd);
     setStresYuk(false);
-    if(r.ok) setStresLog("🗑️ Silindi: "+r.lig+" lig, "+r.oyuncu+" oyuncu. Artık yeniden üretebilirsin.");
+    if(r.ok) setStresLog("🗑️ \""+evrenAd+"\" silindi: "+r.adet+" lig (+ bağlı tüm veri). Gerçek liglerine dokunulmadı.");
     else setStresLog("❌ "+(r.hata||"silinemedi"));
   };
   // K3/K4 — lig hakkı ver (e-postadan bul → hak ata)
@@ -12339,7 +12360,7 @@ function App(){
       case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} adminMi={adminMi} turnuvalar={turnuvalar}/>; break;
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
       case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi}/>; break;
-      case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async()=>{ const gelen=await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }}/>; break;
+      case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async(evren)=>{ const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
       case "ayar": icerik=<Ayarlar T={T} stilKey={stilKey} setStilKey={setStilKey} renkKey={renkKey} setRenkKey={setRenkKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
