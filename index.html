@@ -1210,7 +1210,9 @@ function SkeletonSatir(props){
 
 /* SVG avatar üreteci — her oyuncu benzersiz yüz */
 function svgAvatar(ad, boy, foto){
-  if(foto) return `<img src="${foto}" alt="" width="${boy}" height="${boy}" loading="lazy" decoding="async" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block">`;
+  // GÜVENLİK: foto HTML attribute'una gömülüyor → kaçış karakterlerini temizle (XSS önlemi).
+  // Sadece http(s)/data görsel URL'lerine izin ver; " ' < > backtick'i tamamen at.
+  if(foto){ const f=String(foto).replace(/["'<>`\\]/g,""); if(/^(https?:|data:image\/)/i.test(f)) return `<img src="${f}" alt="" width="${boy}" height="${boy}" loading="lazy" decoding="async" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block">`; }
   const h=hash(ad);
   const tenler=["#F2C9A0","#E8B589","#D89B6C","#C68642","#A06A3C","#8D5524"];
   const saclar=["#1A1A1A","#2C1810","#4A2C18","#6B4423","#8B6914","#3A3A3A","#5A3825"];
@@ -1236,7 +1238,7 @@ function svgAvatar(ad, boy, foto){
 
 /* SVG amblem üreteci — her takım benzersiz logo */
 function svgAmblem(ad, renk, boy, logo, renkIki){
-  if(logo) return `<img src="${logo}" alt="" width="${boy}" height="${boy}" loading="lazy" decoding="async" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block;border-radius:50%">`;
+  if(logo){ const f=String(logo).replace(/["'<>`\\]/g,""); if(/^(https?:|data:image\/)/i.test(f)) return `<img src="${f}" alt="" width="${boy}" height="${boy}" loading="lazy" decoding="async" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block;border-radius:50%">`; }
   const h=hash(ad);
   const tip=h%3; // kalkan, daire, baklava
   const harf=ad.replace(/[^A-Za-zÇĞİÖŞÜçğıöşü]/g,"")[0]||"F";
