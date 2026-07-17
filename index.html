@@ -32,6 +32,18 @@
 <meta name="twitter:title" content="ForzaLig — Halı Saha Ligi">
 <meta name="twitter:description" content="Ligini yönet, paylaş, herkes görsün.">
 <meta name="twitter:image" content="https://forzalig.com/og.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+{"@type":["Organization","SportsOrganization"],"@id":"https://forzalig.com/#org","name":"ForzaLig","url":"https://forzalig.com/","logo":"https://forzalig.com/icons/icon-512.png","description":"Halı saha ligi yönetim platformu: fikstür, puan durumu, kral listeleri, canlı skor ve transfer pazarı.","sport":"Futbol"},
+{"@type":"WebSite","@id":"https://forzalig.com/#website","url":"https://forzalig.com/","name":"ForzaLig","publisher":{"@id":"https://forzalig.com/#org"},"inLanguage":"tr-TR","potentialAction":{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"https://forzalig.com/?p=ligler&q={search_term_string}"},"query-input":"required name=search_term_string"}},
+{"@type":"WebApplication","name":"ForzaLig","url":"https://forzalig.com/","applicationCategory":"SportsApplication","operatingSystem":"Web, iOS, Android","offers":{"@type":"Offer","price":"0","priceCurrency":"TRY"},"inLanguage":"tr-TR"},
+{"@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Halı saha ligi nasıl kurulur?","acceptedAnswer":{"@type":"Answer","text":"ForzaLig'de ücretsiz üye olun, Yeni Lig Kur deyin, takımları ve oyuncuları ekleyin; fikstür, puan durumu ve kral listeleri otomatik oluşur."}},
+{"@type":"Question","name":"ForzaLig ücretsiz mi?","acceptedAnswer":{"@type":"Answer","text":"Evet, ForzaLig ile lig kurmak, fikstür ve puan durumu oluşturmak ücretsizdir."}},
+{"@type":"Question","name":"Halı sahaya rakip veya oyuncu nasıl bulunur?","acceptedAnswer":{"@type":"Answer","text":"Transfer Pazarı'ndan takımınıza rakip, maçınıza eksik oyuncu veya kadronuza kalıcı oyuncu ilanı verebilirsiniz; boştaki oyuncular takım ve maç bulabilir."}}
+]}
+]}
+</script>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -317,6 +329,10 @@ const PAYLASIM_SLUG = (()=>{ try{ return new URLSearchParams(window.location.sea
 const DAVET_TOKEN = (()=>{ try{ return new URLSearchParams(window.location.search).get('davet')||null; }catch(e){ return null; } })();
 const DAVET_URL = (token)=>{ try{ return window.location.origin + window.location.pathname + '?davet=' + token; }catch(e){ return '?davet='+token; } };
 const PAYLASIM_URL = (slug)=>{ try{ return window.location.origin + window.location.pathname + '?lig=' + slug; }catch(e){ return '?lig='+slug; } };
+/* SEO/Routing — üst düzey sayfalar URL'e yazılır: F5'te kalır, deep-link, paylaşılabilir. */
+const SEO_TOP = ["ana","ligler","sohbet","profil","pazar","ayar","bildirim","takip","tumenler","admin"];
+const BASLANGIC_SAYFA = (()=>{ try{ const p=new URLSearchParams(location.search).get('p'); return SEO_TOP.includes(p)?p:null; }catch(e){ return null; } })();
+const URL_FOR = (n)=>{ try{ const base=location.pathname; if(!n||!n.sayfa) return base; if(n.turnuva&&n.turnuva.paylasimSlug) return base+'?lig='+n.turnuva.paylasimSlug; if(n.sayfa==='ana') return base; if(SEO_TOP.includes(n.sayfa)) return base+'?p='+n.sayfa; return base; }catch(e){ return location.pathname; } };
 /* QR kod (paylaşım linki için) — data:image döner, kütüphane yoksa boş */
 const qrData = (url)=>{ try{ if(typeof qrcode==="undefined"||!url) return ""; const qr=qrcode(0,"M"); qr.addData(url); qr.make(); return qr.createDataURL(5,10); }catch(e){ return ""; } };
 
@@ -11200,7 +11216,7 @@ function App(){
   });
   // Supabase varsa (canlı): başlangıçta BOŞ — ligler ilişkiselden yüklenir (eski yerel demo karışmasın)
   const [turnuvalar,setTurnuvalar]=useState(()=> sb ? [] : ((ilk&&ilk.turnuvalar)||uretVeri(5,9,12)));
-  const [nav,setNav]=useState({sayfa:"ana"});
+  const [nav,setNav]=useState(()=> (!PAYLASIM_SLUG && !DAVET_TOKEN && BASLANGIC_SAYFA) ? {sayfa:BASLANGIC_SAYFA} : {sayfa:"ana"});
   const [navGecmis,setNavGecmis]=useState([]); // geri navigasyonu için yığın
   // FAZ 7 — açılış kapısı: "splash" | "tanitim" | "giris" | "uyeol" | null(uygulama)
   const GIRIS_FLAG="forzalig_giris_v1";
@@ -11563,14 +11579,14 @@ function App(){
   // GEZİNME + TARAYICI GEÇMİŞİ — telefonun geri tuşu uygulamadan atmasın:
   // git() her sayfa geçişinde history'ye kayıt ekler; geri tuşu (popstate) iç yığından döner.
   const titret=(ms)=>{ try{ if(navigator.vibrate) navigator.vibrate(ms||8); }catch(e){} }; // haptik: kısa dokunuş hissi (destekleyen cihazlarda)
-  const git=(n)=>{ titret(); setNavGecmis(p=>[...p, nav]); setNav(n); try{ window.history.pushState({fz:1},""); }catch(e){} window.scrollTo(0,0); try{ if(n&&n.sayfa) Db.olayYaz(oturum,'sayfa',n.sayfa); }catch(e){} };
+  const git=(n)=>{ titret(); setNavGecmis(p=>[...p, nav]); setNav(n); try{ window.history.replaceState({...(window.history.state||{}), sy:window.scrollY}, ""); window.history.pushState({fz:1},"",URL_FOR(n)); }catch(e){} window.scrollTo(0,0); try{ if(n&&n.sayfa) Db.olayYaz(oturum,'sayfa',n.sayfa); }catch(e){} };
   const geriIc=()=>{ setNavGecmis(p=>{ if(p.length===0){ setNav({sayfa:"ana"}); return p; } const son=p[p.length-1]; setNav(son); return p.slice(0,-1); }); window.scrollTo(0,0); };
   const geriIcRef=useRef(geriIc); geriIcRef.current=geriIc;
   // Uygulamanın kendi "←" butonu: bizim eklediğimiz kayıt varsa tarayıcıdan geri git
   // (popstate → geriIc); yoksa doğrudan iç yığından dön. İkisi hep senkron kalır.
   const geri=()=>{ try{ if(window.history.state&&window.history.state.fz){ window.history.back(); return; } }catch(e){} geriIc(); };
   useEffect(()=>{
-    const din=()=>{ geriIcRef.current(); };
+    const din=()=>{ geriIcRef.current(); setTimeout(()=>{ try{ window.scrollTo(0,(window.history.state&&window.history.state.sy)||0); }catch(e){} },60); };
     window.addEventListener("popstate",din);
     return ()=>window.removeEventListener("popstate",din);
   },[]);
@@ -11967,7 +11983,7 @@ function App(){
   const aktifTab = nav.sayfa==="ana"?"ana":nav.sayfa==="ligler"?"lig":nav.sayfa==="sohbet"?"sohbet":nav.sayfa==="profil"?"profil":"";
 
   const menuItems=[["ana","🏠","Ana"],["lig","🔍","Keşfet"],["sohbet","💬","Sohbet"],["profil","👤","Profil"]];
-  const menuGit=(k)=>{ titret(); setNavGecmis([]); if(k==="ana")setNav({sayfa:"ana"}); if(k==="lig")setNav({sayfa:"ligler"}); if(k==="sohbet")setNav({sayfa:"sohbet"}); if(k==="profil")setNav({sayfa:"profil"}); window.scrollTo(0,0); };
+  const menuGit=(k)=>{ titret(); setNavGecmis([]); const s = k==="lig"?"ligler":k; setNav({sayfa:s}); try{ window.history.replaceState({fz:1},"",URL_FOR({sayfa:s})); }catch(e){} window.scrollTo(0,0); };
 
   return <div style={{minHeight:"100vh",background:T.bg0,fontFamily:T.fontBody}}>
     {/* FAZ 3 — Yasaklı hesap ekranı (her şeyin üstünde) */}
