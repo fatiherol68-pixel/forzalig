@@ -9734,7 +9734,8 @@ function Tanitim({T, kapiGit, tamamla}){
       <div style={{marginTop:14}}>
         <button onClick={()=>kapiGit("uyeol")} className="tap vav-bar" style={{width:"100%",border:"none",borderRadius:13,padding:15,fontFamily:T.fontDisplay,fontSize:14.5,fontWeight:800,background:T.accent,color:beyaz?"#fff":T.bg0,boxShadow:`0 8px 22px ${T.accent}52`}}>Üye Ol</button>
         <button onClick={()=>kapiGit("giris")} className="tap" style={{width:"100%",border:"0.5px solid "+T.line,borderRadius:13,padding:14,marginTop:9,fontSize:13,fontWeight:600,background:"transparent",color:T.textSoft}}>Giriş Yap</button>
-        <button onClick={tamamla} className="tap" style={{display:"block",width:"100%",textAlign:"center",background:"none",border:"none",color:T.textMut,fontSize:12,marginTop:16}}>Giriş yapmadan keşfet →</button>
+        {/* "Giriş yapmadan keşfet" çıkmaza düşürüyordu (guard hemen girişe döndürüyor) — gizlendi.
+           Gerçek misafir gezinme ileride ayrı, test edilmiş bir aşamada gelecek. */}
       </div>
     </div>
   </div>;
@@ -9936,9 +9937,9 @@ function YasalSayfa({T, git, tip}){
    ROL SEÇİMİ — giriş sonrası bir kez (profil.rol boşsa).
    Futbolcu / Hakem / İzleyici. Bilgiler profiller tablosuna yazılır.
    ============================================================ */
-function RolSecim({T, oturum, profil, onKaydet}){
+function RolSecim({T, oturum, profil, onKaydet, onKapat, baslangic}){
   const meta=(oturum&&oturum.user_metadata)||{};
-  const [asama,setAsama]=useState("secim"); // secim | futbolcu | hakem | bitti
+  const [asama,setAsama]=useState(baslangic||"secim"); // secim | futbolcu | hakem | bitti
   const [ad,setAd]=useState((profil&&profil.ad)||meta.full_name||meta.name||"");
   const [dogum,setDogum]=useState((profil&&profil.dogum)||"");
   const [boy,setBoy]=useState((profil&&profil.boy)||"");
@@ -9973,6 +9974,7 @@ function RolSecim({T, oturum, profil, onKaydet}){
     </label>
   </div>;
   return <div className="fz-giris" style={{position:"fixed",inset:0,zIndex:2400,background:T.bg0,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+    {onKapat && asama!=="bitti" && <div onClick={onKapat} className="tap" style={{position:"absolute",top:"calc(14px + env(safe-area-inset-top))",right:16,zIndex:2,width:34,height:34,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:T.textMut,cursor:"pointer"}}>✕</div>}
     <div style={{flex:1,overflowY:"auto",padding:"calc(30px + env(safe-area-inset-top)) 22px 30px",maxWidth:460,margin:"0 auto",width:"100%",boxSizing:"border-box"}}>
       {asama==="secim" && <>
         <div style={{textAlign:"center",marginBottom:6}}><span style={{fontWeight:900,fontSize:18,color:T.accent,fontFamily:T.fontDisplay}}>⚽ ForzaLig</span></div>
@@ -11796,7 +11798,9 @@ function App(){
   const [iliskiselModu,setIliskiselModu]=useState(false); // stres testi: ilişkiselden yüklendi → buluta YAZMA (gerçek veriyi koru)
   const [adminMi,setAdminMi]=useState(false);   // giriş yapan kişi Süper Admin mi
   const [profil,setProfil]=useState(null);      // kullanıcı rol/profil (profiller tablosu); null=henüz yüklenmedi
-  const [rolSor,setRolSor]=useState(false);     // rol seçimi ekranı göster
+  const [rolSor,setRolSor]=useState(false);     // rol seçimi ekranı göster (artık ZORUNLU değil — opsiyonel)
+  const [rolBaslangic,setRolBaslangic]=useState("secim"); // rol ekranı hangi adımdan açılsın (futbolcu/hakem/secim)
+  const [rolGizli,setRolGizli]=useState(()=>{ try{ return !!localStorage.getItem('fz_rol_gizle'); }catch(e){ return false; } }); // hoş geldin şeridi gizlendi mi
   const [yasakli,setYasakli]=useState(null);    // {sebep} → hesap askıya alındı ekranı
   const [yardimciLigler,setYardimciLigler]=useState(()=>new Set()); // yardımcı yönetici olduğum lig id'leri
   const [ligKurYetkim,setLigKurYetkim]=useState(false); // lig hakkı olan üye VEYA admin
@@ -11959,7 +11963,7 @@ function App(){
         if(!ligler.length){ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} ligler = await Db.liglerYukle(oturum.id, false); }
       } else { ligler = await Db.liglerYukle(oturum.id, false); }
       if(!aktif) return;
-      if(oturum){ window.__FL_UID=oturum.id; Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); Db.yasakliMi(oturum.id).then(y=>{ if(aktif && y) setYasakli(true); }); Db.yardimciLiglerim(oturum.id).then(ids=>{ if(aktif) setYardimciLigler(new Set(ids)); }); Db.profilGetir(oturum.id).then(p=>{ if(!aktif) return; setProfil(p||{}); if(p && !p.rol && !PAYLASIM_SLUG && !DAVET_TOKEN) setRolSor(true); }); } else { window.__FL_UID=null; setAdminMi(false); setLigKurYetkim(false); setYasakli(null); setYardimciLigler(new Set()); setProfil(null); setRolSor(false); }
+      if(oturum){ window.__FL_UID=oturum.id; Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); Db.yasakliMi(oturum.id).then(y=>{ if(aktif && y) setYasakli(true); }); Db.yardimciLiglerim(oturum.id).then(ids=>{ if(aktif) setYardimciLigler(new Set(ids)); }); Db.profilGetir(oturum.id).then(p=>{ if(!aktif) return; setProfil(p||{}); }); } else { window.__FL_UID=null; setAdminMi(false); setLigKurYetkim(false); setYasakli(null); setYardimciLigler(new Set()); setProfil(null); setRolSor(false); }
       ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
       setIliskiselModu(true);            // blob otomatik kaydı/yeniden yayını KAPALI
       setTurnuvalar(ligler);
@@ -12588,9 +12592,24 @@ function App(){
     {(kapi==="giris"||kapi==="uyeol") && <GirisAuth T={T} mod={kapi} kapiGit={setKapi} tamamla={kapiTamamla}/>}
     {/* FAZ 4 — ilk giriş rehberi (uygulama açıkken, kapı yokken) */}
     {rehberGoster && kapi===null && !saltOkunur && !rolSor && <Rehber T={T} bitir={rehberBitir}/>}
-    {/* ROL SEÇİMİ — girişli, kapı yok, rol boş → bir kez sor */}
+    {/* ROL SEÇİMİ — artık OPSİYONEL: sadece kullanıcı "hoş geldin" şeridinden seçince açılır */}
     {rolSor && oturum && kapi===null && !saltOkunur && !DAVET_TOKEN &&
-      <RolSecim T={T} oturum={oturum} profil={profil} onKaydet={(p)=>{ setProfil(p); setRolSor(false); }}/>}
+      <RolSecim T={T} oturum={oturum} profil={profil} baslangic={rolBaslangic}
+        onKapat={()=>{ setRolSor(false); setRolBaslangic("secim"); }}
+        onKaydet={(p)=>{ setProfil(p); setRolSor(false); setRolBaslangic("secim"); }}/>}
+    {/* HOŞ GELDİN ŞERİDİ — rol yok, opsiyonel, kapatılabilir (kimse role zorlanmaz) */}
+    {oturum && kapi===null && !saltOkunur && !rolSor && !rehberGoster && profil && !profil.rol && !rolGizli && nav.sayfa==="ana" &&
+      <div className="fade-in" style={{position:"fixed",left:12,right:12,bottom:"calc(76px + env(safe-area-inset-bottom))",zIndex:1200,background:T.bg1,border:"1px solid "+T.line,borderRadius:16,padding:14,boxShadow:"0 14px 36px -14px rgba(0,0,0,.55)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+          <span style={{fontSize:15,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,flex:1}}>👋 Hoş geldin!</span>
+          <span onClick={()=>{ try{localStorage.setItem('fz_rol_gizle','1');}catch(e){} setRolGizli(true); }} className="tap" style={{fontSize:12,color:T.textMut,cursor:"pointer"}}>Şimdilik geç ✕</span>
+        </div>
+        <div style={{fontSize:12.5,color:T.textMut,lineHeight:1.5,marginBottom:11}}>İstersen rolünü seç — istediğin zaman değişir, birden fazlası da olabilir.</div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{ setRolBaslangic("futbolcu"); setRolSor(true); }} className="tap" style={{flex:1,background:T.accent,color:(T.renkCifti&&T.renkCifti[1]==="#FFFFFF")?"#fff":T.bg0,border:0,borderRadius:11,padding:"11px",fontSize:13,fontWeight:800}}>⚽ Futbolcuyum</button>
+          <button onClick={()=>{ setRolBaslangic("hakem"); setRolSor(true); }} className="tap" style={{flex:1,background:T.bg2,color:T.text,border:"1px solid "+T.line,borderRadius:11,padding:"11px",fontSize:13,fontWeight:750}}>🧑‍⚖️ Hakemim</button>
+        </div>
+      </div>}
 
     {/* ÇAKIŞMA UYARISI — başka cihaz veriyi değiştirdi */}
     {catisma && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:1800,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
