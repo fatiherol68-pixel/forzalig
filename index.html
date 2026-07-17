@@ -661,8 +661,10 @@ const Db = {
     if(!sb) return null;
     try{
       const c=(t)=>sb.from(t).select('*',{count:'exact',head:true});
+      // Lig sayımı: çöp kutusundakileri (soft-delete) SAYMA → gerçek aktif lig sayısı
+      const ligSay=async()=>{ let q=await sb.from('ligler').select('*',{count:'exact',head:true}).neq('silindi',true); if(q.error){ q=await sb.from('ligler').select('*',{count:'exact',head:true}); } return q; };
       const [lig,uye,oyuncu,mac,arsiv,transfer]=await Promise.all([
-        c('ligler'), c('profiller'), c('oyuncular'), c('maclar'),
+        ligSay(), c('profiller'), c('oyuncular'), c('maclar'),
         sb.from('ligler').select('*',{count:'exact',head:true}).eq('durum','arsiv'),
         sb.from('transferler').select('*',{count:'exact',head:true}).in('asama',['talep','oyuncu_kabul','yonetici_onay'])
       ]);
