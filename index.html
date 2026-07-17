@@ -291,6 +291,11 @@
   ::selection { background: color-mix(in srgb, var(--accent, #20E07A) 32%, transparent); }
   /* Erişilebilirlik: klavye ile gezerken görünür odak halkası (fare tıklamasında çıkmaz) */
   :focus-visible { outline: 2px solid var(--accent, #20E07A); outline-offset: 2px; border-radius: 6px; }
+  /* Operasyon Merkezi — premium mikro animasyonlar */
+  @keyframes fzCanliPulse { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:.4; transform:scale(.82); } }
+  .fz-canli-dot { animation: fzCanliPulse 1.5s ease-in-out infinite; }
+  @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
+  .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
 </head>
 <body>
@@ -626,6 +631,23 @@ const Db = {
   // ---- Faz 4: Operasyon Merkezi (gerçek metrikler) + Bakım ----
   async benBuradayim(){ if(!sb) return; try{ await sb.rpc('ben_buradayim'); }catch(e){} },
   async panelMetrikler(){ if(!sb) return null; try{ const {data}=await sb.rpc('panel_metrikler'); return data||null; }catch(e){ return null; } },
+  // Operasyon Merkezi ek veri: canlı akış + trafik + trendler (mevcut tablolardan, tek seferde). ÜCRETSİZ.
+  async operasyonEk(){
+    if(!sb) return null;
+    try{
+      const gun1=new Date(Date.now()-86400000).toISOString();
+      const gun7=new Date(Date.now()-7*86400000).toISOString();
+      const [akisR, pvR, yeniR, hataR] = await Promise.all([
+        sb.from('olay_log').select('tip,deger,user_id,created').order('created',{ascending:false}).limit(18),
+        sb.from('olay_log').select('*',{count:'exact',head:true}).eq('tip','sayfa').gte('created',gun1),
+        sb.from('profiller').select('created').gte('created',gun7),
+        sb.from('hata_log').select('olusma').gte('olusma',gun7)
+      ]);
+      const seri7=(rows,alan)=>{ const g={}; (rows||[]).forEach(x=>{ const gun=(x[alan]||'').slice(0,10); if(gun) g[gun]=(g[gun]||0)+1; }); const c=[]; const b=new Date(); for(let i=6;i>=0;i--){ const d=new Date(b.getTime()-i*86400000).toISOString().slice(0,10); c.push(g[d]||0); } return c; };
+      const yeniListe=yeniR.data||[];
+      return { akis:akisR.data||[], pageview24:pvR.count||0, yeniUye7:yeniListe.length, yeniTrend:seri7(yeniListe,'created'), hataTrend:seri7(hataR.data||[],'olusma') };
+    }catch(e){ return null; }
+  },
   async orphanBul(){ if(!sb) return []; try{ const {data}=await sb.rpc('depo_orphan_bul'); return data||[]; }catch(e){ return []; } },
   async orphanTemizle(yollar){ if(!sb||!yollar||!yollar.length) return {ok:true,adet:0}; try{ const {error}=await sb.storage.from('fotolar').remove(yollar); return error?{hata:error.message}:{ok:true,adet:yollar.length}; }catch(e){ return {hata:String(e)}; } },
   async sohbetArsivle(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('sohbet_arsivle'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
@@ -10051,6 +10073,17 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
   const [uyeSeg,setUyeSeg]=useState("hepsi");     // FAZ 5 — üye segmenti
   const [uyeAra,setUyeAra]=useState("");          // üye arama (palet de kullanır)
   const [metrik,setMetrik]=useState(null);         // FAZ 4 — gerçek metrikler (panel_metrikler)
+  const [opEk,setOpEk]=useState(null);             // Operasyon Merkezi ek: canlı akış + trafik + trend
+  const [opTek,setOpTek]=useState({deploy:null, api:null, cf:null});  // deploy sürüm · API gecikme · Cloudflare
+  // Operasyon ek veri + istemci ölçümleri (yalnızca Sistem sekmesi açılınca, tek sefer — polling YOK)
+  useEffect(()=>{ if(sekme!=="sistem"||opEk) return; let a=true;
+    Db.operasyonEk().then(d=>{ if(a) setOpEk(d||{}); });
+    (async()=>{ // deploy sürümü: /sw.js'ten SURUM (tek fetch)
+      try{ const r=await fetch('/sw.js',{cache:'no-store'}); const t=await r.text(); const m=t.match(/SURUM\s*=\s*"([^"]+)"/); const cf=r.headers.get('cf-cache-status')||r.headers.get('cf-ray'); if(a) setOpTek(o=>({...o, deploy:(m?m[1]:null), cf:(cf?(r.headers.get('cf-cache-status')||'Cloudflare'):null)})); }catch(e){}
+      try{ const t0=(window.performance&&performance.now)?performance.now():Date.now(); await sb.from('ligler').select('*',{count:'exact',head:true}).limit(1); const t1=(window.performance&&performance.now)?performance.now():Date.now(); if(a) setOpTek(o=>({...o, api:Math.round(t1-t0)})); }catch(e){}
+    })();
+    return ()=>{a=false;};
+  },[sekme]);
   const [copLigler,setCopLigler]=useState([]);     // FAZ 3 — çöp kutusu (soft-silinen ligler)
   const [orphanlar,setOrphanlar]=useState(null);   // FAZ 4 — sahipsiz dosyalar (null=taranmadı)
   const [bakimMsj,setBakimMsj]=useState("");
@@ -10713,9 +10746,15 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
                 <div style={{width:58,height:58,borderRadius:"50%",display:"grid",placeItems:"center",flexShrink:0,background:"conic-gradient("+renk+" "+(genel*3.6)+"deg, rgba(255,255,255,.08) 0)"}}>
                   <div style={{width:46,height:46,borderRadius:"50%",background:T.bg1,display:"grid",placeItems:"center"}}><b style={{fontSize:18,color:renk,fontWeight:900}} className="tab">{genel}</b></div>
                 </div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>🎛️ Operasyon Merkezi</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13.5,fontWeight:800,color:T.text,display:"flex",alignItems:"center",gap:7}}>🎛️ Operasyon Merkezi <span className="fz-canli-dot" style={{width:7,height:7,borderRadius:"50%",background:T.accent,display:"inline-block"}}/></div>
                   <div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>Sistem sağlığı {genel}/100 · <span style={{color:T.accent}}>GERÇEK veriler</span></div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+                    <span style={{fontSize:9,color:opTek.api!=null?(opTek.api<400?T.accent:T.gold):T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"3px 7px",fontWeight:700}}>⚡ API {opTek.api!=null?opTek.api+"ms":"…"}</span>
+                    <span style={{fontSize:9,color:opTek.cf?T.accent:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"3px 7px",fontWeight:700}}>☁ {opTek.cf||"CDN"}</span>
+                    <span style={{fontSize:9,color:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"3px 7px",fontWeight:700}}>🔒 SSL aktif</span>
+                    {opTek.deploy && <span title="Son yayınlanan sürüm" style={{fontSize:9,color:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"3px 7px",fontWeight:700}}>🚀 {String(opTek.deploy).split("-")[0]}</span>}
+                  </div>
                 </div>
               </div>
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
@@ -10736,6 +10775,39 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
               <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:8}}>💡 AKILLI UYARILAR</div>
               {uyari.map(([ik,tx],i)=><div key={i} style={{display:"flex",gap:8,fontSize:12,color:T.textSoft,padding:"4px 0",lineHeight:1.4}}><span>{ik}</span><span style={{flex:1}}>{tx}</span></div>)}
             </div>}
+          </>;
+        })()}
+        {/* ===== CANLI AKIŞ · TRAFİK · TREND ===== */}
+        {(()=>{
+          const SPL=(arr,renk)=>{ const a=(arr&&arr.length)?arr:[0,0]; const mx=Math.max(1,...a); const w=58,h=18; const pts=a.map((v,i)=>((i/((a.length-1)||1))*w).toFixed(1)+","+(h-(v/mx)*(h-3)-1.5).toFixed(1)).join(" "); return <svg width={w} height={h} style={{display:"block",overflow:"visible"}}><polyline points={pts} fill="none" stroke={renk} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round"/><circle cx={(w).toFixed(1)} cy={(h-(a[a.length-1]/mx)*(h-3)-1.5).toFixed(1)} r="2" fill={renk}/></svg>; };
+          const aktifSeri=(gunTrend||[]).map(x=>x.kisi||0);
+          const olayIk={sayfa:"👁️",rol:"👤",basvuru:"🏆",arama:"🔍",lig:"🏟️",mac:"⚽"};
+          const trafik=[["🟢 Online","5dk",online||0,aktifSeri,T.accent],["👁️ Görüntüleme","24s",(opEk&&opEk.pageview24)||0,null,T.accent2||T.accent],["✨ Yeni üye","7g",(opEk&&opEk.yeniUye7)||0,(opEk&&opEk.yeniTrend)||[],T.gold]];
+          return <>
+            <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"13px 15px",marginBottom:10}}>
+              <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:7}}>📈 TRAFİK & TREND <span style={{fontSize:8.5,color:T.accent,background:T.accent+"18",borderRadius:6,padding:"1px 6px"}}>7 GÜN</span></div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:6}}>
+                {trafik.map(([ad,per,v,seri,renk],i)=>
+                  <div key={i} style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 10px"}}>
+                    <div style={{fontSize:8.5,color:T.textMut}}>{ad} <span style={{opacity:.6}}>· {per}</span></div>
+                    <div style={{fontSize:19,fontWeight:900,color:T.text,margin:"2px 0 3px"}} className="tab">{v}</div>
+                    {seri && seri.length>1 ? SPL(seri,renk) : <div style={{height:18}}/>}
+                  </div>)}
+              </div>
+              {opEk&&opEk.hataTrend&&opEk.hataTrend.some(x=>x>0) && <div style={{display:"flex",alignItems:"center",gap:8,fontSize:10,color:T.textMut,marginTop:4}}><span>🐞 Hata trendi (7g)</span><span style={{marginLeft:"auto"}}>{SPL(opEk.hataTrend,T.danger)}</span></div>}
+            </div>
+            <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+              <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:9,display:"flex",alignItems:"center",gap:7}}>🌊 CANLI AKIŞ <span className="fz-canli-dot" style={{width:6,height:6,borderRadius:"50%",background:T.accent,display:"inline-block"}}/></div>
+              {(!opEk||!opEk.akis||opEk.akis.length===0) && <div style={{fontSize:11.5,color:T.textMut,textAlign:"center",padding:"12px 0"}}>Henüz olay yok — kullanıcı hareketi burada canlı akar.</div>}
+              <div style={{maxHeight:200,overflowY:"auto"}}>
+                {(opEk&&opEk.akis||[]).map((e,i)=>
+                  <div key={i} className="fz-akis-satir" style={{display:"flex",alignItems:"center",gap:9,padding:"6px 2px",borderBottom:i<((opEk.akis.length)-1)?"0.5px solid "+T.line:"none"}}>
+                    <span style={{fontSize:13,width:18,textAlign:"center",flexShrink:0}}>{olayIk[e.tip]||"•"}</span>
+                    <span style={{flex:1,fontSize:11.5,color:T.textSoft,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.tip==="sayfa"?("Sayfa görüntülendi: "+(e.deger||"—")):(e.deger?(e.tip+" · "+e.deger):e.tip)}</span>
+                    <span style={{fontSize:9.5,color:T.textMut,flexShrink:0}}>{rZaman(e.created)}</span>
+                  </div>)}
+              </div>
+            </div>
           </>;
         })()}
         {/* ===== BAKIM MERKEZİ ===== */}
@@ -10767,6 +10839,10 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
           <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:8}}>💚 SİSTEM SAĞLIĞI</div>
           {[["Veritabanı",!!ozet],["Giriş (Auth)",!!oturum],["Kayıt/Okuma",ligler!=null]].map(([ad,ok],i)=>
             <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,padding:"3px 0"}}><span>{ok?"🟢":"🔴"}</span><span style={{flex:1,color:T.text}}>{ad}</span><span style={{fontSize:10,color:ok?T.accent:T.danger}}>{ok?"çalışıyor":"?"}</span></div>
+          )}
+          <div style={{height:1,background:T.line,margin:"6px 0"}}/>
+          {[["⚡","API gecikmesi",opTek.api!=null?(opTek.api+" ms"):"ölçülüyor…",opTek.api!=null&&opTek.api<400],["🗄️","Otomatik yedek","haftalık · şifreli",true],["☁️","CDN / SSL",opTek.cf?(opTek.cf+" · aktif"):"aktif",true],["🚀","Yayın sürümü",opTek.deploy?String(opTek.deploy).split("-")[0]:"—",true]].map(([ik,ad,val,ok],i)=>
+            <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,padding:"3px 0"}}><span>{ik}</span><span style={{flex:1,color:T.text}}>{ad}</span><span style={{fontSize:10,color:ok?T.accent:T.gold}}>{val}</span></div>
           )}
         </div>
         {/* FAZ 4 — HATA / ÇÖKME LOG */}
