@@ -2840,7 +2840,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
     {/* LİGLER — premium katalog */}
     {tab==="lig" && <div style={{padding:"12px 14px"}}>
       {/* Takımlarım hero — kalıcı kulüp yönetimi (Aşama 4-6) */}
-      {!saltOkunur && oturum && <div onClick={()=>git({sayfa:"kuluplerim"})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",borderRadius:18,border:"1px solid "+T.line,background:T.bg1,padding:"16px 15px",marginBottom:11,display:"flex",alignItems:"center",gap:13,cursor:"pointer"}}>
+      {!saltOkunur && <div onClick={()=>git({sayfa:"kuluplerim"})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",borderRadius:18,border:"1px solid "+T.line,background:T.bg1,padding:"16px 15px",marginBottom:11,display:"flex",alignItems:"center",gap:13,cursor:"pointer"}}>
         <div style={{width:46,height:46,flexShrink:0,borderRadius:13,background:T.gold+"22",border:"1px solid "+T.gold+"55",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🛡️</div>
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:16,fontWeight:800,color:T.text}}>Takımlarım</div><div style={{fontSize:11.5,color:T.textMut,marginTop:2}}>Kalıcı takımını kur, her ligde kullan</div></div>
         <span style={{color:T.textMut,fontSize:20,flexShrink:0}}>›</span>
