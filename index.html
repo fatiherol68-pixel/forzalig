@@ -1330,6 +1330,26 @@ function svgAmblem(ad, renk, boy, logo, renkIki){
   </svg>`;
 }
 
+/* ForzaLig MARKA İMZASI — tüm paylaşılabilir yüzeylerde tek, tutarlı, premium lockup.
+   Ekran görüntüsü/sosyal paylaşımda "bu ForzaLig'e ait" ilk bakışta belli olsun (bedava marka).
+   variant: dark (koyu zemin) · ink (açık zemin) · gazete (koyu gazete bandı, serif) · ghost (filigran) */
+function FzImza({variant="dark", url=true, boy=1, stil}){
+  const V={
+    dark:  { gGrad:"linear-gradient(135deg,#22E07A,#12B45F)", gCol:"#04140c", gSh:"0 3px 12px -3px rgba(34,224,122,.55)", gBd:"0", nm:"#EAF3EE", nmFont:"'Sora','Inter',sans-serif", u:"#7fd9a8", op:1 },
+    ink:   { gGrad:"#141414", gCol:"#F7F4EC", gSh:"none", gBd:"0", nm:"#141414", nmFont:"Georgia,'Times New Roman',serif", u:"#6b6358", op:1 },
+    gazete:{ gGrad:"#F7F4EC", gCol:"#1a1a1a", gSh:"none", gBd:"0", nm:"#F7F4EC", nmFont:"Georgia,'Times New Roman',serif", u:"#9a9284", op:1 },
+    ghost: { gGrad:"rgba(255,255,255,.14)", gCol:"#fff", gSh:"none", gBd:"1px solid rgba(255,255,255,.3)", nm:"#fff", nmFont:"'Sora','Inter',sans-serif", u:"rgba(255,255,255,.72)", op:.6 }
+  }[variant]||{};
+  const gb=Math.round(28*boy), gr=Math.round(9*boy);
+  return <div style={{display:"inline-flex",alignItems:"center",gap:Math.round(8*boy),opacity:V.op,...(stil||{})}}>
+    <div style={{width:gb,height:gb,borderRadius:gr,display:"grid",placeItems:"center",fontSize:Math.round(15*boy),background:V.gGrad,color:V.gCol,boxShadow:V.gSh,border:V.gBd,flexShrink:0}}>⚽</div>
+    <div style={{display:"flex",flexDirection:"column",lineHeight:1.05,textAlign:"left"}}>
+      <span style={{fontWeight:850,fontSize:Math.round(15*boy),letterSpacing:"-.01em",color:V.nm,fontFamily:V.nmFont}}>ForzaLig</span>
+      {url && <span style={{fontSize:Math.round(9*boy),fontWeight:600,letterSpacing:".12em",textTransform:"uppercase",color:V.u,marginTop:2}}>forzalig.com</span>}
+    </div>
+  </div>;
+}
+
 // ===== FAZ 3 — Maç skor kartını GERÇEK görsel (PNG) olarak üret + paylaş =====
 // Web Share API (files) varsa doğrudan WhatsApp/Instagram'a yollar; yoksa PNG indirir.
 function _resimYukle(src){
@@ -5610,7 +5630,7 @@ function LisansKarti({o, turnuva, T}){
         <span style={{fontSize:12,color:rolRenk,fontWeight:800,fontFamily:T.fontDisplay,letterSpacing:.5,flex:1}}>{o.lisNo||"—"}</span>
         <span style={{fontSize:9,color:kopya?"#34D399":T.textMut}}>{kopya?"✓ kopyalandı":"📋 kopyala"}</span>
       </div>
-      <div style={{background:rolRenk+"14",padding:"6px",textAlign:"center",fontSize:9,color:T.textMut}}>⚽ ForzaLig</div>
+      <div style={{background:rolRenk+"14",padding:"7px",display:"flex",justifyContent:"center"}}><FzImza variant="dark" boy={0.72}/></div>
     </div>
     <div style={{fontSize:9,color:T.textMut,textAlign:"center",marginTop:12,lineHeight:1.6}}>
       Bu kart oyuncunun kimlik bilgilerini gösterir.<br/>Gerçek fotoğraf ve dijital doğrulama online sürümde eklenecek.
@@ -6703,7 +6723,7 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
           <button onClick={()=>setYorumTohum(y=>y+1)} className="tap" style={{fontSize:11,color:T.accent2,background:T.accent2+"1A",borderRadius:8,padding:"5px 10px",fontWeight:700,border:"1px solid "+T.accent2+"44"}}>🎲 Yeniden Üret</button>
         </div>
         <div style={{background:`linear-gradient(135deg, ${T.accent2}14, ${T.bg1})`,borderRadius:14,padding:16,border:"0.5px solid "+T.accent2+"44"}}>
-          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}><span style={{fontSize:16}}>🤖</span><span style={{fontSize:10,color:T.accent2,fontWeight:700,letterSpacing:.5}}>FATİHPRO SPİKER</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}><span style={{fontSize:16}}>🤖</span><span style={{fontSize:10,color:T.accent2,fontWeight:700,letterSpacing:.5}}>FORZALİG SPİKER</span></div>
           {(Array.isArray(yorum)?yorum:[yorum]).map((p,i)=>
             <div key={i} style={{fontSize:13,lineHeight:1.8,color:T.textSoft,marginBottom:i<(yorum.length-1)?10:0}}>{p}</div>
           )}
@@ -6843,7 +6863,7 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
               <KadroKolon takim={A?takimA:takimB} renk={A?m.renkA:m.renkB} ad={A?m.takimA:m.takimB} dizilis={A?m.dizilisA:m.dizilisB} ilk11={ilk11(A?m.kadroA:m.kadroB,A?takimA:takimB)} olaylar={m.olaylar} ratingler={m.ratingler} T={T} turnuva={turnuva} genis/>
             </div>;
           })()}
-          <div style={{textAlign:"center",fontSize:9,color:T.textMut,fontWeight:700,letterSpacing:1,marginTop:12}}>FATIHPRO</div>
+          <div style={{display:"flex",justifyContent:"center",marginTop:12}}><FzImza variant="dark" boy={0.82}/></div>
         </div>
       </div>
     </div>}
@@ -8827,7 +8847,7 @@ function MacGazete({mac:m, turnuva, T, git}){
 
       {/* künye */}
       <div style={{background:MUREKKEP,color:KAGIT,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 16px",fontFamily:"'Oswald',sans-serif",fontSize:11,letterSpacing:1,textTransform:"uppercase"}}>
-        <span style={{fontFamily:"'Anton','Arial Black',sans-serif",fontSize:19,color:KIRMIZI,letterSpacing:0.5}}>FATİH<span style={{color:KAGIT}}>PRO</span> SPOR</span>
+        <span style={{fontFamily:"'Anton','Arial Black',sans-serif",fontSize:19,color:KIRMIZI,letterSpacing:0.5}}>FORZA<span style={{color:KAGIT}}>LİG</span> SPOR</span>
         <span>{tarih}</span>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",padding:"5px 16px",fontFamily:"'Oswald',sans-serif",fontSize:10,letterSpacing:1.5,textTransform:"uppercase",color:SOLUK,borderBottom:"2px solid "+MUREKKEP}}>
@@ -8973,7 +8993,10 @@ function MacGazete({mac:m, turnuva, T, git}){
         </table>
       </div>}
 
-      <div style={{background:MUREKKEP,color:"#888",textAlign:"center",padding:9,fontFamily:"'Oswald',sans-serif",fontSize:10,letterSpacing:2,textTransform:"uppercase"}}>FATİHPRO SPOR · {lg} · BEDELSİZ</div>
+      <div style={{background:MUREKKEP,color:"#888",padding:"9px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+        <FzImza variant="gazete" boy={0.78}/>
+        <span style={{fontFamily:"'Oswald',sans-serif",fontSize:9,letterSpacing:2,textTransform:"uppercase",color:"#7a7268",textAlign:"right"}}>{lg} · Bedelsiz</span>
+      </div>
     </div>
 
     <div style={{padding:"12px 14px"}}>
@@ -9029,7 +9052,7 @@ function MacAfis({mac:m, turnuva, T, git}){
             <div style={{fontSize:12,color:T.text,lineHeight:1.7}}>{golListe.join(" · ")}</div>
           </div>}
         </div>
-        <div style={{background:T.bg1,padding:"8px",textAlign:"center",fontSize:9,color:T.textMut,letterSpacing:2}}>FATİHPRO</div>
+        <div style={{background:T.bg1,padding:"8px",display:"flex",justifyContent:"center"}}><FzImza variant="dark" boy={0.78}/></div>
       </div>
       :
       /* SKORBOARD */
