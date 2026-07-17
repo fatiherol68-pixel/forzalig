@@ -702,6 +702,22 @@ const Db = {
   async adminYap(userId, yap){ if(!sb) return {hata:"yok"}; try{ if(yap){ const {error}=await sb.from('adminler').upsert({user_id:userId}); return error?{hata:error.message}:{ok:true}; } else { const {error}=await sb.from('adminler').delete().eq('user_id',userId); return error?{hata:error.message}:{ok:true}; } }catch(e){ return {hata:String(e)}; } },
   // Toplu bildirim/duyuru (admin) — hedef: herkes|lig|takim|kisi
   async adminTopluBildirim(tip, id, baslik, metin){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('admin_toplu_bildirim',{p_tip:tip, p_id:id||null, p_baslik:baslik, p_metin:metin||null}); return error?{hata:error.message}:{ok:true,adet:data}; }catch(e){ return {hata:String(e)}; } },
+  // ---- TEK BİLDİRİM MERKEZİ (fan-out) — bir olaydan çok kanal ----
+  async ligBildirim(ligId, takimId, baslik, metin, linkId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('lig_bildirim',{p_lig:ligId, p_takim:takimId||null, p_baslik:baslik, p_metin:metin||null, p_link_id:linkId||null}); return error?{hata:error.message}:{ok:true,adet:data}; }catch(e){ return {hata:String(e)}; } },
+  async epostaKuyruk(satirlar){ if(!sb||!satirlar||!satirlar.length) return {ok:true,adet:0}; try{ const {error}=await sb.from('bildirim_kuyruk').insert(satirlar); return error?{hata:error.message}:{ok:true,adet:satirlar.length}; }catch(e){ return {hata:String(e)}; } },
+  // Tek olay → in-app(+push webhook) · lig sohbeti · takım sohbeti · e-posta kuyruğu
+  async bildirimDagit(o){
+    if(!sb||!o||!o.ligId) return {hata:"yok"};
+    const K=o.kanallar||{}, s={inapp:0,ligSohbet:false,takim:0,email:0,hata:[]};
+    const sistemAd=o.ad||"⚽ ForzaLig", kart=o.kart||null;
+    try{
+      if(K.inapp){ const r=await this.ligBildirim(o.ligId, null, o.baslik, o.metin, o.linkId); if(r.ok) s.inapp=r.adet||0; else s.hata.push("bildirim"); }
+      if(K.ligSohbet){ const r=await this.mesajGonder(o.ligId, null, null, sistemAd, {metin:o.metin, sistem:true, sistem_tip:o.sistemTip||'mac', kart}); if(r.ok) s.ligSohbet=true; else s.hata.push("ligsohbet"); }
+      if(K.takimSohbet && Array.isArray(o.takimIds)){ for(const tid of o.takimIds){ if(!tid) continue; const r=await this.mesajGonder(o.ligId, tid, null, sistemAd, {metin:o.metin, sistem:true, sistem_tip:o.sistemTip||'mac', kart}); if(r.ok) s.takim++; } }
+      if(K.email){ await this.epostaKuyruk([{hedef_lig:o.ligId, konu:o.baslik, govde:o.metin, kanal:'email'}]); s.email=1; }
+    }catch(e){ s.hata.push(String(e&&e.message||e)); }
+    return {ok:true, sonuc:s};
+  },
   async tumLiglerBasit(){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('id,ad').order('olusturma',{ascending:false}).limit(500); return data||[]; }catch(e){ return []; } },
   async ligTakimlariBasit(ligId){ if(!sb) return []; try{ const {data}=await sb.from('takimlar').select('id,ad').eq('lig_id',ligId).order('ad'); return data||[]; }catch(e){ return []; } },
   // ---- 14 Audit log ----
@@ -838,7 +854,7 @@ const Db = {
         olaylar:mc.olaylar||null, kaleciler:mc.kaleciler||null,
         // Player ID omurgası: mvp/ödül id'lerini oduller jsonb'una göm (şema değişmeden reload'da korunur)
         oduller:((mc.oduller||mc.mvpId||mc.odullerId)?{...(mc.oduller||{}), ...(mc.mvpId?{_mvpId:mc.mvpId}:{}), ...(mc.odullerId?{_odullerId:mc.odullerId}:{})}:null),
-        mvp:mc.mvp||null, mvp_takim:mc.mvpTakim||null };
+        mvp:mc.mvp||null, mvp_takim:mc.mvpTakim||null, bildirildi:!!mc.bildirildi };
       let macId=(typeof mc.id==="string")?mc.id:null;
       if(macId){ const {error}=await sb.from('maclar').update(satir).eq('id',macId); if(error) return {hata:error.message}; }
       else { const {data,error}=await sb.from('maclar').insert(satir).select('id').single(); if(error) return {hata:error.message}; macId=data.id; }
@@ -978,7 +994,7 @@ const Db = {
           mvpId:(m.oduller&&m.oduller._mvpId)||null, odullerId:(m.oduller&&m.oduller._odullerId)||null,
           mvp:m.mvp, mvpTakim:m.mvp_takim, istatistik:m.istatistik, ratingler:m.ratingler,
           dizilisA:m.dizilis_ev, dizilisB:m.dizilis_dep, kadroA:m.kadro_ev, kadroB:m.kadro_dep,
-          stad:m.stad, hakem:m.hakem, tarih:m.tarih||'' };
+          stad:m.stad, hakem:m.hakem, tarih:m.tarih||'', bildirildi:!!m.bildirildi };
       });
       return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', yonetici_id:L.yonetici_id, takimlar, maclar, format:L.format||'tek',
         grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
@@ -10157,9 +10173,14 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
     // FAZ 6 — Blast guard: herkese giden büyük gönderimde onay iste
     if(msgTip==="herkes"){ const kac=(ozet&&ozet.uye)||"tüm"; if(!confirm("Bu duyuru "+kac+" kullanıcıya gidecek.\n\nBaşlık: "+msgBaslik.trim()+"\n\nGöndermek istediğine emin misin?")) return; }
     setMsgYuk(true);
-    const r=await Db.adminTopluBildirim(msgTip, id, msgBaslik.trim(), msgMetin.trim());
+    const r=await Db.adminTopluBildirim(msgTip, id, msgBaslik.trim(), msgMetin.trim());   // in-app (+ webhook ile push)
+    // TEK MERKEZ — lig/takım duyurusu ayrıca sohbet kanalına düşsün + e-posta kuyruğuna
+    let ekKanal="";
+    if(r&&r.ok && (msgTip==="lig"||msgTip==="takim")){
+      try{ const d=await Db.bildirimDagit({ ligId:(msgTip==="lig"?id:msgLigId), takimIds:(msgTip==="takim"?[id]:null), baslik:msgBaslik.trim(), metin:(msgMetin.trim()||msgBaslik.trim()), sistemTip:'yonetim', kanallar:{ ligSohbet:msgTip==="lig", takimSohbet:msgTip==="takim", email:true } }); if(d&&d.ok) ekKanal=" · sohbet + e-posta ✓"; }catch(e){}
+    }
     setMsgYuk(false);
-    if(r&&r.ok){ setMsgSonuc("✅ Gönderildi ("+(r.adet||0)+" kişiye)."); setMsgBaslik(""); setMsgMetin(""); Db.logla(oturum,"Toplu bildirim",msgTip+": "+msgBaslik.trim()); }
+    if(r&&r.ok){ setMsgSonuc("✅ Gönderildi ("+(r.adet||0)+" kişiye)"+ekKanal+"."); setMsgBaslik(""); setMsgMetin(""); Db.logla(oturum,"Toplu bildirim",msgTip+": "+msgBaslik.trim()); }
     else setMsgSonuc("❌ "+((r&&r.hata)||"olmadı"));
   };
   const yenile=async()=>{ setYuk(true);
@@ -12397,6 +12418,16 @@ function App(){
     mac.ratingler = ratingHesapla(mac, A, B);
     if(iliskiselMi(turnuva)){ const r=await Db.macKaydet(turnuva.id, mac, adPidHarita(turnuva)); if(r.ok && r.id) mac.id=r.id; }
     turnuvaHesapla(turnuva); guncelle();
+    // TEK BİLDİRİM MERKEZİ — maç sonu fan-out (bir kez, idempotent). İlişkisel lig + skor girildiyse.
+    if(iliskiselMi(turnuva) && typeof mac.id==="string" && !mac.bildirildi && (skorA!=null||skorB!=null)){
+      mac.bildirildi=true;
+      const ozet=`${mac.takimA} ${skorA}-${skorB} ${mac.takimB}`+(mac.mvp?` · ⭐ MVP: ${mac.mvp}`:"");
+      const kart={tip:"mac", takimA:mac.takimA, takimB:mac.takimB, skorA, skorB, mvp:mac.mvp||null, hafta:mac.hafta||null, macId:mac.id};
+      (async()=>{ try{
+        await Db.bildirimDagit({ ligId:turnuva.id, takimIds:[mac.takimAId,mac.takimBId], baslik:`⚽ ${(turnuva.ad||"Lig")} · Maç Sonucu`, metin:ozet, linkId:mac.id, sistemTip:"mac", kart, kanallar:{inapp:true, ligSohbet:true, takimSohbet:true, email:true} });
+        try{ await sb.from('maclar').update({bildirildi:true}).eq('id',mac.id); }catch(e){}
+      }catch(e){} })();
+    }
   };
   // Rating'i yönetici elle düzeltir
   const ratingKaydet=async(mac, ratingler)=>{ mac.ratingler={...ratingler}; const trn=turnuvalar.find(t=>t.maclar.some(m=>m.id===mac.id)); if(trn && iliskiselMi(trn) && typeof mac.id==="string") await Db.macKaydet(trn.id, mac, adPidHarita(trn)); guncelle(); };
