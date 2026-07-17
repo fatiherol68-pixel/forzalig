@@ -288,7 +288,10 @@
     transition: box-shadow .15s ease;
   }
   /* #4 — Metin seçim rengi temaya uysun */
-  ::selection { background: color-mix(in srgb, var(--accent, #20E07A) 32%, transparent); }</style>
+  ::selection { background: color-mix(in srgb, var(--accent, #20E07A) 32%, transparent); }
+  /* Erişilebilirlik: klavye ile gezerken görünür odak halkası (fare tıklamasında çıkmaz) */
+  :focus-visible { outline: 2px solid var(--accent, #20E07A); outline-offset: 2px; border-radius: 6px; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash">
@@ -9729,6 +9732,7 @@ function GirisAuth({T, mod, kapiGit, tamamla}){
         <svg width="20" height="20" viewBox="0 0 48 48" style={{flexShrink:0}}><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
         Google ile devam et
       </button>
+      <div style={{textAlign:"center",marginTop:12,fontSize:11,color:T.textMut,lineHeight:1.5}}>Devam ederek <a href="/gizlilik/" target="_blank" rel="noopener" style={{color:T.textSoft}}>Gizlilik &amp; KVKK</a> metnini kabul etmiş olursun.</div>
 
       {/* E-posta ile devam et — küçük ikincil seçenek */}
       {!epostaAcik && <div style={{textAlign:"center",marginTop:16}}>
@@ -11543,6 +11547,16 @@ function App(){
   const [aramaAcik,setAramaAcik]=useState(false); // arama overlay
   const [aramaMetin,setAramaMetin]=useState("");
   useEffect(()=>{ setAramaAcik(false); },[nav]); // sayfa degisince arama katmanini kapat (takilma onlemi)
+  // Global hata yakalayıcı — React DIŞI çökmeleri de admin hata log'una yaz (throttle: oturum başına max 30, tekrar yok)
+  useEffect(()=>{
+    if(!sb) return;
+    const gorulen=new Set(); let sayac=0;
+    const yaz=(m)=>{ try{ m=String(m||"").slice(0,500); if(!m||gorulen.has(m)||sayac>=30) return; gorulen.add(m); sayac++; Db.hataKaydet(m, window.__FL_SAYFA||null, window.__FL_UID); }catch(e){} };
+    const oh=(ev)=>yaz((ev&&ev.message)||(ev&&ev.error&&ev.error.message)||"window error");
+    const ph=(ev)=>yaz("promise: "+((ev&&ev.reason&&(ev.reason.message||ev.reason))||"unhandled"));
+    window.addEventListener('error', oh); window.addEventListener('unhandledrejection', ph);
+    return ()=>{ window.removeEventListener('error', oh); window.removeEventListener('unhandledrejection', ph); };
+  },[]);
   const [takipLig,setTakipLig]=useState(()=> (ilk&&ilk.takipLig)||[]);      // takip edilen turnuva id'leri
   const [takipOyuncu,setTakipOyuncu]=useState(()=> (ilk&&ilk.takipOyuncu)||[]); // takip edilen oyuncu id'leri
   const [takipTakim,setTakipTakim]=useState(()=> (ilk&&ilk.takipTakim)||[]); // takip edilen takım id'leri
@@ -11560,7 +11574,8 @@ function App(){
   useEffect(()=>{
     if(saltOkunur) return; // paylaşılan ligi izleyen kişinin verisini bozma
     try{
-      localStorage.setItem(KAYIT, JSON.stringify({turnuvalar, stilKey, renkKey, takipLig, takipOyuncu, takipTakim, v:1, ts:Date.now()}));
+      // İlişkisel modda ligler buluttan gelir → yerel kopya tutma (stale cache önlemi). Tercihler yine kaydolur.
+      localStorage.setItem(KAYIT, JSON.stringify({turnuvalar: iliskiselModu?[]:turnuvalar, stilKey, renkKey, takipLig, takipOyuncu, takipTakim, v:1, ts:Date.now()}));
     }catch(e){ /* kota dolarsa sessizce geç */ }
   },[turnuvalar, stilKey, renkKey, takipLig, takipOyuncu, takipTakim]);
 
@@ -12316,11 +12331,11 @@ function App(){
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {saltOkunur ? <a href={(window.location.origin+window.location.pathname)} className="tap" style={{background:T.accent,color:T.bg0,borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:800,textDecoration:"none"}}>Katıl →</a> : <>
-          <button onClick={()=>{setAramaAcik(true);setAramaMetin("");}} className="tap" style={{fontSize:18,background:"none",border:0,color:T.textSoft}}>🔍</button>
+          <button onClick={()=>{setAramaAcik(true);setAramaMetin("");}} aria-label="Ara" title="Ara" className="tap" style={{fontSize:18,background:"none",border:0,color:T.textSoft}}>🔍</button>
           {bulutDurum ? <span style={{fontSize:10,color:T.accent,fontWeight:600,whiteSpace:"nowrap"}}>☁ {bulutDurum}</span>
             : oturum ? <span title="Buluta bağlı" style={{fontSize:12,color:T.accent}}>☁</span> : null}
           <span style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:T.accent}}><span className="live-dot" style={{width:7,height:7,borderRadius:"50%",background:T.accent}}/>Canlı</span>
-          <button onClick={()=>git({sayfa:"bildirim"})} className="tap" style={{position:"relative",fontSize:18}}>🔔
+          <button onClick={()=>git({sayfa:"bildirim"})} aria-label="Bildirimler" title="Bildirimler" className="tap" style={{position:"relative",fontSize:18}}>🔔
             {(okunmamis>0) && <span style={{position:"absolute",top:-4,right:-6,background:T.danger,color:"#fff",fontSize:9,fontWeight:700,borderRadius:8,padding:"1px 5px"}}>{okunmamis>9?"9+":okunmamis}</span>}
           </button>
           </>}
