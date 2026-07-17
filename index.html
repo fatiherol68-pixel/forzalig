@@ -662,7 +662,7 @@ const Db = {
     try{
       const c=(t)=>sb.from(t).select('*',{count:'exact',head:true});
       // Lig sayımı: çöp kutusundakileri (soft-delete) SAYMA → gerçek aktif lig sayısı
-      const ligSay=async()=>{ let q=await sb.from('ligler').select('*',{count:'exact',head:true}).neq('silindi',true); if(q.error){ q=await sb.from('ligler').select('*',{count:'exact',head:true}); } return q; };
+      const ligSay=async()=>{ let q=await sb.from('ligler').select('*',{count:'exact',head:true}).neq('silindi',true).is('evren',null); if(q.error){ q=await sb.from('ligler').select('*',{count:'exact',head:true}).neq('silindi',true); if(q.error){ q=await sb.from('ligler').select('*',{count:'exact',head:true}); } } return q; };
       const [lig,uye,oyuncu,mac,arsiv,transfer]=await Promise.all([
         ligSay(), c('profiller'), c('oyuncular'), c('maclar'),
         sb.from('ligler').select('*',{count:'exact',head:true}).eq('durum','arsiv'),
@@ -10291,13 +10291,12 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
   const taramaKopyala=()=>{ try{ navigator.clipboard.writeText(taramaMetin()); setTaramaKopyalandi(true); setTimeout(()=>setTaramaKopyalandi(false),2000); }catch(e){} };
   const testTemizleFn=async()=>{
     if(!oturum||!oturum.id) return;
-    const evrenAd=(cfgEvrenAd||"").trim()||"ForzaLig Evreni";
-    if(!confirm("\""+evrenAd+"\" evrenini VE tüm verisini kalıcı sil?\n\n⚠️ Geri alınamaz. Gerçek kullanıcı liglerine ASLA dokunulmaz.")) return;
-    setStresYuk(true); setStresLog("🗑️ Evren siliniyor…");
-    const r=await Db.evrenSil(evrenAd);
+    if(!confirm("TÜM demo evren verisini kalıcı sil?\n\n(Hangi adla üretilmiş olursa olsun tüm demo ligler + bağlı veri silinir.)\n\n⚠️ Geri alınamaz. Gerçek kullanıcı liglerine ASLA dokunulmaz.")) return;
+    setStresYuk(true); setStresLog("🗑️ Demo evren siliniyor…");
+    const r=await Db.evrenSil(null);   // null = tüm demo evrenler (farklı adlar dahil)
     setStresYuk(false);
     try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){}   // evren modundan çık → gerçek liglere dön
-    if(r.ok){ setStresLog("🗑️ \""+evrenAd+"\" silindi: "+r.adet+" lig (+ bağlı tüm veri). Gerçek liglerine dokunulmadı."); if(onGercegeDon) onGercegeDon(); }
+    if(r.ok){ setStresLog("🗑️ Demo evren silindi: "+r.adet+" lig (+ bağlı tüm veri). Gerçek liglerine dokunulmadı."); if(onGercegeDon) onGercegeDon(); }
     else setStresLog("❌ "+(r.hata||"silinemedi"));
   };
   // K3/K4 — lig hakkı ver (e-postadan bul → hak ata)
