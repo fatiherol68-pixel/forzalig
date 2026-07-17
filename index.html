@@ -635,6 +635,8 @@ const Db = {
   async ligPurge(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('lig_purge_eskiler'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   async ligKaliciSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_kalici_sil',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ligCopListe(){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('id,ad,silinme_t').eq('silindi',true).order('silinme_t',{ascending:false}); return data||[]; }catch(e){ return []; } },
+  // HAM lig listesi (admin): TÜM ligler — gizli/demo/yönetici farketmez. Fantom temizliği için.
+  async tumLiglerHam(){ if(!sb) return []; try{ let q=await sb.from('ligler').select('id,ad,yonetici_id,evren,silindi,olusturma').order('olusturma',{ascending:false}).limit(500); if(q.error){ q=await sb.from('ligler').select('id,ad,yonetici_id,olusturma').order('olusturma',{ascending:false}).limit(500); } return q.data||[]; }catch(e){ return []; } },
   // ---- Lig hakları (K3/K4) ----
   async hakGetir(userId){
     if(!sb||!userId) return {toplam:0,kullanilan:0,kalan:0};
@@ -10182,6 +10184,9 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
   const [cfgLogo,setCfgLogo]=useState(true);
   const [cfgGoster,setCfgGoster]=useState(true);
   const [stresPct,setStresPct]=useState(0);   // ilerleme çubuğu %
+  const [hamLigler,setHamLigler]=useState(null);   // ham lig listesi (fantom temizliği)
+  const hamLiglerYukle=async()=>{ setHamLigler("yuk"); const d=await Db.tumLiglerHam(); setHamLigler(d||[]); };
+  const hamLigSil=async(l)=>{ if(!confirm("\""+(l.ad||"Lig")+"\" ligini VE tüm bağlı verisini KALICI sil? Geri alınamaz.")) return; const r=await Db.ligKaliciSil(l.id); if(r&&r.ok){ setHamLigler(p=>Array.isArray(p)?p.filter(x=>x.id!==l.id):p); try{localStorage.removeItem('fz_aktif_evren');}catch(e){} Db.panelMetrikler&&Db.panelMetrikler().then(m=>setMetrik(m)); Db.logla(oturum,"Ham lig kalıcı silindi",l.ad||l.id); } else alert((r&&r.hata)||"silinemedi"); };
   // maç sayısı önizleme (tek devre: n*(n-1)/2, çift: iki katı; gruplu: yaklaşık)
   const macOnizle=useMemo(()=>{
     const n=Math.max(2,parseInt(cfgTakim)||0);
@@ -10877,6 +10882,21 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
           </div>
           <button onClick={testTemizleFn} disabled={stresYuk} className="tap" style={{width:"100%",marginTop:8,background:T.danger+"14",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:10,padding:"10px",fontSize:12,fontWeight:800}}>🗑️ Evreni Sil (tüm üretilen veri)</button>
           <button onClick={()=>{ try{localStorage.removeItem('fz_aktif_evren');}catch(e){} if(onGercegeDon){ setStresLog("🏠 Gerçek liglerine dönüldü."); onGercegeDon(); } }} disabled={stresYuk} className="tap" style={{width:"100%",marginTop:6,background:"none",color:T.textMut,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px",fontSize:11.5,fontWeight:700}}>🏠 Gerçek liglerime dön (evren modundan çık)</button>
+          {/* 🔧 HAM LİG LİSTESİ — fantom/gizli lig temizliği (mod/yönetici/evren farketmez) */}
+          <div style={{marginTop:10,borderTop:"0.5px solid "+T.line,paddingTop:10}}>
+            <button onClick={hamLiglerYukle} className="tap" style={{width:"100%",background:T.bg2,color:T.textSoft,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px",fontSize:11.5,fontWeight:700}}>🔧 Tüm ligleri listele (fantom temizliği)</button>
+            {hamLigler==="yuk" && <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:8}}>Yükleniyor…</div>}
+            {Array.isArray(hamLigler) && hamLigler.length===0 && <div style={{fontSize:11,color:T.accent,textAlign:"center",padding:8}}>✅ Veritabanında hiç lig yok — tertemiz.</div>}
+            {Array.isArray(hamLigler) && hamLigler.map(l=>
+              <div key={l.id} style={{display:"flex",alignItems:"center",gap:8,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"8px 10px",marginTop:6}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad||"(isimsiz)"}</div>
+                  <div style={{fontSize:9,color:T.textMut}}>{l.evren?("🌌 demo: "+l.evren):"gerçek"}{l.silindi?" · 🗑️ çöpte":""}{(l.yonetici_id&&oturum&&l.yonetici_id!==oturum.id)?" · başka sahip":""}</div>
+                </div>
+                <button onClick={()=>hamLigSil(l)} className="tap" style={{fontSize:10.5,color:T.danger,background:T.danger+"18",border:"0.5px solid "+T.danger+"55",borderRadius:8,padding:"5px 10px",fontWeight:700,flexShrink:0}}>🗑️ Kalıcı sil</button>
+              </div>
+            )}
+          </div>
           {stresLog && <div style={{fontSize:11,color:T.text,marginTop:9,background:T.bg0,borderRadius:8,padding:"8px 10px",lineHeight:1.5}}>{stresLog}</div>}
         </div>
         <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14,marginBottom:10}}>
@@ -11777,7 +11797,13 @@ function App(){
     (async()=>{
       // Aktif demo evren varsa (Göster'e basılmış) → yenilemede de o evren kalsın (mod). Yoksa gerçek ligler.
       const aktEv = (()=>{ try{ return oturum ? localStorage.getItem('fz_aktif_evren') : null; }catch(e){ return null; } })();
-      const ligler = oturum ? (aktEv ? await Db.liglerEvrenYukle(aktEv) : await Db.liglerYukle(oturum.id, false)) : await Db.liglerYukleAcik();
+      let ligler;
+      if(!oturum){ ligler = await Db.liglerYukleAcik(); }
+      else if(aktEv){
+        ligler = await Db.liglerEvrenYukle(aktEv);
+        // Evren silinmiş/boşsa modda takılı kalma → gerçek liglere otomatik dön
+        if(!ligler.length){ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} ligler = await Db.liglerYukle(oturum.id, false); }
+      } else { ligler = await Db.liglerYukle(oturum.id, false); }
       if(!aktif) return;
       if(oturum){ window.__FL_UID=oturum.id; Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); Db.yasakliMi(oturum.id).then(y=>{ if(aktif && y) setYasakli(true); }); Db.yardimciLiglerim(oturum.id).then(ids=>{ if(aktif) setYardimciLigler(new Set(ids)); }); Db.profilGetir(oturum.id).then(p=>{ if(!aktif) return; setProfil(p||{}); if(p && !p.rol && !PAYLASIM_SLUG && !DAVET_TOKEN) setRolSor(true); }); } else { window.__FL_UID=null; setAdminMi(false); setLigKurYetkim(false); setYasakli(null); setYardimciLigler(new Set()); setProfil(null); setRolSor(false); }
       ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
