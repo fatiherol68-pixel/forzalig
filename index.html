@@ -808,7 +808,9 @@ const Db = {
         ev_skor:(mc.skorA==null?null:mc.skorA), dep_skor:(mc.skorB==null?null:mc.skorB), oynandi:!!mc.oynandi,
         sure:mc.sure||60, dizilis_ev:mc.dizilisA||null, dizilis_dep:mc.dizilisB||null, kadro_ev:mc.kadroA||null,
         kadro_dep:mc.kadroB||null, istatistik:mc.istatistik||null, ratingler:mc.ratingler||null,
-        olaylar:mc.olaylar||null, kaleciler:mc.kaleciler||null, oduller:mc.oduller||null,
+        olaylar:mc.olaylar||null, kaleciler:mc.kaleciler||null,
+        // Player ID omurgası: mvp/ödül id'lerini oduller jsonb'una göm (şema değişmeden reload'da korunur)
+        oduller:((mc.oduller||mc.mvpId||mc.odullerId)?{...(mc.oduller||{}), ...(mc.mvpId?{_mvpId:mc.mvpId}:{}), ...(mc.odullerId?{_odullerId:mc.odullerId}:{})}:null),
         mvp:mc.mvp||null, mvp_takim:mc.mvpTakim||null };
       let macId=(typeof mc.id==="string")?mc.id:null;
       if(macId){ const {error}=await sb.from('maclar').update(satir).eq('id',macId); if(error) return {hata:error.message}; }
@@ -816,14 +818,15 @@ const Db = {
       await sb.from('mac_olaylari').delete().eq('mac_id',macId);
       await sb.from('mac_odulleri').delete().eq('mac_id',macId);
       const olayK=[]; const P=nameToPid||{};
-      (mc.olaylar||[]).forEach(ol=>{ const pid=P[ol.oyuncu];
-        if(ol.tip==='gol'){ if(pid) olayK.push({mac_id:macId,player_id:pid,tip:'gol',dakika:(ol.dk??null),adet:1}); if(ol.asist&&P[ol.asist]) olayK.push({mac_id:macId,player_id:P[ol.asist],tip:'asist',dakika:(ol.dk??null),adet:1}); }
+      // Player ID omurgası: önce id ile çöz (aynı isim karışmaz), yoksa isme düş
+      (mc.olaylar||[]).forEach(ol=>{ const pid=P[ol.oyuncuId]||P[ol.oyuncu];
+        if(ol.tip==='gol'){ if(pid) olayK.push({mac_id:macId,player_id:pid,tip:'gol',dakika:(ol.dk??null),adet:1}); const apid=P[ol.asistId]||P[ol.asist]; if(apid) olayK.push({mac_id:macId,player_id:apid,tip:'asist',dakika:(ol.dk??null),adet:1}); }
         else if((ol.tip==='sari'||ol.tip==='kirmizi')&&pid){ olayK.push({mac_id:macId,player_id:pid,tip:ol.tip,dakika:(ol.dk??null),adet:1}); }
       });
-      (mc.kaleciler||[]).forEach(k=>{ const pid=P[k.ad]; if(pid&&k.kurtaris) olayK.push({mac_id:macId,player_id:pid,tip:'kurtaris',adet:k.kurtaris}); });
+      (mc.kaleciler||[]).forEach(k=>{ const pid=P[k.id]||P[k.ad]; if(pid&&k.kurtaris) olayK.push({mac_id:macId,player_id:pid,tip:'kurtaris',adet:k.kurtaris}); });
       if(olayK.length) await sb.from('mac_olaylari').insert(olayK);
-      const odulK=[]; const od=mc.oduller||{};
-      ['forvet','ortasaha','defans','kaleci','altin','gumus','centilmen','enerjik','macinGolu','mvp'].forEach(kk=>{ const nm=(kk==='mvp')?mc.mvp:od[kk]; if(nm&&P[nm]) odulK.push({mac_id:macId,player_id:P[nm],odul_tip:kk}); });
+      const odulK=[]; const od=mc.oduller||{}; const odId=mc.odullerId||{};
+      ['forvet','ortasaha','defans','kaleci','altin','gumus','centilmen','enerjik','macinGolu','mvp'].forEach(kk=>{ const nm=(kk==='mvp')?mc.mvp:od[kk]; const nid=(kk==='mvp')?mc.mvpId:odId[kk]; const ppid=P[nid]||P[nm]; if(ppid) odulK.push({mac_id:macId,player_id:ppid,odul_tip:kk}); });
       if(odulK.length) await sb.from('mac_odulleri').insert(odulK);
       return {ok:true, id:macId};
     }catch(e){ return {hata:String(e&&e.message||e)}; }
@@ -850,7 +853,7 @@ const Db = {
       }).select('id').single();
       if(e1) return {hata:e1.message};
       const ligId=ligRow.id;
-      const takimIdMap={}, oyAdMap={}, oyAdGlobal={};
+      const takimIdMap={}, oyAdMap={}, oyAdGlobal={}, oyIdGlobal={};
       for(const tk of (T.takimlar||[])){
         const {data:tRow,error:e2}=await sb.from('takimlar').insert({
           lig_id:ligId, ad:tk.ad, renk:tk.renk||null, renk2:tk.renk2||null, logo:tk.logo||null, grup:tk.grup||0, lis_no:tk.lisNo||null
@@ -866,15 +869,15 @@ const Db = {
         let eklenen=[];
         if(oyKayit.length){ const {data:oRows,error:e3}=await sb.from('oyuncular').insert(oyKayit).select('player_id'); if(e3) return {hata:e3.message}; eklenen=oRows||[]; }
         const uyelik=[];
-        (tk.oyuncular||[]).forEach((o,i)=>{ const pid=eklenen[i]?eklenen[i].player_id:null; if(pid){ oyAdMap[tRow.id+'|'+o.ad]=pid; oyAdGlobal[o.ad]=pid; uyelik.push({player_id:pid,takim_id:tRow.id,lig_id:ligId,aktif:true}); } });
+        (tk.oyuncular||[]).forEach((o,i)=>{ const pid=eklenen[i]?eklenen[i].player_id:null; if(pid){ oyAdMap[tRow.id+'|'+o.ad]=pid; oyAdGlobal[o.ad]=pid; oyIdGlobal[String(o.player_id||o.id)]=pid; uyelik.push({player_id:pid,takim_id:tRow.id,lig_id:ligId,aktif:true}); } });
         if(uyelik.length){ const {error:e4}=await sb.from('oyuncu_takim').insert(uyelik); if(e4) return {hata:e4.message}; }
       }
       const takimUuidByAd={}; (T.takimlar||[]).forEach(tk=>{ takimUuidByAd[tk.ad]=takimIdMap[tk.id]; });
-      const cozPid=(takimAd,oyAd)=>{ const tu=takimUuidByAd[takimAd]; if(tu&&oyAdMap[tu+'|'+oyAd]) return oyAdMap[tu+'|'+oyAd]; return oyAdGlobal[oyAd]||null; };
+      const cozPid=(takimAd,oyAd,oyId)=>{ if(oyId!=null && oyIdGlobal[String(oyId)]) return oyIdGlobal[String(oyId)]; const tu=takimUuidByAd[takimAd]; if(tu&&oyAdMap[tu+'|'+oyAd]) return oyAdMap[tu+'|'+oyAd]; return oyAdGlobal[oyAd]||null; };
       for(const mc of (T.maclar||[])){
         const evId=takimIdMap[mc.takimAId], depId=takimIdMap[mc.takimBId];
         if(!evId||!depId) continue;
-        const mvpPid=mc.mvp?cozPid(mc.mvpTakim,mc.mvp):null;
+        const mvpPid=(mc.mvp||mc.mvpId)?cozPid(mc.mvpTakim,mc.mvp,mc.mvpId):null;
         const {data:mRow,error:e5}=await sb.from('maclar').insert({
           lig_id:ligId, ev_takim_id:evId, dep_takim_id:depId, hafta:(mc.hafta??null), tur:(mc.tur??null),
           grup:(mc.grup??null), bye:!!mc.bye, pen_galip:mc.penGalip||null,
@@ -889,15 +892,15 @@ const Db = {
         const macId=mRow.id;
         const olayK=[];
         (mc.olaylar||[]).forEach(ol=>{ const tu=takimUuidByAd[ol.takim]||null;
-          if(ol.tip==='gol'){ const p=cozPid(ol.takim,ol.oyuncu); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:'gol',dakika:(ol.dk??null),adet:1});
-            if(ol.asist){ const a=cozPid(ol.takim,ol.asist); if(a) olayK.push({mac_id:macId,player_id:a,takim_id:tu,tip:'asist',dakika:(ol.dk??null),adet:1}); } }
-          else if(ol.tip==='sari'||ol.tip==='kirmizi'){ const p=cozPid(ol.takim,ol.oyuncu); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:ol.tip,dakika:(ol.dk??null),adet:1}); }
-          else if(ol.tip==='degisik'){ const p=cozPid(ol.takim,ol.giren)||cozPid(ol.takim,ol.cikan); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:'degisik',dakika:(ol.dk??null),adet:1,ekstra:{cikan:ol.cikan,giren:ol.giren}}); }
+          if(ol.tip==='gol'){ const p=cozPid(ol.takim,ol.oyuncu,ol.oyuncuId); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:'gol',dakika:(ol.dk??null),adet:1});
+            if(ol.asist||ol.asistId){ const a=cozPid(ol.takim,ol.asist,ol.asistId); if(a) olayK.push({mac_id:macId,player_id:a,takim_id:tu,tip:'asist',dakika:(ol.dk??null),adet:1}); } }
+          else if(ol.tip==='sari'||ol.tip==='kirmizi'){ const p=cozPid(ol.takim,ol.oyuncu,ol.oyuncuId); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:ol.tip,dakika:(ol.dk??null),adet:1}); }
+          else if(ol.tip==='degisik'){ const p=cozPid(ol.takim,ol.giren,ol.girenId)||cozPid(ol.takim,ol.cikan,ol.cikanId); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:'degisik',dakika:(ol.dk??null),adet:1,ekstra:{cikan:ol.cikan,giren:ol.giren}}); }
         });
-        (mc.kaleciler||[]).forEach(k=>{ const p=oyAdGlobal[k.ad]; if(p&&k.kurtaris) olayK.push({mac_id:macId,player_id:p,takim_id:null,tip:'kurtaris',dakika:null,adet:k.kurtaris}); });
+        (mc.kaleciler||[]).forEach(k=>{ const p=(k.id!=null&&oyIdGlobal[String(k.id)])||oyAdGlobal[k.ad]; if(p&&k.kurtaris) olayK.push({mac_id:macId,player_id:p,takim_id:null,tip:'kurtaris',dakika:null,adet:k.kurtaris}); });
         if(olayK.length) await sb.from('mac_olaylari').insert(olayK);
         const odulK=[]; const od=mc.oduller||{};
-        ['forvet','ortasaha','defans','kaleci','altin','gumus','centilmen','enerjik','macinGolu'].forEach(k=>{ if(od[k]){ const p=oyAdGlobal[od[k]]; if(p) odulK.push({mac_id:macId,player_id:p,odul_tip:k}); } });
+        ['forvet','ortasaha','defans','kaleci','altin','gumus','centilmen','enerjik','macinGolu'].forEach(k=>{ const oid=mc.odullerId&&mc.odullerId[k]; if(od[k]||oid){ const p=(oid!=null&&oyIdGlobal[String(oid)])||oyAdGlobal[od[k]]; if(p) odulK.push({mac_id:macId,player_id:p,odul_tip:k}); } });
         if(mvpPid) odulK.push({mac_id:macId,player_id:mvpPid,odul_tip:'mvp'});
         if(odulK.length) await sb.from('mac_odulleri').insert(odulK);
       }
@@ -942,7 +945,9 @@ const Db = {
         return { id:m.id, hafta:m.hafta, tur:m.tur, grup:m.grup, bye:m.bye, penGalip:m.pen_galip,
           takimA:evT?evT.ad:'', takimB:depT?depT.ad:'', takimAId:m.ev_takim_id, takimBId:m.dep_takim_id,
           renkA:evT?evT.renk:null, renkB:depT?depT.renk:null, skorA:m.ev_skor, skorB:m.dep_skor,
-          oynandi:m.oynandi, sure:m.sure, olaylar:m.olaylar||[], kaleciler:m.kaleciler||[], oduller:m.oduller||{},
+          oynandi:m.oynandi, sure:m.sure, olaylar:m.olaylar||[], kaleciler:m.kaleciler||[],
+          oduller:(()=>{ const o={...(m.oduller||{})}; delete o._mvpId; delete o._odullerId; return o; })(),
+          mvpId:(m.oduller&&m.oduller._mvpId)||null, odullerId:(m.oduller&&m.oduller._odullerId)||null,
           mvp:m.mvp, mvpTakim:m.mvp_takim, istatistik:m.istatistik, ratingler:m.ratingler,
           dizilisA:m.dizilis_ev, dizilisB:m.dizilis_dep, kadroA:m.kadro_ev, kadroB:m.kadro_dep,
           stad:m.stad, hakem:m.hakem, tarih:m.tarih||'' };
@@ -1663,6 +1668,9 @@ function turnuvaHesapla(turnuva){
   turnuva.takimlar.forEach(tk=>tk.oyuncular.forEach(o=>{ o.gol=0;o.asist=0;o.mac=0;o.kurtaris=0;o.sari=0;o.kirmizi=0;o.mvp=0;o.dk=0;
     o.altin=0;o.gumus=0;o.forvet=0;o.ortasaha=0;o.defans=0;o.kaleci=0;o.macinGolu=0;o.centilmen=0;o.enerjik=0; }));
   const bulO=(ad)=>{ for(const tk of turnuva.takimlar){ const o=tk.oyuncular.find(x=>x.ad===ad); if(o)return o; } return null; };
+  // Player ID omurgası: önce benzersiz id ile bul (aynı isim karışmaz), yoksa isme düş (eski/demo veri uyumu)
+  const bulOId=(id)=>{ if(id==null||id==="") return null; const s=String(id); for(const tk of turnuva.takimlar){ const o=tk.oyuncular.find(x=>String(x.player_id||x.id)===s || String(x.id)===s); if(o)return o; } return null; };
+  const coz=(id,ad)=> bulOId(id) || (ad?bulO(ad):null);
   turnuva.maclar.filter(mc=>mc.oynandi && mc.skorA!=null).forEach(mc=>{
     const A=turnuva.takimlar.find(t=>t.id===mc.takimAId)||turnuva.takimlar.find(t=>t.ad===mc.takimA);
     const B=turnuva.takimlar.find(t=>t.id===mc.takimBId)||turnuva.takimlar.find(t=>t.ad===mc.takimB);
@@ -1686,8 +1694,8 @@ function turnuvaHesapla(turnuva){
     // değişiklikler: çıkan → o dakikaya kadar, giren → kalan süre
     (mc.olaylar||[]).filter(o=>o.tip==="degisik").forEach(o=>{
       const dk = (o.dk!=null&&o.dk!=="") ? parseInt(o.dk) : Math.round(sure*0.6);
-      if(o.cikan){ const c=bulO(o.cikan); if(c) oynamaDk[c.id]=Math.min(oynamaDk[c.id]!=null?oynamaDk[c.id]:sure, dk); }
-      if(o.giren){ const g=bulO(o.giren); if(g) oynamaDk[g.id]=(oynamaDk[g.id]||0)+(sure-dk); }
+      if(o.cikan){ const c=coz(o.cikanId,o.cikan); if(c) oynamaDk[c.id]=Math.min(oynamaDk[c.id]!=null?oynamaDk[c.id]:sure, dk); }
+      if(o.giren){ const g=coz(o.girenId,o.giren); if(g) oynamaDk[g.id]=(oynamaDk[g.id]||0)+(sure-dk); }
     });
     // dakikaları oyunculara işle
     Object.entries(oynamaDk).forEach(([id,dk])=>{
@@ -1695,26 +1703,26 @@ function turnuvaHesapla(turnuva){
     });
 
     (mc.olaylar||[]).forEach(ol=>{
-      const o=bulO(ol.oyuncu);
-      if(ol.tip==="gol"){ if(o)o.gol++; if(ol.asist){ const a=bulO(ol.asist); if(a)a.asist++; } }
+      const o=coz(ol.oyuncuId, ol.oyuncu);
+      if(ol.tip==="gol"){ if(o)o.gol++; if(ol.asist||ol.asistId){ const a=coz(ol.asistId, ol.asist); if(a)a.asist++; } }
       else if(ol.tip==="sari"){ if(o)o.sari++; }
       else if(ol.tip==="kirmizi"){ if(o)o.kirmizi++; }
     });
-    if(mc.mvp){ const mv=bulO(mc.mvp); if(mv)mv.mvp++; }
+    if(mc.mvp||mc.mvpId){ const mv=coz(mc.mvpId, mc.mvp); if(mv)mv.mvp++; }
     // maç ödüllerini oyuncu sayaçlarına ekle (mvp hariç — o ayrı sayılıyor)
     if(mc.oduller){
       ["altin","gumus","forvet","ortasaha","defans","kaleci","macinGolu","centilmen","enerjik"].forEach(alan=>{
-        const ad=mc.oduller[alan]; if(ad){ const o=bulO(ad); if(o)o[alan]=(o[alan]||0)+1; }
+        const ad=mc.oduller[alan]; const oid=mc.odullerId&&mc.odullerId[alan]; if(ad||oid){ const o=coz(oid, ad); if(o)o[alan]=(o[alan]||0)+1; }
       });
       // eski tek-kaleci kurtarış (geriye uyum)
       if(mc.oduller.kaleci && mc.oduller.kaleciKurtaris && !mc.kaleciler){
-        const k=bulO(mc.oduller.kaleci); const n=parseInt(mc.oduller.kaleciKurtaris)||0;
+        const k=coz(mc.odullerId&&mc.odullerId.kaleci, mc.oduller.kaleci); const n=parseInt(mc.oduller.kaleciKurtaris)||0;
         if(k) k.kurtaris=(k.kurtaris||0)+n;
       }
     }
     // —— ÇOKLU KALECİ KURTARIŞI —— mc.kaleciler = [{ad, kurtaris}]
     if(Array.isArray(mc.kaleciler)){
-      mc.kaleciler.forEach(kl=>{ if(kl.ad){ const k=bulO(kl.ad); const n=parseInt(kl.kurtaris)||0; if(k) k.kurtaris=(k.kurtaris||0)+n; } });
+      mc.kaleciler.forEach(kl=>{ if(kl.ad||kl.id){ const k=coz(kl.id, kl.ad); const n=parseInt(kl.kurtaris)||0; if(k) k.kurtaris=(k.kurtaris||0)+n; } });
     }
   });
   // sıralama: tüm lig genel; gruplu ise grup içi sıra da hesaplanır
@@ -8568,17 +8576,23 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
   const [sB,setSB]=useState(m.skorB!=null?String(m.skorB):"0");
   const [olaylar,setOlaylar]=useState(m.olaylar?[...m.olaylar]:[]);
   const [mvp,setMvp]=useState(m.mvp||null);
+  const [mvpId,setMvpId]=useState(m.mvpId||null);
   const [mvpTk,setMvpTk]=useState(m.mvpTakim||null);
   const [oduller,setOduller]=useState(m.oduller?{...m.oduller}:{});
+  const [odullerId,setOdullerId]=useState(m.odullerId?{...m.odullerId}:{});
   const [odulAcik,setOdulAcik]=useState(false);
 
   const tumOyuncular=[...(A?A.oyuncular:[]),...(B?B.oyuncular:[])];
-  const olayEkle=(takim, tip)=> setOlaylar(p=>[...p,{oyuncu:"", takim, tip, asist:null, dk:""}]);
+  // Player ID omurgası: seçim anında STABİL kimlik (player_id||id) yakalanır; isim gösterim için kalır (aynı isim karışmaz)
+  const sid=(p)=>p?String(p.player_id||p.id):"";
+  const idBulAd=(ad)=>{ const o=tumOyuncular.find(p=>p.ad===ad); return o?sid(o):null; };
+  const olayEkle=(takim, tip)=> setOlaylar(p=>[...p,{oyuncu:"", oyuncuId:null, takim, tip, asist:null, asistId:null, dk:""}]);
   const olaySil=(i)=> setOlaylar(p=>p.filter((_,x)=>x!==i));
   const olayDegis=(i,alan,val)=> setOlaylar(p=>p.map((o,x)=>x===i?{...o,[alan]:val}:o));
+  const olayCoklu=(i,obj)=> setOlaylar(p=>p.map((o,x)=>x===i?{...o,...obj}:o));
   // aynı oyuncuya hızlı +1 gol (hat-trick kolaylığı)
-  const golTekrar=(o)=> setOlaylar(p=>[...p,{oyuncu:o.oyuncu, takim:o.takim, tip:"gol", asist:null, dk:""}]);
-  const odulSec=(alan,ad)=> setOduller(p=>({...p,[alan]:ad||undefined}));
+  const golTekrar=(o)=> setOlaylar(p=>[...p,{oyuncu:o.oyuncu, oyuncuId:o.oyuncuId||idBulAd(o.oyuncu), takim:o.takim, tip:"gol", asist:null, asistId:null, dk:""}]);
+  const odulSec=(alan,id)=>{ const p=tumOyuncular.find(x=>sid(x)===String(id)); setOduller(o=>({...o,[alan]:p?p.ad:undefined})); setOdullerId(o=>({...o,[alan]:id||undefined})); };
 
   // ödül tanımları
   const ODULLER=[
@@ -8589,8 +8603,8 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
   ];
 
   const kaydet=()=>{
-    const temiz=olaylar.filter(o=>o.oyuncu).map(o=>({...o, dk: o.dk?parseInt(o.dk):null}));
-    skorKaydet(turnuva, m, parseInt(sA)||0, parseInt(sB)||0, temiz, mvp, mvpTk, oduller);
+    const temiz=olaylar.filter(o=>o.oyuncu||o.oyuncuId).map(o=>({...o, dk: o.dk?parseInt(o.dk):null}));
+    skorKaydet(turnuva, m, parseInt(sA)||0, parseInt(sB)||0, temiz, mvp, mvpTk, oduller, {mvpId, odullerId});
     git({sayfa:"mac",mac:m,turnuva});
   };
 
@@ -8601,13 +8615,13 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
     return <div style={{display:"flex",alignItems:"center",gap:5,background:T.bg2,borderRadius:9,padding:"7px 9px",marginBottom:6}}>
       <span style={{fontSize:13,minWidth:18,textAlign:"center"}}>{tipEtiket}</span>
       <input value={o.dk||""} onChange={e=>olayDegis(i,"dk",e.target.value.replace(/[^0-9]/g,"").slice(0,3))} placeholder="dk" style={{width:34,textAlign:"center",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px 2px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}/>
-      <select value={o.oyuncu} onChange={e=>olayDegis(i,"oyuncu",e.target.value)} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
+      <select value={o.oyuncuId||(takim&&o.oyuncu?sid(takim.oyuncular.find(x=>x.ad===o.oyuncu)):"")} onChange={e=>{ const id=e.target.value; const p=(takim?takim.oyuncular:[]).find(x=>sid(x)===id); olayCoklu(i,{oyuncuId:id||null, oyuncu:p?p.ad:""}); }} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
         <option value="">Oyuncu seç...</option>
-        {(takim?takim.oyuncular:[]).map(p=><option key={p.id} value={p.ad}>{p.ad}</option>)}
+        {(takim?takim.oyuncular:[]).map(p=><option key={p.id} value={sid(p)}>{p.ad}</option>)}
       </select>
-      {o.tip==="gol" && <select value={o.asist||""} onChange={e=>olayDegis(i,"asist",e.target.value||null)} style={{width:80,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.textMut,fontSize:10,outline:"none",fontFamily:"inherit"}}>
+      {o.tip==="gol" && <select value={o.asistId||(takim&&o.asist?sid(takim.oyuncular.find(x=>x.ad===o.asist)):"")} onChange={e=>{ const id=e.target.value; const p=(takim?takim.oyuncular:[]).find(x=>sid(x)===id); olayCoklu(i,{asistId:id||null, asist:p?p.ad:null}); }} style={{width:80,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.textMut,fontSize:10,outline:"none",fontFamily:"inherit"}}>
         <option value="">asist yok</option>
-        {(takim?takim.oyuncular:[]).map(p=><option key={p.id} value={p.ad}>🅰 {p.ad.split(" ")[0]}</option>)}
+        {(takim?takim.oyuncular:[]).map(p=><option key={p.id} value={sid(p)}>🅰 {p.ad.split(" ")[0]}</option>)}
       </select>}
       {o.tip==="gol" && o.oyuncu && <button onClick={()=>golTekrar(o)} className="tap" title="Aynı oyuncuya +1 gol" style={{color:T.accent,fontSize:11,fontWeight:800,background:T.accent+"22",border:"1px solid "+T.accent+"44",borderRadius:6,padding:"4px 7px",whiteSpace:"nowrap"}}>+1</button>}
       <button onClick={()=>olaySil(i)} className="tap" style={{color:T.danger,fontSize:14,background:"none",border:"none",padding:"0 2px"}}>✕</button>
@@ -8653,10 +8667,10 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
     {/* MVP */}
     <div style={{padding:"0 14px 6px"}}>
       <div style={{fontSize:12,fontWeight:700,color:T.gold,marginBottom:8}}>⭐ Maçın Yıldızı</div>
-      <select value={mvp||""} onChange={e=>{ const ad=e.target.value; setMvp(ad||null); const o=tumOyuncular.find(p=>p.ad===ad); setMvpTk(o?(A&&A.oyuncular.includes(o)?m.takimA:m.takimB):null); }}
+      <select value={mvpId||(mvp?sid(tumOyuncular.find(p=>p.ad===mvp)):"")} onChange={e=>{ const id=e.target.value; const o=tumOyuncular.find(p=>sid(p)===id); setMvpId(id||null); setMvp(o?o.ad:null); setMvpTk(o?(A&&A.oyuncular.includes(o)?m.takimA:m.takimB):null); }}
         style={{width:"100%",background:T.bg1,border:"0.5px solid "+T.gold+"55",borderRadius:10,padding:"10px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
         <option value="">MVP seç...</option>
-        {tumOyuncular.map(p=><option key={p.id} value={p.ad}>{p.ad}</option>)}
+        {tumOyuncular.map(p=><option key={p.id} value={sid(p)}>{p.ad}</option>)}
       </select>
     </div>
 
@@ -8670,9 +8684,9 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
         {ODULLER.map(([alan,etiket])=>
           <div key={alan}>
             <div style={{fontSize:10,color:T.textMut,marginBottom:3,fontWeight:600}}>{etiket}</div>
-            <select value={oduller[alan]||""} onChange={e=>odulSec(alan,e.target.value)} style={{width:"100%",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:8,padding:"7px",color:oduller[alan]?T.text:T.textMut,fontSize:11,outline:"none",fontFamily:"inherit"}}>
+            <select value={odullerId[alan]||(oduller[alan]?sid(tumOyuncular.find(p=>p.ad===oduller[alan])):"")} onChange={e=>odulSec(alan,e.target.value)} style={{width:"100%",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:8,padding:"7px",color:oduller[alan]?T.text:T.textMut,fontSize:11,outline:"none",fontFamily:"inherit"}}>
               <option value="">— yok —</option>
-              {tumOyuncular.map(p=><option key={p.id} value={p.ad}>{p.ad}</option>)}
+              {tumOyuncular.map(p=><option key={p.id} value={sid(p)}>{p.ad}</option>)}
             </select>
           </div>
         )}
@@ -9063,8 +9077,10 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
 
   // —— ÖDÜLLER / MVP ——
   const [mvp,setMvp]=useState(m.mvp||null);
+  const [mvpId,setMvpId]=useState(m.mvpId||null);
   const [mvpTk,setMvpTk]=useState(m.mvpTakim||null);
   const [oduller,setOduller]=useState(m.oduller?{...m.oduller}:{});
+  const [odullerId,setOdullerId]=useState(m.odullerId?{...m.odullerId}:{});
   const [sure,setSure]=useState(m.sure?String(m.sure):"60"); // maç süresi (dk)
   const [tarih,setTarih]=useState(m.tarih||"");
   const [saat,setSaat]=useState(m.saat||"");
@@ -9073,6 +9089,9 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
   const [kaleciList,setKaleciList]=useState(()=> Array.isArray(m.kaleciler)?m.kaleciler.map(k=>({...k})):[]);
 
   const tumOyuncular=[...(A?A.oyuncular:[]),...(B?B.oyuncular:[])];
+  // Player ID omurgası: stabil kimlik (player_id||id) — aynı isim karışmaz
+  const sid=(p)=>p?String(p.player_id||p.id):"";
+  const olayCoklu=(i,obj)=> setOlaylar(p=>p.map((o,x)=>x===i?{...o,...obj}:o));
   const sahadakiId=(tk)=> kadro[tk].yerlesim.filter(x=>x!=null);
   const oyuncuBulId=(id)=> tumOyuncular.find(o=>o.id===id);
   // O maçta GERÇEKTEN oynayan oyuncular: sahadaki 11 + değişiklikle sonradan giren yedekler.
@@ -9150,10 +9169,10 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
   const olayEkle=(takim,tip)=> setOlaylar(p=>[...p,{oyuncu:"",takim,tip,asist:null,dk:""}]);
   const olaySil=(i)=> setOlaylar(p=>p.filter((_,x)=>x!==i));
   const olayDegis=(i,alan,val)=> setOlaylar(p=>p.map((o,x)=>x===i?{...o,[alan]:val}:o));
-  const golTekrar=(o)=> setOlaylar(p=>[...p,{oyuncu:o.oyuncu,takim:o.takim,tip:"gol",asist:null,dk:""}]);
+  const golTekrar=(o)=> setOlaylar(p=>[...p,{oyuncu:o.oyuncu,oyuncuId:o.oyuncuId||null,takim:o.takim,tip:"gol",asist:null,asistId:null,dk:""}]);
   // değişiklik: tip:"degisik" — cikan(oyuncu) / giren(asist alanını "giren" gibi kullanmıyoruz; ayrı alan)
   const degisEkle=(takim)=> setOlaylar(p=>[...p,{cikan:"",giren:"",takim,tip:"degisik",dk:""}]);
-  const odulSec=(alan,ad)=> setOduller(p=>({...p,[alan]:ad||undefined}));
+  const odulSec=(alan,id)=>{ const p=tumOyuncular.find(x=>sid(x)===String(id)); setOduller(o=>({...o,[alan]:p?p.ad:undefined})); setOdullerId(o=>({...o,[alan]:id||undefined})); };
 
   // —— KAYDET ——
   const tamamla=()=>{
@@ -9164,7 +9183,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
       ? {...o, dk:o.dk?parseInt(o.dk):null}
       : {...o, dk:o.dk?parseInt(o.dk):null});
     // kaleci kurtarışları (elle eklenenler)
-    const kaleciler=kaleciList.filter(k=>k.ad).map(k=>({ad:k.ad, kurtaris:parseInt(k.kurtaris)||0}));
+    const kaleciler=kaleciList.filter(k=>k.ad||k.id).map(k=>({ad:k.ad, id:k.id||null, kurtaris:parseInt(k.kurtaris)||0}));
     const paketKadro={
       kadroA: kadro.A, kadroB: kadro.B,
       dizilisA: DIZILIS_SABLON[kisiSayi.A][formIdx.A].ad,
@@ -9173,7 +9192,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
       kaleciler,
       tarih, saat, stad,
     };
-    sihirbazKaydet(turnuva, m, golSayA, golSayB, temizOlay, mvp, mvpTk, oduller, paketKadro);
+    sihirbazKaydet(turnuva, m, golSayA, golSayB, temizOlay, mvp, mvpTk, oduller, paketKadro, {mvpId, odullerId});
     git({sayfa:"mac",mac:m,turnuva});
   };
 
@@ -9393,11 +9412,11 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
       {/* MVP */}
       <div style={{padding:"6px 14px"}}>
         <div style={{fontSize:12,fontWeight:700,color:T.gold,marginBottom:8}}>🌟 Maçın Yıldızı (MVP)</div>
-        <select value={mvp||""} onChange={e=>{ const ad=e.target.value; setMvp(ad||null); const o=tumOyuncular.find(p=>p.ad===ad); setMvpTk(o?((A&&A.oyuncular.includes(o))?m.takimA:m.takimB):null); }}
+        <select value={mvpId||(mvp?sid(tumOyuncular.find(p=>p.ad===mvp)):"")} onChange={e=>{ const id=e.target.value; const o=tumOyuncular.find(p=>sid(p)===id); setMvpId(id||null); setMvp(o?o.ad:null); setMvpTk(o?((A&&A.oyuncular.includes(o))?m.takimA:m.takimB):null); }}
           style={{width:"100%",background:T.bg1,border:"0.5px solid "+T.gold+"55",borderRadius:10,padding:"10px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
           <option value="">MVP seç...</option>
           {[["A",A,m.takimA],["B",B,m.takimB]].map(([k,tk,ad])=> tk && <optgroup key={k} label={ad}>
-            {mevkiGruplu(k).map(g=> g.oyuncular.map(o=> <option key={o.id} value={o.ad}>{g.poz==="Kaleci"?"🧤 ":g.poz==="Defans"?"🛡️ ":g.poz==="OrtaSaha"?"🎩 ":"⚽ "}{o.ad}</option>))}
+            {mevkiGruplu(k).map(g=> g.oyuncular.map(o=> <option key={o.id} value={sid(o)}>{g.poz==="Kaleci"?"🧤 ":g.poz==="Defans"?"🛡️ ":g.poz==="OrtaSaha"?"🎩 ":"⚽ "}{o.ad}</option>))}
           </optgroup>)}
         </select>
       </div>
@@ -9409,10 +9428,10 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
             const oncelik={forvet:"Forvet",ortasaha:"OrtaSaha",defans:"Defans",kaleci:"Kaleci"}[alan]||null;
             return <div key={alan}>
               <div style={{fontSize:10,color:T.textMut,marginBottom:3,fontWeight:600}}>{ik} {etiket}</div>
-              <select value={oduller[alan]||""} onChange={e=>odulSec(alan,e.target.value)} style={{width:"100%",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:8,padding:"7px",color:oduller[alan]?T.text:T.textMut,fontSize:11,outline:"none",fontFamily:"inherit"}}>
+              <select value={odullerId[alan]||(oduller[alan]?sid(tumOyuncular.find(p=>p.ad===oduller[alan])):"")} onChange={e=>odulSec(alan,e.target.value)} style={{width:"100%",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:8,padding:"7px",color:oduller[alan]?T.text:T.textMut,fontSize:11,outline:"none",fontFamily:"inherit"}}>
                 <option value="">— yok —</option>
                 {[["A",A,m.takimA],["B",B,m.takimB]].map(([k,tk,ad])=> tk && <optgroup key={k} label={ad}>
-                  {mevkiGruplu(k,oncelik).map(g=> g.oyuncular.map(o=> <option key={o.id} value={o.ad}>{g.poz==="Kaleci"?"🧤 ":g.poz==="Defans"?"🛡️ ":g.poz==="OrtaSaha"?"🎩 ":"⚽ "}{o.ad}</option>))}
+                  {mevkiGruplu(k,oncelik).map(g=> g.oyuncular.map(o=> <option key={o.id} value={sid(o)}>{g.poz==="Kaleci"?"🧤 ":g.poz==="Defans"?"🛡️ ":g.poz==="OrtaSaha"?"🎩 ":"⚽ "}{o.ad}</option>))}
                 </optgroup>)}
               </select>
             </div>;
@@ -9425,10 +9444,10 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
         {kaleciList.map((kl,i)=>
           <div key={i} style={{display:"flex",alignItems:"center",gap:7,background:T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:5}}>
             <span style={{fontSize:13}}>🧤</span>
-            <select value={kl.ad||""} onChange={e=>{ const ad=e.target.value; setKaleciList(p=>p.map((x,xi)=>xi===i?{...x,ad}:x)); }} style={{flex:1,minWidth:0,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:7,padding:"7px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
+            <select value={kl.id||(kl.ad?sid(tumOyuncular.find(p=>p.ad===kl.ad)):"")} onChange={e=>{ const id=e.target.value; const p=tumOyuncular.find(x=>sid(x)===id); setKaleciList(pp=>pp.map((x,xi)=>xi===i?{...x,id:id||null,ad:p?p.ad:""}:x)); }} style={{flex:1,minWidth:0,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:7,padding:"7px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
               <option value="">Kaleciyi seç...</option>
               {[["A",A,m.takimA],["B",B,m.takimB]].map(([k,tk,ad])=> tk && <optgroup key={k} label={ad}>
-                {mevkiGruplu(k,"Kaleci").map(g=> g.oyuncular.map(o=> <option key={o.id} value={o.ad}>{g.poz==="Kaleci"?"🧤 ":g.poz==="Defans"?"🛡️ ":g.poz==="OrtaSaha"?"🎩 ":"⚽ "}{o.ad}</option>))}
+                {mevkiGruplu(k,"Kaleci").map(g=> g.oyuncular.map(o=> <option key={o.id} value={sid(o)}>{g.poz==="Kaleci"?"🧤 ":g.poz==="Defans"?"🛡️ ":g.poz==="OrtaSaha"?"🎩 ":"⚽ "}{o.ad}</option>))}
               </optgroup>)}
             </select>
             <span style={{fontSize:10,color:T.textMut}}>kurtarış</span>
@@ -9478,13 +9497,13 @@ function SihirbazGolKutu({o,i,oynayan,T,olayDegis,olaySil,golTekrar}){
   return <div style={{display:"flex",alignItems:"center",gap:5,background:T.bg2,borderRadius:9,padding:"7px 9px",marginBottom:6}}>
     <span style={{fontSize:13,minWidth:18,textAlign:"center"}}>⚽</span>
     <input value={o.dk||""} onChange={e=>olayDegis(i,"dk",e.target.value.replace(/[^0-9]/g,"").slice(0,3))} placeholder="dk" style={{width:34,textAlign:"center",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px 2px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}/>
-    <select value={o.oyuncu} onChange={e=>olayDegis(i,"oyuncu",e.target.value)} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
+    <select value={o.oyuncuId||(o.oyuncu?((oynayan||[]).reduce((a,x)=>x.ad===o.oyuncu?String(x.player_id||x.id):a,"")):"")} onChange={e=>{ const id=e.target.value; const p=(oynayan||[]).find(x=>String(x.player_id||x.id)===id); olayDegis(i,"oyuncuId",id||null); olayDegis(i,"oyuncu",p?p.ad:""); }} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
       <option value="">Golcü...</option>
-      {(oynayan||[]).map(p=><option key={p.id} value={p.ad}>{p.ad}</option>)}
+      {(oynayan||[]).map(p=><option key={p.id} value={String(p.player_id||p.id)}>{p.ad}</option>)}
     </select>
-    <select value={o.asist||""} onChange={e=>olayDegis(i,"asist",e.target.value||null)} style={{width:78,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.textMut,fontSize:10,outline:"none",fontFamily:"inherit"}}>
+    <select value={o.asistId||(o.asist?((oynayan||[]).reduce((a,x)=>x.ad===o.asist?String(x.player_id||x.id):a,"")):"")} onChange={e=>{ const id=e.target.value; const p=(oynayan||[]).find(x=>String(x.player_id||x.id)===id); olayDegis(i,"asistId",id||null); olayDegis(i,"asist",p?p.ad:null); }} style={{width:78,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.textMut,fontSize:10,outline:"none",fontFamily:"inherit"}}>
       <option value="">asist yok</option>
-      {(oynayan||[]).map(p=><option key={p.id} value={p.ad}>🅰 {p.ad.split(" ")[0]}</option>)}
+      {(oynayan||[]).map(p=><option key={p.id} value={String(p.player_id||p.id)}>🅰 {p.ad.split(" ")[0]}</option>)}
     </select>
     {o.oyuncu && <button onClick={()=>golTekrar(o)} className="tap" title="Aynı oyuncuya +1" style={{color:T.accent,fontSize:11,fontWeight:800,background:T.accent+"22",border:"1px solid "+T.accent+"44",borderRadius:6,padding:"4px 7px"}}>+1</button>}
     <button onClick={()=>olaySil(i)} className="tap" style={{color:T.danger,fontSize:14,background:"none",border:"none",padding:"0 2px"}}>✕</button>
@@ -9494,9 +9513,9 @@ function SihirbazKartKutu({o,i,oynayan,T,olayDegis,olaySil}){
   return <div style={{display:"flex",alignItems:"center",gap:5,background:T.bg2,borderRadius:9,padding:"7px 9px",marginBottom:6}}>
     <span style={{fontSize:13,minWidth:18,textAlign:"center"}}>{o.tip==="sari"?"🟨":"🟥"}</span>
     <input value={o.dk||""} onChange={e=>olayDegis(i,"dk",e.target.value.replace(/[^0-9]/g,"").slice(0,3))} placeholder="dk" style={{width:34,textAlign:"center",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px 2px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}/>
-    <select value={o.oyuncu} onChange={e=>olayDegis(i,"oyuncu",e.target.value)} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
+    <select value={o.oyuncuId||(o.oyuncu?((oynayan||[]).reduce((a,x)=>x.ad===o.oyuncu?String(x.player_id||x.id):a,"")):"")} onChange={e=>{ const id=e.target.value; const p=(oynayan||[]).find(x=>String(x.player_id||x.id)===id); olayDegis(i,"oyuncuId",id||null); olayDegis(i,"oyuncu",p?p.ad:""); }} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
       <option value="">Oyuncu...</option>
-      {(oynayan||[]).map(p=><option key={p.id} value={p.ad}>{p.ad}</option>)}
+      {(oynayan||[]).map(p=><option key={p.id} value={String(p.player_id||p.id)}>{p.ad}</option>)}
     </select>
     <button onClick={()=>olaySil(i)} className="tap" style={{color:T.danger,fontSize:14,background:"none",border:"none",padding:"0 2px"}}>✕</button>
   </div>;
@@ -12152,7 +12171,7 @@ function App(){
     return {eklenenTakim, eklenenOyuncu};
   };
   // İlişkisel: oyuncu ad → player_id haritası (maç olayları için)
-  const adPidHarita=(turnuva)=>{ const m={}; turnuva.takimlar.forEach(tk=>tk.oyuncular.forEach(o=>{ if(o.player_id) m[o.ad]=o.player_id; })); return m; };
+  const adPidHarita=(turnuva)=>{ const m={}; turnuva.takimlar.forEach(tk=>tk.oyuncular.forEach(o=>{ const pid=o.player_id||(typeof o.id==="string"?o.id:null); if(pid){ m[o.ad]=pid; if(o.id!=null) m[o.id]=pid; m[pid]=pid; } })); return m; };
   // İlişkisel: id'si olmayan (yeni) maçları kaydet, uuid ata
   const maclariSenkronize=async(turnuva)=>{
     if(!iliskiselMi(turnuva)) return;
@@ -12195,9 +12214,11 @@ function App(){
     guncelle();
   };
   // Skor + olaylar kaydet
-  const skorKaydet=async(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller)=>{
+  const skorKaydet=async(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller, ekstra)=>{
     mac.skorA=skorA; mac.skorB=skorB; mac.olaylar=olaylar||[]; mac.mvp=mvp||null; mac.mvpTakim=mvpTakim||null; mac.oynandi=true;
+    mac.mvpId=(ekstra&&ekstra.mvpId)||null;
     if(oduller) mac.oduller={...oduller};
+    if(ekstra&&ekstra.odullerId) mac.odullerId={...ekstra.odullerId};
     if(!mac.istatistik) mac.istatistik=istatistikUret(skorA, skorB);
     const A=turnuva.takimlar.find(t=>t.id===mac.takimAId)||turnuva.takimlar.find(t=>t.ad===mac.takimA);
     const B=turnuva.takimlar.find(t=>t.id===mac.takimBId)||turnuva.takimlar.find(t=>t.ad===mac.takimB);
@@ -12208,7 +12229,7 @@ function App(){
   // Rating'i yönetici elle düzeltir
   const ratingKaydet=async(mac, ratingler)=>{ mac.ratingler={...ratingler}; const trn=turnuvalar.find(t=>t.maclar.some(m=>m.id===mac.id)); if(trn && iliskiselMi(trn) && typeof mac.id==="string") await Db.macKaydet(trn.id, mac, adPidHarita(trn)); guncelle(); };
   // SİHİRBAZ — kadro + skor + olaylar + ödüller tek seferde kaydet
-  const sihirbazKaydet=async(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller, kadroPaket)=>{
+  const sihirbazKaydet=async(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller, kadroPaket, ekstra)=>{
     if(kadroPaket){
       mac.kadroA=kadroPaket.kadroA; mac.kadroB=kadroPaket.kadroB;
       mac.dizilisA=kadroPaket.dizilisA; mac.dizilisB=kadroPaket.dizilisB;
@@ -12216,7 +12237,7 @@ function App(){
       if(kadroPaket.kaleciler) mac.kaleciler=kadroPaket.kaleciler;
       mac.tarih=kadroPaket.tarih||""; mac.saat=kadroPaket.saat||""; mac.stad=kadroPaket.stad||"";
     }
-    await skorKaydet(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller);
+    await skorKaydet(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller, ekstra);
   };
 
   let icerik;
