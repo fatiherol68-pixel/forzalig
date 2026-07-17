@@ -980,12 +980,13 @@ const Db = {
     try{
       const idSet=new Set();
       if(hepsi){
-        // GERÇEK ligler (demo evren HARİÇ — evren null) — demo asla gerçekle karışmaz
-        const {data}=await sb.from('ligler').select('id').is('evren',null).order('olusturma',{ascending:false}).limit(300);
-        (data||[]).forEach(x=>idSet.add(x.id));
+        // GERÇEK ligler (demo evren HARİÇ — evren null). Kolon henüz yoksa filtresiz yükle (dayanıklılık).
+        let q=await sb.from('ligler').select('id').is('evren',null).order('olusturma',{ascending:false}).limit(300);
+        if(q.error){ q=await sb.from('ligler').select('id').order('olusturma',{ascending:false}).limit(300); }
+        (q.data||[]).forEach(x=>idSet.add(x.id));
       } else if(yoneticiId){
-        // 1) sahibi olduğun ligler (demo evren HARİÇ)
-        try{ const {data}=await sb.from('ligler').select('id').eq('yonetici_id',yoneticiId).is('evren',null).limit(300); (data||[]).forEach(x=>idSet.add(x.id)); }catch(e){}
+        // 1) sahibi olduğun ligler (demo evren HARİÇ; kolon yoksa filtresiz)
+        try{ let q=await sb.from('ligler').select('id').eq('yonetici_id',yoneticiId).is('evren',null).limit(300); if(q.error){ q=await sb.from('ligler').select('id').eq('yonetici_id',yoneticiId).limit(300); } (q.data||[]).forEach(x=>idSet.add(x.id)); }catch(e){}
         // 2) takım sorumlusu (kaptan) olduğun ligler
         try{ const {data}=await sb.from('takimlar').select('lig_id').eq('yonetici_id',yoneticiId).limit(300); (data||[]).forEach(x=>x.lig_id&&idSet.add(x.lig_id)); }catch(e){}
         // 3) oyuncu olarak katıldığın ligler
@@ -1000,8 +1001,9 @@ const Db = {
   async liglerYukleAcik(limit){
     if(!sb) return [];
     try{
-      const {data}=await sb.from('ligler').select('id').eq('durum','aktif').is('evren',null).order('olusturma',{ascending:false}).limit(limit||60);
-      const idler=(data||[]).map(x=>x.id);
+      let q=await sb.from('ligler').select('id').eq('durum','aktif').is('evren',null).order('olusturma',{ascending:false}).limit(limit||60);
+      if(q.error){ q=await sb.from('ligler').select('id').eq('durum','aktif').order('olusturma',{ascending:false}).limit(limit||60); }
+      const idler=(q.data||[]).map(x=>x.id);
       const sonuc=(await Promise.all(idler.map(id=>this.ligYukle(id)))).filter(Boolean);
       return sonuc;
     }catch(e){ return []; }
