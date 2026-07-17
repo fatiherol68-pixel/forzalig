@@ -857,7 +857,7 @@ const Db = {
       const takimIdMap={}, oyAdMap={}, oyAdGlobal={}, oyIdGlobal={};
       for(const tk of (T.takimlar||[])){
         const {data:tRow,error:e2}=await sb.from('takimlar').insert({
-          lig_id:ligId, ad:tk.ad, renk:tk.renk||null, renk2:tk.renk2||null, logo:tk.logo||null, grup:tk.grup||0, lis_no:tk.lisNo||null
+          lig_id:ligId, ad:tk.ad, renk:tk.renk||null, renk2:tk.renk2||null, logo:tk.logo||null, grup:tk.grup||0, lis_no:tk.lisNo||null, td:tk.td||null
         }).select('id').single();
         if(e2) return {hata:e2.message};
         takimIdMap[tk.id]=tRow.id;
@@ -1137,6 +1137,7 @@ const SOYADLAR = ["Temür","Kutu","Araz","Üstünsoy","Ağbal","Akyüz","Demirci
 const TAKIM_ADLARI = ["İçerenköy","68 Alayhan Spor","Çağdaş Veteran","Kartal Yunus","Kurtköy Legends","Efe 09","Master Feet","AlayhanSpor","Velibaba","Bostancı United","Maltepe Gücü","Pendik Star","Kadıköy FK","Ataşehir SK","Ümraniye Spor","Tuzla Power"];
 const TURNUVA_ADLARI = ["İstanbul Veteran Ligi","Anadolu Yakası Kupası","Kadıköy Akşam Ligi","Pendik Halısaha Turnuvası","Marmara Masterlar"];
 const POZISYONLAR = ["Kaleci","Defans","OrtaSaha","Forvet"];
+const HAKEM_ADLARI = ["Cüneyt Faytar","Halil Meler","Fırat Aydın","Mete Kalkavan","Ali Palabıyık","Yaşar Kemal","Zorbay Küçük","Atilla Karaoğlan","Bahattin Duran","Ozan Ergün","Volkan Bayarslan","Direnç Tonusluoğlu","Kutluhan Bilgiç","Serkan Olguncan","Arda Kardeşler","Alper Ulusoy"];
 const RENKLER = ["#C0392B","#2980B9","#27AE60","#8E44AD","#E67E22","#16A085","#D35400","#2C3E50","#C0399B","#1ABC9C"];
 /* Her takımın 2. rengi zorunlu — seçilmezse ana renkten türet (koyu ton, ya da renk koyuysa açık). */
 function ikinciRenk(renk){
@@ -1413,10 +1414,14 @@ function uretVeri(turnuvaSayisi=5, takimPerTurnuva=9, oyuncuPerTakim=12, opts={}
           formaRenk:renk
         });
       }
+      // Kaptan = en yüksek OVR'li oyuncu; TD = üretilmiş isim (Faz 5: evren varlıkları)
+      const kap = [...oyuncular].sort((a,b)=>b.ovr-a.ovr)[0];
       takimlar.push({
         id: takimId++,
         ad: TAKIM_ADLARI[(t*takimPerTurnuva+k) % TAKIM_ADLARI.length],
         renk, oyuncular,
+        kaptanId: kap?kap.id:null,
+        td: { ad: pick(ADLAR)+" "+pick(SOYADLAR) },
         o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0, form:[]
       });
     }
@@ -1449,35 +1454,34 @@ function uretVeri(turnuvaSayisi=5, takimPerTurnuva=9, oyuncuPerTakim=12, opts={}
         maclar.push({id:macId++, hafta, grup:fx.grup, takimA:A.ad, takimB:B.ad, renkA:A.renk, renkB:B.renk, skorA:null, skorB:null, olaylar:[], oynandi:false, takimAId:A.id, takimBId:B.id, sure:60});
         return;
       }
-        const sA=rnd(6), sB=rnd(6);
+        // —— GERÇEKÇİ SİMÜLASYON —— skor takım gücü + mevki + form + EV AVANTAJI'na göre (rastgele değil)
+        const nonGk=(tk)=>tk.oyuncular.filter(p=>p.poz!=="Kaleci");
+        const hucumG=(tk)=>{ const l=nonGk(tk); return l.length? l.reduce((s,o)=>s+(o.ovr*0.6+o.sho*0.4),0)/l.length : 60; };
+        const defansG=(tk)=>{ const l=tk.oyuncular.filter(o=>o.poz==="Defans"||o.poz==="Kaleci"); return l.length? l.reduce((s,o)=>s+(o.ovr*0.6+o.def*0.4),0)/l.length : 60; };
+        const formFak=(tk)=>{ const f=(tk.form||[]).slice(-5); const p=f.reduce((s,r)=>s+(r==="G"?1:r==="M"?-1:0),0); return 1+Math.max(-0.2,Math.min(0.2,p*0.05)); };
+        const poisson=(lam)=>{ const L=Math.exp(-Math.max(0.05,lam)); let k=0,p=1; do{k++;p*=Math.random();}while(p>L); return k-1; };
+        const gercekci = opts.gercekci!==false;   // varsayılan: gerçekçi
+        let sA,sB;
+        if(gercekci){
+          const xgA=Math.max(0.15, 1.5*(hucumG(A)/Math.max(45,defansG(B)))*1.12*formFak(A)); // A ev sahibi: 1.12 avantaj
+          const xgB=Math.max(0.15, 1.5*(hucumG(B)/Math.max(45,defansG(A)))*formFak(B));
+          sA=Math.min(8,poisson(xgA)); sB=Math.min(8,poisson(xgB));
+        } else { sA=rnd(6); sB=rnd(6); }
         const olaylar=[];
-        // gol dağıt — bazı maçlarda hat-trick garantisi (incelemesi kolay olsun)
-        const hattrickMac = Math.random()>0.55; // ~%45 maçta bir golcü çok gol
-        const golciler=(tk,adet)=>{
-          let yildizGolcu=null;
-          if(hattrickMac && adet>=3 && tk===(sA>=sB?A:B)){
-            yildizGolcu=pick(tk.oyuncular.filter(p=>p.poz!=="Kaleci"));
-          }
-          for(let g=0; g<adet; g++){
-            const sc = (yildizGolcu && g<3) ? yildizGolcu : pick(tk.oyuncular.filter(p=>p.poz!=="Kaleci"));
-            sc.gol++;
-            const as=pick(tk.oyuncular.filter(p=>p.id!==sc.id));
-            const asistVar = Math.random()>0.35;
-            if(asistVar){ as.asist++; }
-            const golDk = Math.floor(Math.random()*60)+1;
-            olaylar.push({oyuncu:sc.ad, takim:tk.ad, tip:"gol", asist: asistVar?as.ad:null, dk:golDk});
-          }
-        };
-        golciler(A,sA); golciler(B,sB);
-        // kartlar — daha sık (inceleme için)
+        const golAgirlik=(p)=>{ const pz=p.poz==="Forvet"?3:p.poz==="OrtaSaha"?1.5:p.poz==="Defans"?0.5:0.12; return pz*(p.sho*0.6+p.ovr*0.4)/40+0.01; };
+        const asistAgirlik=(p)=>{ const pz=p.poz==="OrtaSaha"?3:p.poz==="Forvet"?1.6:p.poz==="Defans"?0.7:0.1; return pz*(p.pas*0.6+p.ovr*0.4)/40+0.01; };
+        const golAt=(tk,adet)=>{ const hav=nonGk(tk); for(let g=0;g<adet;g++){ const sc=pickWeighted(hav,golAgirlik)||pick(hav); if(!sc) continue; sc.gol++; const asAday=tk.oyuncular.filter(p=>p.id!==sc.id); const as=(Math.random()>0.4)?(pickWeighted(asAday,asistAgirlik)||null):null; if(as) as.asist++; olaylar.push({oyuncu:sc.ad, oyuncuId:sc.id, takim:tk.ad, tip:"gol", asist:as?as.ad:null, asistId:as?as.id:null, dk:1+Math.floor(Math.random()*58)}); } };
+        golAt(A,sA); golAt(B,sB);
+        // kartlar — defans/orta saha ağırlıklı (mevkiye göre gerçekçi)
+        const kartAgirlik=(p)=>p.poz==="Defans"?2.2:p.poz==="OrtaSaha"?1.6:p.poz==="Forvet"?0.8:0.4;
         [A,B].forEach(tk=>{
-          const sariSay = Math.random()>0.5 ? (Math.random()>0.6?2:1) : 0;
-          for(let i=0;i<sariSay;i++){ const p=pick(tk.oyuncular); p.sari++; olaylar.push({oyuncu:p.ad, takim:tk.ad, tip:"sari"}); }
-          if(Math.random()>0.78){ const p=pick(tk.oyuncular); p.kirmizi++; olaylar.push({oyuncu:p.ad, takim:tk.ad, tip:"kirmizi"}); }
+          const sariSay = Math.random()>0.45 ? (Math.random()>0.6?2:1) : 0;
+          for(let i=0;i<sariSay;i++){ const p=pickWeighted(tk.oyuncular,kartAgirlik)||pick(tk.oyuncular); if(p){ p.sari++; olaylar.push({oyuncu:p.ad, oyuncuId:p.id, takim:tk.ad, tip:"sari"}); } }
+          if(Math.random()>0.82){ const p=pickWeighted(tk.oyuncular,kartAgirlik)||pick(tk.oyuncular); if(p){ p.kirmizi++; olaylar.push({oyuncu:p.ad, oyuncuId:p.id, takim:tk.ad, tip:"kirmizi"}); } }
         });
         // kaleci kurtarış — hem oyuncu sayacı hem MAÇA yaz (kaydedici maçtan okur)
         const macKaleciler=[];
-        [A,B].forEach(tk=>{ const k=tk.oyuncular.find(p=>p.poz==="Kaleci"); if(k){ const n=1+rnd(6); k.kurtaris+=n; macKaleciler.push({ad:k.ad, kurtaris:n}); } });
+        [A,B].forEach(tk=>{ const k=tk.oyuncular.find(p=>p.poz==="Kaleci"); if(k){ const yedi=(tk===A?sB:sA); const n=Math.max(1, 2+rnd(3)+yedi); k.kurtaris+=n; macKaleciler.push({ad:k.ad, id:k.id, kurtaris:n}); } });
         // mvp — kazanan takımda gol+asist katkısı yüksek olana ağırlıklı
         const mvpTk = sA>=sB?A:B;
         const mvpAday = mvpTk.oyuncular.filter(p=>p.gol>0).length?mvpTk.oyuncular.filter(p=>p.gol>0):mvpTk.oyuncular;
@@ -1490,17 +1494,17 @@ function uretVeri(turnuvaSayisi=5, takimPerTurnuva=9, oyuncuPerTakim=12, opts={}
         const defanslar = tumO.filter(p=>p.poz==="Defans");
         const kaleciler = tumO.filter(p=>p.poz==="Kaleci");
         // maça kaydedilecek ödül paketi (her maçta TÜM ödüller seçili olsun — inceleme kolaylığı)
-        const macOdul={};
+        const macOdul={}, macOdulId={};
         macOdul.mvp = mvpO?mvpO.ad:null;
-        { const o=pickWeighted(forvetler.length?forvetler:tumO, p=>p.gol+p.sho/20); if(o){o.forvet++; macOdul.forvet=o.ad;} }
-        { const o=pickWeighted(ortalar.length?ortalar:tumO, p=>p.asist+p.pas/20); if(o){o.ortasaha++; macOdul.ortasaha=o.ad;} }
-        { const o=pickWeighted(defanslar.length?defanslar:tumO, p=>p.def/15); if(o){o.defans++; macOdul.defans=o.ad;} }
-        { const o=pickWeighted(kaleciler.length?kaleciler:tumO, p=>p.kurtaris+p.def/20); if(o){o.kaleci++; macOdul.kaleci=o.ad;} }
-        { const o=pickWeighted(tumO, p=>(p.ovr-50)/12); if(o){o.altin++; macOdul.altin=o.ad;} }
-        { const o=pickWeighted(tumO, p=>(p.ovr-50)/15); if(o){o.gumus++; macOdul.gumus=o.ad;} }
-        { const o=pickWeighted(tumO, p=>p.gol+p.sho/25); if(o){o.macinGolu++; macOdul.macinGolu=o.ad;} }
-        { const o=pick(tumO); o.enerjik++; macOdul.enerjik=o.ad; }
-        { const o=pick(tumO); o.centilmen++; macOdul.centilmen=o.ad; }
+        { const o=pickWeighted(forvetler.length?forvetler:tumO, p=>p.gol+p.sho/20); if(o){o.forvet++; macOdul.forvet=o.ad; macOdulId.forvet=o.id;} }
+        { const o=pickWeighted(ortalar.length?ortalar:tumO, p=>p.asist+p.pas/20); if(o){o.ortasaha++; macOdul.ortasaha=o.ad; macOdulId.ortasaha=o.id;} }
+        { const o=pickWeighted(defanslar.length?defanslar:tumO, p=>p.def/15); if(o){o.defans++; macOdul.defans=o.ad; macOdulId.defans=o.id;} }
+        { const o=pickWeighted(kaleciler.length?kaleciler:tumO, p=>p.kurtaris+p.def/20); if(o){o.kaleci++; macOdul.kaleci=o.ad; macOdulId.kaleci=o.id;} }
+        { const o=pickWeighted(tumO, p=>(p.ovr-50)/12); if(o){o.altin++; macOdul.altin=o.ad; macOdulId.altin=o.id;} }
+        { const o=pickWeighted(tumO, p=>(p.ovr-50)/15); if(o){o.gumus++; macOdul.gumus=o.ad; macOdulId.gumus=o.id;} }
+        { const o=pickWeighted(tumO, p=>p.gol+p.sho/25); if(o){o.macinGolu++; macOdul.macinGolu=o.ad; macOdulId.macinGolu=o.id;} }
+        { const o=pick(tumO); o.enerjik++; macOdul.enerjik=o.ad; macOdulId.enerjik=o.id; }
+        { const o=pick(tumO); o.centilmen++; macOdul.centilmen=o.ad; macOdulId.centilmen=o.id; }
         // mac istatistik
         A.oyuncular.forEach(p=>p.mac++); B.oyuncular.forEach(p=>p.mac++);
         // puan
@@ -1511,7 +1515,7 @@ function uretVeri(turnuvaSayisi=5, takimPerTurnuva=9, oyuncuPerTakim=12, opts={}
         // maç istatistiği de üret (gazete/afişte dolu görünsün)
         const macIst = istatistikUret(sA, sB);
         const dA=dizUret(A), dB=dizUret(B);
-        const yeniMacObj={id:macId++, hafta, grup:fx.grup, takimA:A.ad, takimB:B.ad, renkA:A.renk, renkB:B.renk, skorA:sA, skorB:sB, olaylar, kaleciler:macKaleciler, mvp:mvpO?mvpO.ad:null, mvpTakim:mvpTk.ad, oduller:macOdul, istatistik:macIst, oynandi:true, takimAId:A.id, takimBId:B.id, sure:60, dizilisA:dA.ad, dizilisB:dB.ad, kadroA:dA.kadro, kadroB:dB.kadro};
+        const yeniMacObj={id:macId++, hafta, grup:fx.grup, takimA:A.ad, takimB:B.ad, renkA:A.renk, renkB:B.renk, skorA:sA, skorB:sB, olaylar, kaleciler:macKaleciler, mvp:mvpO?mvpO.ad:null, mvpId:mvpO?mvpO.id:null, mvpTakim:mvpTk.ad, oduller:macOdul, odullerId:macOdulId, istatistik:macIst, oynandi:true, takimAId:A.id, takimBId:B.id, sure:60, dizilisA:dA.ad, dizilisB:dB.ad, kadroA:dA.kadro, kadroB:dB.kadro, hakem:pick(HAKEM_ADLARI)};
         yeniMacObj.ratingler = ratingHesapla(yeniMacObj, A, B);
         maclar.push(yeniMacObj);
     });
@@ -10148,6 +10152,18 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const [cfgFormat,setCfgFormat]=useState("tek");
   const [cfgOran,setCfgOran]=useState(80);   // % oynanmış maç
   const [cfgKupa,setCfgKupa]=useState(true);  // örnek kupa da eklensin mi
+  // ForzaLig Evreni — ek alanlar
+  const [cfgEvrenAd,setCfgEvrenAd]=useState("ForzaLig Evreni");
+  const [cfgHakem,setCfgHakem]=useState(8);
+  const [cfgTD,setCfgTD]=useState(8);
+  const [cfgSezon,setCfgSezon]=useState(1);
+  const [cfgSeed,setCfgSeed]=useState("");
+  const [cfgGercekci,setCfgGercekci]=useState(true);
+  const [cfgHaber,setCfgHaber]=useState(true);
+  const [cfgFoto,setCfgFoto]=useState(true);
+  const [cfgLogo,setCfgLogo]=useState(true);
+  const [cfgGoster,setCfgGoster]=useState(true);
+  const [stresPct,setStresPct]=useState(0);   // ilerleme çubuğu %
   // maç sayısı önizleme (tek devre: n*(n-1)/2, çift: iki katı; gruplu: yaklaşık)
   const macOnizle=useMemo(()=>{
     const n=Math.max(2,parseInt(cfgTakim)||0);
@@ -10166,18 +10182,19 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
     const oran=Math.max(0,Math.min(1,(parseInt(cfgOran)||100)/100));
     const grup=cfgFormat==="gruplu"?Math.max(2,Math.round(nTk/4)):0;
     const sehirler=["İstanbul","Ankara","İzmir","Bursa","Antalya","Adana","Konya","Eskişehir"];
-    setStresYuk(true);
+    setStresYuk(true); setStresPct(0);
     const olan=[];
     try{
       for(let i=0;i<nLig;i++){
-        setStresLog("Üretiliyor "+(i+1)+"/"+nLig+" …");
-        const T2=uretVeri(1,nTk,nOy,{format:cfgFormat,grup,kisi:7,oynanmaOran:oran})[0];
-        T2.ad=(STRES_LIG_ADI[i]||("Test Ligi "+(i+1)));
+        setStresLog("🌌 Üretiliyor "+(i+1)+"/"+nLig+" …");
+        const T2=uretVeri(1,nTk,nOy,{format:cfgFormat,grup,kisi:7,oynanmaOran:oran,gercekci:cfgGercekci})[0];
+        T2.ad=(STRES_LIG_ADI[i]||("Lig "+(i+1)));
         T2.sehir=pick(sehirler);
-        setStresLog("Kaydediliyor "+(i+1)+"/"+nLig+": "+T2.ad+" …");
+        setStresLog("💾 Kaydediliyor "+(i+1)+"/"+nLig+": "+T2.ad+" …");
         const r=await Db.ligKaydet(T2, oturum.id);
         if(!r.ok){ setStresLog("❌ Hata ("+T2.ad+"): "+(r.hata||"")); setStresYuk(false); return; }
         olan.push(T2.ad);
+        setStresPct(Math.round((i+1)/(nLig+(cfgKupa?1:0))*100));
       }
       if(cfgKupa){
         setStresLog("Kaydediliyor: Kupa …");
@@ -10789,15 +10806,25 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
           </div>}
         </div>
         <div style={{background:"linear-gradient(120deg,"+T.accent2+"18,"+T.bg1+")",border:"0.5px solid "+T.accent2+"44",borderRadius:12,padding:14,marginBottom:10}}>
-          <b style={{color:T.text}}>🧪 Stres Testi (ilişkisel veritabanı)</b>
-          <div style={{fontSize:11,color:T.textMut,margin:"5px 0 10px",lineHeight:1.6}}>İstediğin miktarda dolu lig üretir → ilişkisel tablolara kaydeder. Oyuncular, istatistikler, kadrolar/dizilişler, goller, asistler, kartlar, kurtarışlar, MVP + tüm maç sonu ödülleri — hepsi dolu. "%oynanmış" ile bazı maçları fikstürde bekletir (gerçekçi).</div>
-          {(()=>{ const Alan=({et,val,set,min,max})=><label style={{flex:"1 1 84px",fontSize:10,color:T.textMut}}>{et}<input type="number" min={min} max={max} value={val} onChange={e=>set(e.target.value)} style={{width:"100%",marginTop:3,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:8,padding:"7px 8px",color:T.text,fontSize:13,fontWeight:700}}/></label>;
+          <b style={{color:T.text}}>🌌 ForzaLig Evreni</b>
+          <div style={{fontSize:11,color:T.textMut,margin:"5px 0 10px",lineHeight:1.6}}>Gerçek bir sezon oynanmış gibi tüm modülleri doldurur: ligler, takımlar, oyuncular, TD, kaptan, hakem, fikstür, dakika-dakika olaylar, goller/asistler/kartlar/kurtarışlar, MVP, maç ödülleri, oyuncu puanları, puan durumu, krallıklar ve AI gazete. Sonuçlar <b style={{color:T.text}}>rastgele değil</b> — takım gücü, oyuncu gücü, mevki, form ve ev avantajına göre.</div>
+          {(()=>{ const Alan=({et,val,set,min,max})=><label style={{flex:"1 1 76px",fontSize:10,color:T.textMut}}>{et}<input type="number" min={min} max={max} value={val} onChange={e=>set(e.target.value)} style={{width:"100%",marginTop:3,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:8,padding:"7px 8px",color:T.text,fontSize:13,fontWeight:700,boxSizing:"border-box"}}/></label>;
+            const Chk=({et,val,set})=><label className="tap" style={{fontSize:10.5,color:val?T.text:T.textMut,display:"flex",alignItems:"center",gap:5,background:T.bg2,borderRadius:8,padding:"6px 9px"}}><input type="checkbox" checked={val} onChange={e=>set(e.target.checked)}/> {et}</label>;
+            const takimTop=(parseInt(cfgLig)||0)*(parseInt(cfgTakim)||0), oyTop=takimTop*(parseInt(cfgOyuncu)||0);
+            const sureTah=Math.max(1,Math.ceil((parseInt(cfgLig)||1)*0.9+(cfgKupa?1:0)));
             return <div style={{background:T.bg0,borderRadius:10,padding:10,marginBottom:10}}>
+              <label style={{fontSize:10,color:T.textMut,display:"block"}}>Evren Adı<input value={cfgEvrenAd} onChange={e=>setCfgEvrenAd(e.target.value)} style={{width:"100%",marginTop:3,marginBottom:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:8,padding:"8px 10px",color:T.text,fontSize:13,fontWeight:700,boxSizing:"border-box"}}/></label>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                <Alan et="Kaç lig" val={cfgLig} set={setCfgLig} min={1} max={30}/>
-                <Alan et="Ligde takım" val={cfgTakim} set={setCfgTakim} min={2} max={24}/>
-                <Alan et="Takımda oyuncu" val={cfgOyuncu} set={setCfgOyuncu} min={3} max={30}/>
+                <Alan et="Lig" val={cfgLig} set={setCfgLig} min={1} max={30}/>
+                <Alan et="Takım/lig" val={cfgTakim} set={setCfgTakim} min={2} max={24}/>
+                <Alan et="Oyuncu/takım" val={cfgOyuncu} set={setCfgOyuncu} min={3} max={30}/>
                 <Alan et="% oynanmış" val={cfgOran} set={setCfgOran} min={0} max={100}/>
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+                <Alan et="Hakem" val={cfgHakem} set={setCfgHakem} min={0} max={50}/>
+                <Alan et="Tek. Dir." val={cfgTD} set={setCfgTD} min={0} max={50}/>
+                <Alan et="Sezon" val={cfgSezon} set={setCfgSezon} min={1} max={10}/>
+                <label style={{flex:"1 1 76px",fontSize:10,color:T.textMut}}>Seed (ops.)<input value={cfgSeed} onChange={e=>setCfgSeed(e.target.value)} placeholder="rastgele" style={{width:"100%",marginTop:3,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:8,padding:"7px 8px",color:T.text,fontSize:12,fontWeight:600,boxSizing:"border-box"}}/></label>
               </div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:9,alignItems:"center"}}>
                 <span style={{fontSize:10,color:T.textMut,marginRight:2}}>Format:</span>
@@ -10805,14 +10832,25 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
                   <span key={k} onClick={()=>setCfgFormat(k)} className="tap" style={{fontSize:10.5,padding:"5px 10px",borderRadius:11,background:cfgFormat===k?T.accent2:T.bg2,color:cfgFormat===k?"#04070C":T.textMut,fontWeight:cfgFormat===k?800:500}}>{ad}</span>)}
                 <label className="tap" style={{fontSize:10.5,color:T.textMut,display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}}><input type="checkbox" checked={cfgKupa} onChange={e=>setCfgKupa(e.target.checked)}/> örnek kupa</label>
               </div>
-              <div style={{fontSize:10.5,color:T.gold,marginTop:9,fontWeight:600}}>≈ {(parseInt(cfgLig)||0)*(parseInt(cfgTakim)||0)} takım · {(parseInt(cfgLig)||0)*(parseInt(cfgTakim)||0)*(parseInt(cfgOyuncu)||0)} oyuncu · {macOnizle.toplam} maç ({macOnizle.perLig}/lig) · %{cfgOran} oynanmış</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:9}}>
+                <Chk et="Gerçekçi Simülasyon" val={cfgGercekci} set={setCfgGercekci}/>
+                <Chk et="AI Haberleri" val={cfgHaber} set={setCfgHaber}/>
+                <Chk et="Fotoğraf Havuzu" val={cfgFoto} set={setCfgFoto}/>
+                <Chk et="Logo Havuzu" val={cfgLogo} set={setCfgLogo}/>
+                <Chk et="Herkese Göster" val={cfgGoster} set={setCfgGoster}/>
+              </div>
+              <div style={{fontSize:10.5,color:T.gold,marginTop:10,fontWeight:600,lineHeight:1.5}}>📦 ≈ {takimTop} takım · {oyTop} oyuncu · {macOnizle.toplam} maç ({macOnizle.perLig}/lig) · {parseInt(cfgHakem)||0} hakem · {takimTop} TD/kaptan<br/>⏱️ Tahmini süre: ~{sureTah} sn · %{cfgOran} oynanmış</div>
             </div>;
           })()}
+          {stresYuk && <div style={{marginBottom:10}}>
+            <div style={{height:8,background:T.bg0,borderRadius:5,overflow:"hidden"}}><div style={{height:"100%",width:stresPct+"%",background:"linear-gradient(90deg,"+T.accent2+","+T.accent+")",borderRadius:5,transition:"width .3s"}}/></div>
+            <div style={{fontSize:10,color:T.textMut,textAlign:"center",marginTop:4}}>%{stresPct}</div>
+          </div>}
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            <button onClick={stresTestOlustur} disabled={stresYuk} className="tap" style={{flex:1,minWidth:130,background:stresYuk?T.line:T.accent2,color:stresYuk?T.textMut:"#04070C",border:0,borderRadius:10,padding:"11px",fontSize:12.5,fontWeight:800}}>{stresYuk?"⏳ Çalışıyor…":"🧪 Stres Testi Üret + Kaydet"}</button>
-            <button onClick={iliskiselYukleFn} disabled={stresYuk} className="tap" style={{flex:1,minWidth:130,background:T.gold+"22",color:T.gold,border:"0.5px solid "+T.gold+"55",borderRadius:10,padding:"11px",fontSize:12.5,fontWeight:800}}>⬇️ İlişkiselden Yükle</button>
+            <button onClick={stresTestOlustur} disabled={stresYuk} className="tap" style={{flex:1,minWidth:130,background:stresYuk?T.line:T.accent2,color:stresYuk?T.textMut:"#04070C",border:0,borderRadius:10,padding:"11px",fontSize:12.5,fontWeight:800}}>{stresYuk?"⏳ Oluşturuluyor…":"🌌 Evren Oluştur"}</button>
+            <button onClick={iliskiselYukleFn} disabled={stresYuk} className="tap" style={{flex:1,minWidth:130,background:T.gold+"22",color:T.gold,border:"0.5px solid "+T.gold+"55",borderRadius:10,padding:"11px",fontSize:12.5,fontWeight:800}}>👁 Göster (Yükle)</button>
           </div>
-          <button onClick={testTemizleFn} disabled={stresYuk} className="tap" style={{width:"100%",marginTop:8,background:"none",color:T.danger,border:"0.5px solid "+T.danger+"44",borderRadius:10,padding:"9px",fontSize:11.5,fontWeight:700}}>🗑️ İlişkisel test verisini temizle (yeniden üretmek için)</button>
+          <button onClick={testTemizleFn} disabled={stresYuk} className="tap" style={{width:"100%",marginTop:8,background:T.danger+"14",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:10,padding:"10px",fontSize:12,fontWeight:800}}>🗑️ Evreni Sil (tüm üretilen veri)</button>
           {stresLog && <div style={{fontSize:11,color:T.text,marginTop:9,background:T.bg0,borderRadius:8,padding:"8px 10px",lineHeight:1.5}}>{stresLog}</div>}
         </div>
         <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14,marginBottom:10}}>
