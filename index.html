@@ -633,6 +633,7 @@ const Db = {
   async ligSoftSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_soft_sil',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ligGeriAl(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_geri_al',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ligPurge(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('lig_purge_eskiler'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
+  async ligKaliciSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_kalici_sil',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ligCopListe(){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('id,ad,silinme_t').eq('silindi',true).order('silinme_t',{ascending:false}); return data||[]; }catch(e){ return []; } },
   // ---- Lig hakları (K3/K4) ----
   async hakGetir(userId){
@@ -912,7 +913,7 @@ const Db = {
     if(!sb) return null;
     try{
       const {data:L}=await sb.from('ligler').select('*').eq('id',ligId).maybeSingle();
-      if(!L) return null;
+      if(!L || L.silindi) return null;   // çöpe atılmış (soft-delete) lig ana görünümde yüklenmesin
       const [tkR,otR,mcR]=await Promise.all([
         sb.from('takimlar').select('*').eq('lig_id',ligId),
         sb.from('oyuncu_takim').select('*').eq('lig_id',ligId).eq('aktif',true),
@@ -10073,6 +10074,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
   const arsivleYap=async()=>{ if(!confirm("Kanal başına en yeni 5.000 mesaj aktif kalsın, gerisi arşive alınsın mı?")) return; setBakimMsj("Arşivleniyor…"); const r=await Db.sohbetArsivle(); if(r&&r.ok){ Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" mesaj arşive alındı"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   const copGeriAl=async(l)=>{ const r=await Db.ligGeriAl(l.id); if(r&&r.ok){ setCopLigler(p=>p.filter(x=>x.id!==l.id)); Db.logla(oturum,"Lig çöpten geri alındı",l.ad||""); setBakimMsj("✓ Geri alındı: "+(l.ad||"")); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   const copBosalt=async()=>{ if(!confirm("Çöp kutusundaki 90 GÜNDEN eski ligler KALICI silinsin mi? (Geri alınamaz)")) return; const r=await Db.ligPurge(); if(r&&r.ok){ Db.ligCopListe().then(c=>setCopLigler(c||[])); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" lig kalıcı silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
+  // Tek ligi HEMEN kalıcı sil (90 gün beklemeden) — tüm bağlı veri (takım/oyuncu/maç/istatistik/sohbet/bildirim)
+  const copKaliciSil=async(l)=>{ if(!confirm("\""+(l.ad||"Lig")+"\" ligini VE tüm bağlı verisini (takımlar, oyuncular, maçlar, istatistikler, sohbetler, bildirimler) KALICI sil?\n\n⚠️ Bu işlem GERİ ALINAMAZ.")) return; const r=await Db.ligKaliciSil(l.id); if(r&&r.ok){ setCopLigler(p=>p.filter(x=>x.id!==l.id)); Db.logla(oturum,"Lig KALICI silindi",l.ad||""); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ Kalıcı silindi: "+(l.ad||"")); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   // 📢 Toplu mesaj/duyuru
   const [msgAcik,setMsgAcik]=useState(false);
   const [msgTip,setMsgTip]=useState("herkes");     // herkes | lig | takim | kisi
@@ -10709,6 +10712,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle}){
             <div key={l.id} style={{display:"flex",alignItems:"center",gap:9,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"8px 10px",marginBottom:5}}>
               <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad}</div><div style={{fontSize:9,color:T.textMut}}>{rZaman(l.silinme_t)} silindi</div></div>
               <button onClick={()=>copGeriAl(l)} className="tap" style={{fontSize:10.5,color:T.accent,background:T.accent+"18",border:"0.5px solid "+T.accent+"44",borderRadius:8,padding:"5px 10px",fontWeight:700,flexShrink:0}}>↩ Geri al</button>
+              <button onClick={()=>copKaliciSil(l)} className="tap" title="Hemen kalıcı sil (geri alınamaz)" style={{fontSize:10.5,color:T.danger,background:T.danger+"18",border:"0.5px solid "+T.danger+"55",borderRadius:8,padding:"5px 10px",fontWeight:700,flexShrink:0}}>🗑️ Kalıcı sil</button>
             </div>)}
         </div>}
         {/* 15) SİSTEM SAĞLIĞI */}
