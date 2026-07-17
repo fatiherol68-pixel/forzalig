@@ -651,6 +651,9 @@ const Db = {
   async orphanBul(){ if(!sb) return []; try{ const {data}=await sb.rpc('depo_orphan_bul'); return data||[]; }catch(e){ return []; } },
   async orphanTemizle(yollar){ if(!sb||!yollar||!yollar.length) return {ok:true,adet:0}; try{ const {error}=await sb.storage.from('fotolar').remove(yollar); return error?{hata:error.message}:{ok:true,adet:yollar.length}; }catch(e){ return {hata:String(e)}; } },
   async sohbetArsivle(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('sohbet_arsivle'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
+  // Sohbetteki maç kartları: özet (adet/yer/en eski) + otomatik/manuel temizlik (14 gün+)
+  async macKartOzet(){ if(!sb) return null; try{ const {data,error}=await sb.rpc('mac_kart_ozet'); return error?null:(data||null); }catch(e){ return null; } },
+  async macKartTemizle(gun){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('mac_kart_temizle',{p_gun:gun||14}); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   // ---- Faz 3: Lig soft-delete / çöp kutusu ----
   async ligSoftSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_soft_sil',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ligGeriAl(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_geri_al',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
@@ -10097,9 +10100,12 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
   const [metrik,setMetrik]=useState(null);         // FAZ 4 — gerçek metrikler (panel_metrikler)
   const [opEk,setOpEk]=useState(null);             // Operasyon Merkezi ek: canlı akış + trafik + trend
   const [opTek,setOpTek]=useState({deploy:null, api:null, cf:null});  // deploy sürüm · API gecikme · Cloudflare
+  const [mkOzet,setMkOzet]=useState(null);         // sohbet maç kartları: {adet,bayt,eski} (null=yüklenmedi)
   // Operasyon ek veri + istemci ölçümleri (yalnızca Sistem sekmesi açılınca, tek sefer — polling YOK)
   useEffect(()=>{ if(sekme!=="sistem"||opEk) return; let a=true;
     Db.operasyonEk().then(d=>{ if(a) setOpEk(d||{}); });
+    // Sohbet maç kartları: fırsatçı otomatik temizlik (14 gün+) sonra özeti göster. Polling YOK.
+    (async()=>{ try{ await Db.macKartTemizle(14); }catch(e){} const oz=await Db.macKartOzet(); if(a) setMkOzet(oz||{adet:0,bayt:0,eski:null}); })();
     (async()=>{ // deploy sürümü: /sw.js'ten SURUM (tek fetch)
       try{ const r=await fetch('/sw.js',{cache:'no-store'}); const t=await r.text(); const m=t.match(/SURUM\s*=\s*"([^"]+)"/); const cf=r.headers.get('cf-cache-status')||r.headers.get('cf-ray'); if(a) setOpTek(o=>({...o, deploy:(m?m[1]:null), cf:(cf?(r.headers.get('cf-cache-status')||'Cloudflare'):null)})); }catch(e){}
       try{ const t0=(window.performance&&performance.now)?performance.now():Date.now(); await sb.from('ligler').select('*',{count:'exact',head:true}).limit(1); const t1=(window.performance&&performance.now)?performance.now():Date.now(); if(a) setOpTek(o=>({...o, api:Math.round(t1-t0)})); }catch(e){}
@@ -10151,6 +10157,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
   const orphanTara=async()=>{ setBakimMsj("Taranıyor…"); const o=await Db.orphanBul(); setOrphanlar(o||[]); setBakimMsj((o&&o.length)?(o.length+" sahipsiz dosya bulundu"):"✓ Sahipsiz dosya yok — depo temiz"); };
   const orphanTemizleAll=async()=>{ if(!orphanlar||!orphanlar.length) return; if(!confirm(orphanlar.length+" sahipsiz dosya kalıcı silinsin mi?")) return; const r=await Db.orphanTemizle(orphanlar.map(o=>o.yol)); if(r&&r.ok){ setOrphanlar([]); Db.logla(oturum,"Orphan temizlik",r.adet+" dosya"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" dosya silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   const arsivleYap=async()=>{ if(!confirm("Kanal başına en yeni 5.000 mesaj aktif kalsın, gerisi arşive alınsın mı?")) return; setBakimMsj("Arşivleniyor…"); const r=await Db.sohbetArsivle(); if(r&&r.ok){ Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" mesaj arşive alındı"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
+  // Sohbetteki maç kartlarını manuel temizle (14 gün+). Sonuçlar maç sayfasında kalır — sadece sohbet kartı gider.
+  const macKartTemizleYap=async()=>{ if(!confirm("2 haftadan eski maç sonucu kartları sohbetten kalıcı silinsin mi?\n\n(Maç sonuçları ve istatistikler maç sayfasında KALIR — sadece sohbetteki bildirim kartı gider.)")) return; setBakimMsj("Temizleniyor…"); const r=await Db.macKartTemizle(14); if(r&&r.ok){ const oz=await Db.macKartOzet(); setMkOzet(oz||{adet:0,bayt:0,eski:null}); Db.logla(oturum,"Maç kartı temizlik",r.adet+" kart"); setBakimMsj("✓ "+r.adet+" maç kartı silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   const copGeriAl=async(l)=>{ const r=await Db.ligGeriAl(l.id); if(r&&r.ok){ setCopLigler(p=>p.filter(x=>x.id!==l.id)); Db.logla(oturum,"Lig çöpten geri alındı",l.ad||""); setBakimMsj("✓ Geri alındı: "+(l.ad||"")); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   const copBosalt=async()=>{ if(!confirm("Çöp kutusundaki 90 GÜNDEN eski ligler KALICI silinsin mi? (Geri alınamaz)")) return; const r=await Db.ligPurge(); if(r&&r.ok){ Db.ligCopListe().then(c=>setCopLigler(c||[])); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" lig kalıcı silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   // Tek ligi HEMEN kalıcı sil (90 gün beklemeden) — tüm bağlı veri (takım/oyuncu/maç/istatistik/sohbet/bildirim)
@@ -10845,6 +10853,19 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon}
             <button onClick={arsivleYap} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>💬 Sohbeti arşivle</button>
             <button onClick={orphanTara} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>🔍 Sahipsiz dosya tara</button>
             {orphanlar && orphanlar.length>0 && <button onClick={orphanTemizleAll} className="tap" style={{fontSize:11,color:"#fff",background:T.danger,border:0,borderRadius:9,padding:"7px 11px",fontWeight:800}}>🗑 {orphanlar.length} dosyayı sil</button>}
+          </div>
+          {/* Sohbet maç kartları — otomatik (2 haftada bir) + görünürlük + manuel */}
+          <div style={{marginTop:11,paddingTop:10,borderTop:"0.5px dashed "+T.line}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:150}}>
+                <div style={{fontSize:11,color:T.text,fontWeight:700}}>🗂️ Sohbetteki maç kartları</div>
+                <div style={{fontSize:10,color:T.textMut,marginTop:2}}>
+                  {mkOzet===null ? "Yükleniyor…" : <>{(mkOzet.adet||0)} kart · ~{((mkOzet.bayt||0)/1024).toFixed(1)} KB{mkOzet.eski?" · en eski "+rZaman(mkOzet.eski):""}</>}
+                </div>
+              </div>
+              <button onClick={macKartTemizleYap} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700,flexShrink:0}}>🧹 2 hafta+ temizle</button>
+            </div>
+            <div style={{fontSize:9.5,color:T.textMut,marginTop:6}}>⚙️ Otomatik: 2 haftada bir eski kartlar silinir. Maç sonuçları ve istatistikler maç sayfasında KALIR — sadece sohbetteki bildirim kartı gider.</div>
           </div>
         </div>
         {/* ===== ÇÖP KUTUSU (soft-silinen ligler) ===== */}
