@@ -704,17 +704,23 @@ const Db = {
   async adminTopluBildirim(tip, id, baslik, metin){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('admin_toplu_bildirim',{p_tip:tip, p_id:id||null, p_baslik:baslik, p_metin:metin||null}); return error?{hata:error.message}:{ok:true,adet:data}; }catch(e){ return {hata:String(e)}; } },
   // ---- TEK BİLDİRİM MERKEZİ (fan-out) — bir olaydan çok kanal ----
   async ligBildirim(ligId, takimId, baslik, metin, linkId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('lig_bildirim',{p_lig:ligId, p_takim:takimId||null, p_baslik:baslik, p_metin:metin||null, p_link_id:linkId||null}); return error?{hata:error.message}:{ok:true,adet:data}; }catch(e){ return {hata:String(e)}; } },
-  async epostaKuyruk(satirlar){ if(!sb||!satirlar||!satirlar.length) return {ok:true,adet:0}; try{ const {error}=await sb.from('bildirim_kuyruk').insert(satirlar); return error?{hata:error.message}:{ok:true,adet:satirlar.length}; }catch(e){ return {hata:String(e)}; } },
+  async epostaKuyruk(satirlar){ if(!sb||!satirlar||!satirlar.length) return {ok:true,adet:0}; try{ let {error}=await sb.from('bildirim_kuyruk').insert(satirlar); if(error){ const sade=satirlar.map(r=>{ const {hedef_email, ...k}=r; return k; }); const r2=await sb.from('bildirim_kuyruk').insert(sade); error=r2.error; } return error?{hata:error.message}:{ok:true,adet:satirlar.length}; }catch(e){ return {hata:String(e)}; } },
   // Tek olay → in-app(+push webhook) · lig sohbeti · takım sohbeti · e-posta kuyruğu
   async bildirimDagit(o){
     if(!sb||!o||!o.ligId) return {hata:"yok"};
     const K=o.kanallar||{}, s={inapp:0,ligSohbet:false,takim:0,email:0,hata:[]};
-    const sistemAd=o.ad||"⚽ ForzaLig", kart=o.kart||null;
+    const sistemAd=o.ad||"⚽ ForzaLig", kart=o.kart||null, gonderen=o.senderId||null;
+    // Sistem mesajı: gönderen = maçı kaydeden yönetici (RLS güvenli). Zengin kolon/RLS sorununda sade metne düş.
+    const sistemMesaj=async(takimId)=>{
+      let r=await this.mesajGonder(o.ligId, takimId, gonderen, sistemAd, {metin:o.metin, sistem:true, sistem_tip:o.sistemTip||'mac', kart});
+      if(!r||!r.ok){ r=await this.mesajGonder(o.ligId, takimId, gonderen, sistemAd, {metin:"⚽ "+o.metin}); }
+      return r;
+    };
     try{
-      if(K.inapp){ const r=await this.ligBildirim(o.ligId, null, o.baslik, o.metin, o.linkId); if(r.ok) s.inapp=r.adet||0; else s.hata.push("bildirim"); }
-      if(K.ligSohbet){ const r=await this.mesajGonder(o.ligId, null, null, sistemAd, {metin:o.metin, sistem:true, sistem_tip:o.sistemTip||'mac', kart}); if(r.ok) s.ligSohbet=true; else s.hata.push("ligsohbet"); }
-      if(K.takimSohbet && Array.isArray(o.takimIds)){ for(const tid of o.takimIds){ if(!tid) continue; const r=await this.mesajGonder(o.ligId, tid, null, sistemAd, {metin:o.metin, sistem:true, sistem_tip:o.sistemTip||'mac', kart}); if(r.ok) s.takim++; } }
-      if(K.email){ await this.epostaKuyruk([{hedef_lig:o.ligId, konu:o.baslik, govde:o.metin, kanal:'email'}]); s.email=1; }
+      if(K.inapp){ const r=await this.ligBildirim(o.ligId, null, o.baslik, o.metin, o.linkId); if(r.ok) s.inapp=r.adet||0; else s.hata.push("bildirim:"+(r.hata||"")); }
+      if(K.ligSohbet){ const r=await sistemMesaj(null); if(r&&r.ok) s.ligSohbet=true; else s.hata.push("ligsohbet:"+((r&&r.hata)||"")); }
+      if(K.takimSohbet && Array.isArray(o.takimIds)){ for(const tid of o.takimIds){ if(!tid) continue; const r=await sistemMesaj(tid); if(r&&r.ok) s.takim++; } }
+      if(K.email){ await this.epostaKuyruk([{hedef_lig:o.ligId, konu:o.baslik, govde:o.metin, kanal:'email'},{hedef_email:'fatiherol68@gmail.com', konu:"[KOPYA] "+o.baslik, govde:o.metin, kanal:'email'}]); s.email=1; }
     }catch(e){ s.hata.push(String(e&&e.message||e)); }
     return {ok:true, sonuc:s};
   },
@@ -12424,7 +12430,7 @@ function App(){
       const ozet=`${mac.takimA} ${skorA}-${skorB} ${mac.takimB}`+(mac.mvp?` · ⭐ MVP: ${mac.mvp}`:"");
       const kart={tip:"mac", takimA:mac.takimA, takimB:mac.takimB, skorA, skorB, mvp:mac.mvp||null, hafta:mac.hafta||null, macId:mac.id};
       (async()=>{ try{
-        await Db.bildirimDagit({ ligId:turnuva.id, takimIds:[mac.takimAId,mac.takimBId], baslik:`⚽ ${(turnuva.ad||"Lig")} · Maç Sonucu`, metin:ozet, linkId:mac.id, sistemTip:"mac", kart, kanallar:{inapp:true, ligSohbet:true, takimSohbet:true, email:true} });
+        await Db.bildirimDagit({ ligId:turnuva.id, takimIds:[mac.takimAId,mac.takimBId], senderId:(oturum&&oturum.id)||null, baslik:`⚽ ${(turnuva.ad||"Lig")} · Maç Sonucu`, metin:ozet, linkId:mac.id, sistemTip:"mac", kart, kanallar:{inapp:true, ligSohbet:true, takimSohbet:true, email:true} });
         try{ await sb.from('maclar').update({bildirildi:true}).eq('id',mac.id); }catch(e){}
       }catch(e){} })();
     }
