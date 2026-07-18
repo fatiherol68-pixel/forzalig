@@ -89,6 +89,7 @@
   (function(){
     if(!("serviceWorker" in navigator)) return;
     if(location.protocol !== "https:" && location.hostname !== "localhost") return;
+    var kullaniciYenile = false;   // "Yenile"ye basıldı mı? (controllerchange yalnız o zaman tazeler)
     function toastGoster(reg){
       if(document.getElementById("fl-guncel-toast")) return;
       var t = document.createElement("div");
@@ -100,8 +101,10 @@
       b.style.cssText = "background:#39FF7A;color:#06240F;border:none;border-radius:10px;padding:9px 16px;font:700 13px Inter,sans-serif;cursor:pointer;min-height:36px";
       b.onclick = function(){
         b.textContent = "…";
-        if(reg.waiting) reg.waiting.postMessage("FL_SKIP_WAITING");
-        setTimeout(function(){ location.reload(); }, 400);
+        kullaniciYenile = true;
+        if(reg.waiting){ reg.waiting.postMessage("FL_SKIP_WAITING"); } // → SW aktifleşince controllerchange tazeler
+        else { location.reload(); }                                   // beklemede sürüm yoksa doğrudan tazele
+        setTimeout(function(){ location.reload(); }, 3000);           // güvenlik ağı: controllerchange gelmezse
       };
       t.appendChild(b);
       document.body.appendChild(t);
@@ -126,10 +129,13 @@
         setInterval(function(){ reg.update().catch(function(){}); }, 90000); // her 90 sn
         window.addEventListener("online", function(){ reg.update().catch(function(){}); });
       }).catch(function(){});
-      // Yeni SW devraldığında sayfayı tazele (Yenile'ye basıldıysa)
+      // Yeni SW devraldığında sayfayı TAM OLARAK BİR KEZ tazele — ama yalnız kullanıcı "Yenile"ye bastıysa.
+      // (İlk kurulumdaki clients.claim() controllerchange'inde gereksiz reload olmasın; sonsuz döngü de böyle biter.)
       var yenilendi = false;
       navigator.serviceWorker.addEventListener("controllerchange", function(){
-        if(yenilendi) return; yenilendi = true;
+        if(!kullaniciYenile || yenilendi) return;
+        yenilendi = true;
+        location.reload();
       });
     });
   })();
