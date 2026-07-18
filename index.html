@@ -139,10 +139,12 @@
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap"></noscript>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { overscroll-behavior:none; }
+  /* Yatay kayma/esneme tamamen kapalı; dikey overscroll zinciri kırık (iOS/Android/PWA).
+     overflow-x:clip (hidden değil) → sticky header'ı bozacak scroll-container yan etkisi yok. */
+  html, body { overscroll-behavior:none; overscroll-behavior-x:none; max-width:100%; overflow-x:clip; }
   body { font-family: var(--font-body, 'Inter', sans-serif); background: var(--bg0, #070B12); color: var(--text, #F1F5F9); transition: background .3s, color .3s; }
   @keyframes flPulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-  #root { min-height: 100vh; background: var(--bg0, #070B12); position: relative; }
+  #root { min-height: 100vh; background: var(--bg0, #070B12); position: relative; overflow-x: clip; }
   /* Statik açılış ekranı (React yüklenmeden anında görünür → FCP/LCP hızlanır) */
   #fz-onsplash { position:fixed; inset:0; background:#070B12; display:flex; align-items:center; justify-content:center; overflow:hidden; z-index:1; }
   @keyframes fzPreBar { 0%{transform:translateX(-100%);} 100%{transform:translateX(250%);} }
@@ -154,10 +156,9 @@
     .main-area { padding-bottom: 30px !important; }
   }
   .desktop-side { display: none; }
-  /* PWA (ana ekrandan açılınca): içerik çentiğin/status barın altına girmesin */
-  @media (display-mode: standalone) {
-    #root { padding-top: env(safe-area-inset-top); }
-  }
+  /* Güvenli alan (çentik/status bar) artık sabit header'ın kendi padding'inde ele alınır
+     (.fz-topbar → env(safe-area-inset-top)). Böylece hem Safari hem PWA/standalone'da
+     header background çentiği doldurur, içerik çakışmaz. */
   /* Tablet / büyük telefon (600–819px): içerik kenarlara yapışmasın */
   @media (min-width: 600px) and (max-width: 819px) {
     .wrap { max-width: 640px; }
@@ -1132,6 +1133,18 @@ const Db = {
     if(!sb || !evren) return [];
     try{
       const {data}=await sb.from('ligler').select('id').eq('evren',evren).order('olusturma',{ascending:false}).limit(300);
+      const idler=(data||[]).map(x=>x.id);
+      const sonuc=(await Promise.all(idler.map(id=>this.ligYukle(id)))).filter(Boolean);
+      return sonuc;
+    }catch(e){ return []; }
+  },
+  // YAYINLANAN EVREN — evren adı ne olursa olsun tüm herkese-açık evren liglerini yükle
+  // (her giriş yapmış kullanıcı + ziyaretçi görebilir; RLS zaten okumaya açık).
+  async liglerEvrenHepsi(limit){
+    if(!sb) return [];
+    try{
+      const {data,error}=await sb.from('ligler').select('id').not('evren','is',null).order('olusturma',{ascending:false}).limit(limit||300);
+      if(error) return [];
       const idler=(data||[]).map(x=>x.id);
       const sonuc=(await Promise.all(idler.map(id=>this.ligYukle(id)))).filter(Boolean);
       return sonuc;
@@ -2728,7 +2741,7 @@ function EnKart({et, o, deg, br, renk, T, takim, onClick}){
   </div>;
 }
 
-function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi}){
+function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil}){
   const kariyereGit=()=>{
     if(!sahiplenme) return;
     // yerelde oyuncuyu bul
@@ -2756,7 +2769,9 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   // Sahiplendiğin oyuncu + takımı + ligi → kariyer & takım kartlarında göster
   let benimOyuncum=null, benimTakim=null, benimTakimT=null;
   if(oturum){ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ const f=(tk.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id); if(f){benimOyuncum=f;benimTakim=tk;benimTakimT=t;break;} } if(benimOyuncum)break; } }
-  const profilFoto = (benimOyuncum&&benimOyuncum.foto)||null;
+  // Foto önceliği: sahiplenilen oyuncu kartı → yüklenen profil fotosu → Google (avatar_url/picture) → varsayılan
+  const gFoto = oturum&&oturum.user_metadata ? (oturum.user_metadata.avatar_url||oturum.user_metadata.picture) : null;
+  const profilFoto = (benimOyuncum&&benimOyuncum.foto) || (profil&&profil.foto) || gFoto || null;
   const beyaz = T.renkCifti&&T.renkCifti[1]==="#FFFFFF";
   const QA=({ik,l,onClick,renk,rozet})=> <div onClick={onClick} className="tap" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:7,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:15,padding:"14px 4px",cursor:"pointer",position:"relative"}}>
     <span style={{width:38,height:38,borderRadius:11,background:(renk||T.accent)+"1e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{ik}</span>
@@ -10283,14 +10298,13 @@ function Tanitim({T, kapiGit, tamamla}){
 }
 
 /* FAZ 4 — İlk giriş rehberi (onboarding turu): alt menüyü vurgulayan 4 adımlık tanıtım */
-function Rehber({T, bitir}){
+function Rehber({T, bitir, adimlar:adimProp}){
   const [adim,setAdim]=useState(0);
   const beyaz=T.renkCifti&&T.renkCifti[1]==="#FFFFFF";
-  const adimlar=[
+  const adimlar=(adimProp&&adimProp.length)?adimProp:[
     {ik:"🏠", vur:0, bas:"Ana", ac:"Ligindeki öne çıkanlar, gol kralı, haftanın maçı ve puan durumu ilk 5 burada. Birden çok ligin varsa üstteki şeritten hızlıca geçersin."},
     {ik:"🔍", vur:1, bas:"Keşfet", ac:"Tüm liglerin, takımların ve oyuncuların burada. Yeni bir lig de buradan kurulur."},
-    {ik:"📲", vur:-1, bas:"Maçı paylaş", ac:"Bir maça gir, 'Skor Kartı'na dokun — hazır görseli tek dokunuşla WhatsApp'a at."},
-    {ik:"👤", vur:2, bas:"Profil", ac:"Kariyerin, fotoğrafın ve takip ettiğin lig/oyuncular burada. Fotoğrafını da buradan eklersin."},
+    {ik:"👤", vur:3, bas:"Profil", ac:"Kariyerin, fotoğrafın ve takip ettiğin lig/oyuncular burada."},
   ];
   const a=adimlar[adim], son=adim===adimlar.length-1;
   const ileri=()=>{ if(son) bitir(); else { setAdim(x=>x+1); try{ if(navigator.vibrate)navigator.vibrate(8); }catch(e){} } };
@@ -11899,6 +11913,13 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
   const sikayet=async(m)=>{ setSecili(null); const s=prompt("Şikâyet sebebi (opsiyonel):",""); if(s===null) return; const r=await Db.sikayetEt(m,oturum.id,s); alert(r&&r.ok?"Şikâyetin iletildi, teşekkürler.":"Gönderilemedi."); };
   const eskiYukle=async()=>{ if(!mesajlar.length||eskiYuk||!dahaVar) return; setEskiYuk(true); const enEski=mesajlar[0].olusma; const eski=await Db.mesajlar(turnuva.id, aktifTakimId, enEski); const el=kaydirRef.current; const oncekiH=el?el.scrollHeight:0; setMesajlar(p=>[...eski,...p]); if(eski.length<30) setDahaVar(false); tepkileriYukle([...eski,...mesajlar]); setTimeout(()=>{ if(el) el.scrollTop=el.scrollHeight-oncekiH; },30); setEskiYuk(false); };
   const scrollDinle=(e)=>{ const el=e.target; dipteRef.current=dipteMi(); if(dipteRef.current) setYeniVar(false); if(el.scrollTop<40) eskiYukle(); };
+  // Klavye açılıp kapanınca (visualViewport) dipteysek son mesajı görünür tut
+  useEffect(()=>{
+    const vv=window.visualViewport; if(!vv) return;
+    const onR=()=>{ if(dipteRef.current) dibeKaydir(); };
+    vv.addEventListener('resize',onR);
+    return ()=>vv.removeEventListener('resize',onR);
+  },[]);
 
   // GLOBAL SOHBET HUB — belirli lig seçilmemişse: sohbet edilebilir ligleri listele
   if(!turnuva){
@@ -11937,11 +11958,11 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
   const rozet=(n)=> n>0 ? <span style={{marginLeft:6,background:T.accent,color:T.bg0,fontSize:10,fontWeight:800,borderRadius:10,padding:"0 6px",minWidth:16,display:"inline-block",textAlign:"center"}}>{n>99?"99+":n}</span> : null;
   const zaman=(iso)=>{ try{ return new Date(iso).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } };
 
-  return <div className="fade-in" style={{display:"flex",flexDirection:"column",height:"calc(100dvh - 52px)",position:"relative"}}>
+  return <div className="fade-in" style={{display:"flex",flexDirection:"column",height:"calc(var(--vvh, 100dvh) - var(--fz-hdr, 52px))",position:"relative",overflow:"hidden"}}>
     {/* BAŞLIK + SEKMELER */}
-    <div style={{padding:"12px 14px 10px",borderBottom:"0.5px solid "+T.line,background:T.bg0}}>
+    <div style={{flexShrink:0,padding:"12px 14px 10px",borderBottom:"0.5px solid "+T.line,background:T.bg0}}>
       <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
-      <div style={{display:"flex",gap:8,marginTop:10,overflowX:"auto",alignItems:"center"}}>
+      <div style={{display:"flex",gap:8,marginTop:10,overflowX:"auto",alignItems:"center",overscrollBehaviorX:"contain",WebkitOverflowScrolling:"touch"}}>
         <button onClick={()=>kanalDegis("genel")} className="tap" style={{flexShrink:0,background:kanal==="genel"?T.accent:T.bg1,color:kanal==="genel"?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="genel"?T.accent:T.line),borderRadius:20,padding:"7px 15px",fontSize:12.5,fontWeight:700}}>Lig Sohbeti{rozet(unread["genel"]||0)}</button>
         {ligYon
           ? <select value={aktifTakimId||""} onChange={e=>kanalDegis(e.target.value?("t:"+e.target.value):"genel")} style={{flexShrink:0,background:aktifTakimId?T.accent:T.bg1,color:aktifTakimId?T.bg0:T.textSoft,border:"0.5px solid "+(aktifTakimId?T.accent:T.line),borderRadius:20,padding:"8px 12px",fontSize:12.5,fontWeight:700,fontFamily:"inherit",outline:"none",maxWidth:200}}>
@@ -11955,7 +11976,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
     </div>
 
     {/* MESAJLAR */}
-    <div ref={kaydirRef} onScroll={scrollDinle} onClick={()=>secili&&setSecili(null)} style={{flex:1,overflowY:"auto",padding:"14px 12px",display:"flex",flexDirection:"column",gap:3}}>
+    <div ref={kaydirRef} onScroll={scrollDinle} onClick={()=>secili&&setSecili(null)} style={{flex:1,minHeight:0,overflowY:"auto",overflowX:"hidden",overscrollBehavior:"contain",WebkitOverflowScrolling:"touch",padding:"14px 12px",display:"flex",flexDirection:"column",gap:3}}>
       {eskiYuk && <div style={{textAlign:"center",color:T.textMut,fontSize:11,padding:6}}>Eski mesajlar yükleniyor…</div>}
       {yuk ? <div style={{textAlign:"center",color:T.textMut,fontSize:12,padding:30}}>Yükleniyor…</div>
        : mesajlar.length===0 ? <div style={{textAlign:"center",color:T.textMut,fontSize:12.5,padding:40}}>İlk mesajı sen yaz 👋</div>
@@ -12045,9 +12066,9 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
       <span style={{fontSize:11.5,color:yonetimMod?T.gold:T.textMut,fontWeight:700}}>📢 Yönetim mesajı olarak gönder</span>
     </div>}
     {/* MESAJ KUTUSU */}
-    {!oturum ? <div style={{padding:14,textAlign:"center",fontSize:12,color:T.textMut,borderTop:"0.5px solid "+T.line}}>Yazmak için giriş yap.</div>
-     : <div style={{display:"flex",gap:8,padding:"10px 12px calc(10px + env(safe-area-inset-bottom))",borderTop:yonetimMod?"none":"0.5px solid "+T.line,background:T.bg0}}>
-        <input value={metin} onChange={e=>setMetin(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder={yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…"} style={{flex:1,minWidth:0,width:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+    {!oturum ? <div style={{flexShrink:0,padding:"14px 14px calc(14px + env(safe-area-inset-bottom))",textAlign:"center",fontSize:12,color:T.textMut,borderTop:"0.5px solid "+T.line,background:T.bg0}}>Yazmak için giriş yap.</div>
+     : <div style={{flexShrink:0,display:"flex",gap:8,padding:"10px 12px max(10px, calc(env(safe-area-inset-bottom) - var(--kb, 0px)))",borderTop:yonetimMod?"none":"0.5px solid "+T.line,background:T.bg0}}>
+        <input value={metin} onChange={e=>setMetin(e.target.value)} onFocus={()=>{ dipteRef.current=dipteMi(); setTimeout(dibeKaydir,300); }} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder={yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…"} style={{flex:1,minWidth:0,width:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,outline:"none",fontFamily:"inherit",boxSizing:"border-box",fontSize:16}}/>
         <button onClick={gonder} disabled={gonderiliyor||!metin.trim()} className="tap" style={{background:yonetimMod?T.gold:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim())?.5:1}}>➤</button>
       </div>}
   </div>;
@@ -12463,6 +12484,26 @@ function App(){
     if(kapi!==null || PAYLASIM_SLUG || DAVET_TOKEN) return;   // kapı açıkken / paylaşım / davet akışında gösterme
     try{ if(!localStorage.getItem(REHBER_FLAG)) setRehberGoster(true); }catch(e){}
   },[kapi]);
+  // Görünür viewport + klavye + header yüksekliği → CSS değişkenleri (iOS/Android/Safari/PWA kalıcı çözüm)
+  useEffect(()=>{
+    const vv=window.visualViewport;
+    const olcHeader=()=>{ const tb=document.querySelector('.fz-topbar'); if(tb) document.documentElement.style.setProperty('--fz-hdr', Math.round(tb.getBoundingClientRect().height)+'px'); };
+    const uygula=()=>{
+      const h=vv?vv.height:window.innerHeight;
+      const kb=Math.max(0, window.innerHeight-(vv?(vv.height+vv.offsetTop):window.innerHeight)); // klavye yüksekliği
+      const r=document.documentElement.style;
+      r.setProperty('--vvh', Math.round(h)+'px');
+      r.setProperty('--kb', Math.round(kb)+'px');
+      olcHeader();
+    };
+    uygula();
+    const t1=setTimeout(uygula,250), t2=setTimeout(uygula,800);
+    if(vv){ vv.addEventListener('resize',uygula); vv.addEventListener('scroll',uygula); }
+    window.addEventListener('resize',uygula); window.addEventListener('orientationchange',uygula);
+    return ()=>{ clearTimeout(t1); clearTimeout(t2); if(vv){ vv.removeEventListener('resize',uygula); vv.removeEventListener('scroll',uygula); } window.removeEventListener('resize',uygula); window.removeEventListener('orientationchange',uygula); };
+  },[]);
+  // Sayfa/banner değişince header yüksekliğini yeniden ölç (salt-okunur/destek şeridi eklenip kalkabilir)
+  useEffect(()=>{ const tb=document.querySelector('.fz-topbar'); if(tb) document.documentElement.style.setProperty('--fz-hdr', Math.round(tb.getBoundingClientRect().height)+'px'); });
   // ÇEKİRDEK — app-içi bildirim (gerçek, Supabase tabanlı)
   const [gercekBildirim,setGercekBildirim]=useState([]); // {id,tip,baslik,metin,link_tip,link_id,okundu,olusma}
   const okunmamis = gercekBildirim.filter(b=>!b.okundu).length;
@@ -12669,13 +12710,20 @@ function App(){
     (async()=>{
       // Aktif demo evren varsa (Göster'e basılmış) → yenilemede de o evren kalsın (mod). Yoksa gerçek ligler.
       const aktEv = (()=>{ try{ return oturum ? localStorage.getItem('fz_aktif_evren') : null; }catch(e){ return null; } })();
-      let ligler;
-      if(!oturum){ ligler = await Db.liglerYukleAcik(); }
-      else if(aktEv){
+      // Yayınlanan herkese-açık evren içeriği HERKESE görünür (kendi liglerine ek olarak)
+      const evrenBirlestir=(kendi)=>{ const varOlan=new Set((kendi||[]).map(l=>l.id)); return (kendi||[]).concat((evrenHepsi||[]).filter(l=>!varOlan.has(l.id))); };
+      let ligler, evrenHepsi=[];
+      if(!oturum){
+        const [acik, evren] = await Promise.all([Db.liglerYukleAcik(), Db.liglerEvrenHepsi(60)]);
+        evrenHepsi=evren; ligler = evrenBirlestir(acik);
+      } else if(aktEv){
         ligler = await Db.liglerEvrenYukle(aktEv);
         // Evren silinmiş/boşsa modda takılı kalma → gerçek liglere otomatik dön
-        if(!ligler.length){ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} ligler = await Db.liglerYukle(oturum.id, false); }
-      } else { ligler = await Db.liglerYukle(oturum.id, false); }
+        if(!ligler.length){ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const [benim,evren]=await Promise.all([Db.liglerYukle(oturum.id, false),Db.liglerEvrenHepsi(60)]); evrenHepsi=evren; ligler=evrenBirlestir(benim); }
+      } else {
+        const [benim, evren] = await Promise.all([Db.liglerYukle(oturum.id, false), Db.liglerEvrenHepsi(60)]);
+        evrenHepsi=evren; ligler = evrenBirlestir(benim);
+      }
       if(!aktif) return;
       if(oturum){ window.__FL_UID=oturum.id; Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); Db.yasakliMi(oturum.id).then(y=>{ if(aktif && y) setYasakli(true); }); Db.yardimciLiglerim(oturum.id).then(ids=>{ if(aktif) setYardimciLigler(new Set(ids)); }); Db.profilGetir(oturum.id).then(p=>{ if(!aktif) return; setProfil(p||{}); }); } else { window.__FL_UID=null; setAdminMi(false); setLigKurYetkim(false); setYasakli(null); setYardimciLigler(new Set()); setProfil(null); setRolSor(false); }
       ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
@@ -13308,7 +13356,7 @@ function App(){
       case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
       case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} adminMi={etkinAdminMi} turnuvalar={turnuvalar}/>; break;
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
-      case "profil": icerik = destek ? destekKapali : <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi}/>; break;
+      case "profil": icerik = destek ? destekKapali : <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil}/>; break;
       case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar}/>; break;
       case "sorun": icerik=<SorunBildir T={T} git={git} oturum={oturum} teshis={teshisUret()}/>; break;
       case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
@@ -13346,7 +13394,25 @@ function App(){
     {kapi==="tanitim" && <Tanitim T={T} kapiGit={setKapi} tamamla={kapiTamamla}/>}
     {(kapi==="giris"||kapi==="uyeol") && <GirisAuth T={T} mod={kapi} kapiGit={setKapi} tamamla={kapiTamamla}/>}
     {/* FAZ 4 — ilk giriş rehberi (uygulama açıkken, kapı yokken) */}
-    {rehberGoster && kapi===null && !saltOkunur && !rolSor && <Rehber T={T} bitir={rehberBitir}/>}
+    {rehberGoster && kapi===null && !saltOkunur && !rolSor && (()=>{
+      // Tur, kullanıcının gerçek durumuna göre dinamik kurulur (nav: 0=Ana,1=Keşfet,2=Sohbet,3=Profil)
+      const gUser=!!(oturum&&oturum.user_metadata&&(oturum.user_metadata.avatar_url||oturum.user_metadata.picture)); // Google fotolu
+      let benT=null; if(oturum){ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ if((tk.oyuncular||[]).some(o=>o.sahip_user_id===oturum.id)){ benT={tk,t}; break; } } if(benT)break; } }
+      const oynanmisMacim = !!(benT && (benT.t.maclar||[]).some(mm=> mm.oynandi && (mm.takimA===benT.tk.ad || mm.takimB===benT.tk.ad)));
+      const ad=[
+        {ik:"🏠", vur:0, bas:"Ana Sayfa", ac:"Ligindeki öne çıkanlar, gol kralı, haftanın maçı ve puan durumu burada. Birden çok ligin varsa üstteki şeritten geçersin."},
+        {ik:"🔍", vur:1, bas:"Keşfet", ac:"Tüm ligler, takımlar ve oyuncular burada. Aradığını hızlıca bulursun."},
+        {ik:"➕", vur:1, bas:"Lig Bul / Kur", ac:"Keşfet'ten mevcut bir lige göz atabilir ya da “+ Lig Kur” ile kendi ligini kurabilirsin."},
+        {ik:"⚽", vur:1, bas:"Takıma Katıl", ac:"Bir takıma katılmak için lig/takım sayfasından kendini oyuncu olarak sahiplen; yönetici onaylayınca kadroya girersin."},
+      ];
+      // Özellik adımı: yalnızca oynanmış maçı olan kullanıcıya
+      if(oynanmisMacim) ad.push({ik:"📲", vur:-1, bas:"Maçı Paylaş", ac:"Oynanan bir maça gir, “Skor Kartı”na dokun — hazır görseli tek dokunuşla WhatsApp'a at."});
+      // Profil: Google kullanıcısında foto otomatik; değilse buradan eklenir
+      ad.push({ik:"👤", vur:3, bas:"Profil", ac: gUser
+        ? "Kariyerin ve takip ettiğin lig/oyuncular burada. Profil fotoğrafın Google hesabından otomatik geldi."
+        : "Kariyerin, fotoğrafın ve takip ettiğin lig/oyuncular burada. Profil fotoğrafını da buradan eklersin."});
+      return <Rehber T={T} bitir={rehberBitir} adimlar={ad}/>;
+    })()}
     {/* ROL SEÇİMİ — artık OPSİYONEL: sadece kullanıcı "hoş geldin" şeridinden seçince açılır */}
     {rolSor && oturum && kapi===null && !saltOkunur && !DAVET_TOKEN &&
       <RolSecim T={T} oturum={oturum} profil={profil} baslangic={rolBaslangic}
@@ -13379,8 +13445,8 @@ function App(){
     </div>}
 
     <div className="wrap">
-      {/* üst bar */}
-      <div style={{position:"sticky",top:0,zIndex:10,background:T.bg0,borderBottom:"0.5px solid "+T.line,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px"}}>
+      {/* üst bar — güvenli alan (çentik) padding'e gömülü, background çentiği doldurur */}
+      <div className="fz-topbar" style={{position:"sticky",top:0,zIndex:10,background:T.bg0,borderBottom:"0.5px solid "+T.line,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"calc(12px + env(safe-area-inset-top)) 16px 12px"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           {geriVar && <button onClick={geri} className="tap" style={{fontSize:20,color:T.textSoft}}>‹</button>}
           <span style={{fontWeight:800,fontSize:17,color:T.accent,fontFamily:T.fontDisplay,letterSpacing:.5}}>ForzaLig</span>
