@@ -289,6 +289,21 @@
   body.stil-cam #root { --cam:1; }
   /* Açık mod: kaydırma çubuğu tonu */
   body.stil-acik ::-webkit-scrollbar-thumb { background:#c4d0c8; }
+  /* ==== TEMA KARAKTERLERİ — her tema kendi gölge/atmosfer diliyle (global, inline'ı bozmaz) ==== */
+  /* Karbon: saf siyah, düz — neredeyse gölgesiz */
+  body[data-stil="karbon"] .kart-hover{ box-shadow:0 1px 2px rgba(0,0,0,.7); }
+  body[data-stil="karbon"] .kart-hover:hover{ box-shadow:0 3px 10px rgba(0,0,0,.85); transform:translateY(-1px); }
+  /* Sinyal: rafine, keskin, sığ gölge */
+  body[data-stil="sinyal"] .kart-hover{ box-shadow:0 4px 14px -7px rgba(0,0,0,.6); }
+  /* Prizma: renkli yumuşak derin gölge + cam doygunluğu */
+  body[data-stil="prizma"] .kart-hover{ box-shadow:0 16px 38px -18px rgba(120,60,200,.55); }
+  /* Şampiyonlar: sinematik lacivert derinlik */
+  body[data-stil="sampiyon"] .kart-hover{ box-shadow:0 14px 40px -16px rgba(0,28,90,.75); }
+  /* Oyun: ışıyan elektrik mavisi kenar */
+  body[data-stil="oyun"] .kart-hover{ box-shadow:0 16px 42px -16px rgba(8,60,160,.6), 0 0 20px -8px rgba(0,224,255,.45); }
+  body[data-stil="oyun"] .kart-hover:hover{ box-shadow:0 20px 48px -14px rgba(8,60,160,.7), 0 0 26px -6px rgba(0,224,255,.6); }
+  /* Cam temalar: kartlarda hafif doygunluk/parlama */
+  body.stil-cam .kart-hover{ backdrop-filter:saturate(1.12); -webkit-backdrop-filter:saturate(1.12); }
   /* #1 — Input odak halkası: yazdığın kutu seçili renkte ışık alsın (a11y + premium) */
   input:focus, textarea:focus, select:focus {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #20E07A) 30%, transparent);
@@ -1178,6 +1193,36 @@ const STILLER = {
     text:"#F2F3FF", textMut:"#B9BCDA", textSoft:"#CFD2F0",
     accent:"#8B7BFF", accent2:"#6D5CFF", gold:"#FFD75E", danger:"#FF6B9A",
     fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#8B7BFF","#0E0A2A"], cam:true
+  },
+  karbon: {
+    ad:"Karbon", bg0:"#000000", bg1:"#0C0C0E", bg2:"#0A0A0C", line:"#1E1E22",
+    text:"#FAFAFA", textMut:"#7B7B82", textSoft:"#C7C7CC",
+    accent:"#ECECEE", accent2:"#B9BBC0", gold:"#E6BE72", danger:"#FF5B5B",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#ECECEE","#0A0A0B"]
+  },
+  prizma: {
+    ad:"Prizma", bg0:"#140F20", bg1:"#1E1733", bg2:"#191228", line:"#312748",
+    text:"#F5F1FF", textMut:"#A99ECB", textSoft:"#CFC6E8",
+    accent:"#C08CFF", accent2:"#43CFC6", gold:"#FFD36B", danger:"#FF6F9E",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#C08CFF","#140F20"], cam:true
+  },
+  sinyal: {
+    ad:"Sinyal", bg0:"#0B0B10", bg1:"#131319", bg2:"#101016", line:"#242430",
+    text:"#E4E3EE", textMut:"#7C7B90", textSoft:"#B7B6C6",
+    accent:"#8087E6", accent2:"#5E6AD2", gold:"#D9BE7C", danger:"#F0616B",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#8087E6","#0B0B10"]
+  },
+  sampiyon: {
+    ad:"Şampiyonlar", bg0:"#050B1E", bg1:"#0C1838", bg2:"#0A1430", line:"#26386E",
+    text:"#EAF1FF", textMut:"#8798C6", textSoft:"#B9C7E8",
+    accent:"#6FB6FF", accent2:"#C7D2E8", gold:"#EBD08A", danger:"#FF6B7D",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#6FB6FF","#06122E"], neon:true
+  },
+  oyun: {
+    ad:"Oyun", bg0:"#05070F", bg1:"#0C1430", bg2:"#0A1026", line:"#213A64",
+    text:"#EAF2FF", textMut:"#8EA6D6", textSoft:"#B9CCF0",
+    accent:"#2E9BFF", accent2:"#00E0FF", gold:"#FFD86B", danger:"#FF5D7A",
+    fontBody:"'Sora', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#2E9BFF","#04122E"], neon:true, cam:true
   },
 };
 /* RENK katmanı — sadece vurgu (accent) + renkCifti değişir; stilin bg/yazı/font'u kalır */
@@ -12247,6 +12292,7 @@ function App(){
     document.body.classList.toggle("stil-neon", !!stil.neon);
     document.body.classList.toggle("stil-acik", !!stil.acik);
     document.body.classList.toggle("stil-cam", !!stil.cam);
+    document.body.dataset.stil = stilKey;   // temaya özel global gölge/atmosfer (CSS: body[data-stil=...])
   },[stilKey, renkKey]);
 
   // Hata loglayıcı için güncel sayfa bağlamı
