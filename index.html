@@ -2784,7 +2784,7 @@ function EnKart({et, o, deg, br, renk, T, takim, onClick}){
   </div>;
 }
 
-function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil}){
+function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi}){
   const kariyereGit=()=>{
     if(!sahiplenme) return;
     // yerelde oyuncuyu bul
@@ -2808,13 +2808,17 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
     {sag!=null && <span style={{fontSize:11,color:T.textMut,marginRight:4}}>{sag}</span>}<span style={{fontSize:12,color:T.textMut}}>›</span>
   </div>;
 
-  const kullaniciAd = oturum ? ((oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email.split("@")[0]) : "Misafir";
+  const sg = destekBilgi||null;                          // Destek (salt-okunur) görünümü — hedef kullanıcı bağlamı
+  const sgProfil = sg ? (sg.profil||{}) : null;
+  const bakUid = sg ? sg.uid : (oturum && oturum.id);    // kariyer/oyuncu eşleşmesi bu uid ile yapılır
+  const kullaniciAd = sg ? (sg.ad||"Kullanıcı") : (oturum ? ((oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email.split("@")[0]) : "Misafir");
   // Sahiplendiğin oyuncu + takımı + ligi → kariyer & takım kartlarında göster
   let benimOyuncum=null, benimTakim=null, benimTakimT=null;
-  if(oturum){ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ const f=(tk.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id); if(f){benimOyuncum=f;benimTakim=tk;benimTakimT=t;break;} } if(benimOyuncum)break; } }
+  if(bakUid){ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ const f=(tk.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===bakUid); if(f){benimOyuncum=f;benimTakim=tk;benimTakimT=t;break;} } if(benimOyuncum)break; } }
   // Foto önceliği: sahiplenilen oyuncu kartı → yüklenen profil fotosu → Google (avatar_url/picture) → varsayılan
   const gFoto = oturum&&oturum.user_metadata ? (oturum.user_metadata.avatar_url||oturum.user_metadata.picture) : null;
-  const profilFoto = (benimOyuncum&&benimOyuncum.foto) || (profil&&profil.foto) || gFoto || null;
+  const profilFoto = sg ? ((benimOyuncum&&benimOyuncum.foto)||(sgProfil&&sgProfil.foto)||null)
+                        : ((benimOyuncum&&benimOyuncum.foto) || (profil&&profil.foto) || gFoto || null);
   const beyaz = T.renkCifti&&T.renkCifti[1]==="#FFFFFF";
   const QA=({ik,l,onClick,renk,rozet})=> <div onClick={onClick} className="tap" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:7,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:15,padding:"14px 4px",cursor:"pointer",position:"relative"}}>
     <span style={{width:38,height:38,borderRadius:11,background:(renk||T.accent)+"1e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{ik}</span>
@@ -2829,10 +2833,12 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
         <div className="vav-suzul" style={{width:60,height:60,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.accent,flexShrink:0,boxShadow:"0 0 18px "+T.accent+"55"}} dangerouslySetInnerHTML={{__html:svgAvatar(kullaniciAd,60,profilFoto)}}/>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{kullaniciAd}</div>
-          <div style={{fontSize:11,color:T.textSoft,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{oturum?oturum.email:"giriş yapılmadı"}</div>
-          {oturum && <div style={{fontSize:10,color:T.accent,marginTop:3}}>☁ bulutta senkron</div>}
+          <div style={{fontSize:11,color:sg?T.gold:T.textSoft,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{sg?"👁 Destek görünümü · salt-okunur":(oturum?oturum.email:"giriş yapılmadı")}</div>
+          {oturum && !sg && <div style={{fontSize:10,color:T.accent,marginTop:3}}>☁ bulutta senkron</div>}
         </div>
-        {oturum
+        {sg
+          ? <span style={{fontSize:9,fontWeight:800,color:T.gold,background:T.gold+"1e",border:"0.5px solid "+T.gold+"55",borderRadius:20,padding:"5px 10px",flexShrink:0}}>SALT-OKUNUR</span>
+          : oturum
           ? <button onClick={()=>git({sayfa:"ayar"})} className="tap" aria-label="Ayarlar" style={{width:40,height:40,borderRadius:12,background:T.bg1,border:"0.5px solid "+T.line,color:T.textSoft,fontSize:19,flexShrink:0}}>⚙️</button>
           : (kapiAc && <button onClick={()=>kapiAc("tanitim")} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:20,padding:"8px 14px",fontSize:12,fontWeight:800}}>Giriş</button>)}
       </div>
@@ -2923,7 +2929,11 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
 
       {/* HESAP */}
       <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>HESAP</div>
-      {oturum ? <>
+      {sg ? <div style={{background:T.gold+"12",border:"0.5px solid "+T.gold+"44",borderRadius:12,padding:"12px 13px",fontSize:12,color:T.textSoft,lineHeight:1.5}}>
+        👁 <b style={{color:T.gold}}>Destek görünümü</b> — bu kullanıcının profilini <b>salt-okunur</b> izliyorsun. Ayarlar, çıkış ve hesap işlemleri güvenlik için devre dışı.
+        <div style={{marginTop:6,fontSize:11,color:T.textMut}}>Durum: {sg.adminMi?"🛡️ Süper Admin":"👤 Normal kullanıcı"}</div>
+      </div>
+      : oturum ? <>
         {adminMi && <div onClick={()=>git({sayfa:"admin"})} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,background:"linear-gradient(120deg,"+T.danger+"18,"+T.bg1+")",border:"0.5px solid "+T.danger+"44",borderRadius:12,padding:"12px 13px",marginBottom:7}}>
           <span style={{fontSize:18}}>🛡️</span><span style={{flex:1,fontSize:13,color:T.text,fontWeight:700}}>Süper Admin Paneli</span><span style={{fontSize:9,color:T.danger,fontWeight:700}}>ADMIN</span><span style={{fontSize:12,color:T.textMut}}>›</span>
         </div>}
@@ -12572,10 +12582,13 @@ function App(){
     // Hedefin bağlamını yükle: ligler + rolleri + yetkileri (menüleri birebir simüle et)
     let gelen=[];
     try{
-      const [lg, pr, adm, hak] = await Promise.all([
-        Db.liglerYukle(u.user_id, false), Db.profilGetir(u.user_id), Db.adminMi(u.user_id), Db.hakGetir(u.user_id)
+      // Kullanıcının kendi ligleri + yayınlanan evren içeriği (normal kullanıcı ana sayfası birebir simüle edilsin)
+      const [lg, evren, pr, adm, hak] = await Promise.all([
+        Db.liglerYukle(u.user_id, false), Db.liglerEvrenHepsi(60), Db.profilGetir(u.user_id), Db.adminMi(u.user_id), Db.hakGetir(u.user_id)
       ]);
-      gelen = lg||[]; setDestekProfil(pr||{roller:(u.roller||{}), rol:u.rol||null}); setDestekAdminMi(!!adm); setDestekLigKur(!!adm || (hak && hak.kalan>0));
+      const varOlan=new Set((lg||[]).map(l=>l.id));
+      gelen = (lg||[]).concat((evren||[]).filter(l=>!varOlan.has(l.id)));
+      setDestekProfil(pr||{roller:(u.roller||{}), rol:u.rol||null}); setDestekAdminMi(!!adm); setDestekLigKur(!!adm || (hak && hak.kalan>0));
     }catch(e){ gelen=[]; setDestekProfil({roller:(u.roller||{})}); setDestekAdminMi(false); setDestekLigKur(false); }
     gelen.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
     setIliskiselModu(true); setTurnuvalar(gelen);
@@ -13391,7 +13404,7 @@ function App(){
       case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
       case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} adminMi={etkinAdminMi} turnuvalar={turnuvalar}/>; break;
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
-      case "profil": icerik = destek ? destekKapali : <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil}/>; break;
+      case "profil": icerik = <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil} destekBilgi={destek?{uid:destek.uid, ad:destek.ad, profil:destekProfil, adminMi:destekAdminMi}:null}/>; break;
       case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar}/>; break;
       case "sorun": icerik=<SorunBildir T={T} git={git} oturum={oturum} teshis={teshisUret()}/>; break;
       case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
