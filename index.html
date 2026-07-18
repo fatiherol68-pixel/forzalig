@@ -141,6 +141,7 @@
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { overscroll-behavior:none; }
   body { font-family: var(--font-body, 'Inter', sans-serif); background: var(--bg0, #070B12); color: var(--text, #F1F5F9); transition: background .3s, color .3s; }
+  @keyframes flPulse { 0%,100%{opacity:1} 50%{opacity:.3} }
   #root { min-height: 100vh; background: var(--bg0, #070B12); position: relative; }
   /* Statik açılış ekranı (React yüklenmeden anında görünür → FCP/LCP hızlanır) */
   #fz-onsplash { position:fixed; inset:0; background:#070B12; display:flex; align-items:center; justify-content:center; overflow:hidden; z-index:1; }
@@ -916,7 +917,7 @@ const Db = {
         ev_skor:(mc.skorA==null?null:mc.skorA), dep_skor:(mc.skorB==null?null:mc.skorB), oynandi:!!mc.oynandi,
         sure:mc.sure||60, dizilis_ev:mc.dizilisA||null, dizilis_dep:mc.dizilisB||null, kadro_ev:mc.kadroA||null,
         kadro_dep:mc.kadroB||null, istatistik:mc.istatistik||null, ratingler:mc.ratingler||null,
-        olaylar:mc.olaylar||null, kaleciler:mc.kaleciler||null,
+        olaylar:mc.olaylar||null, kaleciler:mc.kaleciler||null, medya:mc.medya||null,
         // Player ID omurgası: mvp/ödül id'lerini oduller jsonb'una göm (şema değişmeden reload'da korunur)
         oduller:((mc.oduller||mc.mvpId||mc.odullerId)?{...(mc.oduller||{}), ...(mc.mvpId?{_mvpId:mc.mvpId}:{}), ...(mc.odullerId?{_odullerId:mc.odullerId}:{})}:null),
         mvp:mc.mvp||null, mvp_takim:mc.mvpTakim||null, bildirildi:!!mc.bildirildi };
@@ -993,7 +994,7 @@ const Db = {
           ev_skor:(mc.skorA==null?null:mc.skorA), dep_skor:(mc.skorB==null?null:mc.skorB),
           oynandi:!!mc.oynandi, sure:mc.sure||60, dizilis_ev:mc.dizilisA||null, dizilis_dep:mc.dizilisB||null,
           kadro_ev:mc.kadroA||null, kadro_dep:mc.kadroB||null, istatistik:mc.istatistik||null,
-          ratingler:mc.ratingler||null, olaylar:mc.olaylar||null, kaleciler:mc.kaleciler||null,
+          ratingler:mc.ratingler||null, olaylar:mc.olaylar||null, kaleciler:mc.kaleciler||null, medya:mc.medya||null,
           oduller:mc.oduller||null, mvp:mc.mvp||null, mvp_takim:mc.mvpTakim||null, mvp_player:mvpPid,
           stad:mc.stad||mc.stadyum||null, hakem:mc.hakem||null
         }).select('id').single();
@@ -1059,7 +1060,7 @@ const Db = {
           mvpId:(m.oduller&&m.oduller._mvpId)||null, odullerId:(m.oduller&&m.oduller._odullerId)||null,
           mvp:m.mvp, mvpTakim:m.mvp_takim, istatistik:m.istatistik, ratingler:m.ratingler,
           dizilisA:m.dizilis_ev, dizilisB:m.dizilis_dep, kadroA:m.kadro_ev, kadroB:m.kadro_dep,
-          stad:m.stad, hakem:m.hakem, tarih:m.tarih||'', bildirildi:!!m.bildirildi };
+          stad:m.stad, hakem:m.hakem, tarih:m.tarih||'', medya:m.medya||null, bildirildi:!!m.bildirildi };
       });
       return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', yonetici_id:L.yonetici_id, takimlar, maclar, format:L.format||'tek',
         grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
@@ -6703,9 +6704,7 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
     </div>
 
     {/* CANLI İZLE (Faz 7) */}
-    <div style={{padding:"10px 14px 0"}}>
-      <button onClick={()=>alert("Canlı maç izleme yakında! (online sürümde)")} className="tap" style={{width:"100%",padding:11,borderRadius:11,background:T.bg1,color:T.text,fontSize:13,fontWeight:700,border:"0.5px solid "+T.line}}>▶ Canlı İzle <span style={{fontSize:9,color:T.textMut}}>· yakında</span></button>
-    </div>
+    <CanliYayin m={m} T={T}/>
 
     {/* AKSİYON BUTONLARI */}
     {git && <div style={{padding:"8px 14px 0",display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -8699,6 +8698,140 @@ function LigKur({T, git, ligKur, oturum}){
 /* ============================================================
    FAZ 4 — SKOR GİRİŞİ (skor + gol + asist + kart + MVP)
    ============================================================ */
+/* ============================================================
+   CANLI YAYIN / MAÇ MEDYASI — platform-bağımsız (Faz 7)
+   Veri modeli: m.medya = { canli, tamMac, roportaj, canliAcik }
+   Platform URL'den türetilir (saklanmaz). YouTube aktif; FB/IG/TikTok/MP4 hazır.
+   ============================================================ */
+function MEDYA_ALGILA(url){
+  if(url==null) return null;
+  var u=String(url).trim(); if(!u) return null;
+  var L=u.toLowerCase();
+  if(L.indexOf("youtu")>=0){
+    var yt=u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|live\/|embed\/|shorts\/|v\/))([A-Za-z0-9_-]{6,})/);
+    var id=yt?yt[1]:null;
+    return {platform:"youtube", ad:"YouTube", ik:"▶️", embed:id?("https://www.youtube-nocookie.com/embed/"+id):null, dis:u};
+  }
+  if(L.indexOf("facebook.com")>=0 || L.indexOf("fb.watch")>=0)
+    return {platform:"facebook", ad:"Facebook", ik:"📘", embed:"https://www.facebook.com/plugins/video.php?show_text=false&href="+encodeURIComponent(u), dis:u};
+  if(L.indexOf("instagram.com")>=0){
+    var ig=u.match(/instagram\.com\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/);
+    return {platform:"instagram", ad:"Instagram", ik:"📸", embed:ig?("https://www.instagram.com/reel/"+ig[1]+"/embed/"):null, dis:u};
+  }
+  if(L.indexOf("tiktok.com")>=0){
+    var tk=u.match(/tiktok\.com\/@[A-Za-z0-9_.\-]+\/video\/(\d+)/) || u.match(/tiktok\.com\/.*?\/(\d{8,})/) || u.match(/vm\.tiktok\.com\/([A-Za-z0-9]+)/);
+    var tid=tk?tk[1]:null;
+    return {platform:"tiktok", ad:"TikTok", ik:"🎵", embed:(tid&&/^\d+$/.test(tid))?("https://www.tiktok.com/embed/v2/"+tid):null, dis:u};
+  }
+  if(/\.(mp4|webm|ogg|m3u8|mov)(\?|#|$)/i.test(u))
+    return {platform:"mp4", ad:"Video", ik:"🎞️", embed:u, dis:u, direkt:true};
+  return {platform:"link", ad:"Bağlantı", ik:"🔗", embed:null, dis:u};
+}
+
+/* Inline 16:9 oynatıcı: iframe embed / yerleşik <video> / "dışarıda aç" yedeği */
+function MedyaOynatici({algi, canli, T}){
+  if(!algi) return null;
+  var cerceve = {position:"relative", width:"100%", aspectRatio:"16/9", background:"#000", borderRadius:12, overflow:"hidden", border:"1px solid "+T.line};
+  var ic;
+  if(algi.direkt){
+    ic = <video src={algi.embed} controls playsInline style={{width:"100%",height:"100%",objectFit:"contain",background:"#000"}}/>;
+  } else if(algi.embed){
+    ic = <iframe src={algi.embed} title={algi.ad} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen frameBorder="0" style={{position:"absolute",inset:0,width:"100%",height:"100%",border:0}}/>;
+  } else {
+    ic = <a href={algi.dis} target="_blank" rel="noopener noreferrer" style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,color:T.text,textDecoration:"none"}}>
+      <span style={{fontSize:34}}>{algi.ik}</span>
+      <span style={{fontSize:13,fontWeight:700}}>{algi.ad}'da aç ↗</span>
+      <span style={{fontSize:11,color:T.textMut}}>Bu içerik burada oynatılamıyor</span>
+    </a>;
+  }
+  return <div>
+    <div style={cerceve}>
+      {canli && <span style={{position:"absolute",top:8,left:8,zIndex:2,fontSize:9,fontWeight:800,background:"#F4525A",color:"#fff",padding:"3px 8px",borderRadius:6,letterSpacing:.4}}>🔴 CANLI</span>}
+      {ic}
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginTop:7,fontSize:11,color:T.textMut}}>
+      <span>{algi.ik} {algi.ad}</span>
+      <a href={algi.dis} target="_blank" rel="noopener noreferrer" style={{marginLeft:"auto",color:T.accent2||T.accent,fontWeight:700,textDecoration:"none"}}>↗ {algi.ad}'da aç</a>
+    </div>
+  </div>;
+}
+
+/* Akıllı buton + inline expand + (çoklu ise) segment sekme. Modal yok. */
+function CanliYayin({m, T}){
+  var medya = m.medya||{};
+  var ham=[
+    {k:"canli", et:"Canlı Yayın", ik:"📺", url:medya.canli, canli:!!medya.canliAcik},
+    {k:"tamMac", et:"Tam Maç", ik:"🎬", url:medya.tamMac, canli:false},
+    {k:"roportaj", et:"Röportaj", ik:"🎤", url:medya.roportaj, canli:false}
+  ];
+  var slotlar=ham.map(function(s){ return Object.assign({}, s, {algi: s.url?MEDYA_ALGILA(s.url):null}); }).filter(function(s){ return s.algi; });
+  var canliVar = slotlar.filter(function(s){ return s.k==="canli" && s.canli; })[0];
+  var [acik,setAcik]=useState(null);
+  var kutuRef=useRef(null);
+  useEffect(function(){ if(acik&&kutuRef.current){ var t=setTimeout(function(){ try{ kutuRef.current.scrollIntoView({behavior:"smooth",block:"center"}); }catch(e){} },140); return function(){ clearTimeout(t); }; } },[acik]);
+  if(!slotlar.length){
+    return <div style={{padding:"10px 14px 0"}}>
+      <div className="tap" style={{width:"100%",padding:11,borderRadius:11,background:T.bg2,color:T.textMut,fontSize:13,fontWeight:700,border:"0.5px solid "+T.line,textAlign:"center",cursor:"default"}}>📺 Yayın yakında</div>
+    </div>;
+  }
+  var acikSlot = acik ? slotlar.filter(function(s){ return s.k===acik; })[0] : null;
+  var acKapa=function(){ setAcik(function(p){ return p? null : (canliVar?canliVar.k:slotlar[0].k); }); };
+  var btnStil = canliVar
+    ? {background:"linear-gradient(135deg,#F4525A,#C1121F)", color:"#fff", border:"1.5px solid #ff6b70"}
+    : {background:(T.accent+"22"), color:T.accent, border:"1.5px solid "+T.accent+"66"};
+  return <div style={{padding:"10px 14px 0"}} ref={kutuRef}>
+    <button onClick={acKapa} className="tap" style={Object.assign({width:"100%",height:50,borderRadius:13,fontSize:15,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",gap:9}, btnStil)}>
+      {canliVar && <span style={{width:9,height:9,borderRadius:"50%",background:"#fff",animation:"flPulse 1.3s infinite"}}></span>}
+      {canliVar ? "🔴 Canlı Yayında" : "▶ Maçı İzle"}
+      <span style={{marginLeft:6,fontSize:12,opacity:.8,transition:"transform .25s",transform:acik?"rotate(180deg)":"none"}}>▾</span>
+    </button>
+    {!acik && <div style={{display:"flex",gap:6,justifyContent:"center",marginTop:8,flexWrap:"wrap"}}>
+      {slotlar.map(function(s){ return <span key={s.k} style={{fontSize:10.5,fontWeight:700,padding:"3px 9px",borderRadius:999,display:"inline-flex",alignItems:"center",gap:5,background:T.bg2,border:"1px solid "+T.line,color:T.soft||T.textSoft}}>
+        <span style={{width:6,height:6,borderRadius:"50%",background:(s.canli?"#F4525A":T.accent)}}></span>{s.ik} {s.et}</span>; })}
+    </div>}
+    <div style={{maxHeight:acik?680:0, opacity:acik?1:0, overflow:"hidden", transition:"max-height .28s ease, opacity .28s ease", marginTop:acik?10:0}}>
+      {slotlar.length>1 && <div style={{display:"flex",gap:6,marginBottom:9}}>
+        {slotlar.map(function(s){ var on=acik===s.k; return <button key={s.k} onClick={function(){ setAcik(s.k); }} className="tap" style={{flex:1,height:38,borderRadius:10,fontSize:12,fontWeight:700,border:"1px solid "+(on?(s.canli?"#F4525A":T.accent):T.line),background:on?(s.canli?"#F4525A22":T.accent+"1e"):T.bg1,color:on?(s.canli?"#ff7a7f":T.accent):T.textMut,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>{s.ik} {s.et}</button>; })}
+      </div>}
+      {acikSlot && <MedyaOynatici algi={acikSlot.algi} canli={acikSlot.canli} T={T}/>}
+    </div>
+  </div>;
+}
+
+/* Admin medya kartı — Skor Girişi içinde. Kontrollü: {medya, setMedya}. */
+function MacMedyaKart({medya, setMedya, T}){
+  var AC=T.accent2||"#5AA9E6";
+  var [acik,setAcik]=useState(false);
+  var doluSay=["canli","tamMac","roportaj"].filter(function(k){ return medya&&medya[k]; }).length;
+  var alan=function(k,et,ik){
+    var url=(medya&&medya[k])||"";
+    var algi=url?MEDYA_ALGILA(url):null;
+    return <div key={k} style={{marginBottom:10}}>
+      <div style={{fontSize:11,fontWeight:700,color:T.textSoft,marginBottom:5,display:"flex",alignItems:"center",gap:6}}>{ik} {et}</div>
+      <input value={url} onChange={function(e){ setMedya(Object.assign({}, medya, {[k]:e.target.value})); }} placeholder="Bağlantı yapıştır…" inputMode="url" style={{width:"100%",height:40,borderRadius:9,background:T.bg0,border:"1px solid "+(algi?AC+"66":T.line),padding:"0 11px",color:T.text,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+      {algi && <div style={{fontSize:10.5,color:AC,marginTop:4,display:"flex",alignItems:"center",gap:5}}>✓ {algi.ik} {algi.ad} algılandı</div>}
+      {k==="canli" && url && <div style={{display:"flex",alignItems:"center",gap:8,marginTop:7,fontSize:11.5,color:T.textSoft}}>
+        <button onClick={function(){ setMedya(Object.assign({}, medya, {canliAcik:!(medya&&medya.canliAcik)})); }} className="tap" style={{width:38,height:22,borderRadius:22,border:"1px solid "+((medya&&medya.canliAcik)?"#ff6b70":T.line2||T.line),background:(medya&&medya.canliAcik)?"#F4525A":T.bg3||T.bg2,position:"relative",padding:0}}>
+          <span style={{position:"absolute",top:1,left:(medya&&medya.canliAcik)?17:1,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .16s"}}></span>
+        </button>
+        🔴 Şu an canlı
+      </div>}
+    </div>;
+  };
+  return <div style={{padding:"6px 14px 6px"}}>
+    <div onClick={function(){ setAcik(function(a){ return !a; }); }} className="tap" style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",marginBottom:acik?10:0}}>
+      <span style={{fontSize:12,fontWeight:700,color:T.text}}>🎥 Maç Medyası <span style={{color:T.textMut,fontWeight:400}}>{doluSay?("· "+doluSay+" bağlantı"):"(isteğe bağlı)"}</span></span>
+      <span style={{color:T.accent,fontSize:13}}>{acik?"▲":"▼ aç"}</span>
+    </div>
+    {acik && <div style={{background:T.bg1,border:"1px solid "+T.line,borderRadius:12,padding:12}}>
+      {alan("canli","Canlı Yayın Linki","📺")}
+      {alan("tamMac","Tam Maç Linki","🎬")}
+      {alan("roportaj","Röportaj Linki","🎤")}
+      <div style={{fontSize:10.5,color:T.textMut,lineHeight:1.5,marginTop:2}}>YouTube · Facebook · Instagram · TikTok · MP4 — link yapıştır, platform otomatik algılanır.</div>
+    </div>}
+  </div>;
+}
+
 function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
   const A=turnuva.takimlar.find(t=>t.id===m.takimAId)||turnuva.takimlar.find(t=>t.ad===m.takimA);
   const B=turnuva.takimlar.find(t=>t.id===m.takimBId)||turnuva.takimlar.find(t=>t.ad===m.takimB);
@@ -9193,6 +9326,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
   const B=turnuva.takimlar.find(t=>t.id===m.takimBId)||turnuva.takimlar.find(t=>t.ad===m.takimB);
   const [adim,setAdim]=useState(1);
   const [dakikaAcik,setDakikaAcik]=useState(false);
+  const [medya,setMedya]=useState(m.medya?{...m.medya}:{});
 
   // —— KADRO MANTIĞI (her iki takım) ——
   const otomatikDiz=(tk, slotlar)=>{
@@ -9337,7 +9471,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
       kaleciler,
       tarih, saat, stad,
     };
-    sihirbazKaydet(turnuva, m, golSayA, golSayB, temizOlay, mvp, mvpTk, oduller, paketKadro, {mvpId, odullerId});
+    sihirbazKaydet(turnuva, m, golSayA, golSayB, temizOlay, mvp, mvpTk, oduller, paketKadro, {mvpId, odullerId, medya});
     git({sayfa:"mac",mac:m,turnuva});
   };
 
@@ -9626,6 +9760,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
       <SihirbazOzetSatir ik="🔁" et="Değişiklik" deger={`${olaylar.filter(o=>o.tip==="degisik").length}`} T={T}/>
       <SihirbazOzetSatir ik="🌟" et="MVP" deger={mvp||"—"} T={T}/>
       <SihirbazOzetSatir ik="🏅" et="Ödül" deger={`${Object.values(oduller).filter(Boolean).length} ödül`} T={T}/>
+      <MacMedyaKart medya={medya} setMedya={setMedya} T={T}/>
       <div style={{marginTop:10,padding:"10px 12px",background:T.accent+"12",borderRadius:10,border:"1px solid "+T.accent+"33",fontSize:11,color:T.textSoft,lineHeight:1.6}}>
         ✓ Kaydedince oyuncu reytingleri otomatik hesaplanır, puan durumu ve krallar güncellenir.
       </div>
@@ -12703,6 +12838,7 @@ function App(){
   const skorKaydet=async(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller, ekstra)=>{
     mac.skorA=skorA; mac.skorB=skorB; mac.olaylar=olaylar||[]; mac.mvp=mvp||null; mac.mvpTakim=mvpTakim||null; mac.oynandi=true;
     mac.mvpId=(ekstra&&ekstra.mvpId)||null;
+    if(ekstra&&ekstra.medya!==undefined) mac.medya=ekstra.medya;
     if(oduller) mac.oduller={...oduller};
     if(ekstra&&ekstra.odullerId) mac.odullerId={...ekstra.odullerId};
     if(!mac.istatistik) mac.istatistik=istatistikUret(skorA, skorB);
