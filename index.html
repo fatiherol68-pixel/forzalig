@@ -7281,282 +7281,178 @@ const ISTATISTIK_SATIRLAR=[
    Mantık: maç karakteri tespit → yapı taşı havuzlarından
    bağlama duyarlı seçim → akan 3 paragraf, klişe yasaklı.
    ============================================================ */
-function macYorumUret(m, turnuva, tohum){
-  let s=((m.id||1)*2654435761 ^ (tohum||0)*40503)>>>0;
-  const R=()=>{ s=(s^(s>>>13))*0xC2B2AE35>>>0; return (s>>>0)/4294967296; };
-  const sec=(a)=> a[Math.floor(R()*a.length)];
-  const kull={};
-  const secU=(k,a)=>{ if(!kull[k])kull[k]=new Set(); let h=a.filter(x=>!kull[k].has(x)); if(h.length===0){kull[k].clear();h=a;} const x=h[Math.floor(R()*h.length)]; kull[k].add(x); return x; };
-
-  const A=m.takimA, B=m.takimB, sA=m.skorA||0, sB=m.skorB||0;
-  const galip=sA>sB?A:(sB>sA?B:null), maglup=sA>sB?B:(sB>sA?A:null);
-  const gS=Math.max(sA,sB), mS=Math.min(sA,sB), fark=Math.abs(sA-sB), toplam=sA+sB;
-  const olaylar=m.olaylar||[];
-  const goller=olaylar.filter(o=>o.tip==="gol");
-  const kirmizilar=olaylar.filter(o=>o.tip==="kirmizi");
-  const ist=m.istatistik, od=m.oduller||{};
-  const seed2=(m.id||1)*2654435761>>>0;
-  const det=(n)=>{ let x=(seed2+n*40503)>>>0; x=(x^(x>>>13))*0xC2B2AE35>>>0; return (x>>>0)/4294967296; };
-  const golD=goller.map((g,i)=>({...g,dk:(g.dk!=null&&g.dk!=="")?parseInt(g.dk):1+Math.floor(det(i+1)*58)})).sort((a,b)=>a.dk-b.dk);
-  const golSay={}; goller.forEach(g=>{golSay[g.oyuncu]=(golSay[g.oyuncu]||0)+1;});
-  const enCok=Object.entries(golSay).sort((a,b)=>b[1]-a[1])[0];
-  const hattrick=enCok&&enCok[1]>=3, ciftGol=enCok&&enCok[1]===2;
-  const asistler=[...new Set(goller.filter(g=>g.asist).map(g=>g.asist))];
-  const ilkGol=golD[0], sonGol=golD[golD.length-1];
-
-  // karakter
-  let geriDonus=false;
-  if(galip&&golD.length>=3&&ilkGol.takim&&ilkGol.takim===maglup) geriDonus=true;
-  let kar="normal";
-  if(toplam===0) kar="golsuz";
-  else if(toplam>=7) kar="kaotik";
-  else if(!galip&&toplam>=4) kar="golduello_beraber";
-  else if(!galip) kar="dengeli_beraber";
-  else if(toplam>=6) kar="golduello";
-  else if(geriDonus) kar="geridonus";
-  else if(sonGol&&sonGol.dk>=50&&fark===1) kar="sondakika";
-  else if(fark>=4) kar="tektarafli";
-  else if(fark===1&&toplam<=3) kar="cekismeli";
-  else if(kirmizilar.length>=1) kar="sertmac";
-  else kar="normal";
-  if(toplam===0&&od.kaleci) kar="kalecimac";
-
-  // hızlı tempo karakterleri (kısa cümle) / yavaş (uzun cümle)
-  const hizli=["kaotik","golduello","golduello_beraber"].includes(kar) || (kar==="tektarafli"&&toplam>=5);
-
-  // ===== AÇILIŞ =====
-  const acilis=()=>{
-    switch(kar){
-      case "golsuz": return secU("ac",[
-        A+" ile "+B+" gol atamadan el sıkıştı ama sıkıcı deme sakın; iki savunma da kaleyi kilitledi, geçit yok!",
-        "Goller bu akşam küstü herhalde, "+A+"-"+B+" 0-0. Ama mücadele vardı, kaleciler de boş durmadı.",
-        A+" ve "+B+" birbirine diş geçiremedi, sıfır sıfır. Savunmaların kazandığı bir akşam oldu işte.",
-        "Tek bir gol bile yok ama "+A+"-"+B+" maçı hiç de tatsız değildi; iki taraf da çok uğraştı, olmadı.",
-      ]);
-      case "kaotik": return secU("ac",[
-        sA+"-"+sB+"!! Yok böyle bir maç, yok! Bu akşam o sahada savunma diye bir şey yoktu, herkes \"ben bir fazla atarım\" derdindeydi.",
-        sA+"-"+sB+"! "+A+" ile "+B+" resmen çıldırdı! Gol! Cevap! Yine gol! Nefes alacak hâl kalmadı valla.",
-        "Tam bir gol çılgınlığı: "+A+" "+sA+"-"+sB+" "+B+"! Kaleciler bu akşam kâbus gördü, top durmadan ağlarla buluştu.",
-      ]);
-      case "golduello_beraber": return secU("ac",[
-        A+" "+sA+"-"+sB+" "+B+"! Oh be, böyle maç izlemeyeli çok olmuştu. İki takım da gol yemeyi göze alıp hücuma çıktı.",
-        sA+"-"+sB+"! "+A+" ile "+B+" gol gole bir alışveriş yaptı, kimse geri durmadı, seyir zevki tavandaydı.",
-        "Tam bir şölen: "+A+" "+sA+"-"+sB+" "+B+". Goller havada uçuştu, iki taraf da \"ben atarım sen tutamazsın\" dedi.",
-      ]);
-      case "dengeli_beraber": return secU("ac",[
-        A+" "+sA+"-"+sB+" "+B+". İki takım da kazanmak için bastırdı ama terazi bir türlü bozulmadı, puanlar bölüşüldü.",
-        "Ne "+A+" dedi ne "+B+"... "+sA+"-"+sB+"! İkisi de elinden geleni yaptı, ikisi de başı dik ayrıldı.",
-        sA+"-"+sB+" ve denge bozulmadı. "+A+" ile "+B+" birbirine az dert vermedi ama gülen olmadı.",
-      ]);
-      case "golduello": return secU("ac",[
-        A+" "+sA+"-"+sB+" "+B+"! Savunmalar gününde değildi ama seyirci olan kazandı, gol yağmuru izledik.",
-        "Bu maçta kaleciler ağladı resmen: "+A+" "+sA+"-"+sB+" "+B+". İki taraf da gole kilitlendi.",
-        sA+"-"+sB+"! Bol gollü, tempolu, keyifli... "+A+" ile "+B+" sahada cömert davrandı.",
-      ]);
-      case "geridonus": return secU("ac",[
-        galip+" bu maçı dişiyle tırnağıyla kazandı! Geriye düştü ama pes etmedi, çevirdi "+gS+"-"+mS+". İşte karakter bu!",
-        "Skoru "+maglup+" açtı ama gülen "+galip+" oldu! Önce arkaya düştüler, sonra oyunu komple çevirdiler, "+gS+"-"+mS+".",
-        "Vay be, ne dönüş ama! "+galip+" geriden gelip "+gS+"-"+mS+" kazandı. Bu kolay iş değil, yürek ister.",
-      ]);
-      case "sondakika": return secU("ac",[
-        galip+" son ana kadar yürek yedi ama kazandı, "+gS+"-"+mS+"! Maç bıçak sırtıydı, her an her şey olabilirdi.",
-        "Tek gol yetti, "+galip+" "+gS+"-"+mS+" güldü! Son dakikalara dengeyle girilen maçta nefesler tutuldu, müthişti.",
-        galip+" maçı son nefeste kopardı, "+gS+"-"+mS+"! Böyle galibiyetin tadı bambaşka olur.",
-      ]);
-      case "tektarafli": return secU("ac",[
-        galip+" bu akşam sahaya bayram etmeye çıkmış resmen! "+gS+"-"+mS+". "+maglup+" ne yaptıysa olmadı.",
-        "Bazı maçlar daha ısınma turundayken biter, bu da öyle! "+galip+" "+maglup+"'ı "+gS+"-"+mS+" ezdi geçti.",
-        galip+" oyunu eline aldı, bıraktığı da yok! "+gS+"-"+mS+", fark ortada, söze bile gerek yok.",
-      ]);
-      case "cekismeli": return secU("ac",[
-        "Tek gol ama ne maç! "+galip+", "+maglup+"'ı "+gS+"-"+mS+" devirdi. Sakın \"sıkıcıdır\" deme, diş dişe geçti.",
-        galip+" kazandı ama az ter dökmedi; "+maglup+" sonuna kadar direndi, skor "+gS+"-"+mS+"'de kaldı, kıl payı!",
-        "O tek golün altında doksan dakikalık savaş var! "+galip+", "+maglup+"'ı "+gS+"-"+mS+" geçti, hak ederek.",
-      ]);
-      case "sertmac": return secU("ac",[
-        (galip?galip+" "+gS+"-"+mS+" kazandı":sA+"-"+sB+" bitti")+" ama bu maçın konusu başkaydı: sertlik! Kırmızı kart her şeyi değiştirdi.",
-        "Gergin mi gergin, sert mi sert! "+(galip?galip+" öne çıktı":"puanlar bölüşüldü")+" ama kartlar konuştu bu akşam.",
-      ]);
-      case "kalecimac": return secU("ac",[
-        "Az gollü ama tempolu maçta kaleciler sahne aldı! "+(galip?galip+" "+gS+"-"+mS+" buldu":"iki kale de gole kapandı")+".",
-      ]);
-      default: return secU("ac",[
-        galip+", "+maglup+"'ı "+gS+"-"+mS+" geçti. Kontrollü oynadı, hak ettiğini fazlasıyla aldı.",
-        gS+"-"+mS+"! "+galip+" maçın genelinde üstündü, üç puanı cebine koydu.",
-        galip+" işini bilen takım gibi oynadı ve "+maglup+"'ı "+gS+"-"+mS+" yendi. Net galibiyet.",
-      ]);
+function macYorumUret(m,turnuva,tohum){
+  var A=m.takimA,B=m.takimB,sA=m.skorA||0,sB=m.skorB||0;
+  var galip=sA>sB?A:sB>sA?B:null,maglup=sA>sB?B:sB>sA?A:null;
+  var fark=Math.abs(sA-sB),toplam=sA+sB;
+  var s=((m.id||1)*2654435761^(tohum||0)*2246822519)>>>0;
+  s=((s^s>>>15)*0x85EBCA77)>>>0;s=(s^s>>>13)>>>0;
+  var R=function(){s=(s^s>>>13)*0xC2B2AE35>>>0;return (s>>>0)/4294967296;};
+  for(var _wu=(tohum||0)%9;_wu-->0;)R();
+  var pick=function(a){return a[Math.floor(R()*a.length)];};
+  var _u={};
+  var pickU=function(k,a){if(!a||!a.length)return"";if(!_u[k])_u[k]=[];var h=a.filter(function(x){return _u[k].indexOf(x)<0;});if(!h.length){_u[k]=[];h=a;}var x=h[Math.floor(R()*h.length)];_u[k].push(x);return x;};
+  function gS_(a,b){return Math.max(a,b)+"-"+Math.min(a,b);}
+  // ---- Faz 4: Turkce cekim motoru ----
+  var cek=function(w,d){
+    if(w==null)return"";w=String(w);if(!w)return w;
+    var low=w.toLocaleLowerCase("tr");var V="aeıioöuü";var lastV=null,i;
+    for(i=low.length-1;i>=0;i--){if(V.indexOf(low[i])>=0){lastV=low[i];break;}}
+    if(lastV==null)return w;
+    var lastCh=low[low.length-1];var vowelEnd=V.indexOf(lastCh)>=0;
+    var sert="pçtkfhsş".indexOf(lastCh)>=0;
+    var ap=/^[A-ZÇĞİÖŞÜ]/.test(w[0])?"'":"";
+    var back="aıou".indexOf(lastV)>=0;
+    var i4=(lastV==="a"||lastV==="ı")?"ı":(lastV==="e"||lastV==="i")?"i":(lastV==="o"||lastV==="u")?"u":"ü";
+    var a2=back?"a":"e";
+    switch(d){
+      case"i":return w+ap+(vowelEnd?"y":"")+i4;
+      case"e":return w+ap+(vowelEnd?"y":"")+a2;
+      case"in":return w+ap+(vowelEnd?"n":"")+i4+"n";
+      case"de":return w+ap+(sert?"t":"d")+a2;
+      case"den":return w+ap+(sert?"t":"d")+a2+"n";
+      case"le":return w+ap+(vowelEnd?"y":"")+"l"+a2;
+      default:return w;
     }
   };
-
-  // ===== HİKÂYE BAĞI (olayları bağla, liste değil) =====
-  const hikaye=()=>{
-    if(golD.length===0) return "";
-    const c=[];
-    // ilk gol anı
-    if(ilkGol && golD.length>=2){
-      const ek=ilkGol.asist?(ilkGol.asist+" pasıyla "):"";
-      c.push(secU("h_ilk",[
-        ilkGol.dk+"'de "+ek+ilkGol.oyuncu+" buzu kırdı, ama bu daha başlangıçtı.",
-        "Skoru "+ilkGol.dk+"'de "+ek+ilkGol.oyuncu+" açtı; gerisi bambaşka gelişti.",
-        ilkGol.dk+"'de "+ilkGol.oyuncu+" sahneyi açtı, maç oradan hareketlendi.",
-      ]));
-    } else if(ilkGol){
-      const ek=ilkGol.asist?(ilkGol.asist+" pasıyla "):"";
-      c.push(secU("h_tek",[
-        "Maçın tek golü "+ilkGol.dk+"'de geldi: "+ek+ilkGol.oyuncu+". Az ama öz!",
-        ilkGol.dk+"'de "+ek+ilkGol.oyuncu+" o golü buldu ve maça yetti de arttı bile.",
-      ]));
-    }
-    // orta gelişim — karaktere göre
-    if(golD.length>=3){
-      if(hizli) c.push(secU("h_orta",[
-        "Sonrası tam bir gidiş geliş oldu; gol, cevap, yine gol... durmak bilmedi.",
-        "Bir o kaleye bir bu kaleye, toplar resmen ağ avına çıktı.",
-        "Goller peş peşe geldi, tabela durmadan değişti, tribün çıldırdı.",
-      ]));
-      else c.push(secU("h_orta",[
-        "İki takım da sabırla oynadı, açık vermemeye çalıştı, gerilim arttıkça arttı.",
-        "Oyun uzun süre dengede gitti, kimse hata yapmak istemedi.",
-        "Tempo kontrollüydü; goller az ama her biri kritikti.",
-      ]));
-    }
-    // son gol / kapanış anı
-    if(sonGol&&golD.length>=2){
-      const ek=sonGol.asist?(sonGol.asist+" asistinde "):"";
-      c.push(secU("h_son",[
-        sonGol.dk+"'de "+ek+sonGol.oyuncu+"'nun golüyle iş tamamen koptu.",
-        "Ve "+sonGol.dk+"'de "+ek+sonGol.oyuncu+" noktayı koydu.",
-        sonGol.dk+"'de "+ek+sonGol.oyuncu+" tabelayı son kez değiştirdi.",
-      ]));
-    }
-    return c.join(" ");
-  };
-
-  // ===== GOLCÜ (maça/ana bağlı, klişesiz) =====
-  const golcu=()=>{
-    if(!enCok) return "";
-    const ad=enCok[0];
-    if(hattrick) return secU("gh",[
-      "Günün adamı sorulmaz bile: "+ad+", "+ad+", "+ad+"! Üç gol attı, adamı durduran olmadı bu akşam.",
-      "Maçın kralı tartışmasız "+ad+"! Hat-trick yaptı, hem de canı istedikçe; böyle akşamlar unutulmaz.",
-      ad+" resmen coştu, sahayı dağıttı! Üç golle takımı tek başına sırtladı, kim tutar bunu?",
-    ]);
-    if(ciftGol) return secU("g2",[
-      ad+" ikisini de buz gibi attı! Doğru anda doğru yerdeydi, golcü dediğin işte böyle olur.",
-      "İki gollü "+ad+" maçın patronuydu; ilkinde soğukkanlı, ikincisinde acımasızdı.",
-      ad+" iki kez ağları sarstı ve takımını sırtında taşıdı, müthiş bir performans.",
-    ]);
-    return "";
-  };
-  const asist=()=>{
-    if(asistler.length===0) return "";
-    return secU("as",[
-      asistler[0]+"'in o pası olmasa gol de yok; gözüyle gördü, ayağıyla yaptı.",
-      asistler[0]+" nefis bir pasla savunmayı dilim dilim etti, gole giden yolu o açtı.",
-      "Gole giden topta "+asistler[0]+" vardı; o pası görmek bile başlı başına yetenek.",
-    ]);
-  };
-  const odul=()=>{
-    const c=[];
-    if(od.kaleci) c.push(secU("ok",[
-      "Kalede "+od.kaleci+" duvar gibi dikildi; o kurtarışlar olmasa skor bambaşkaydı.",
-      od.kaleci+" birkaç kez tek başına kaldı, hepsinde tam yerindeydi, resmen kaleyi kapattı.",
-    ]));
-    if(od.defans) c.push(secU("od",[
-      "Arkada "+od.defans+" geçit vermedi; ikili mücadelede kimse onu geçemedi.",
-      od.defans+" savunmanın beyniydi, topu okudu, tam zamanında araya girdi.",
-    ]));
-    if(od.ortasaha) c.push(secU("oo",[
-      "Orta sahada "+od.ortasaha+" oyunu avucuna aldı, tempoyu o belirledi.",
-      od.ortasaha+" sahanın her yerindeydi; kaptı, dağıttı, yine istedi, hiç durmadı.",
-    ]));
-    if(od.forvet&&od.forvet!==(enCok&&enCok[0])) c.push(secU("of",[
-      "İleride "+od.forvet+" sürekli derinlik verdi, savunmayı deli etti.",
-    ]));
-    if(od.centilmen) c.push(secU("oc",[
-      od.centilmen+" centilmenliğiyle örnek oldu; futbol böyle de oynanır işte.",
-    ]));
-    return c.slice(0,2).join(" ");
-  };
-
-  // ===== İSTATİSTİK (yorum) =====
-  const istY=()=>{
-    if(!ist) return "";
-    const c=[];
-    const sahip=ist.sahiplikA>ist.sahiplikB?A:B, sf=Math.abs(ist.sahiplikA-ist.sahiplikB);
-    const sutTop=(ist.sutA||0)+(ist.sutB||0);
-    const sutCok=(ist.sutA||0)>(ist.sutB||0)?A:B, sutF=Math.abs((ist.sutA||0)-(ist.sutB||0));
-    if(sf<=6) c.push(secU("isa",[
-      "Top uzun süre ortada gidip geldi, kimse oyunu tek başına eline alamadı.",
-      "İki takım da topu paylaştı, üstünlük sürekli el değiştirdi.",
-    ]));
-    else c.push(secU("isa",[
-      sahip+" topu daha çok elinde tuttu, ritmi onlar belirledi.",
-      "Topla oynamada "+sahip+" öndeydi, oyunu kendi istediği gibi kurdu.",
-    ]));
-    if(sutTop>=22) c.push(secU("iss",[
-      "İki kale de durmadan yoklandı; kaleciler bir saniye rahat etmedi.",
-      "Ataklar dalga dalga geldi, top sürekli ceza sahalarında dolaştı.",
-    ]));
-    else if(sutF>=6) c.push(secU("iss",[
-      sutCok+" kaleye yüklendi ama bütün o baskıyı gole çeviremedi.",
-    ]));
-    return c.slice(0,2).join(" ");
-  };
-
-  // ===== PUAN DURUMU ATFI =====
-  const puanAtif=()=>{
-    if(!galip||!turnuva||!turnuva.takimlar) return "";
-    const gt=turnuva.takimlar.find(t=>t.ad===galip);
-    if(!gt||!gt.sira) return "";
-    if(gt.sira===1) return secU("pd",[" Bu galibiyetle "+galip+" zirvedeki yerini sağlamlaştırdı."," Üç puanla "+galip+" lig liderliğine oturdu, keyifleri yerinde."]);
-    if(gt.sira<=3) return secU("pd",[" "+galip+" bu sonuçla zirve yarışında, gözünü liderliğe dikti."," "+galip+" ilk sıraların adamı olmaya devam ediyor."]);
-    return "";
-  };
-
-  // ===== KAPANIŞ =====
-  const kapanis=()=>{
-    if(!galip) return secU("kp",[
-      "Sonuçta iki takım da bir şeyler kaptı bu maçtan. Lig böyle çekişmeli giderse keyfimize diyecek yok!",
-      "Kimse kaybetmedi, kimse tam kazandı. Bazı maçlar işte böyle, dengede kapanır.",
-      "Puanlar bölüşüldü ama izleyen kazandı. Helal olsun iki takıma da, güzel maçtı.",
-    ]);
-    let base;
-    switch(kar){
-      case "tektarafli": base=secU("kp",[
-        galip+" formda olduğunu herkese haykırdı. "+maglup+" için en iyisi bu maçı unutup yola bakmak.",
-        galip+" bugün bambaşka bir kulvardaydı. "+maglup+" silkelenip toparlanmalı, olur böyle günler.",
-      ]); break;
-      case "geridonus": base=secU("kp",[
-        galip+" pes etmeyince ne oluyormuş gösterdi! Bu karakterdeki takım ligde herkesi terletir.",
-        "Geriden gelip kazanmak yürek ister; "+galip+" bunu yaptı, özgüveni tavan yapmıştır.",
-      ]); break;
-      case "sondakika": base=secU("kp",[
-        galip+" yüreğiyle kazandı bu maçı! "+maglup+" bu kadar yakınken kaçırdığına çok yanacak.",
-        "Böyle maçlar tek anla dönüyor; bu kez kader "+galip+" tarafına güldü, hak ettiler.",
-      ]); break;
-      case "cekismeli": base=secU("kp",[
-        galip+" o tek anı yakaladı, üç puanı kaptı götürdü! "+maglup+" oynadı koşturdu ama golü bulamadı.",
-        galip+" işini bitirdi. "+maglup+" fena oynamadı ama skor tabelası acımasız işte.",
-      ]); break;
-      case "kaotik": case "golduello": case "golduello_beraber": base=secU("kp",[
-        "Böyle maçlar futbolun neden bu kadar sevildiğini hatırlatıyor! Gol sevenler bu akşam tıka basa doydu.",
-        "İki takım da hücumu seçti, ortaya nefis bir maç çıktı. Skor neyse de bu keyif paha biçilmez.",
-      ]); break;
-      default: base=secU("kp",[
-        galip+" üç puanı cebine attı, moralli çıktı bu maçtan. "+maglup+" eksiklerine bakacaktır.",
-        galip+" kazandı, yoluna emin adımlarla devam ediyor. "+maglup+" toparlanırsa zorlu rakip olur.",
-        galip+" hanesine 3 puan yazdırdı. Lig daha çok heyecana gebe, izlemeye devam!",
-      ]);
-    }
-    return base+puanAtif();
-  };
-
-  const bag=(...x)=> x.map(v=>(v||"").trim()).filter(v=>v.length>0).join(" ");
-  const p1=bag(acilis(), hikaye());
-  const p2=bag(golcu(), asist(), odul());
-  const p3=bag(istY(), kapanis());
-  return [p1,p2,p3].filter(x=>x.length>0).map(p=>p.replace(/\s+/g," ").trim());
+  // ---- veri hazirlama ----
+  var olaylar=m.olaylar||[];
+  var goller=olaylar.filter(function(o){return o.tip==="gol";});
+  var kirmizilar=olaylar.filter(function(o){return o.tip==="kirmizi";});
+  var ist=m.istatistik,od=m.oduller||{};
+  var seed2=(m.id||1)*2654435761>>>0;
+  var det=function(n){var x=(seed2+n*40503)>>>0;x=(x^x>>>13)*0xC2B2AE35>>>0;return (x>>>0)/4294967296;};
+  var golD=goller.map(function(g,i){return Object.assign({},g,{dk:(g.dk!=null&&g.dk!=="")?parseInt(g.dk):1+Math.floor(det(i+1)*58)});}).sort(function(a,b){return a.dk-b.dk;});
+  var kirmiziD=kirmizilar.map(function(k,i){return Object.assign({},k,{dk:(k.dk!=null&&k.dk!=="")?parseInt(k.dk):5+Math.floor(det(100+i)*55)});}).sort(function(a,b){return a.dk-b.dk;});
+  var takimBul=function(ad){if(!ad||!turnuva||!turnuva.takimlar)return null;for(var i=0;i<turnuva.takimlar.length;i++){var t=turnuva.takimlar[i];if((t.oyuncular||[]).some(function(o){return o.ad===ad;}))return t.ad;}return null;};
+  // ---- Faz 1: skor egrisi + kirilma ----
+  var ca=0,cb=0,kron=[];
+  golD.forEach(function(g){if(g.takim===A)ca++;else cb++;kron.push({dk:g.dk,oyuncu:g.oyuncu,asist:g.asist,takim:g.takim,ca:ca,cb:cb,fark:ca-cb});});
+  var leadChanges=0,lastNZ=0;
+  kron.forEach(function(k){var sg=k.fark>0?1:k.fark<0?-1:0;if(sg!==0){if(lastNZ!==0&&sg!==lastNZ)leadChanges++;lastNZ=sg;}});
+  var galipTrailed=false,trailG=0,worst=null;
+  if(galip){kron.forEach(function(k){var gf=galip===A?k.fark:-k.fark;if(gf<0){galipTrailed=true;if(-gf>trailG)trailG=-gf;if(!worst||gf<worst.gf)worst={gf:gf,ca:k.ca,cb:k.cb};}});}
+  var geriDonus=!!galip&&galipTrailed&&trailG>=1;
+  var deficitStr=worst?((galip===A?worst.ca:worst.cb)+"-"+(galip===A?worst.cb:worst.ca)):"";
+  var kirilma=null;
+  if(galip){for(var i=0;i<kron.length;i++){var gf=galip===A?kron[i].fark:-kron[i].fark;if(gf>0){var holds=true;for(var j=i;j<kron.length;j++){var gf2=galip===A?kron[j].fark:-kron[j].fark;if(gf2<=0){holds=false;break;}}if(holds){kirilma=kron[i];break;}}}}
+  var drawLeader=null,drawOther=null;
+  if(!galip&&toplam>0){var pos=kron.some(function(k){return k.fark>0;}),neg=kron.some(function(k){return k.fark<0;});if(pos&&!neg){drawLeader=A;drawOther=B;}else if(neg&&!pos){drawLeader=B;drawOther=A;}}
+  // ---- oyuncu / kaleci olgulari ----
+  var golSay={};goller.forEach(function(g){golSay[g.oyuncu]=(golSay[g.oyuncu]||0)+1;});
+  var enCok=Object.entries(golSay).sort(function(a,b){return b[1]-a[1];})[0];
+  var hattrick=!!enCok&&enCok[1]>=3,ciftGol=!!enCok&&enCok[1]===2;
+  var asistciler=[];goller.forEach(function(g){if(g.asist&&asistciler.indexOf(g.asist)<0)asistciler.push(g.asist);});
+  var sonGol=golD[golD.length-1],ilkGol=golD[0];
+  var sonDakika=!!galip&&!!sonGol&&sonGol.dk>=50&&fark===1&&sonGol.takim===galip;
+  var kaleciKahraman=null;
+  if(od.kaleci){var kr=(m.kaleciler||[]).find(function(k){return k.ad===od.kaleci;});var say=kr?kr.kurtaris:0;var ktk=takimBul(od.kaleci);var yedi=ktk?(ktk===A?sB:sA):null;if(say>=4)kaleciKahraman={ad:od.kaleci,say:say,takim:ktk,yedi:yedi};}
+  var kirmiziEtkili=null;
+  if(kirmiziD.length){var kk=kirmiziD[0];kirmiziEtkili={oyuncu:kk.oyuncu,takim:kk.takim,dk:kk.dk,belirleyici:!!galip&&kk.takim===maglup&&fark>=3};}
+  var rating=function(ad){return m.ratingler&&m.ratingler[ad]!=null?m.ratingler[ad]:null;};
+  // ---- lig baglami / surpriz ----
+  var ligCtx=null,surpriz=null;
+  if(galip&&turnuva&&turnuva.takimlar){var gt=turnuva.takimlar.find(function(t){return t.ad===galip;});var mt=turnuva.takimlar.find(function(t){return t.ad===maglup;});if(gt&&gt.sira){if(gt.sira===1)ligCtx={t:"lider"};else if(gt.sira<=3)ligCtx={t:"zirve",s:gt.sira};}if(gt&&mt&&gt.sira&&mt.sira&&mt.sira+4<=gt.sira)surpriz={fav:maglup,fark:gt.sira-mt.sira};}
+  // ---- Faz 2: olgular + agirlik ----
+  var F=[];var add=function(tip,imp,data){F.push(Object.assign({tip:tip,imp:imp},data||{}));};
+  if(toplam===0)add("golsuz",5);
+  if(geriDonus)add("geridonus",8+Math.min(2,trailG));
+  if(sonDakika)add("sondakika",8);
+  if(kirmiziEtkili&&kirmiziEtkili.belirleyici)add("kirmizi",9);else if(kirmiziEtkili)add("kirmizi",5);
+  if(hattrick)add("hattrick",8);else if(ciftGol)add("ciftgol",6);
+  if(kaleciKahraman)add("kaleci",toplam===0?7:6+Math.min(2,kaleciKahraman.say-4));
+  if(leadChanges>=2)add("salinim",7);
+  if(!galip&&toplam>=4)add("golduello_b",6);
+  if(fark>=4&&!(kirmiziEtkili&&kirmiziEtkili.belirleyici))add("tektarafli",6);
+  if(surpriz)add("surpriz",7);
+  if(ligCtx)add("lig",6+(ligCtx.t==="lider"?1:0));
+  if(fark===1&&toplam<=3&&galip&&!sonDakika)add("cekismeli",5);
+  if(!F.length)add("normal",3);
+  F.sort(function(a,b){return b.imp-a.imp;});
+  var enUst=F[0].imp;var adaylar=F.filter(function(f){return f.imp>=enUst-1;});
+  // Faz 5: aci rotasyonu (oturum ici defter)
+  if(!macYorumUret._defter)macYorumUret._defter=[];
+  var def=macYorumUret._defter;
+  var taze=adaylar.filter(function(f){return def.indexOf(f.tip)<0;});
+  var havuz=taze.length?taze:adaylar;
+  var ana=havuz[Math.floor(R()*havuz.length)];
+  def.push(ana.tip);if(def.length>6)def.shift();
+  // ---- Faz 3: yuzey + gonderim cesitleme ----
+  var anilan={};
+  var oy=function(ad,rol){if(!ad)return"";anilan[ad]=(anilan[ad]||0)+1;if(anilan[ad]===1)return ad;return rol&&R()>0.4?rol:ad;};
+  // ---- P1: aci + kirilma ----
+  var p1=[];
+  var kirilmaCumle=function(){if(!kirilma||!kirilma.oyuncu)return"";return pickU("kir",[kirilma.dk+"' geldiğinde "+cek(kirilma.oyuncu,"in")+" golü tabelayı "+galip+" lehine kilitledi ve bir daha açılmadı.","Maçı kıran an "+kirilma.dk+"' idi: "+oy(kirilma.oyuncu)+" onu buldu, "+galip+" bir daha önde kalmayı bırakmadı."]);};
+  switch(ana.tip){
+    case"geridonus":
+      p1.push(pickU("ac",[galip+" bu maçı iki kez kaybetmiş gibiydi: "+(deficitStr?deficitStr+" geriye düştü":"skoru rakibine kaptırdı")+", sonra her şeyi tersine çevirdi.",(deficitStr?deficitStr+" gerideyken ":"Skoru açamazken ")+galip+" pes etmedi; "+(kirilma?kirilma.dk+"' bulunan golle ":"ikinci yarıda ")+"önce dengeyi, sonra üstünlüğü kurdu."]));
+      if(kirilma&&R()>0.5)p1.push(kirilmaCumle());
+      break;
+    case"sondakika":
+      p1.push(pickU("ac",[sonGol.dk+"' top ağlara gittiğinde skor "+cek(galip,"in")+" değildi, ama oldu: "+oy(sonGol.oyuncu)+" son dakikalarda "+cek(maglup,"i")+" cezalandırdı.","Maç uzun süre dengedeydi; "+sonGol.dk+"' "+cek(sonGol.oyuncu,"in")+" golü o dengeyi son anda "+galip+" lehine bozdu."]));
+      break;
+    case"kirmizi":
+      p1.push(pickU("ac",[kirmiziEtkili.dk+"' "+cek(kirmiziEtkili.takim,"in")+" bir eksik kalması maçı ikiye bölen andı; "+(galip?galip+" bu boşluğu "+gS_(sA,sB)+" değerlendirdi":"buna rağmen kazanan çıkmadı")+".","Bu maçı goller değil, "+kirmiziEtkili.dk+"' görülen kırmızı kart belirledi. "+(galip?galip+" sayısal üstünlüğü acımadan kullandı":"kartlı maçı iki taraf da çözemedi")+"."]));
+      break;
+    case"hattrick":
+      p1.push(pickU("ac",[enCok[0]+" bu akşam sahayı tek başına yönetti: üç gol, tek imza. "+galip+" onun sırtında kazandı.","Gecenin tek adamı "+enCok[0]+"; hat-trick yaptı ve "+cek(maglup,"in")+" savunmasını tek başına dağıttı."]));
+      break;
+    case"ciftgol":
+      p1.push(pickU("ac",[enCok[0]+" iki golle farkı yarattı; "+galip+" galibiyeti büyük ölçüde onun ayağına borçlu.","İki kez fileleri havalandıran "+enCok[0]+", "+cek(galip,"in")+" gecesini belirledi."]));
+      break;
+    case"kaleci":
+      p1.push(pickU("ac",[(toplam===0?"Tabelada sıfır yazıyor ama bu bir çaresizlik maçı değildi — ":"")+cek(kaleciKahraman.ad,"in")+" gecesiydi: "+kaleciKahraman.say+" kurtarışla kaleyi kapattı.",kaleciKahraman.ad+" "+kaleciKahraman.say+" topa uzandı; "+(kaleciKahraman.yedi===0?"kalesini gole kapattı":"olmasa skor çok başka olurdu")+"."]));
+      break;
+    case"salinim":
+      p1.push(pickU("ac",["Üstünlük "+leadChanges+" kez el değiştirdi; "+A+" ile "+B+" birbirine sürekli cevap verdi.",A+" "+sA+"-"+sB+" "+B+": skor durmadan değişti, kimse rahat bir an yakalayamadı."]));
+      break;
+    case"golduello_b":
+      if(drawLeader)p1.push(pickU("ac",[drawLeader+" iki kez öne geçti ama "+drawOther+" her seferinde dengeyi buldu; "+sA+"-"+sB+".",drawLeader+" öne geçmesini bildi, "+cek(drawOther,"i")+" ise yakalamak yordu; puanlar "+sA+"-"+sB+" bölüşüldü."]));
+      else p1.push(pickU("ac",[A+" "+sA+"-"+sB+" "+B+". İki taraf da gol yemeyi göze alıp hücumu seçti, kaybeden olmadı.","Karşılıklı gollerle geçen maçta "+A+" ile "+B+" puanları bölüştü; seyir zevki yüksekti."]));
+      break;
+    case"tektarafli":
+      p1.push(pickU("ac",[galip+", "+cek(maglup,"i")+" "+gS_(sA,sB)+" geçti; fark daha ilk yarıda belli olmuştu.","Tek taraflı geçen maçta "+galip+" üstünlüğünü "+gS_(sA,sB)+" skora taşıdı, "+maglup+" karşılık veremedi."]));
+      break;
+    case"surpriz":
+      p1.push(pickU("ac",["Kâğıt üzerinde "+surpriz.fav+" favoriydi ama saha başka konuştu: "+galip+" "+gS_(sA,sB)+" kazandı.",galip+" sıralamayı hiçe saydı ve "+cek(surpriz.fav,"i")+" "+gS_(sA,sB)+" geçti; gecenin sürprizi buydu."]));
+      break;
+    case"golsuz":
+      p1.push(pickU("ac",[A+" ile "+B+" gol atamadan ayrıldı, ama mücadele eksik değildi; iki savunma da geçit vermedi.","Golsüz bitti; "+A+" ve "+B+" birbirine üstünlük kuramadı, denge bozulmadı."]));
+      break;
+    case"cekismeli":
+      p1.push(pickU("ac",[galip+" "+cek(maglup,"i")+" tek golle "+gS_(sA,sB)+" geçti; maçı "+(kirilma?kirilma.dk+"' "+oy(kirilma.oyuncu)+" belirledi":"tek an belirledi")+".","Dar skorlu maçta "+galip+" farkı koruyup üç puanı aldı, "+maglup+" golü bulamadı."]));
+      break;
+    default:
+      p1.push(pickU("ac",[galip?galip+" "+cek(maglup,"i")+" "+gS_(sA,sB)+" yendi; kontrollü oynadı, hak ettiğini aldı.":A+" "+sA+"-"+sB+" "+B+", denge bozulmadan bitti.",galip?gS_(sA,sB)+", "+galip+" maçın genelinde üstündü.":"Puanlar paylaşıldı, iki taraf da başı dik ayrıldı."]));
+  }
+  if(ana.tip==="normal"&&kirilma&&kirilma.oyuncu&&toplam>=2&&R()>0.5){p1.push(kirilmaCumle());}
+  // ---- P2: kahramanlar (somutluk) ----
+  var p2=[];
+  if(["hattrick","ciftgol"].indexOf(ana.tip)<0&&enCok&&enCok[1]>=2){var rg=rating(enCok[0]);p2.push((enCok[1]>=3?enCok[0]+" hat-trick yaptı":enCok[0]+" iki gol attı")+(rg?" ve maçın en yüksek notunu ("+rg.toFixed(1)+") aldı":"")+".");}
+  if(asistciler.length&&(!enCok||asistciler[0]!==enCok[0]))p2.push(pickU("as",[cek(asistciler[0],"in")+" son pası olmasa o gol yoktu.","Gole giden topta "+asistciler[0]+" vardı; asist onun ayağından çıktı."]));
+  if(kaleciKahraman&&ana.tip!=="kaleci")p2.push(cek(kaleciKahraman.ad,"in")+" "+kaleciKahraman.say+" kurtarışı skoru ayakta tuttu.");
+  if(m.mvp&&(!enCok||m.mvp!==enCok[0])&&asistciler.indexOf(m.mvp)<0&&(!kaleciKahraman||m.mvp!==kaleciKahraman.ad)){var rm=rating(m.mvp);p2.push(m.mvp+" sahanın her yerindeydi"+(rm?" ("+rm.toFixed(1)+")":"")+"; maçın yıldızı seçilmesi sürpriz olmadı.");}
+  // ---- P3: istatistik (mutabakat) + kapanis ----
+  var p3=[];
+  if(ist){
+    var sahip=(ist.sahiplikA||0)>(ist.sahiplikB||0)?A:B;var sf=Math.abs((ist.sahiplikA||0)-(ist.sahiplikB||0));var sahipY=Math.max(ist.sahiplikA||0,ist.sahiplikB||0);
+    if(sf>=10)p3.push(sahip+" topu daha çok elinde tuttu (%"+sahipY+")"+(sahip!==galip&&galip?" ama skora yansıyan taraf o olmadı":"")+".");
+    var sutCok=(ist.sutA||0)>(ist.sutB||0)?A:B;var sutF=Math.abs((ist.sutA||0)-(ist.sutB||0));var sutCokSkor=sutCok===A?sA:sB;var sutAdet=sutCok===A?ist.sutA:ist.sutB;
+    if(sutF>=6&&sutCokSkor>0)p3.push(sutCok+" kaleyi daha çok yokladı ("+sutAdet+" şut) ve bunu "+sutCokSkor+" golle ödüllendirdi.");
+    else if(sutF>=6&&sutCokSkor===0)p3.push(sutCok+" "+sutAdet+" şut çekti ama hiçbirini gole çeviremedi.");
+  }
+  var kapanis="";
+  if(ligCtx&&ligCtx.t==="lider")kapanis=galip+" bu galibiyetle zirvedeki yerini sağlamlaştırdı.";
+  else if(ligCtx&&ligCtx.t==="zirve")kapanis=galip+" "+ligCtx.s+". sırada, gözü yukarıda.";
+  else if(galip)kapanis=pickU("kp",[galip+" üç puanı cebine attı, "+maglup+" eksiklerine bakacak.",galip+" yoluna emin adımlarla devam ediyor."]);
+  else kapanis=pickU("kp",["Puanlar bölüşüldü ama izleyen kazandı.","İki takım da bir şey kaptığı maçta denge bozulmadı."]);
+  if(kapanis)p3.push(kapanis);
+  // ---- montaj + Faz 5 denetim ----
+  var bag=function(arr){return arr.filter(function(x){return x&&x.trim();}).join(" ").replace(/\s+/g," ").trim();};
+  var paras=[bag(p1),bag(p2),bag(p3)].filter(function(x){return x.length>0;});
+  var zengin=toplam+F.length+(ana.imp>=8?2:0);
+  if(zengin<4&&paras.length>1)paras=[bag(paras)];
+  return paras;
 }
 
 function mansetUret(m, tohum){
@@ -8790,6 +8686,8 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
   const [oduller,setOduller]=useState(m.oduller?{...m.oduller}:{});
   const [odullerId,setOdullerId]=useState(m.odullerId?{...m.odullerId}:{});
   const [odulAcik,setOdulAcik]=useState(false);
+  const [dakikaAcik,setDakikaAcik]=useState(false);
+  const AC=T.accent2||"#5AA9E6";
 
   const tumOyuncular=[...(A?A.oyuncular:[]),...(B?B.oyuncular:[])];
   // Player ID omurgası: seçim anında STABİL kimlik (player_id||id) yakalanır; isim gösterim için kalır (aynı isim karışmaz)
@@ -8812,7 +8710,7 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
   ];
 
   const kaydet=()=>{
-    const temiz=olaylar.filter(o=>o.oyuncu||o.oyuncuId).map(o=>({...o, dk: o.dk?parseInt(o.dk):null}));
+    const temiz=olaylar.filter(o=>o.oyuncu||o.oyuncuId).map(o=>{ const c={...o, dk: o.dk?parseInt(o.dk):null}; delete c._ao; return c; });
     skorKaydet(turnuva, m, parseInt(sA)||0, parseInt(sB)||0, temiz, mvp, mvpTk, oduller, {mvpId, odullerId});
     git({sayfa:"mac",mac:m,turnuva});
   };
@@ -8822,18 +8720,20 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
     const takim=takimAd===m.takimA?A:B;
     const tipEtiket={gol:"⚽",sari:"🟨",kirmizi:"🟥"}[o.tip];
     return <div style={{display:"flex",alignItems:"center",gap:5,background:T.bg2,borderRadius:9,padding:"7px 9px",marginBottom:6}}>
-      <span style={{fontSize:13,minWidth:18,textAlign:"center"}}>{tipEtiket}</span>
-      <input value={o.dk||""} onChange={e=>olayDegis(i,"dk",e.target.value.replace(/[^0-9]/g,"").slice(0,3))} placeholder="dk" style={{width:34,textAlign:"center",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px 2px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}/>
-      <select value={o.oyuncuId||(takim&&o.oyuncu?sid(takim.oyuncular.find(x=>x.ad===o.oyuncu)):"")} onChange={e=>{ const id=e.target.value; const p=(takim?takim.oyuncular:[]).find(x=>sid(x)===id); olayCoklu(i,{oyuncuId:id||null, oyuncu:p?p.ad:""}); }} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
+      <span style={{fontSize:16,minWidth:20,textAlign:"center"}}>{tipEtiket}</span>
+      {dakikaAcik && <input value={o.dk||""} onChange={e=>olayDegis(i,"dk",e.target.value.replace(/[^0-9]/g,"").slice(0,3))} placeholder="dk'" inputMode="numeric" style={{width:52,height:44,textAlign:"center",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:9,padding:"0 2px",color:T.text,fontSize:15,outline:"none",fontFamily:"inherit"}}/>}
+      <select value={o.oyuncuId||(takim&&o.oyuncu?sid(takim.oyuncular.find(x=>x.ad===o.oyuncu)):"")} onChange={e=>{ const id=e.target.value; const p=(takim?takim.oyuncular:[]).find(x=>sid(x)===id); olayCoklu(i,{oyuncuId:id||null, oyuncu:p?p.ad:""}); }} style={{flex:1,minWidth:0,height:44,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:9,padding:"0 10px",color:T.text,fontSize:15,fontWeight:600,outline:"none",fontFamily:"inherit"}}>
         <option value="">Oyuncu seç...</option>
         {(takim?takim.oyuncular:[]).map(p=><option key={p.id} value={sid(p)}>{p.ad}</option>)}
       </select>
-      {o.tip==="gol" && <select value={o.asistId||(takim&&o.asist?sid(takim.oyuncular.find(x=>x.ad===o.asist)):"")} onChange={e=>{ const id=e.target.value; const p=(takim?takim.oyuncular:[]).find(x=>sid(x)===id); olayCoklu(i,{asistId:id||null, asist:p?p.ad:null}); }} style={{width:80,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.textMut,fontSize:10,outline:"none",fontFamily:"inherit"}}>
-        <option value="">asist yok</option>
-        {(takim?takim.oyuncular:[]).map(p=><option key={p.id} value={sid(p)}>🅰 {p.ad.split(" ")[0]}</option>)}
-      </select>}
-      {o.tip==="gol" && o.oyuncu && <button onClick={()=>golTekrar(o)} className="tap" title="Aynı oyuncuya +1 gol" style={{color:T.accent,fontSize:11,fontWeight:800,background:T.accent+"22",border:"1px solid "+T.accent+"44",borderRadius:6,padding:"4px 7px",whiteSpace:"nowrap"}}>+1</button>}
-      <button onClick={()=>olaySil(i)} className="tap" style={{color:T.danger,fontSize:14,background:"none",border:"none",padding:"0 2px"}}>✕</button>
+      {o.tip==="gol" && (o.asist||o._ao
+        ? <select value={o.asistId||(takim&&o.asist?sid(takim.oyuncular.find(x=>x.ad===o.asist)):"")} onChange={e=>{ const id=e.target.value; const p=(takim?takim.oyuncular:[]).find(x=>sid(x)===id); olayCoklu(i,{asistId:id||null, asist:p?p.ad:null}); }} style={{width:98,height:44,background:T.bg1,border:"0.5px solid "+AC+"55",borderRadius:9,padding:"0 8px",color:AC,fontSize:13,outline:"none",fontFamily:"inherit"}}>
+          <option value="">🅰 yok</option>
+          {(takim?takim.oyuncular:[]).map(p=><option key={p.id} value={sid(p)}>🅰 {p.ad.split(" ")[0]}</option>)}
+        </select>
+        : <button onClick={()=>olayCoklu(i,{_ao:true})} className="tap" style={{height:40,padding:"0 11px",borderRadius:9,background:AC+"1A",color:AC,border:"1px solid "+AC+"44",fontSize:13,fontWeight:700,whiteSpace:"nowrap"}}>🅰 asist</button>)}
+      {o.tip==="gol" && o.oyuncu && <button onClick={()=>golTekrar(o)} className="tap" title="Aynı oyuncuya +1 gol" style={{color:T.accent,fontSize:13,fontWeight:800,background:T.accent+"22",border:"1px solid "+T.accent+"44",borderRadius:8,padding:"0 10px",height:40,whiteSpace:"nowrap"}}>+1</button>}
+      <button onClick={()=>olaySil(i)} className="tap" style={{color:T.danger,fontSize:18,background:"none",border:"none",width:34,height:40}}>✕</button>
     </div>;
   };
 
@@ -8851,14 +8751,21 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
       </div>
     </div>
 
+    {/* dakika toggle (isteğe bağlı) */}
+    <div style={{padding:"0 14px 10px"}}>
+      <button onClick={()=>setDakikaAcik(v=>!v)} className="tap" style={{width:"100%",height:44,borderRadius:12,background:dakikaAcik?T.accent+"18":T.bg1,color:dakikaAcik?T.accent:T.textMut,fontSize:13,fontWeight:700,border:"1px solid "+(dakikaAcik?T.accent+"55":T.line),display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{dakikaAcik?"⏱ Dakika alanı açık — kapat":"⏱ Dakikaları gir (isteğe bağlı)"}</button>
+    </div>
+
     {/* olaylar — A takımı */}
     <div style={{padding:"0 14px 6px"}}>
       <div style={{fontSize:12,fontWeight:700,color:T.text,marginBottom:8}}>{m.takimA}</div>
       {olaylar.map((o,i)=> o.takim===m.takimA && <OlayKutu key={i} o={o} i={i}/>)}
-      <div style={{display:"flex",gap:6,marginBottom:14}}>
-        <button onClick={()=>olayEkle(m.takimA,"gol")} className="tap" style={{flex:1,padding:"8px",borderRadius:9,background:T.accent+"22",color:T.accent,fontSize:11,fontWeight:700,border:"1px solid "+T.accent+"44"}}>+ ⚽ Gol</button>
-        <button onClick={()=>olayEkle(m.takimA,"sari")} className="tap" style={{flex:1,padding:"8px",borderRadius:9,background:"#E0A80022",color:"#E0A800",fontSize:11,fontWeight:700,border:"1px solid #E0A80044"}}>+ 🟨</button>
-        <button onClick={()=>olayEkle(m.takimA,"kirmizi")} className="tap" style={{flex:1,padding:"8px",borderRadius:9,background:T.danger+"22",color:T.danger,fontSize:11,fontWeight:700,border:"1px solid "+T.danger+"44"}}>+ 🟥</button>
+      <div style={{marginBottom:14}}>
+        <button onClick={()=>olayEkle(m.takimA,"gol")} className="tap" style={{width:"100%",height:48,borderRadius:12,background:T.accent+"22",color:T.accent,fontSize:15,fontWeight:800,border:"1.5px solid "+T.accent+"55",marginBottom:8}}>＋ ⚽ Gol ekle</button>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>olayEkle(m.takimA,"sari")} className="tap" style={{flex:1,height:42,borderRadius:11,background:"#E0A80018",color:"#E0A800",fontSize:13,fontWeight:700,border:"1px solid #E0A80044"}}>🟨 Sarı</button>
+          <button onClick={()=>olayEkle(m.takimA,"kirmizi")} className="tap" style={{flex:1,height:42,borderRadius:11,background:T.danger+"18",color:T.danger,fontSize:13,fontWeight:700,border:"1px solid "+T.danger+"44"}}>🟥 Kırmızı</button>
+        </div>
       </div>
     </div>
 
@@ -8866,10 +8773,12 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
     <div style={{padding:"0 14px 6px"}}>
       <div style={{fontSize:12,fontWeight:700,color:T.text,marginBottom:8}}>{m.takimB}</div>
       {olaylar.map((o,i)=> o.takim===m.takimB && <OlayKutu key={i} o={o} i={i}/>)}
-      <div style={{display:"flex",gap:6,marginBottom:14}}>
-        <button onClick={()=>olayEkle(m.takimB,"gol")} className="tap" style={{flex:1,padding:"8px",borderRadius:9,background:T.accent+"22",color:T.accent,fontSize:11,fontWeight:700,border:"1px solid "+T.accent+"44"}}>+ ⚽ Gol</button>
-        <button onClick={()=>olayEkle(m.takimB,"sari")} className="tap" style={{flex:1,padding:"8px",borderRadius:9,background:"#E0A80022",color:"#E0A800",fontSize:11,fontWeight:700,border:"1px solid #E0A80044"}}>+ 🟨</button>
-        <button onClick={()=>olayEkle(m.takimB,"kirmizi")} className="tap" style={{flex:1,padding:"8px",borderRadius:9,background:T.danger+"22",color:T.danger,fontSize:11,fontWeight:700,border:"1px solid "+T.danger+"44"}}>+ 🟥</button>
+      <div style={{marginBottom:14}}>
+        <button onClick={()=>olayEkle(m.takimB,"gol")} className="tap" style={{width:"100%",height:48,borderRadius:12,background:T.accent+"22",color:T.accent,fontSize:15,fontWeight:800,border:"1.5px solid "+T.accent+"55",marginBottom:8}}>＋ ⚽ Gol ekle</button>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>olayEkle(m.takimB,"sari")} className="tap" style={{flex:1,height:42,borderRadius:11,background:"#E0A80018",color:"#E0A800",fontSize:13,fontWeight:700,border:"1px solid #E0A80044"}}>🟨 Sarı</button>
+          <button onClick={()=>olayEkle(m.takimB,"kirmizi")} className="tap" style={{flex:1,height:42,borderRadius:11,background:T.danger+"18",color:T.danger,fontSize:13,fontWeight:700,border:"1px solid "+T.danger+"44"}}>🟥 Kırmızı</button>
+        </div>
       </div>
     </div>
 
@@ -9258,6 +9167,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
   const A=turnuva.takimlar.find(t=>t.id===m.takimAId)||turnuva.takimlar.find(t=>t.ad===m.takimA);
   const B=turnuva.takimlar.find(t=>t.id===m.takimBId)||turnuva.takimlar.find(t=>t.ad===m.takimB);
   const [adim,setAdim]=useState(1);
+  const [dakikaAcik,setDakikaAcik]=useState(false);
 
   // —— KADRO MANTIĞI (her iki takım) ——
   const otomatikDiz=(tk, slotlar)=>{
@@ -9319,7 +9229,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
     kadro[tk].yerlesim.forEach(id=>{ if(id!=null && idSet.has(id)){ const o=oyuncuBulId(id); if(o){sirali.push(o); idSet.delete(id);} } });
     // kalan (sonradan giren) yedekler
     t.oyuncular.forEach(o=>{ if(idSet.has(o.id)){ sirali.push(o); idSet.delete(o.id); } });
-    return sirali;
+    return sirali.length ? sirali : (t.oyuncular||[]).slice();
   };
   // Ödül seçimi için oyuncuları mevkiye göre grupla: oncelikPoz üstte, sonra kalanlar.
   // Dönüş: [{poz, oyuncular:[...]}] — her mevki kendi içinde ovr'ye göre sıralı.
@@ -9391,9 +9301,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
     const temizOlay=olaylar.filter(o=>{
       if(o.tip==="degisik") return o.cikan||o.giren;
       return o.oyuncu;
-    }).map(o=> o.tip==="degisik"
-      ? {...o, dk:o.dk?parseInt(o.dk):null}
-      : {...o, dk:o.dk?parseInt(o.dk):null});
+    }).map(o=>{ const c={...o, dk:o.dk?parseInt(o.dk):null}; delete c._ao; return c; });
     // kaleci kurtarışları (elle eklenenler)
     const kaleciler=kaleciList.filter(k=>k.ad||k.id).map(k=>({ad:k.ad, id:k.id||null, kurtaris:parseInt(k.kurtaris)||0}));
     const paketKadro={
@@ -9409,7 +9317,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
   };
 
   // ——— ADIM GEÇİŞ ———
-  const ileri=()=>{ if(adim===1 && !ikiKadroTamam) return; setAdim(a=>Math.min(4,a+1)); window.scrollTo(0,0); };
+  const ileri=()=>{ setAdim(a=>Math.min(4,a+1)); window.scrollTo(0,0); };
   const geriAdim=()=>{ if(adim===1){ git({sayfa:"mac",mac:m,turnuva}); return; } setAdim(a=>a-1); window.scrollTo(0,0); };
 
   const ADIMLAR=["Kadro","Skor & Olaylar","Ödüller","Kaydet"];
@@ -9548,7 +9456,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
       </>}
 
       {!ikiKadroTamam && <div style={{margin:"4px 14px",padding:"10px 12px",background:T.gold+"14",borderRadius:10,border:"1px solid "+T.gold+"44",fontSize:11,color:T.gold,fontWeight:600,textAlign:"center"}}>
-        ⚠️ Önce iki takımın kadrosunu kur — diğeri için yukarıdan takım sekmesine geç.
+        ℹ️ Kadro zorunlu değil — dilersen kurmadan İleri'ye basıp skoru girebilirsin.
       </div>}
     </div>}
 
@@ -9596,15 +9504,19 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
           <input value={stad} onChange={e=>setStad(e.target.value)} placeholder="Örn: Fatih Halı Saha" style={{width:"100%",background:T.bg2,border:"0.5px solid "+T.line,borderRadius:8,padding:"8px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}/>
         </div>
       </div>
+      {/* dakika toggle (isteğe bağlı) */}
+      <div style={{padding:"0 14px 10px"}}>
+        <button onClick={()=>setDakikaAcik(v=>!v)} className="tap" style={{width:"100%",height:44,borderRadius:12,background:dakikaAcik?T.accent+"18":T.bg1,color:dakikaAcik?T.accent:T.textMut,fontSize:13,fontWeight:700,border:"1px solid "+(dakikaAcik?T.accent+"55":T.line),display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{dakikaAcik?"⏱ Dakika alanı açık — kapat":"⏱ Dakikaları gir (isteğe bağlı)"}</button>
+      </div>
       {/* her takım için: gol + kart + değişiklik tek blokta */}
       {[["A",A,m.takimA],["B",B,m.takimB]].map(([k,tk,ad])=>{
         const oynayan=oynayanlar(k); // sahadaki 11 + sonradan giren
         return <div key={k} style={{padding:"0 14px 14px"}}>
           <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:8,display:"flex",alignItems:"center",gap:7}}><Logo renk={k==="A"?m.renkA:m.renkB} ad={ad} boy={20}/>{ad}</div>
           {/* goller */}
-          {olaylar.map((o,i)=> (o.takim===ad && o.tip==="gol") && <SihirbazGolKutu key={"g"+i} o={o} i={i} oynayan={oynayan} T={T} olayDegis={olayDegis} olaySil={olaySil} golTekrar={golTekrar}/>)}
+          {olaylar.map((o,i)=> (o.takim===ad && o.tip==="gol") && <SihirbazGolKutu key={"g"+i} o={o} i={i} oynayan={oynayan} T={T} olayDegis={olayDegis} olaySil={olaySil} golTekrar={golTekrar} dakikaAcik={dakikaAcik}/>)}
           {/* kartlar */}
-          {olaylar.map((o,i)=> (o.takim===ad && (o.tip==="sari"||o.tip==="kirmizi")) && <SihirbazKartKutu key={"k"+i} o={o} i={i} oynayan={oynayan} T={T} olayDegis={olayDegis} olaySil={olaySil}/>)}
+          {olaylar.map((o,i)=> (o.takim===ad && (o.tip==="sari"||o.tip==="kirmizi")) && <SihirbazKartKutu key={"k"+i} o={o} i={i} oynayan={oynayan} T={T} olayDegis={olayDegis} olaySil={olaySil} dakikaAcik={dakikaAcik}/>)}
           {/* değişiklikler — çıkan: sahadaki, giren: tüm kadro (yedek dahil) */}
           {olaylar.map((o,i)=> (o.takim===ad && o.tip==="degisik") && <SihirbazDegisKutu key={"d"+i} o={o} i={i} takim={tk} oynayan={oynayan} T={T} olayDegis={olayDegis} olaySil={olaySil}/>)}
           {/* ekleme butonları */}
@@ -9698,38 +9610,42 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
     <div style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:1080,margin:"0 auto",padding:"10px 14px",background:T.bg0+"F2",borderTop:"0.5px solid "+T.line,display:"flex",gap:8,backdropFilter:"blur(8px)"}}>
       <button onClick={geriAdim} className="tap" style={{padding:"13px 18px",borderRadius:11,background:"transparent",color:T.textMut,fontSize:13,fontWeight:700,border:"1px solid "+T.line}}>{adim===1?"İptal":"‹ Geri"}</button>
       {adim<4
-        ? <button onClick={ileri} disabled={adim===1&&!ikiKadroTamam} className="tap" style={{flex:1,padding:"13px",borderRadius:11,background:(adim===1&&!ikiKadroTamam)?T.bg2:T.accent,color:(adim===1&&!ikiKadroTamam)?T.textMut:(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0),fontSize:14,fontWeight:800,border:"none",opacity:(adim===1&&!ikiKadroTamam)?.6:1}}>İleri ›</button>
+        ? <button onClick={ileri} className="tap" style={{flex:1,padding:"13px",borderRadius:11,background:T.accent,color:(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0),fontSize:14,fontWeight:800,border:"none"}}>İleri ›</button>
         : <button onClick={tamamla} className="tap" style={{flex:1,padding:"13px",borderRadius:11,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,fontSize:14,fontWeight:800,border:"none"}}>✓ Maçı Kaydet</button>}
     </div>
   </div>;
 }
 
 // — Sihirbaz alt kutuları —
-function SihirbazGolKutu({o,i,oynayan,T,olayDegis,olaySil,golTekrar}){
-  return <div style={{display:"flex",alignItems:"center",gap:5,background:T.bg2,borderRadius:9,padding:"7px 9px",marginBottom:6}}>
-    <span style={{fontSize:13,minWidth:18,textAlign:"center"}}>⚽</span>
-    <input value={o.dk||""} onChange={e=>olayDegis(i,"dk",e.target.value.replace(/[^0-9]/g,"").slice(0,3))} placeholder="dk" style={{width:34,textAlign:"center",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px 2px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}/>
-    <select value={o.oyuncuId||(o.oyuncu?((oynayan||[]).reduce((a,x)=>x.ad===o.oyuncu?String(x.player_id||x.id):a,"")):"")} onChange={e=>{ const id=e.target.value; const p=(oynayan||[]).find(x=>String(x.player_id||x.id)===id); olayDegis(i,"oyuncuId",id||null); olayDegis(i,"oyuncu",p?p.ad:""); }} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
+function SihirbazGolKutu({o,i,oynayan,T,olayDegis,olaySil,golTekrar,dakikaAcik}){
+  const AC=T.accent2||"#5AA9E6"; const liste=oynayan||[];
+  return <div style={{display:"flex",alignItems:"center",gap:7,background:T.bg2,borderRadius:11,padding:"7px 9px",marginBottom:7}}>
+    <span style={{fontSize:16,minWidth:20,textAlign:"center"}}>⚽</span>
+    {dakikaAcik && <input value={o.dk||""} onChange={e=>olayDegis(i,"dk",e.target.value.replace(/[^0-9]/g,"").slice(0,3))} placeholder="dk'" inputMode="numeric" style={{width:52,height:44,textAlign:"center",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:9,padding:"0 2px",color:T.text,fontSize:15,outline:"none",fontFamily:"inherit"}}/>}
+    <select value={o.oyuncuId||(o.oyuncu?(liste.reduce((a,x)=>x.ad===o.oyuncu?String(x.player_id||x.id):a,"")):"")} onChange={e=>{ const id=e.target.value; const p=liste.find(x=>String(x.player_id||x.id)===id); olayDegis(i,"oyuncuId",id||null); olayDegis(i,"oyuncu",p?p.ad:""); }} style={{flex:1,minWidth:0,height:44,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:9,padding:"0 10px",color:T.text,fontSize:15,fontWeight:600,outline:"none",fontFamily:"inherit"}}>
       <option value="">Golcü...</option>
-      {(oynayan||[]).map(p=><option key={p.id} value={String(p.player_id||p.id)}>{p.ad}</option>)}
+      {liste.map(p=><option key={p.id} value={String(p.player_id||p.id)}>{p.ad}</option>)}
     </select>
-    <select value={o.asistId||(o.asist?((oynayan||[]).reduce((a,x)=>x.ad===o.asist?String(x.player_id||x.id):a,"")):"")} onChange={e=>{ const id=e.target.value; const p=(oynayan||[]).find(x=>String(x.player_id||x.id)===id); olayDegis(i,"asistId",id||null); olayDegis(i,"asist",p?p.ad:null); }} style={{width:78,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.textMut,fontSize:10,outline:"none",fontFamily:"inherit"}}>
-      <option value="">asist yok</option>
-      {(oynayan||[]).map(p=><option key={p.id} value={String(p.player_id||p.id)}>🅰 {p.ad.split(" ")[0]}</option>)}
-    </select>
-    {o.oyuncu && <button onClick={()=>golTekrar(o)} className="tap" title="Aynı oyuncuya +1" style={{color:T.accent,fontSize:11,fontWeight:800,background:T.accent+"22",border:"1px solid "+T.accent+"44",borderRadius:6,padding:"4px 7px"}}>+1</button>}
-    <button onClick={()=>olaySil(i)} className="tap" style={{color:T.danger,fontSize:14,background:"none",border:"none",padding:"0 2px"}}>✕</button>
+    {(o.asist||o._ao
+      ? <select value={o.asistId||(o.asist?(liste.reduce((a,x)=>x.ad===o.asist?String(x.player_id||x.id):a,"")):"")} onChange={e=>{ const id=e.target.value; const p=liste.find(x=>String(x.player_id||x.id)===id); olayDegis(i,"asistId",id||null); olayDegis(i,"asist",p?p.ad:null); }} style={{width:98,height:44,background:T.bg1,border:"0.5px solid "+AC+"55",borderRadius:9,padding:"0 8px",color:AC,fontSize:13,outline:"none",fontFamily:"inherit"}}>
+        <option value="">🅰 yok</option>
+        {liste.map(p=><option key={p.id} value={String(p.player_id||p.id)}>🅰 {p.ad.split(" ")[0]}</option>)}
+      </select>
+      : <button onClick={()=>olayDegis(i,"_ao",true)} className="tap" style={{height:40,padding:"0 11px",borderRadius:9,background:AC+"1A",color:AC,border:"1px solid "+AC+"44",fontSize:13,fontWeight:700,whiteSpace:"nowrap"}}>🅰 asist</button>)}
+    {o.oyuncu && <button onClick={()=>golTekrar(o)} className="tap" title="Aynı oyuncuya +1" style={{color:T.accent,fontSize:13,fontWeight:800,background:T.accent+"22",border:"1px solid "+T.accent+"44",borderRadius:8,padding:"0 10px",height:40}}>+1</button>}
+    <button onClick={()=>olaySil(i)} className="tap" style={{color:T.danger,fontSize:18,background:"none",border:"none",width:34,height:40}}>✕</button>
   </div>;
 }
-function SihirbazKartKutu({o,i,oynayan,T,olayDegis,olaySil}){
-  return <div style={{display:"flex",alignItems:"center",gap:5,background:T.bg2,borderRadius:9,padding:"7px 9px",marginBottom:6}}>
-    <span style={{fontSize:13,minWidth:18,textAlign:"center"}}>{o.tip==="sari"?"🟨":"🟥"}</span>
-    <input value={o.dk||""} onChange={e=>olayDegis(i,"dk",e.target.value.replace(/[^0-9]/g,"").slice(0,3))} placeholder="dk" style={{width:34,textAlign:"center",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px 2px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}/>
-    <select value={o.oyuncuId||(o.oyuncu?((oynayan||[]).reduce((a,x)=>x.ad===o.oyuncu?String(x.player_id||x.id):a,"")):"")} onChange={e=>{ const id=e.target.value; const p=(oynayan||[]).find(x=>String(x.player_id||x.id)===id); olayDegis(i,"oyuncuId",id||null); olayDegis(i,"oyuncu",p?p.ad:""); }} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"6px",color:T.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
+function SihirbazKartKutu({o,i,oynayan,T,olayDegis,olaySil,dakikaAcik}){
+  const liste=oynayan||[];
+  return <div style={{display:"flex",alignItems:"center",gap:7,background:T.bg2,borderRadius:11,padding:"7px 9px",marginBottom:7}}>
+    <span style={{fontSize:16,minWidth:20,textAlign:"center"}}>{o.tip==="sari"?"🟨":"🟥"}</span>
+    {dakikaAcik && <input value={o.dk||""} onChange={e=>olayDegis(i,"dk",e.target.value.replace(/[^0-9]/g,"").slice(0,3))} placeholder="dk'" inputMode="numeric" style={{width:52,height:44,textAlign:"center",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:9,padding:"0 2px",color:T.text,fontSize:15,outline:"none",fontFamily:"inherit"}}/>}
+    <select value={o.oyuncuId||(o.oyuncu?(liste.reduce((a,x)=>x.ad===o.oyuncu?String(x.player_id||x.id):a,"")):"")} onChange={e=>{ const id=e.target.value; const p=liste.find(x=>String(x.player_id||x.id)===id); olayDegis(i,"oyuncuId",id||null); olayDegis(i,"oyuncu",p?p.ad:""); }} style={{flex:1,minWidth:0,height:44,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:9,padding:"0 10px",color:T.text,fontSize:15,fontWeight:600,outline:"none",fontFamily:"inherit"}}>
       <option value="">Oyuncu...</option>
-      {(oynayan||[]).map(p=><option key={p.id} value={String(p.player_id||p.id)}>{p.ad}</option>)}
+      {liste.map(p=><option key={p.id} value={String(p.player_id||p.id)}>{p.ad}</option>)}
     </select>
-    <button onClick={()=>olaySil(i)} className="tap" style={{color:T.danger,fontSize:14,background:"none",border:"none",padding:"0 2px"}}>✕</button>
+    <button onClick={()=>olaySil(i)} className="tap" style={{color:T.danger,fontSize:18,background:"none",border:"none",width:34,height:40}}>✕</button>
   </div>;
 }
 function SihirbazDegisKutu({o,i,takim,oynayan,T,olayDegis,olaySil}){
