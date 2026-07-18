@@ -9002,10 +9002,11 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
    ============================================================ */
 /* ============================================================
    MAÇ GAZETESİ — DİNAMİK GÖRÜNÜM SİSTEMİ
-   - Tek veri modeli (gazeteVeri), N adet görünüm bileşeni.
-   - Yeni görünüm = 1 bileşen + GZ_GORUNUMLER'e 1 kayıt. Sabit kod yok.
-   - Yetki: Süper Admin (görünüm aç/kapa + sistem varsayılanı),
-     Lig Yöneticisi (lig varsayılanı + üye kilidi), Üye (kendi seçimi hatırlanır).
+   - Tek veri modeli (gazeteVeri) + tek analiz motoru (gazeteAnaliz).
+   - N görünüm bileşeni; yeni görünüm = 1 bileşen + GZ_GORUNUMLER'e 1 kayıt.
+   - İçerik maç verisine göre dinamik uzar/kısalır; premium dergi hissi.
+   - Yetki: Süper Admin / Lig Yöneticisi / Üye (panelde role göre kontrol).
+   - Marka: her görünümde ForzaLig watermark + görünür logo.
    ============================================================ */
 
 // ---- kalıcılık ----
@@ -9034,7 +9035,7 @@ function gazeteVeri(m, turnuva, tohum){
   var od=m.oduller||{}; var oduller=[]; if(m.mvp) oduller.push(["Yıldız",m.mvp]);
   ODUL_TANIM.forEach(function(p){ if(od[p[0]]) oduller.push([p[1],od[p[0]]]); });
   var ratingArr=m.ratingler?Object.entries(m.ratingler).sort(function(a,b){return b[1]-a[1];}).slice(0,6):[];
-  var puanTablo=(turnuva&&turnuva.takimlar)?turnuva.takimlar.slice().sort(function(a,b){return b.puan-a.puan||(b.ag-b.yg)-(a.ag-a.yg);}).slice(0,5):[];
+  var puanTablo=(turnuva&&turnuva.takimlar)?turnuva.takimlar.slice().sort(function(a,b){return b.puan-a.puan||(b.ag-b.yg)-(a.ag-a.yg);}).slice(0,6):[];
   var manset=mansetUret(m,tohum);
   var yorum=macYorumUret(m,turnuva,tohum);
   return { m:m, turnuva:turnuva, sA:sA, sB:sB, galip:galip, goller:goller, golKron:golKron, olayKron:olayKron,
@@ -9045,78 +9046,235 @@ function gazeteVeri(m, turnuva, tohum){
     mvpRating:(m.ratingler&&m.mvp&&m.ratingler[m.mvp])?m.ratingler[m.mvp]:null };
 }
 
-// ---- paylaşılan detay bloğu (hikaye + ödüller + reyting + puan durumu), palete göre boyanır ----
+// ---- analiz motoru: dönüm noktaları + taktik + öne çıkanlar + istatistik + lig etkisi ----
+function gazeteAnaliz(v){
+  var m=v.m, A=v.takimA, B=v.takimB, sA=v.sA, sB=v.sB, galip=v.galip;
+  var maglup=galip?(galip===A?B:A):null, fark=Math.abs(sA-sB), toplam=sA+sB;
+  var gol=v.golKron;
+  var ca=0,cb=0,akis=[];
+  gol.forEach(function(g){ if(g.takim===A)ca++; else cb++; akis.push({dk:g.dk,oyuncu:g.oyuncu,takim:g.takim,ca:ca,cb:cb,fark:ca-cb}); });
+
+  // ---- DÖNÜM NOKTALARI ----
+  var donum=[];
+  if(akis.length){
+    var ilk=akis[0];
+    donum.push({dk:ilk.dk,tip:"acilis",metin:(ilk.takim)+" buzu kırdı — "+ilk.oyuncu+" skoru açtı ("+ilk.ca+"-"+ilk.cb+")."});
+    var koptu=null; for(var i=0;i<akis.length;i++){ if(Math.abs(akis[i].fark)>=2){ koptu=akis[i]; break; } }
+    if(koptu) donum.push({dk:koptu.dk,tip:"kopus",metin:(koptu.fark>0?A:B)+" farkı ikiye taşıdı; maç bu golle koptu ("+koptu.ca+"-"+koptu.cb+")."});
+    var prev=0;
+    akis.forEach(function(k,ix){ var sg=k.fark>0?1:k.fark<0?-1:0;
+      if(ix>0){ if(sg===0&&prev!==0) donum.push({dk:k.dk,tip:"esitlik",metin:k.oyuncu+" eşitliği yakaladı ("+k.ca+"-"+k.cb+")."});
+        else if(sg!==0&&prev!==0&&sg!==prev) donum.push({dk:k.dk,tip:"donus",metin:(sg>0?A:B)+" öne geçti — "+k.oyuncu+" perdeyi çevirdi ("+k.ca+"-"+k.cb+")."}); }
+      prev=sg; });
+    var son=gol[gol.length-1];
+    if(galip&&son.dk>=50&&fark===1&&son.takim===galip) donum.push({dk:son.dk,tip:"final",metin:son.oyuncu+" son bölümde fişi çekti; "+galip+" nefesleri tuttu ("+son.dk+"')."});
+  }
+  (v.olayKron||[]).filter(function(o){return o.tip==="kirmizi";}).forEach(function(k){ donum.push({dk:k.dk,tip:"kirmizi",metin:(k.oyuncu||"Bir oyuncu")+" kırmızı gördü; "+(k.takim)+" sayıca eksik kaldı."}); });
+  donum.sort(function(a,b){return a.dk-b.dk;});
+  var gr={}; donum=donum.filter(function(d){var key=d.dk+"_"+d.tip; if(gr[key])return false; gr[key]=1; return true;});
+
+  // ---- TAKTİK DEĞERLENDİRME ----
+  var ist=v.ist, taktik=[];
+  if(ist&&ist.sahiplikA!=null){
+    var hakim=ist.sahiplikA>ist.sahiplikB?A:B, hy=Math.max(ist.sahiplikA,ist.sahiplikB);
+    if(galip&&hakim!==galip&&hy>=55) taktik.push({b:"Verimlilik kazandı",m:hakim+" topu daha çok tuttu (%"+hy+") ama sonucu "+galip+" yazdı; az pozisyonu değere çevirmesini bildi."});
+    else if(galip&&hakim===galip&&hy>=57) taktik.push({b:"Oyunu ele aldı",m:galip+" hem topa sahip oldu (%"+hy+") hem sonucu aldı; baştan sona kontrollü bir üstünlük."});
+    else if(!galip) taktik.push({b:"Orta sahada denge",m:"Topa sahip olma neredeyse eşitti (%"+ist.sahiplikA+" - %"+ist.sahiplikB+"); iki taraf da üstünlüğü kalıcı kılamadı."});
+  }
+  if(ist&&ist.sutA!=null){
+    var vA=(sA>0&&ist.sutA)?Math.round(sA/ist.sutA*100):0, vB=(sB>0&&ist.sutB)?Math.round(sB/ist.sutB*100):0;
+    var etkili=vA>=vB?A:B, ev=Math.max(vA,vB);
+    if(ev>=25) taktik.push({b:"Şutta soğukkanlılık",m:etkili+" bulduğu az sayıda net pozisyonu çok iyi değerlendirdi (gol/şut verimi ~%"+ev+")."});
+  }
+  if(galip&&(galip===A?sB:sA)===0&&toplam>0) taktik.push({b:"Arka kapı kapalı",m:galip+" kalesini gole kapattı; savunma hattı doksan dakika ayakta kaldı."});
+  if(fark>=3) taktik.push({b:"Tek taraflı tablo",m:galip+" ritmi baştan kurdu; "+maglup+" oyuna ortak olamadan fark açıldı."});
+  else if(fark===1&&galip) taktik.push({b:"Detayların maçı",m:"Tek gol her şeyi belirledi; "+galip+" kritik anı doğru okudu, "+maglup+" son vuruşta eksik kaldı."});
+  else if(!galip&&toplam===0) taktik.push({b:"Savunmalar kazandı",m:"Goller küstü; iki savunma da rakip hücumu geçit vermeden söndürdü."});
+  var kaleciAd=(m.oduller&&m.oduller.kaleci)?m.oduller.kaleci:null;
+  var krec=kaleciAd?(m.kaleciler||[]).find(function(k){return k.ad===kaleciAd;}):null;
+  if(krec&&krec.kurtaris>=4) taktik.push({b:"Kaleci duvarı",m:kaleciAd+" "+krec.kurtaris+" kurtarışla arkada güven verdi; skorun asıl bekçisiydi."});
+  taktik=taktik.slice(0,4);
+
+  // ---- ÖNE ÇIKAN OYUNCULAR ----
+  var oyuncular=[], eklendi={};
+  var rat=function(ad){ return (m.ratingler&&m.ratingler[ad]!=null)?m.ratingler[ad]:null; };
+  var pushOy=function(ad,et,satir){ if(!ad||eklendi[ad])return; eklendi[ad]=1; oyuncular.push({ad:ad,etiket:et,rating:rat(ad),satir:satir}); };
+  if(v.yildiz){ var gg=v.golSay[v.yildiz]||0, aa=v.goller.filter(function(g){return g.asist===v.yildiz;}).length; var s=[]; if(gg)s.push(gg+" gol"); if(aa)s.push(aa+" asist");
+    pushOy(v.yildiz,"Maçın Adamı", s.length?s.join(" · ")+" ile sahnenin ortasındaydı.":"Sahanın her yerinde belirleyiciydi."); }
+  var enCok=Object.entries(v.golSay).sort(function(a,b){return b[1]-a[1];})[0];
+  if(enCok&&enCok[1]>=1) pushOy(enCok[0], enCok[1]>=3?"Hat-trick":enCok[1]===2?"Çifte gol":"Golcü", enCok[1]>=2?enCok[1]+" golle farkı yaratan isim oldu.":"Ağları sarsan isim oldu.");
+  if(krec&&krec.kurtaris>=3) pushOy(kaleciAd,"Kaleci",krec.kurtaris+" kurtarışla kaleyi ayakta tuttu.");
+  var asMap={}; v.goller.forEach(function(g){ if(g.asist) asMap[g.asist]=(asMap[g.asist]||0)+1; });
+  var enAs=Object.entries(asMap).sort(function(a,b){return b[1]-a[1];})[0];
+  if(enAs&&enAs[1]>=2) pushOy(enAs[0],"Asist Kralı",enAs[1]+" asistle üretimin merkezindeydi.");
+  v.ratingArr.forEach(function(r){ if(oyuncular.length<4) pushOy(r[0],"Yüksek Reyting","Reytingiyle maçın en iyilerinden biriydi."); });
+  oyuncular=oyuncular.slice(0,4);
+
+  // ---- DETAYLI İSTATİSTİK ----
+  var istat=[];
+  if(ist){ ISTATISTIK_SATIRLAR.forEach(function(row){ var a=ist[row[1]], b=ist[row[2]]; if(a==null||b==null)return; istat.push({et:row[0],a:a,b:b,yuzde:row[3]}); }); }
+
+  // ---- LİG ETKİSİ ----
+  var lig=[];
+  if(v.turnuva&&v.turnuva.takimlar&&v.turnuva.takimlar.length){
+    var sirali=v.turnuva.takimlar.slice().sort(function(a,b){return b.puan-a.puan||(b.ag-b.yg)-(a.ag-a.yg);});
+    var rankOf=function(ad){ for(var i=0;i<sirali.length;i++) if(sirali[i].ad===ad) return i+1; return null; };
+    [A,B].forEach(function(ad){ var t=sirali.find(function(x){return x.ad===ad;}); if(!t)return; var r=rankOf(ad);
+      var kazandi=galip===ad, kaybetti=galip&&galip!==ad, satir="";
+      if(r===1) satir=kazandi?"Bu galibiyetle zirvedeki koltuğunu sağlamlaştırdı.":(kaybetti?"Kaybına rağmen liderliği bu hafta korudu.":"Beraberlikle zirvedeki yerini sürdürdü.");
+      else if(r&&r<=3) satir=kazandi?(r+". sıraya tutunup zirve yarışını sıcak tuttu."):(kaybetti?("Zirve yarışında "+r+". sırada; kayıp puan can sıktı."):(r+". sırada yoluna devam etti."));
+      else if(r) satir=kazandi?(r+". sıraya yükselerek yukarıyı zorlamaya başladı."):(kaybetti?(r+". sırada; bu sonuç tabloda geriye itti."):(r+". sıradaki yerini korudu."));
+      lig.push({ad:ad,konum:r,puan:t.puan,oynanan:t.o,satir:satir,kazandi:kazandi,renk:ad===A?v.renkA:v.renkB});
+    });
+  }
+
+  var ozet=(v.manset&&v.manset.kategori)||(fark>=3?"Tek taraflı üstünlük":(!galip?(toplam===0?"Golsüz denge":"Puanlar paylaşıldı"):fark===1?"Nefes kesen final":"Kontrollü galibiyet"));
+  return { ozet:ozet, donum:donum, taktik:taktik, oyuncular:oyuncular, istat:istat, lig:lig, puanTablo:v.puanTablo };
+}
+
+// ---- MARKA: watermark (arka plan) ----
+function GzWatermark(props){
+  var c=props.color||"#ffffff", op=props.opacity!=null?props.opacity:0.05;
+  return <div aria-hidden="true" style={{position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none",zIndex:0}}>
+    <div style={{position:"absolute",top:props.top!=null?props.top:"34%",left:"50%",transform:"translate(-50%,-50%) rotate(-16deg)",fontSize:props.size||96,fontWeight:900,letterSpacing:-3,color:c,opacity:op,whiteSpace:"nowrap",fontFamily:"'Anton','Arial Black',sans-serif",lineHeight:1}}>FORZALIG</div>
+    <div style={{position:"absolute",bottom:"6%",left:"50%",transform:"translateX(-50%)",fontSize:13,fontWeight:800,letterSpacing:7,color:c,opacity:Math.min(0.08,op*1.2),fontFamily:"'Oswald','Arial Narrow',sans-serif",whiteSpace:"nowrap"}}>FORZALIG.COM</div>
+  </div>;
+}
+// ---- MARKA: görünür rozet (her görünümün üstünde) ----
+function GzMarka(props){
+  var c=props.color||"#fff", acc=props.accent||"#34d399", sub=props.sub||"#8b95a3";
+  return <div style={{display:"flex",alignItems:"center",gap:9,position:"relative",zIndex:1}}>
+    <div style={{width:26,height:26,borderRadius:8,display:"grid",placeItems:"center",fontSize:14,background:"linear-gradient(135deg,"+acc+","+acc+"bb)",color:"#04140c",flexShrink:0,boxShadow:"0 3px 10px -3px "+acc+"88"}}>⚽</div>
+    <div style={{lineHeight:1.05}}>
+      <div style={{fontSize:14,fontWeight:850,letterSpacing:-0.2,color:c}}>Forza<span style={{color:acc}}>Lig</span></div>
+      <div style={{fontSize:8.5,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:sub,marginTop:1}}>Maç Gazetesi</div>
+    </div>
+    {props.sag && <div style={{marginLeft:"auto",textAlign:"right"}}>{props.sag}</div>}
+  </div>;
+}
+
+// ---- paylaşılan detay bloğu: TÜM zengin bölümler, palete göre boyanır ----
 function GzDetay(props){
-  var v=props.v, p=props.pal, av=p.accent;
-  var H=function(t){ return React.createElement("div",{style:{fontSize:11,letterSpacing:1.5,textTransform:"uppercase",fontWeight:800,color:av,marginBottom:10,marginTop:2}},t); };
-  return <div style={{padding:"4px 2px 8px"}}>
-    {v.yorumParcalar.length>0 && <div style={{marginBottom:22}}>
-      {H("Maçın Hikayesi")}
-      {v.yorumParcalar.map(function(par,i){ return <p key={i} style={{fontSize:14,lineHeight:1.62,color:p.ink,margin:"0 0 10px",opacity:.92}}>{par}</p>; })}
+  var v=props.v, p=props.pal, av=p.accent, a=gazeteAnaliz(v);
+  var H=function(t,ust){ return <div style={{fontSize:11,letterSpacing:1.5,textTransform:"uppercase",fontWeight:800,color:av,marginBottom:9,marginTop:ust!=null?ust:0,display:"flex",alignItems:"center",gap:8}}><span>{t}</span><span style={{flex:1,height:1,background:p.line}}/></div>; };
+  var toplamBar=function(x,y){ var t=(Number(x)||0)+(Number(y)||0); return t>0?[(Number(x)||0)/t*100,(Number(y)||0)/t*100]:[50,50]; };
+  return <div style={{padding:"2px 2px 6px"}}>
+
+    {/* SPİKER ANLATIMI */}
+    {v.yorumParcalar.length>0 && <div style={{marginBottom:20}}>
+      {H("Spiker Anlatımı")}
+      {v.yorumParcalar.map(function(par,i){ return <p key={i} style={{fontSize:14,lineHeight:1.62,color:p.ink,margin:"0 0 9px",opacity:.93}}>{i===0?<span style={{fontFamily:"Georgia,serif",fontSize:34,fontWeight:800,float:"left",lineHeight:.82,paddingRight:7,paddingTop:2,color:av}}>{par.charAt(0)}</span>:null}{i===0?par.slice(1):par}</p>; })}
+      <div style={{fontSize:10.5,letterSpacing:.5,textTransform:"uppercase",color:p.mut,fontWeight:700}}>✍ ForzaLig Spiker</div>
     </div>}
-    {v.oduller.length>0 && <div style={{marginBottom:22}}>
-      {H("Ödüller")}
-      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-        {v.oduller.map(function(o,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:p.card,border:"1px solid "+p.line,borderRadius:12,padding:"7px 11px 7px 7px"}}>
-          <div style={{width:26,height:26,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o[1],26)}}/>
-          <div style={{minWidth:0}}><div style={{fontSize:8.5,letterSpacing:.8,textTransform:"uppercase",color:av,fontWeight:700}}>{o[0]}</div><div style={{fontSize:12.5,fontWeight:600,color:p.ink,whiteSpace:"nowrap"}}>{o[1]}</div></div>
-        </div>; })}
-      </div>
-    </div>}
-    {v.ratingArr.length>0 && <div style={{marginBottom:22}}>
-      {H("En İyi Oyuncular")}
-      {v.ratingArr.map(function(r,i){ var yuz=Math.max(8,Math.min(100,(r[1]/10)*100));
-        return <div key={r[0]} style={{display:"flex",alignItems:"center",gap:10,margin:"9px 0"}}>
-          <span style={{width:80,fontSize:12,color:p.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r[0]}</span>
-          <span style={{flex:1,height:7,background:p.line,borderRadius:5,overflow:"hidden"}}><span style={{display:"block",height:"100%",width:yuz+"%",background:av,borderRadius:5}}/></span>
-          <span style={{width:28,textAlign:"right",fontSize:12.5,fontWeight:800,color:av,fontVariantNumeric:"tabular-nums"}}>{r[1].toFixed(1)}</span>
-        </div>; })}
-    </div>}
-    {v.puanTablo.length>0 && <div>
-      {H("Maç Sonrası Puan Durumu")}
-      <div style={{background:p.card,border:"1px solid "+p.line,borderRadius:14,overflow:"hidden"}}>
-        {v.puanTablo.map(function(t,i){ var vurgu=t.ad===v.takimA||t.ad===v.takimB;
-          return <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:i<v.puanTablo.length-1?"1px solid "+p.line:"none",background:vurgu?av+"14":"transparent"}}>
-            <span style={{width:16,fontSize:12,fontWeight:800,color:vurgu?av:p.mut,fontVariantNumeric:"tabular-nums"}}>{i+1}</span>
-            <span style={{flex:1,fontSize:12.5,color:p.ink,fontWeight:vurgu?700:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span>
-            <span style={{fontSize:11,color:p.mut,fontVariantNumeric:"tabular-nums"}}>{t.o} maç</span>
-            <span style={{fontSize:14,fontWeight:800,color:p.ink,width:24,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{t.puan}</span>
+
+    {/* MAÇIN DÖNÜM NOKTALARI */}
+    {a.donum.length>0 && <div style={{marginBottom:20}}>
+      {H("Maçın Dönüm Noktaları")}
+      <div style={{position:"relative"}}>
+        <div style={{position:"absolute",left:26,top:6,bottom:6,width:2,background:p.line}}/>
+        {a.donum.map(function(d,i){ var renk=d.tip==="kirmizi"?"#ef4444":d.tip==="kopus"||d.tip==="final"?av:p.ink;
+          return <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"6px 0",position:"relative"}}>
+            <div style={{width:38,flexShrink:0,fontSize:12,fontWeight:800,color:av,fontVariantNumeric:"tabular-nums",textAlign:"right"}}>{d.dk}'</div>
+            <div style={{width:11,height:11,borderRadius:"50%",background:renk,border:"2px solid "+p.bg,flexShrink:0,marginTop:3,zIndex:1}}/>
+            <div style={{fontSize:13,lineHeight:1.5,color:p.ink,opacity:.92}}>{d.metin}</div>
           </div>; })}
       </div>
+    </div>}
+
+    {/* TAKTİK / AI ANALİZ */}
+    {a.taktik.length>0 && <div style={{marginBottom:20}}>
+      {H("Taktik Değerlendirme")}
+      <div style={{display:"grid",gap:8}}>
+        {a.taktik.map(function(t,i){ return <div key={i} style={{background:p.card,border:"1px solid "+p.line,borderRadius:12,padding:"11px 13px"}}>
+          <div style={{fontSize:12.5,fontWeight:800,color:av,marginBottom:3}}>{t.b}</div>
+          <div style={{fontSize:13,lineHeight:1.5,color:p.ink,opacity:.9}}>{t.m}</div>
+        </div>; })}
+      </div>
+    </div>}
+
+    {/* ÖNE ÇIKAN OYUNCULAR */}
+    {a.oyuncular.length>0 && <div style={{marginBottom:20}}>
+      {H("Öne Çıkan Oyuncular")}
+      <div style={{display:"grid",gap:8}}>
+        {a.oyuncular.map(function(o,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:11,background:p.card,border:"1px solid "+p.line,borderRadius:12,padding:"9px 11px"}}>
+          <div style={{width:38,height:38,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:"2px solid "+av+"66"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,38)}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:13.5,fontWeight:800,color:p.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</span><span style={{fontSize:9,letterSpacing:.6,textTransform:"uppercase",color:av,fontWeight:800,flexShrink:0}}>{o.etiket}</span></div>
+            <div style={{fontSize:11.5,color:p.mut,marginTop:1,lineHeight:1.35}}>{o.satir}</div>
+          </div>
+          {o.rating!=null && <div style={{textAlign:"center",flexShrink:0}}><div style={{fontSize:17,fontWeight:800,color:av,fontVariantNumeric:"tabular-nums",lineHeight:1}}>{o.rating.toFixed(1)}</div><div style={{fontSize:8,letterSpacing:1,color:p.mut,textTransform:"uppercase"}}>Reyting</div></div>}
+        </div>; })}
+      </div>
+    </div>}
+
+    {/* DETAYLI İSTATİSTİK */}
+    {a.istat.length>0 && <div style={{marginBottom:20}}>
+      {H("Detaylı İstatistik")}
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8,fontSize:11,fontWeight:800}}>
+        <span style={{color:v.renkA,display:"flex",alignItems:"center",gap:6}}><Logo renk={v.renkA} ad={v.takimA} boy={16}/>{v.takimA}</span>
+        <span style={{color:v.renkB,display:"flex",alignItems:"center",gap:6}}>{v.takimB}<Logo renk={v.renkB} ad={v.takimB} boy={16}/></span>
+      </div>
+      {a.istat.map(function(s,i){ var w=toplamBar(s.a,s.b);
+        return <div key={i} style={{marginBottom:9}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,marginBottom:4}}>
+            <span style={{fontWeight:800,color:p.ink,fontVariantNumeric:"tabular-nums"}}>{s.a}{s.yuzde?"%":""}</span>
+            <span style={{fontSize:10.5,letterSpacing:.5,textTransform:"uppercase",color:p.mut}}>{s.et}</span>
+            <span style={{fontWeight:800,color:p.ink,fontVariantNumeric:"tabular-nums"}}>{s.b}{s.yuzde?"%":""}</span>
+          </div>
+          <div style={{display:"flex",height:6,borderRadius:4,overflow:"hidden",background:p.line,gap:2}}>
+            <span style={{width:w[0]+"%",background:v.renkA,borderRadius:"4px 0 0 4px"}}/>
+            <span style={{width:w[1]+"%",background:v.renkB,borderRadius:"0 4px 4px 0"}}/>
+          </div>
+        </div>; })}
+    </div>}
+
+    {/* LİG ETKİSİ */}
+    {a.lig.length>0 && <div>
+      {H("Lig Etkisi")}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+        {a.lig.map(function(l,i){ return <div key={i} style={{background:p.card,border:"1px solid "+(l.kazandi?av+"55":p.line),borderRadius:12,padding:"11px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <Logo renk={l.renk} ad={l.ad} boy={22}/>
+            <div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800,color:p.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad}</div><div style={{fontSize:10,color:p.mut}}>{l.konum}. sıra · {l.puan} puan</div></div>
+          </div>
+          <div style={{fontSize:11.5,color:p.ink,opacity:.85,lineHeight:1.4}}>{l.satir}</div>
+        </div>; })}
+      </div>
+      {a.puanTablo.length>0 && <div style={{background:p.card,border:"1px solid "+p.line,borderRadius:12,overflow:"hidden"}}>
+        {a.puanTablo.map(function(t,i){ var vurgu=t.ad===v.takimA||t.ad===v.takimB;
+          return <div key={t.id} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 12px",borderBottom:i<a.puanTablo.length-1?"1px solid "+p.line:"none",background:vurgu?av+"12":"transparent"}}>
+            <span style={{width:16,fontSize:12,fontWeight:800,color:vurgu?av:p.mut,fontVariantNumeric:"tabular-nums"}}>{i+1}</span>
+            <span style={{flex:1,fontSize:12.5,color:p.ink,fontWeight:vurgu?700:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span>
+            <span style={{fontSize:10.5,color:p.mut,fontVariantNumeric:"tabular-nums"}}>{t.o} O · {(t.ag-t.yg>0?"+":"")+(t.ag-t.yg)} AV</span>
+            <span style={{fontSize:14,fontWeight:800,color:p.ink,width:22,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{t.puan}</span>
+          </div>; })}
+      </div>}
     </div>}
   </div>;
 }
 
-// küçük yardımcı: skor satırı takım+logo
-function GzTakim(props){ var sag=props.sag; return <div style={{display:"flex",alignItems:"center",gap:9,flexDirection:sag?"row-reverse":"row"}}>
-  <Logo renk={props.renk} ad={props.ad} boy={props.boy||30}/>
-  <span style={{fontSize:props.fs||13,fontWeight:700,color:props.renkYazi||"inherit"}}>{props.ad}</span>
-</div>; }
-
 /* ===== 1) CARBON — sade, premium ===== */
 function GzCarbon(props){ var v=props.v;
   var pal={bg:"#08090b",card:"#101319",ink:"#f2f4f7",mut:"#5b636e",line:"#1a1d22",accent:"#34d399"};
-  return <div style={{background:pal.bg,color:pal.ink,padding:"32px 22px 30px"}}>
-    <div style={{fontSize:10,letterSpacing:2,color:pal.mut,textTransform:"uppercase",textAlign:"center"}}>{v.lg}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"36px 0 6px"}}>
-      <div style={{textAlign:"center",flex:1}}><Logo renk={v.renkA} ad={v.takimA} boy={48}/><div style={{fontSize:11,color:"#aab3bf",marginTop:9,fontWeight:600}}>{v.takimA}</div></div>
-      <div style={{fontSize:52,fontWeight:200,letterSpacing:-2,fontVariantNumeric:"tabular-nums",lineHeight:1}}>{v.sA}<span style={{opacity:.35,margin:"0 3px"}}>–</span>{v.sB}</div>
-      <div style={{textAlign:"center",flex:1}}><Logo renk={v.renkB} ad={v.takimB} boy={48}/><div style={{fontSize:11,color:"#aab3bf",marginTop:9,fontWeight:600}}>{v.takimB}</div></div>
+  return <div style={{background:pal.bg,color:pal.ink,padding:"18px 20px 26px",position:"relative"}}>
+    <GzWatermark color="#ffffff" opacity={0.05}/>
+    <div style={{position:"relative",zIndex:1}}>
+    <GzMarka color={pal.ink} accent={pal.accent} sub={pal.mut} sag={<div style={{fontSize:10,letterSpacing:1.5,color:pal.mut,textTransform:"uppercase"}}>{v.lg||"Maç"}{v.hafta?" · "+v.hafta+".H":""}</div>}/>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"22px 0 5px"}}>
+      <div style={{textAlign:"center",flex:1}}><Logo renk={v.renkA} ad={v.takimA} boy={46}/><div style={{fontSize:11,color:"#aab3bf",marginTop:8,fontWeight:600}}>{v.takimA}</div></div>
+      <div style={{fontSize:50,fontWeight:200,letterSpacing:-2,fontVariantNumeric:"tabular-nums",lineHeight:1}}>{v.sA}<span style={{opacity:.35,margin:"0 3px"}}>–</span>{v.sB}</div>
+      <div style={{textAlign:"center",flex:1}}><Logo renk={v.renkB} ad={v.takimB} boy={46}/><div style={{fontSize:11,color:"#aab3bf",marginTop:8,fontWeight:600}}>{v.takimB}</div></div>
     </div>
-    <div style={{textAlign:"center",fontSize:10,letterSpacing:2,textTransform:"uppercase",color:v.galip?pal.accent:pal.mut,margin:"14px 0 34px"}}>{v.galip?v.galip+" kazandı":"Berabere bitti"}</div>
-    <div style={{borderTop:"1px solid "+pal.line,marginBottom:26}}>
-      {v.golKron.map(function(g,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 2px",borderBottom:"1px solid "+pal.line}}>
+    <div style={{textAlign:"center",fontSize:10,letterSpacing:2,textTransform:"uppercase",color:v.galip?pal.accent:pal.mut,margin:"10px 0 20px"}}>{v.galip?v.galip+" kazandı":"Berabere bitti"}</div>
+    {v.golKron.length>0 && <div style={{borderTop:"1px solid "+pal.line,marginBottom:20}}>
+      {v.golKron.map(function(g,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 2px",borderBottom:"1px solid "+pal.line}}>
         <span style={{fontSize:12,color:pal.mut,width:30,fontVariantNumeric:"tabular-nums"}}>{g.dk}'</span>
         <span style={{flex:1,fontSize:14,fontWeight:600}}>{g.oyuncu}{g.asist?<span style={{color:pal.mut,fontWeight:400,fontSize:12}}> · {g.asist} asist</span>:""}</span>
         <span style={{fontSize:10,color:pal.mut}}>{g.takim===v.takimA?v.takimA:v.takimB}</span><span style={{opacity:.5}}>⚽</span>
       </div>; })}
-      {v.golKron.length===0 && <div style={{padding:"14px 2px",color:pal.mut,fontSize:13}}>Gol kaydı yok — golsüz berabere.</div>}
-    </div>
-    {v.yildiz && <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:30}}>
-      <div style={{width:44,height:44,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(v.yildiz,44)}}/>
-      <div><div style={{fontSize:9,letterSpacing:2,color:pal.mut,textTransform:"uppercase"}}>Maçın Adamı</div><div style={{fontSize:15,fontWeight:700,marginTop:2}}>{v.yildiz}{v.mvpRating?<span> · <span style={{color:pal.accent}}>{v.mvpRating.toFixed(1)}</span></span>:""}</div></div>
     </div>}
     <GzDetay v={v} pal={pal}/>
+    </div>
   </div>;
 }
 
@@ -9124,73 +9282,59 @@ function GzCarbon(props){ var v=props.v;
 function GzEditorial(props){ var v=props.v;
   var pal={bg:"#12100e",card:"#1b1712",ink:"#efe9e1",mut:"#b3a99c",line:"#2a2621",accent:"#d9724a"};
   var spot=v.manset&&v.manset.spot?v.manset.spot:(v.yorumParcalar[0]||"");
-  var vurus=v.yorumParcalar[0]||"";
-  return <div style={{background:pal.bg,color:pal.ink}}>
-    <div style={{padding:"26px 20px 18px",borderBottom:"1px solid "+pal.line}}>
-      <div style={{fontSize:10,letterSpacing:2,textTransform:"uppercase",color:pal.accent,fontWeight:800}}>{(v.manset&&v.manset.kategori)||"Maç Raporu"}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
-      <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontWeight:800,fontSize:30,lineHeight:1.03,margin:"12px 0 10px",letterSpacing:-.3}}>{(v.manset&&(v.manset.baslik||v.manset))||"Maç Sonucu"}</div>
+  return <div style={{background:pal.bg,color:pal.ink,position:"relative"}}>
+    <GzWatermark color="#efe9e1" opacity={0.045}/>
+    <div style={{position:"relative",zIndex:1}}>
+    <div style={{padding:"16px 20px 16px",borderBottom:"1px solid "+pal.line}}>
+      <GzMarka color={pal.ink} accent={pal.accent} sub={pal.mut}/>
+      <div style={{fontSize:10,letterSpacing:2,textTransform:"uppercase",color:pal.accent,fontWeight:800,marginTop:16}}>{(v.manset&&v.manset.kategori)||"Maç Raporu"}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
+      <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontWeight:800,fontSize:29,lineHeight:1.03,margin:"9px 0 9px",letterSpacing:-.3}}>{(v.manset&&(v.manset.baslik||v.manset))||"Maç Sonucu"}</div>
       <div style={{fontSize:13,color:pal.mut,lineHeight:1.55}}>{spot}</div>
-      <div style={{fontSize:10,color:"#7c7367",marginTop:14,letterSpacing:.5,textTransform:"uppercase"}}>✍ ForzaLig Spiker · {v.tarih}</div>
     </div>
-    <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px",borderBottom:"1px solid "+pal.line}}>
+    <div style={{display:"flex",alignItems:"center",gap:14,padding:"14px 20px",borderBottom:"1px solid "+pal.line}}>
       <Logo renk={v.renkA} ad={v.takimA} boy={34}/>
       <div style={{fontSize:28,fontWeight:800,fontVariantNumeric:"tabular-nums",fontFamily:"Georgia,serif"}}>{v.sA} – {v.sB}</div>
       <Logo renk={v.renkB} ad={v.takimB} boy={34}/>
       <div style={{marginLeft:"auto",fontSize:11,color:"#7c7367",textAlign:"right",lineHeight:1.3}}>{v.takimA}<br/>{v.takimB}</div>
     </div>
-    {vurus && <div style={{fontFamily:"Georgia,serif",fontStyle:"italic",fontSize:16,lineHeight:1.42,padding:20,borderLeft:"3px solid "+pal.accent,margin:"16px 20px"}}>“{vurus.length>150?vurus.slice(0,148)+"…":vurus}”</div>}
-    <div style={{padding:"0 20px"}}>
-      {v.golKron.map(function(g,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:"1px solid "+pal.line}}>
-        <span style={{fontFamily:"Georgia,serif",fontSize:15,color:pal.accent,width:34,fontWeight:700}}>{g.dk}'</span>
-        <span style={{flex:1,fontWeight:600}}>{g.oyuncu}<span style={{fontSize:11,color:"#7c7367",fontWeight:400}}> · {g.takim===v.takimA?v.takimA:v.takimB}</span></span>
-        <span style={{fontSize:11,color:"#7c7367"}}>⚽ Gol</span>
-      </div>; })}
+    <div style={{padding:"16px 20px 4px"}}><GzDetay v={v} pal={pal}/></div>
     </div>
-    <div style={{padding:"18px 20px 4px"}}><GzDetay v={v} pal={pal}/></div>
   </div>;
 }
 
 /* ===== 3) DATALAB — analitik ===== */
 function GzDataLab(props){ var v=props.v; var ist=v.ist;
   var pal={bg:"#07090c",card:"#0d1219",ink:"#d7dee6",mut:"#5a6472",line:"#1a2230",accent:"#4ade80"};
+  var mono={fontFamily:"ui-monospace,'SF Mono',Menlo,monospace"};
   var tiles=[];
-  if(ist&&ist.sahiplikB!=null) tiles.push(["%"+ist.sahiplikB,"Topa sahip (deplasman)"]);
-  if(ist&&(ist.sutB!=null)) tiles.push([String(ist.sutB),"Şut"+(ist.isabetB!=null?" · "+ist.isabetB+" isabet":"")]);
+  if(ist&&ist.sahiplikB!=null) tiles.push(["%"+ist.sahiplikB,"Topa sahip (dep.)"]);
+  if(ist&&ist.sutB!=null) tiles.push([String(ist.sutB),"Şut"+(ist.isabetB!=null?" · "+ist.isabetB+" isabet":"")]);
   if(ist&&ist.kornerB!=null) tiles.push([String(ist.kornerB),"Korner"]);
   tiles.push([String(v.goller.length),"Toplam gol"]);
-  var mono={fontFamily:"ui-monospace,'SF Mono',Menlo,monospace"};
-  // momentum: gollerin dakikalarını kümülatif fark eğrisi olarak çiz (gerçek veri)
-  var pts=[]; var w=260,h=54; var maxDk=60;
-  v.golKron.forEach(function(g){ var x=Math.min(w,(g.dk/maxDk)*w); var ev=g.takim===v.takimA; pts.push({x:x,ev:ev}); });
-  return <div style={{background:pal.bg,color:pal.ink,padding:16,...mono}}>
-    <div style={{fontFamily:"-apple-system,sans-serif",fontSize:11,letterSpacing:1,color:pal.mut,textTransform:"uppercase"}}>{(v.galip||v.takimA)+" "+v.sA+"–"+v.sB}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
-    <div style={{fontFamily:"-apple-system,sans-serif",fontSize:18,fontWeight:800,margin:"2px 0 14px",color:"#fff"}}>Maç Analizi</div>
+  return <div style={{background:pal.bg,color:pal.ink,padding:16,position:"relative",...mono}}>
+    <GzWatermark color="#4ade80" opacity={0.05}/>
+    <div style={{position:"relative",zIndex:1}}>
+    <GzMarka color="#fff" accent={pal.accent} sub={pal.mut}/>
+    <div style={{fontFamily:"-apple-system,sans-serif",fontSize:11,letterSpacing:1,color:pal.mut,textTransform:"uppercase",marginTop:14}}>{(v.galip||v.takimA)+" "+v.sA+"–"+v.sB}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
+    <div style={{fontFamily:"-apple-system,sans-serif",fontSize:18,fontWeight:800,margin:"2px 0 12px",color:"#fff"}}>Maç Analizi</div>
     <div style={{background:pal.card,border:"1px solid "+pal.line,borderRadius:12,padding:12,marginBottom:12}}>
       <div style={{fontFamily:"-apple-system,sans-serif",fontSize:9,color:pal.mut,letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>Goller · dakikaya göre</div>
-      <div style={{position:"relative",height:h}}>
-        <div style={{position:"absolute",top:h/2,left:0,right:0,height:1,background:pal.line}}/>
-        {v.golKron.map(function(g,i){ var x=Math.min(96,(g.dk/maxDk)*100); var ev=g.takim===v.takimA;
+      <div style={{position:"relative",height:54}}>
+        <div style={{position:"absolute",top:27,left:0,right:0,height:1,background:pal.line}}/>
+        {v.golKron.map(function(g,i){ var x=Math.min(96,(g.dk/60)*100); var ev=g.takim===v.takimA;
           return <div key={i} style={{position:"absolute",left:x+"%",transform:"translateX(-50%)",top:ev?4:"auto",bottom:ev?"auto":4,background:ev?"#38bdf8":pal.accent,color:"#04120a",fontSize:9,fontWeight:800,padding:"2px 5px",borderRadius:4,...mono}}>{g.dk}'</div>; })}
         {v.golKron.length===0 && <div style={{position:"absolute",inset:0,display:"grid",placeItems:"center",color:pal.mut,fontSize:11}}>gol yok</div>}
       </div>
       <div style={{fontFamily:"-apple-system,sans-serif",fontSize:10,color:pal.mut,marginTop:8}}><span style={{color:"#38bdf8"}}>■</span> {v.takimA} &nbsp; <span style={{color:pal.accent}}>■</span> {v.takimB}</div>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
       {tiles.map(function(t,i){ return <div key={i} style={{background:pal.card,border:"1px solid "+pal.line,borderRadius:12,padding:12}}>
         <div style={{fontFamily:"-apple-system,sans-serif",fontSize:22,fontWeight:800,color:pal.accent,fontVariantNumeric:"tabular-nums"}}>{t[0]}</div>
         <div style={{fontFamily:"-apple-system,sans-serif",fontSize:9,color:pal.mut,letterSpacing:.5,textTransform:"uppercase",marginTop:2}}>{t[1]}</div>
       </div>; })}
     </div>
-    {v.ratingArr.length>0 && <div style={{background:pal.card,border:"1px solid "+pal.line,borderRadius:12,padding:12,marginBottom:12}}>
-      <div style={{fontFamily:"-apple-system,sans-serif",fontSize:9,color:pal.mut,letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>Oyuncu reytingleri</div>
-      {v.ratingArr.map(function(r,i){ var yuz=Math.max(8,Math.min(100,(r[1]/10)*100));
-        return <div key={r[0]} style={{display:"flex",alignItems:"center",gap:8,margin:"7px 0",fontSize:11}}>
-          <span style={{width:74,fontFamily:"-apple-system,sans-serif",color:"#aab3bf",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r[0]}</span>
-          <span style={{flex:1,height:7,background:"#131a24",borderRadius:4,overflow:"hidden"}}><span style={{display:"block",height:"100%",width:yuz+"%",background:"linear-gradient(90deg,#22d3a0,#4ade80)"}}/></span>
-          <span style={{width:26,textAlign:"right",color:pal.accent,fontWeight:700,fontFamily:"-apple-system,sans-serif"}}>{r[1].toFixed(1)}</span>
-        </div>; })}
-    </div>}
     <div style={{fontFamily:"-apple-system,sans-serif"}}><GzDetay v={v} pal={pal}/></div>
+    </div>
   </div>;
 }
 
@@ -9200,88 +9344,82 @@ function GzCinematic(props){ var v=props.v;
   var kahraman=v.galip||v.takimA;
   var baslik=(v.manset&&(v.manset.baslik||v.manset))||"Maç Sonucu";
   return <div style={{background:"#05070a",color:pal.ink}}>
-    <div style={{position:"relative",height:300,overflow:"hidden",background:"radial-gradient(120% 90% at 30% 10%, "+(v.renkB||"#7c3aed")+"55, transparent 60%),radial-gradient(120% 90% at 90% 20%, "+(v.renkA||"#2563eb")+"44, transparent 55%),linear-gradient(180deg,#0b1020,#05070a)"}}>
+    <div style={{position:"relative",height:296,overflow:"hidden",background:"radial-gradient(120% 90% at 30% 10%, "+(v.renkB||"#7c3aed")+"55, transparent 60%),radial-gradient(120% 90% at 90% 20%, "+(v.renkA||"#2563eb")+"44, transparent 55%),linear-gradient(180deg,#0b1020,#05070a)"}}>
       <div style={{position:"absolute",inset:0,display:"grid",placeItems:"center",opacity:.5}}><Logo renk={v.renkB} ad={kahraman} boy={150}/></div>
-      <div style={{position:"absolute",left:0,right:0,bottom:0,padding:20}}>
+      <GzWatermark color="#ffffff" opacity={0.06} top="30%"/>
+      <div style={{position:"absolute",top:14,left:16,zIndex:2}}><GzMarka color="#fff" accent={pal.accent} sub="#c9b8e8"/></div>
+      <div style={{position:"absolute",left:0,right:0,bottom:0,padding:20,zIndex:2}}>
         <span style={{display:"inline-flex",alignItems:"center",gap:8,background:"#00000066",backdropFilter:"blur(6px)",border:"1px solid #ffffff22",borderRadius:10,padding:"6px 11px",fontSize:11,fontWeight:700}}>FT <span style={{fontSize:16,fontWeight:900,fontVariantNumeric:"tabular-nums"}}>{v.sA}–{v.sB}</span> · {kahraman}</span>
-        <div style={{fontFamily:"'Arial Black',Impact,sans-serif",fontWeight:900,fontSize:32,lineHeight:.96,letterSpacing:-.5,margin:"12px 0 0",textTransform:"uppercase",textShadow:"0 6px 24px #000a"}}>{baslik}</div>
+        <div style={{fontFamily:"'Arial Black',Impact,sans-serif",fontWeight:900,fontSize:31,lineHeight:.96,letterSpacing:-.5,margin:"10px 0 0",textTransform:"uppercase",textShadow:"0 6px 24px #000a"}}>{baslik}</div>
       </div>
     </div>
-    <div style={{background:pal.bg,borderRadius:"20px 20px 0 0",borderTop:"1px solid #ffffff10",marginTop:-16,position:"relative",padding:"16px 18px 30px"}}>
-      <div style={{width:38,height:4,borderRadius:3,background:"#2a323c",margin:"0 auto 16px"}}/>
-      <div style={{marginBottom:8}}>
-        {v.golKron.map(function(g,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:"1px solid "+pal.line}}>
-          <div style={{width:36,height:36,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(g.oyuncu,36)}}/>
+    <div style={{background:pal.bg,borderRadius:"20px 20px 0 0",borderTop:"1px solid #ffffff10",marginTop:-16,position:"relative",zIndex:1,padding:"14px 18px 28px"}}>
+      <div style={{width:38,height:4,borderRadius:3,background:"#2a323c",margin:"0 auto 14px"}}/>
+      {v.golKron.length>0 && <div style={{marginBottom:6}}>
+        {v.golKron.map(function(g,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 0",borderBottom:"1px solid "+pal.line}}>
+          <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(g.oyuncu,34)}}/>
           <span style={{flex:1,fontSize:14,fontWeight:700}}>{g.oyuncu}<span style={{color:pal.mut,fontWeight:400,fontSize:11}}> · {g.takim===v.takimA?v.takimA:v.takimB}</span></span>
           <span style={{fontSize:12,color:pal.mut,fontVariantNumeric:"tabular-nums"}}>{g.dk}'</span>
         </div>; })}
-        {v.yildiz && <div style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:"1px solid "+pal.line}}>
-          <div style={{width:36,height:36,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:"2px solid "+pal.accent}} dangerouslySetInnerHTML={{__html:svgAvatar(v.yildiz,36)}}/>
-          <span style={{flex:1,fontSize:14,fontWeight:700}}>{v.yildiz}<span style={{color:pal.mut,fontWeight:400,fontSize:11}}> · Maçın adamı</span></span>
-          <span style={{fontSize:12,color:pal.accent,fontWeight:800}}>{v.mvpRating?v.mvpRating.toFixed(1):"MVP"}</span>
-        </div>}
-      </div>
-      <div style={{marginTop:14}}><GzDetay v={v} pal={pal}/></div>
+      </div>}
+      <div style={{marginTop:12}}><GzDetay v={v} pal={pal}/></div>
     </div>
   </div>;
 }
 
 /* ===== 5) GLASS — cam / gradient ===== */
 function GzGlass(props){ var v=props.v;
-  var glass={background:"#ffffff14",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:"1px solid #ffffff2e",borderRadius:18,boxShadow:"0 8px 32px #0004,inset 0 1px 0 #ffffff33",padding:16,marginBottom:14};
-  var pal={bg:"transparent",card:"#ffffff12",ink:"#ffffff",mut:"#ffffffb0",line:"#ffffff26",accent:"#ffffff"};
+  var glass={background:"#ffffff14",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:"1px solid #ffffff2e",borderRadius:18,boxShadow:"0 8px 32px #0004,inset 0 1px 0 #ffffff33",padding:16,marginBottom:12};
+  var pal={bg:"#ffffff12",card:"#ffffff12",ink:"#ffffff",mut:"#ffffffb0",line:"#ffffff26",accent:"#ffffff"};
   var H=function(t){ return <div style={{fontSize:10,letterSpacing:1.5,color:"#ffffffc8",textTransform:"uppercase",fontWeight:800,marginBottom:8}}>{t}</div>; };
-  return <div style={{position:"relative",overflow:"hidden",background:"radial-gradient(80% 60% at 15% 0%, "+(v.renkA||"#7c3aed")+", transparent 60%),radial-gradient(80% 60% at 100% 30%, "+(v.renkB||"#2563eb")+", transparent 55%),radial-gradient(90% 70% at 50% 100%, #db2777aa, transparent 60%), #0a0a16",color:"#fff",padding:"20px 16px 34px"}}>
-    <div style={{fontSize:10,letterSpacing:2,color:"#ffffffb0",textTransform:"uppercase",textAlign:"center",marginBottom:14}}>{v.lg}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
+  return <div style={{position:"relative",overflow:"hidden",background:"radial-gradient(80% 60% at 15% 0%, "+(v.renkA||"#7c3aed")+", transparent 60%),radial-gradient(80% 60% at 100% 30%, "+(v.renkB||"#2563eb")+", transparent 55%),radial-gradient(90% 70% at 50% 100%, #db2777aa, transparent 60%), #0a0a16",color:"#fff",padding:"16px 16px 30px"}}>
+    <GzWatermark color="#ffffff" opacity={0.07}/>
+    <div style={{position:"relative",zIndex:1}}>
+    <GzMarka color="#fff" accent="#fff" sub="#ffffffb0"/>
+    <div style={{fontSize:10,letterSpacing:2,color:"#ffffffb0",textTransform:"uppercase",textAlign:"center",margin:"14px 0 12px"}}>{v.lg}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
     <div style={{...glass,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{textAlign:"center",flex:1}}><Logo renk={v.renkA} ad={v.takimA} boy={40}/><div style={{fontSize:10.5,marginTop:8,color:"#ffffffd0",fontWeight:600}}>{v.takimA}</div></div>
       <div style={{fontSize:40,fontWeight:800,fontVariantNumeric:"tabular-nums",textShadow:"0 2px 20px #0006"}}>{v.sA}–{v.sB}</div>
       <div style={{textAlign:"center",flex:1}}><Logo renk={v.renkB} ad={v.takimB} boy={40}/><div style={{fontSize:10.5,marginTop:8,color:"#ffffffd0",fontWeight:600}}>{v.takimB}</div></div>
     </div>
-    <div style={glass}>{H("Goller")}
+    {v.golKron.length>0 && <div style={glass}>{H("Goller")}
       {v.golKron.map(function(g,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:i<v.golKron.length-1?"1px solid #ffffff1a":"none",fontSize:12.5}}>
         <span style={{color:"#ffffffb0",width:28,fontVariantNumeric:"tabular-nums",fontSize:11}}>{g.dk}'</span><span style={{flex:1,fontWeight:600}}>{g.oyuncu}</span><span>⚽</span>
       </div>; })}
-      {v.golKron.length===0 && <div style={{fontSize:12.5,color:"#ffffffb0"}}>Gol yok.</div>}
-    </div>
-    {v.yildiz && <div style={glass}>{H("Maçın Yıldızı")}
-      <div style={{display:"flex",alignItems:"center",gap:12}}>
-        <div style={{width:42,height:42,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(v.yildiz,42)}}/>
-        <div><div style={{fontWeight:800,fontSize:15}}>{v.yildiz}</div><div style={{fontSize:12,color:"#ffffffc0"}}>{(v.golSay[v.yildiz]||0)+" gol"}{v.mvpRating?" · reyting "+v.mvpRating.toFixed(1):""}</div></div>
-      </div>
     </div>}
-    {(v.yorumParcalar.length>0||v.ratingArr.length>0||v.puanTablo.length>0) && <div style={glass}><GzDetay v={v} pal={pal}/></div>}
+    <div style={glass}><GzDetay v={v} pal={pal}/></div>
+    </div>
   </div>;
 }
 
 /* ===== 6) STORY — dikey, paylaşılabilir (wildcard) ===== */
-function GzStory(props){ var v=props.v; var T=props.T;
+function GzStory(props){ var v=props.v; var a=gazeteAnaliz(v);
   var cap=(v.manset&&(v.manset.baslik||v.manset))||(v.galip?v.galip+" kazandı":"Maç bitti");
   var sub=(v.yorumParcalar[0]||"");
-  var chips=[];
-  var enCok=Object.entries(v.golSay).sort(function(a,b){return b[1]-a[1];})[0];
+  var chips=[]; var enCok=Object.entries(v.golSay).sort(function(a,b){return b[1]-a[1];})[0];
   if(enCok&&enCok[1]>0) chips.push("⚽ "+enCok[0]+(enCok[1]>1?" ×"+enCok[1]:""));
   if(v.yildiz) chips.push("🌟 "+v.yildiz+(v.mvpRating?" "+v.mvpRating.toFixed(1):""));
+  if(a.donum.length){ var kop=a.donum.find(function(d){return d.tip==="kopus"||d.tip==="final";}); if(kop) chips.push("🔑 "+kop.dk+"' dönüm"); }
   if(v.oduller.length>1) chips.push("🏅 "+v.oduller.length+" ödül");
-  var paylas=function(){
-    var metin=v.takimA+" "+v.sA+"–"+v.sB+" "+v.takimB+" · "+cap;
+  var paylas=function(){ var metin=v.takimA+" "+v.sA+"–"+v.sB+" "+v.takimB+" · "+cap;
     try{ if(navigator.share){ navigator.share({title:"ForzaLig",text:metin,url:location.href}); return; } }catch(e){}
-    try{ navigator.clipboard.writeText(metin+" "+location.href); alert("Kopyalandı ✓ İstediğin yere yapıştır."); }catch(e){}
-  };
+    try{ navigator.clipboard.writeText(metin+" "+location.href); alert("Kopyalandı ✓ İstediğin yere yapıştır."); }catch(e){} };
   return <div style={{position:"relative",overflow:"hidden",minHeight:560,background:"linear-gradient(160deg,"+(v.renkA||"#1a0b2e")+"55,"+(v.renkB||"#3b0d3d")+"cc 55%,#5b1030)",color:"#fff"}}>
     <div style={{position:"absolute",inset:0,background:"linear-gradient(160deg,#1a0b2e,#3b0d3daa 55%,#5b1030)"}}/>
-    <div style={{position:"relative",padding:"26px 22px 26px",display:"flex",flexDirection:"column",minHeight:560}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-        <Logo renk={v.renkA} ad={v.takimA} boy={30}/><span style={{fontSize:11,color:"#ffffffb0"}}>vs</span><Logo renk={v.renkB} ad={v.takimB} boy={30}/>
-        <span style={{marginLeft:"auto",fontSize:10,letterSpacing:1.5,color:"#ffffffb0",textTransform:"uppercase"}}>{v.lg}{v.hafta?" · "+v.hafta+".H":""}</span>
+    <GzWatermark color="#ffffff" opacity={0.06}/>
+    <div style={{position:"relative",zIndex:1,padding:"20px 22px 22px",display:"flex",flexDirection:"column",minHeight:560}}>
+      <GzMarka color="#fff" accent="#ffd9f0" sub="#ffffffb0" sag={<span style={{fontSize:10,letterSpacing:1.5,color:"#ffffffb0",textTransform:"uppercase"}}>{v.lg}{v.hafta?" · "+v.hafta+".H":""}</span>}/>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginTop:16}}>
+        <Logo renk={v.renkA} ad={v.takimA} boy={32}/><span style={{fontSize:11,color:"#ffffffb0"}}>vs</span><Logo renk={v.renkB} ad={v.takimB} boy={32}/>
       </div>
-      <div style={{fontSize:86,fontWeight:900,lineHeight:.9,letterSpacing:-3,marginTop:"auto",fontVariantNumeric:"tabular-nums",background:"linear-gradient(180deg,#fff,#ffd9f0)",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}}>{v.sA}–{v.sB}</div>
+      <div style={{fontSize:82,fontWeight:900,lineHeight:.9,letterSpacing:-3,marginTop:"auto",fontVariantNumeric:"tabular-nums",background:"linear-gradient(180deg,#fff,#ffd9f0)",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}}>{v.sA}–{v.sB}</div>
       <div style={{fontSize:20,fontWeight:800,lineHeight:1.12,marginTop:8}}>{cap}</div>
-      {sub && <div style={{fontSize:13,color:"#ffffffcc",marginTop:10,lineHeight:1.5}}>{sub.length>160?sub.slice(0,158)+"…":sub}</div>}
-      <div style={{display:"flex",gap:8,marginTop:16,flexWrap:"wrap"}}>
+      {sub && <div style={{fontSize:13,color:"#ffffffcc",marginTop:10,lineHeight:1.5}}>{sub.length>170?sub.slice(0,168)+"…":sub}</div>}
+      <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
         {chips.map(function(c,i){ return <span key={i} style={{background:"#ffffff1e",border:"1px solid #ffffff33",borderRadius:999,padding:"6px 12px",fontSize:12,fontWeight:700,backdropFilter:"blur(8px)"}}>{c}</span>; })}
       </div>
-      <button onClick={paylas} className="tap" style={{marginTop:18,display:"flex",alignItems:"center",justifyContent:"center",gap:8,height:46,borderRadius:14,background:"#fff",color:"#3b0d3d",fontWeight:800,fontSize:14,border:"none",width:"100%"}}>↗ Story olarak paylaş</button>
+      <button onClick={paylas} className="tap" style={{marginTop:16,display:"flex",alignItems:"center",justifyContent:"center",gap:8,height:46,borderRadius:14,background:"#fff",color:"#3b0d3d",fontWeight:800,fontSize:14,border:"none",width:"100%"}}>↗ Story olarak paylaş</button>
+      <div style={{textAlign:"center",fontSize:10,letterSpacing:3,textTransform:"uppercase",color:"#ffffff99",marginTop:12,fontWeight:800}}>forzalig.com</div>
     </div>
   </div>;
 }
@@ -9304,7 +9442,6 @@ function GorunumPanel(props){
   var kapali=sistem.kapali||[];
   var uyeAcik=!(turnuva&&turnuva.gzUyeAcik===false);
   var [tik,setTik]=useState(0); var yenile=function(){ setTik(function(x){return x+1;}); };
-  // süper admin görünürde tüm görünümleri yönetir; diğerleri sadece açık olanları görür
   var liste=GZ_GORUNUMLER.filter(function(g){ return adminMi || kapali.indexOf(g.id)<0; });
   return <div onClick={kapat} style={{position:"fixed",inset:0,zIndex:120,background:"rgba(0,0,0,.55)",backdropFilter:"blur(3px)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
     <div onClick={function(e){e.stopPropagation();}} className="fade-in" style={{width:"100%",maxWidth:460,background:T.bg0,borderRadius:"20px 20px 0 0",border:"0.5px solid "+T.line,maxHeight:"86vh",overflowY:"auto",padding:"6px 14px 24px"}}>
@@ -9361,7 +9498,6 @@ function MacGazete(props){
   // lig varsayılanını yerel önbellekten hidrate et (yayında değilse sunucuda tutulmaz)
   if(turnuva && turnuva.gzGorunum==null){ try{ var _lc=JSON.parse(localStorage.getItem('fz_gz_lig_'+turnuva.id)); if(_lc){ if(_lc.gzGorunum!=null)turnuva.gzGorunum=_lc.gzGorunum; if(_lc.gzUyeAcik!=null)turnuva.gzUyeAcik=_lc.gzUyeAcik; } }catch(e){} }
   var sistem=gzSisOku(); var kapali=sistem.kapali||[];
-  // üye kilidi: lig üyeye kapattıysa ve kişi yönetici/admin değilse görünüm sabit
   var uyeKilitli = turnuva && turnuva.gzUyeAcik===false && !yetkili && !adminMi;
   var ligVar = turnuva && turnuva.gzGorunum;
   var sistemVar = sistem.varsayilan;
@@ -9378,15 +9514,14 @@ function MacGazete(props){
 
   var ligVarsayilan=function(id){ if(!turnuva) return; turnuva.gzGorunum=id; if(gazeteAyar) gazeteAyar(turnuva,{gzGorunum:id}); };
   var uyeKilit=function(kilit){ if(!turnuva) return; turnuva.gzUyeAcik=!kilit; if(gazeteAyar) gazeteAyar(turnuva,{gzUyeAcik:!kilit}); };
-
   var gorunumButonu = !uyeKilitli;
 
   return <div className="fade-in" style={{paddingBottom:90}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",gap:8}}>
-      <span style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:1}}>MAÇ GAZETESİ</span>
+      <FzImza variant="dark" boy={0.82}/>
       <div style={{display:"flex",gap:6}}>
         <button onClick={function(){ setTohum(function(t){return t+1;}); }} className="tap" style={{fontSize:11,color:T.textMut,background:T.bg1,borderRadius:9,padding:"6px 10px",fontWeight:700,border:"0.5px solid "+T.line}}>↻ Yeniden Üret</button>
-        {gorunumButonu && <button onClick={function(){ setPanel(true); }} className="tap" style={{fontSize:11.5,color:T.accent,background:T.accent+"18",borderRadius:9,padding:"6px 12px",fontWeight:800,border:"1px solid "+T.accent+"44"}}>🎨 Görünüm · {akt.ad}</button>}
+        {gorunumButonu && <button onClick={function(){ setPanel(true); }} className="tap" style={{fontSize:11.5,color:T.accent,background:T.accent+"18",borderRadius:9,padding:"6px 12px",fontWeight:800,border:"1px solid "+T.accent+"44"}}>🎨 {akt.ad}</button>}
       </div>
     </div>
 
