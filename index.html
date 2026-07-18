@@ -410,7 +410,18 @@ const PAYLASIM_URL = (slug)=>{ try{ return window.location.origin + window.locat
 /* SEO/Routing — üst düzey sayfalar URL'e yazılır: F5'te kalır, deep-link, paylaşılabilir. */
 const SEO_TOP = ["ana","ligler","sohbet","profil","pazar","ayar","bildirim","takip","tumenler","admin"];
 const BASLANGIC_SAYFA = (()=>{ try{ const p=new URLSearchParams(location.search).get('p'); return SEO_TOP.includes(p)?p:null; }catch(e){ return null; } })();
-const URL_FOR = (n)=>{ try{ const base=location.pathname; if(!n||!n.sayfa) return base; if(n.turnuva&&n.turnuva.paylasimSlug) return base+'?lig='+n.turnuva.paylasimSlug; if(n.sayfa==='ana') return base; if(SEO_TOP.includes(n.sayfa)) return base+'?p='+n.sayfa; return base; }catch(e){ return location.pathname; } };
+const MAC_ID = (()=>{ try{ return new URLSearchParams(location.search).get('mac')||null; }catch(e){ return null; } })();
+const TAKIM_ID = (()=>{ try{ return new URLSearchParams(location.search).get('takim')||null; }catch(e){ return null; } })();
+const OYUNCU_ID = (()=>{ try{ return new URLSearchParams(location.search).get('oyuncu')||null; }catch(e){ return null; } })();
+const URL_FOR = (n)=>{ try{ const base=location.pathname; if(!n||!n.sayfa) return base;
+  let dp='';
+  if(n.sayfa==='mac'&&n.mac&&n.mac.id!=null) dp='mac='+encodeURIComponent(n.mac.id);
+  else if(n.sayfa==='takim'&&n.takim&&n.takim.id!=null) dp='takim='+encodeURIComponent(n.takim.id);
+  else if(n.sayfa==='oyuncu'&&n.oyuncu&&(n.oyuncu.player_id||n.oyuncu.id!=null)) dp='oyuncu='+encodeURIComponent(n.oyuncu.player_id||n.oyuncu.id);
+  if(n.turnuva&&n.turnuva.paylasimSlug) return base+'?lig='+n.turnuva.paylasimSlug+(dp?'&'+dp:'');
+  if(dp) return base+'?'+dp;
+  if(n.sayfa==='ana') return base; if(SEO_TOP.includes(n.sayfa)) return base+'?p='+n.sayfa; return base;
+}catch(e){ return location.pathname; } };
 /* QR kod (paylaşım linki için) — data:image döner, kütüphane yoksa boş */
 const qrData = (url)=>{ try{ if(typeof qrcode==="undefined"||!url) return ""; const qr=qrcode(0,"M"); qr.addData(url); qr.make(); return qr.createDataURL(5,10); }catch(e){ return ""; } };
 
@@ -12534,6 +12545,19 @@ function App(){
     window.addEventListener("popstate",din);
     return ()=>window.removeEventListener("popstate",din);
   },[]);
+  // DERİN LİNK GERİ-YÜKLEME: ?mac= / ?takim= / ?oyuncu= → veri yüklenince o sayfaya dön (tek sefer)
+  const derinRestoreRef=useRef(false);
+  useEffect(()=>{
+    if(derinRestoreRef.current) return;
+    if(!(MAC_ID||TAKIM_ID||OYUNCU_ID)) return;
+    if(!turnuvalar||!turnuvalar.length) return;
+    derinRestoreRef.current=true;
+    try{
+      if(MAC_ID){ for(const t of turnuvalar){ const mm=(t.maclar||[]).find(x=>String(x.id)===String(MAC_ID)); if(mm){ git({sayfa:"mac",mac:mm,turnuva:t}); return; } } }
+      if(TAKIM_ID){ for(const t of turnuvalar){ const tk=(t.takimlar||[]).find(x=>String(x.id)===String(TAKIM_ID)); if(tk){ git({sayfa:"takim",takim:tk,turnuva:t}); return; } } }
+      if(OYUNCU_ID){ for(const t of turnuvalar){ for(const tk of (t.takimlar||[])){ const o=(tk.oyuncular||[]).find(x=>String(x.player_id||x.id)===String(OYUNCU_ID)); if(o){ git({sayfa:"oyuncu",oyuncu:{...o,takimAd:tk.ad,turnuva:t.ad}}); return; } } } }
+    }catch(e){}
+  },[turnuvalar]);
   const veriUret=(a,b,c)=>{ setTurnuvalar(uretVeri(a,b,c)); setNav({sayfa:"ana"}); setNavGecmis([]); setTab("ana"); };
   const veriSil=()=>{ setTurnuvalar([]); setNav({sayfa:"ana"}); setNavGecmis([]); setTab("ana"); };
 
