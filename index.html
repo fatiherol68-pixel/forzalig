@@ -11966,6 +11966,9 @@ function App(){
   const [ligKurYetkim,setLigKurYetkim]=useState(false); // lig hakkı olan üye VEYA admin
   // FAZ 9 — paylaşılan lig (salt-okunur public görünüm)
   const [destek,setDestek]=useState(null);            // 👁 Destek Modu: {uid, ad} — kimlik taklidi YOK, salt-okunur
+  const [destekProfil,setDestekProfil]=useState(null);  // hedefin profili/rolleri (menüleri simüle etmek için)
+  const [destekAdminMi,setDestekAdminMi]=useState(false);
+  const [destekLigKur,setDestekLigKur]=useState(false);
   const destekTimer=useRef(null);
   const [saltOkunurBase]=useState(()=> !!PAYLASIM_SLUG);
   const saltOkunur = saltOkunurBase || !!destek;      // destek modu = global salt-okunur (yazma/yetki otomatik kapanır)
@@ -11973,7 +11976,14 @@ function App(){
   const destekBaslat=async(u)=>{
     if(!u||!u.user_id) return;
     try{ Db.logla(oturum, "👁 Destek modu görüntüleme", (u.email||u.ad||u.user_id)); }catch(e){} // audit log (islem_log)
-    let gelen=[]; try{ gelen = await Db.liglerYukle(u.user_id, false); }catch(e){ gelen=[]; }
+    // Hedefin bağlamını yükle: ligler + rolleri + yetkileri (menüleri birebir simüle et)
+    let gelen=[];
+    try{
+      const [lg, pr, adm, hak] = await Promise.all([
+        Db.liglerYukle(u.user_id, false), Db.profilGetir(u.user_id), Db.adminMi(u.user_id), Db.hakGetir(u.user_id)
+      ]);
+      gelen = lg||[]; setDestekProfil(pr||{roller:(u.roller||{}), rol:u.rol||null}); setDestekAdminMi(!!adm); setDestekLigKur(!!adm || (hak && hak.kalan>0));
+    }catch(e){ gelen=[]; setDestekProfil({roller:(u.roller||{})}); setDestekAdminMi(false); setDestekLigKur(false); }
     gelen.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
     setIliskiselModu(true); setTurnuvalar(gelen);
     setDestek({uid:u.user_id, ad:(u.ad||u.email||"Kullanıcı")});
@@ -11986,7 +11996,7 @@ function App(){
     let gelen=[]; try{ gelen = await Db.liglerYukle(oturum&&oturum.id, false); }catch(e){ gelen=[]; }
     gelen.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
     setIliskiselModu(true); setTurnuvalar(gelen);
-    setDestek(null);
+    setDestek(null); setDestekProfil(null); setDestekAdminMi(false); setDestekLigKur(false);
     if(typeof git==="function") git({sayfa:"admin"});
   };
   const [paylasimYuk,setPaylasimYuk]=useState(()=> !!PAYLASIM_SLUG);
@@ -12689,6 +12699,17 @@ function App(){
     await skorKaydet(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller, ekstra);
   };
 
+  // 👁 Destek modunda menüler/yetkiler HEDEF kullanıcının perspektifini yansıtır (yoksa kendi değerlerin)
+  const etkinAdminMi = destek ? destekAdminMi : adminMi;
+  const etkinLigKurYetkim = destek ? destekLigKur : ligKurYetkim;
+  const etkinProfil = destek ? destekProfil : profil;
+  // Oturuma bağlı ekranlar destek modunda yanlış bilgi göstermesin
+  const destekKapali = <div style={{maxWidth:440,margin:"0 auto",padding:"60px 24px",textAlign:"center"}}>
+    <div style={{fontSize:44,marginBottom:14}}>👁</div>
+    <div style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,marginBottom:8}}>Destek Modunda görüntülenemez</div>
+    <div style={{fontSize:13.5,color:T.textMut,lineHeight:1.6}}>Bu ekran oturuma bağlıdır (kendi hesabının bilgisini gösterir). Yanlış bilgi göstermemek için destek modunda gizlendi. Üstteki şeritten <b style={{color:T.text}}>Çık</b>'a basıp normal moda dönebilirsin.</div>
+  </div>;
+
   let icerik;
   // "Henüz lig yok" boş ekranı SADECE lig içeriğine bağlı sayfalarda çıksın.
   // Profil / Takip / Admin / Yasal / Ayarlar / Keşfet / LigKur kendi içeriğini her zaman gösterir.
@@ -12715,7 +12736,7 @@ function App(){
       <a href={(window.location.origin+window.location.pathname)} style={{display:"inline-block",marginTop:20,background:T.accent,color:T.bg0,borderRadius:11,padding:"12px 24px",fontSize:14,fontWeight:800,textDecoration:"none"}}>ForzaLig'e Git →</a>
     </div>;
   } else if(bosMu){
-    icerik=<BosDurum T={T} git={git} ligKurabilir={ligKurYetkim}/>;
+    icerik=<BosDurum T={T} git={git} ligKurabilir={etkinLigKurYetkim}/>;
   } else {
     // YETKİ: bu ligi yönetebilir miyim? (lig sahibi VEYA süper admin) — misafir/başka üye DÜZENLEYEMEZ
     const ligYetkim=(t)=> !saltOkunur && !!oturum && !!t && (((t.yonetici_id!=null) && t.yonetici_id===oturum.id) || adminMi || (t.id && yardimciLigler.has(t.id)));
@@ -12728,8 +12749,8 @@ function App(){
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
       case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
-      case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum} adminMi={adminMi}/>; break;
-      case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur} adminMi={adminMi}/>; break;
+      case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum} adminMi={etkinAdminMi}/>; break;
+      case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur} adminMi={etkinAdminMi}/>; break;
       case "mac": icerik=<MacSayfa mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} oturum={oturum} sahiplenme={sahiplenme} yetkili={ligYetkim(nav.turnuva)}/>; break;
       case "skorgir": icerik=<SkorGir mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} skorKaydet={ligYetkim(nav.turnuva)?skorKaydet:kilitliKaydet}/>; break;
       case "gazete": icerik=<MacGazete mac={nav.mac} turnuva={nav.turnuva} T={T} git={git}/>; break;
@@ -12743,13 +12764,13 @@ function App(){
       case "istatistik": icerik=<MacIstatistik mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} onKaydet={ligYetkim(nav.turnuva)?(mac,ist)=>{ mac.istatistik=ist; }:kilitliKaydet}/>; break;
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
       case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
-      case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} adminMi={adminMi} turnuvalar={turnuvalar}/>; break;
+      case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} adminMi={etkinAdminMi} turnuvalar={turnuvalar}/>; break;
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
-      case "profil": icerik=<ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi}/>; break;
+      case "profil": icerik = destek ? destekKapali : <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi}/>; break;
       case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar}/>; break;
-      case "admin": icerik=<AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
+      case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
-      case "ayar": icerik=<Ayarlar T={T} stilKey={stilKey} setStilKey={setStilKey} renkKey={renkKey} setRenkKey={setRenkKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
+      case "ayar": icerik = destek ? destekKapali : <Ayarlar T={T} stilKey={stilKey} setStilKey={setStilKey} renkKey={renkKey} setRenkKey={setRenkKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
     }
   }
@@ -12928,7 +12949,7 @@ function App(){
         <div style={{fontSize:12,color:T.textMut,textTransform:"uppercase",letterSpacing:1,fontWeight:700,margin:"2px 4px 12px"}}>⚽ Oluştur</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:6}}>
         {[
-          ligKurYetkim && ["🏆","Yeni Lig","Kendi ligini kur",T.gold,()=>git({sayfa:"ligkur"}),true],
+          etkinLigKurYetkim && ["🏆","Yeni Lig","Kendi ligini kur",T.gold,()=>git({sayfa:"ligkur"}),true],
           ["🆚","Rakip İlanı","Takımına maç ayarla",T.accent,()=>git({sayfa:"pazar",pazarYeni:"rakip"})],
           ["🙋","Eksik Oyuncu","Maça oyuncu bul",T.danger,()=>git({sayfa:"pazar",pazarYeni:"eksik"})],
           ["🏃","Ben Oyuncuyum","Maça gelirim",(T.accent2||T.accent),()=>git({sayfa:"pazar",pazarYeni:"oyuncu"})],
