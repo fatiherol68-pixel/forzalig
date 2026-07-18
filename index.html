@@ -9000,212 +9000,405 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
 /* ============================================================
    FAZ 5 — MAÇ GAZETESİ (premium spor gazetesi)
    ============================================================ */
-function MacGazete({mac:m, turnuva, T, git}){
-  const [tohum,setTohum]=useState(0);
-  const sA=m.skorA||0, sB=m.skorB||0;
-  const galip=sA>sB?m.takimA:(sB>sA?m.takimB:null);
-  const goller=(m.olaylar||[]).filter(o=>o.tip==="gol");
-  const seed=(m.id||1)*2654435761>>>0;
-  const det=(n)=>{ let x=(seed+n*40503)>>>0; x=(x^(x>>>13))*0xC2B2AE35>>>0; return (x>>>0)/4294967296; };
-  const dk=goller.map((g,i)=>(g.dk!=null&&g.dk!=="")?parseInt(g.dk):1+Math.floor(det(i+1)*58));
-  const golKron=goller.map((g,i)=>({...g,dk:dk[i]})).sort((a,b)=>a.dk-b.dk);
-  const manset=mansetUret(m,tohum);
-  const yorum=macYorumUret(m,turnuva,tohum);
-  const yorumParcalar=Array.isArray(yorum)?yorum:[yorum];
-  const golSay={}; goller.forEach(g=>{golSay[g.oyuncu]=(golSay[g.oyuncu]||0)+1;});
-  const yildiz=m.mvp||(Object.entries(golSay).sort((a,b)=>b[1]-a[1])[0]||["",0])[0];
-  const ist=m.istatistik;
-  const tarih=m.tarih||new Date().toLocaleDateString("tr-TR");
-  const lg=turnuva?turnuva.ad:"";
+/* ============================================================
+   MAÇ GAZETESİ — DİNAMİK GÖRÜNÜM SİSTEMİ
+   - Tek veri modeli (gazeteVeri), N adet görünüm bileşeni.
+   - Yeni görünüm = 1 bileşen + GZ_GORUNUMLER'e 1 kayıt. Sabit kod yok.
+   - Yetki: Süper Admin (görünüm aç/kapa + sistem varsayılanı),
+     Lig Yöneticisi (lig varsayılanı + üye kilidi), Üye (kendi seçimi hatırlanır).
+   ============================================================ */
 
-  // gazete renkleri (Marca/Fanatik: krem + kırmızı vurgu + lacivert)
-  const KAGIT="#F7F4EC", MUREKKEP="#1a1a1a", SOLUK="#6b6358", CIZGI="#d4cfc0", KIRMIZI="#C1121F", MAVI="#1d3557";
+// ---- kalıcılık ----
+var GZ_SIS_KEY="fz_gz_sistem";   // {varsayilan, kapali:[id]}  — süper admin (cihaz)
+var GZ_USR_KEY="fz_gz_gorunum";  // son seçilen görünüm — kullanıcı (cihaz)
+function gzSisOku(){ try{ return JSON.parse(localStorage.getItem(GZ_SIS_KEY))||{}; }catch(e){ return {}; } }
+function gzSisYaz(o){ try{ localStorage.setItem(GZ_SIS_KEY, JSON.stringify(o||{})); }catch(e){} }
+function gzUsrOku(){ try{ return localStorage.getItem(GZ_USR_KEY)||""; }catch(e){ return ""; } }
+function gzUsrYaz(id){ try{ if(id) localStorage.setItem(GZ_USR_KEY, id); }catch(e){} }
 
-  // gol dökümü: takıma göre ayır (A solda, B sağda)
-  const aGoller=golKron.filter(g=>g.takim===m.takimA);
-  const bGoller=golKron.filter(g=>g.takim===m.takimB);
+// ---- ortak veri modeli (tüm görünümler bunu alır) ----
+function gazeteVeri(m, turnuva, tohum){
+  var sA=m.skorA||0, sB=m.skorB||0;
+  var galip=sA>sB?m.takimA:(sB>sA?m.takimB:null);
+  var goller=(m.olaylar||[]).filter(function(o){return o.tip==="gol";});
+  var seed=(m.id||1)*2654435761>>>0;
+  var det=function(n){ var x=(seed+n*40503)>>>0; x=(x^(x>>>13))*0xC2B2AE35>>>0; return (x>>>0)/4294967296; };
+  var dk=goller.map(function(g,i){return (g.dk!=null&&g.dk!=="")?parseInt(g.dk):1+Math.floor(det(i+1)*58);});
+  var golKron=goller.map(function(g,i){return Object.assign({},g,{dk:dk[i]});}).sort(function(a,b){return a.dk-b.dk;});
+  var olayKron=(m.olaylar||[]).map(function(o,i){return Object.assign({},o,{dk:(o.dk!=null&&o.dk!=="")?parseInt(o.dk):1+Math.floor(det(i+50)*58)});}).sort(function(a,b){return a.dk-b.dk;});
+  var golSay={}; goller.forEach(function(g){golSay[g.oyuncu]=(golSay[g.oyuncu]||0)+1;});
+  var yildiz=m.mvp||((Object.entries(golSay).sort(function(a,b){return b[1]-a[1];})[0])||["",0])[0];
+  var aGoller=golKron.filter(function(g){return g.takim===m.takimA;});
+  var bGoller=golKron.filter(function(g){return g.takim===m.takimB;});
+  var ODUL_TANIM=[["altin","Altın"],["gumus","Gümüş"],["macinGolu","Maçın Golü"],["forvet","Forvet"],["ortasaha","Orta Saha"],["defans","Defans"],["kaleci","Kaleci"],["enerjik","Enerjik"],["centilmen","Centilmen"]];
+  var od=m.oduller||{}; var oduller=[]; if(m.mvp) oduller.push(["Yıldız",m.mvp]);
+  ODUL_TANIM.forEach(function(p){ if(od[p[0]]) oduller.push([p[1],od[p[0]]]); });
+  var ratingArr=m.ratingler?Object.entries(m.ratingler).sort(function(a,b){return b[1]-a[1];}).slice(0,6):[];
+  var puanTablo=(turnuva&&turnuva.takimlar)?turnuva.takimlar.slice().sort(function(a,b){return b.puan-a.puan||(b.ag-b.yg)-(a.ag-a.yg);}).slice(0,5):[];
+  var manset=mansetUret(m,tohum);
+  var yorum=macYorumUret(m,turnuva,tohum);
+  return { m:m, turnuva:turnuva, sA:sA, sB:sB, galip:galip, goller:goller, golKron:golKron, olayKron:olayKron,
+    golSay:golSay, yildiz:yildiz, aGoller:aGoller, bGoller:bGoller, oduller:oduller.slice(0,6), ratingArr:ratingArr,
+    puanTablo:puanTablo, manset:manset, yorumParcalar:Array.isArray(yorum)?yorum:[yorum],
+    ist:m.istatistik, tarih:m.tarih||new Date().toLocaleDateString("tr-TR"), lg:turnuva?turnuva.ad:"", hafta:m.hafta,
+    renkA:m.renkA, renkB:m.renkB, takimA:m.takimA, takimB:m.takimB,
+    mvpRating:(m.ratingler&&m.mvp&&m.ratingler[m.mvp])?m.ratingler[m.mvp]:null };
+}
 
-  // ödüller: verilmiş olanları al (en fazla 6)
-  const ODUL_TANIM=[["mvp","Yıldız"],["altin","Altın"],["gumus","Gümüş"],["macinGolu","Maçın Golü"],["forvet","Forvet"],["ortasaha","Orta Saha"],["defans","Defans"],["kaleci","Kaleci"],["enerjik","Enerjik"],["centilmen","Centilmen"]];
-  const od=m.oduller||{};
-  const verilen=[];
-  if(m.mvp) verilen.push(["Yıldız",m.mvp]);
-  ODUL_TANIM.forEach(([k,et])=>{ if(k!=="mvp" && od[k]) verilen.push([et,od[k]]); });
-  const oduller=verilen.slice(0,6);
+// ---- paylaşılan detay bloğu (hikaye + ödüller + reyting + puan durumu), palete göre boyanır ----
+function GzDetay(props){
+  var v=props.v, p=props.pal, av=p.accent;
+  var H=function(t){ return React.createElement("div",{style:{fontSize:11,letterSpacing:1.5,textTransform:"uppercase",fontWeight:800,color:av,marginBottom:10,marginTop:2}},t); };
+  return <div style={{padding:"4px 2px 8px"}}>
+    {v.yorumParcalar.length>0 && <div style={{marginBottom:22}}>
+      {H("Maçın Hikayesi")}
+      {v.yorumParcalar.map(function(par,i){ return <p key={i} style={{fontSize:14,lineHeight:1.62,color:p.ink,margin:"0 0 10px",opacity:.92}}>{par}</p>; })}
+    </div>}
+    {v.oduller.length>0 && <div style={{marginBottom:22}}>
+      {H("Ödüller")}
+      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+        {v.oduller.map(function(o,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:p.card,border:"1px solid "+p.line,borderRadius:12,padding:"7px 11px 7px 7px"}}>
+          <div style={{width:26,height:26,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o[1],26)}}/>
+          <div style={{minWidth:0}}><div style={{fontSize:8.5,letterSpacing:.8,textTransform:"uppercase",color:av,fontWeight:700}}>{o[0]}</div><div style={{fontSize:12.5,fontWeight:600,color:p.ink,whiteSpace:"nowrap"}}>{o[1]}</div></div>
+        </div>; })}
+      </div>
+    </div>}
+    {v.ratingArr.length>0 && <div style={{marginBottom:22}}>
+      {H("En İyi Oyuncular")}
+      {v.ratingArr.map(function(r,i){ var yuz=Math.max(8,Math.min(100,(r[1]/10)*100));
+        return <div key={r[0]} style={{display:"flex",alignItems:"center",gap:10,margin:"9px 0"}}>
+          <span style={{width:80,fontSize:12,color:p.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r[0]}</span>
+          <span style={{flex:1,height:7,background:p.line,borderRadius:5,overflow:"hidden"}}><span style={{display:"block",height:"100%",width:yuz+"%",background:av,borderRadius:5}}/></span>
+          <span style={{width:28,textAlign:"right",fontSize:12.5,fontWeight:800,color:av,fontVariantNumeric:"tabular-nums"}}>{r[1].toFixed(1)}</span>
+        </div>; })}
+    </div>}
+    {v.puanTablo.length>0 && <div>
+      {H("Maç Sonrası Puan Durumu")}
+      <div style={{background:p.card,border:"1px solid "+p.line,borderRadius:14,overflow:"hidden"}}>
+        {v.puanTablo.map(function(t,i){ var vurgu=t.ad===v.takimA||t.ad===v.takimB;
+          return <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:i<v.puanTablo.length-1?"1px solid "+p.line:"none",background:vurgu?av+"14":"transparent"}}>
+            <span style={{width:16,fontSize:12,fontWeight:800,color:vurgu?av:p.mut,fontVariantNumeric:"tabular-nums"}}>{i+1}</span>
+            <span style={{flex:1,fontSize:12.5,color:p.ink,fontWeight:vurgu?700:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span>
+            <span style={{fontSize:11,color:p.mut,fontVariantNumeric:"tabular-nums"}}>{t.o} maç</span>
+            <span style={{fontSize:14,fontWeight:800,color:p.ink,width:24,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{t.puan}</span>
+          </div>; })}
+      </div>
+    </div>}
+  </div>;
+}
 
-  // rating ilk 4
-  const ratingArr=m.ratingler?Object.entries(m.ratingler).sort((a,b)=>b[1]-a[1]).slice(0,4):[];
+// küçük yardımcı: skor satırı takım+logo
+function GzTakim(props){ var sag=props.sag; return <div style={{display:"flex",alignItems:"center",gap:9,flexDirection:sag?"row-reverse":"row"}}>
+  <Logo renk={props.renk} ad={props.ad} boy={props.boy||30}/>
+  <span style={{fontSize:props.fs||13,fontWeight:700,color:props.renkYazi||"inherit"}}>{props.ad}</span>
+</div>; }
 
-  // maç sonrası puan durumu: galip+mağlup çevresi (ilk birkaç)
-  const puanTablo=(turnuva&&turnuva.takimlar)?[...turnuva.takimlar].sort((a,b)=>b.puan-a.puan||(b.ag-b.yg)-(a.ag-a.yg)).slice(0,5):[];
+/* ===== 1) CARBON — sade, premium ===== */
+function GzCarbon(props){ var v=props.v;
+  var pal={bg:"#08090b",card:"#101319",ink:"#f2f4f7",mut:"#5b636e",line:"#1a1d22",accent:"#34d399"};
+  return <div style={{background:pal.bg,color:pal.ink,padding:"32px 22px 30px"}}>
+    <div style={{fontSize:10,letterSpacing:2,color:pal.mut,textTransform:"uppercase",textAlign:"center"}}>{v.lg}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"36px 0 6px"}}>
+      <div style={{textAlign:"center",flex:1}}><Logo renk={v.renkA} ad={v.takimA} boy={48}/><div style={{fontSize:11,color:"#aab3bf",marginTop:9,fontWeight:600}}>{v.takimA}</div></div>
+      <div style={{fontSize:52,fontWeight:200,letterSpacing:-2,fontVariantNumeric:"tabular-nums",lineHeight:1}}>{v.sA}<span style={{opacity:.35,margin:"0 3px"}}>–</span>{v.sB}</div>
+      <div style={{textAlign:"center",flex:1}}><Logo renk={v.renkB} ad={v.takimB} boy={48}/><div style={{fontSize:11,color:"#aab3bf",marginTop:9,fontWeight:600}}>{v.takimB}</div></div>
+    </div>
+    <div style={{textAlign:"center",fontSize:10,letterSpacing:2,textTransform:"uppercase",color:v.galip?pal.accent:pal.mut,margin:"14px 0 34px"}}>{v.galip?v.galip+" kazandı":"Berabere bitti"}</div>
+    <div style={{borderTop:"1px solid "+pal.line,marginBottom:26}}>
+      {v.golKron.map(function(g,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 2px",borderBottom:"1px solid "+pal.line}}>
+        <span style={{fontSize:12,color:pal.mut,width:30,fontVariantNumeric:"tabular-nums"}}>{g.dk}'</span>
+        <span style={{flex:1,fontSize:14,fontWeight:600}}>{g.oyuncu}{g.asist?<span style={{color:pal.mut,fontWeight:400,fontSize:12}}> · {g.asist} asist</span>:""}</span>
+        <span style={{fontSize:10,color:pal.mut}}>{g.takim===v.takimA?v.takimA:v.takimB}</span><span style={{opacity:.5}}>⚽</span>
+      </div>; })}
+      {v.golKron.length===0 && <div style={{padding:"14px 2px",color:pal.mut,fontSize:13}}>Gol kaydı yok — golsüz berabere.</div>}
+    </div>
+    {v.yildiz && <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:30}}>
+      <div style={{width:44,height:44,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(v.yildiz,44)}}/>
+      <div><div style={{fontSize:9,letterSpacing:2,color:pal.mut,textTransform:"uppercase"}}>Maçın Adamı</div><div style={{fontSize:15,fontWeight:700,marginTop:2}}>{v.yildiz}{v.mvpRating?<span> · <span style={{color:pal.accent}}>{v.mvpRating.toFixed(1)}</span></span>:""}</div></div>
+    </div>}
+    <GzDetay v={v} pal={pal}/>
+  </div>;
+}
 
-  const bas=(metin)=> <div style={{fontFamily:"'Oswald','Arial Narrow',sans-serif",fontSize:12,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:KIRMIZI,borderBottom:"1px solid "+CIZGI,paddingBottom:5,marginBottom:10}}>{metin}</div>;
+/* ===== 2) EDITORIAL — dergi / hikaye ===== */
+function GzEditorial(props){ var v=props.v;
+  var pal={bg:"#12100e",card:"#1b1712",ink:"#efe9e1",mut:"#b3a99c",line:"#2a2621",accent:"#d9724a"};
+  var spot=v.manset&&v.manset.spot?v.manset.spot:(v.yorumParcalar[0]||"");
+  var vurus=v.yorumParcalar[0]||"";
+  return <div style={{background:pal.bg,color:pal.ink}}>
+    <div style={{padding:"26px 20px 18px",borderBottom:"1px solid "+pal.line}}>
+      <div style={{fontSize:10,letterSpacing:2,textTransform:"uppercase",color:pal.accent,fontWeight:800}}>{(v.manset&&v.manset.kategori)||"Maç Raporu"}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
+      <div style={{fontFamily:"Georgia,'Times New Roman',serif",fontWeight:800,fontSize:30,lineHeight:1.03,margin:"12px 0 10px",letterSpacing:-.3}}>{(v.manset&&(v.manset.baslik||v.manset))||"Maç Sonucu"}</div>
+      <div style={{fontSize:13,color:pal.mut,lineHeight:1.55}}>{spot}</div>
+      <div style={{fontSize:10,color:"#7c7367",marginTop:14,letterSpacing:.5,textTransform:"uppercase"}}>✍ ForzaLig Spiker · {v.tarih}</div>
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px",borderBottom:"1px solid "+pal.line}}>
+      <Logo renk={v.renkA} ad={v.takimA} boy={34}/>
+      <div style={{fontSize:28,fontWeight:800,fontVariantNumeric:"tabular-nums",fontFamily:"Georgia,serif"}}>{v.sA} – {v.sB}</div>
+      <Logo renk={v.renkB} ad={v.takimB} boy={34}/>
+      <div style={{marginLeft:"auto",fontSize:11,color:"#7c7367",textAlign:"right",lineHeight:1.3}}>{v.takimA}<br/>{v.takimB}</div>
+    </div>
+    {vurus && <div style={{fontFamily:"Georgia,serif",fontStyle:"italic",fontSize:16,lineHeight:1.42,padding:20,borderLeft:"3px solid "+pal.accent,margin:"16px 20px"}}>“{vurus.length>150?vurus.slice(0,148)+"…":vurus}”</div>}
+    <div style={{padding:"0 20px"}}>
+      {v.golKron.map(function(g,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:"1px solid "+pal.line}}>
+        <span style={{fontFamily:"Georgia,serif",fontSize:15,color:pal.accent,width:34,fontWeight:700}}>{g.dk}'</span>
+        <span style={{flex:1,fontWeight:600}}>{g.oyuncu}<span style={{fontSize:11,color:"#7c7367",fontWeight:400}}> · {g.takim===v.takimA?v.takimA:v.takimB}</span></span>
+        <span style={{fontSize:11,color:"#7c7367"}}>⚽ Gol</span>
+      </div>; })}
+    </div>
+    <div style={{padding:"18px 20px 4px"}}><GzDetay v={v} pal={pal}/></div>
+  </div>;
+}
+
+/* ===== 3) DATALAB — analitik ===== */
+function GzDataLab(props){ var v=props.v; var ist=v.ist;
+  var pal={bg:"#07090c",card:"#0d1219",ink:"#d7dee6",mut:"#5a6472",line:"#1a2230",accent:"#4ade80"};
+  var tiles=[];
+  if(ist&&ist.sahiplikB!=null) tiles.push(["%"+ist.sahiplikB,"Topa sahip (deplasman)"]);
+  if(ist&&(ist.sutB!=null)) tiles.push([String(ist.sutB),"Şut"+(ist.isabetB!=null?" · "+ist.isabetB+" isabet":"")]);
+  if(ist&&ist.kornerB!=null) tiles.push([String(ist.kornerB),"Korner"]);
+  tiles.push([String(v.goller.length),"Toplam gol"]);
+  var mono={fontFamily:"ui-monospace,'SF Mono',Menlo,monospace"};
+  // momentum: gollerin dakikalarını kümülatif fark eğrisi olarak çiz (gerçek veri)
+  var pts=[]; var w=260,h=54; var maxDk=60;
+  v.golKron.forEach(function(g){ var x=Math.min(w,(g.dk/maxDk)*w); var ev=g.takim===v.takimA; pts.push({x:x,ev:ev}); });
+  return <div style={{background:pal.bg,color:pal.ink,padding:16,...mono}}>
+    <div style={{fontFamily:"-apple-system,sans-serif",fontSize:11,letterSpacing:1,color:pal.mut,textTransform:"uppercase"}}>{(v.galip||v.takimA)+" "+v.sA+"–"+v.sB}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
+    <div style={{fontFamily:"-apple-system,sans-serif",fontSize:18,fontWeight:800,margin:"2px 0 14px",color:"#fff"}}>Maç Analizi</div>
+    <div style={{background:pal.card,border:"1px solid "+pal.line,borderRadius:12,padding:12,marginBottom:12}}>
+      <div style={{fontFamily:"-apple-system,sans-serif",fontSize:9,color:pal.mut,letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>Goller · dakikaya göre</div>
+      <div style={{position:"relative",height:h}}>
+        <div style={{position:"absolute",top:h/2,left:0,right:0,height:1,background:pal.line}}/>
+        {v.golKron.map(function(g,i){ var x=Math.min(96,(g.dk/maxDk)*100); var ev=g.takim===v.takimA;
+          return <div key={i} style={{position:"absolute",left:x+"%",transform:"translateX(-50%)",top:ev?4:"auto",bottom:ev?"auto":4,background:ev?"#38bdf8":pal.accent,color:"#04120a",fontSize:9,fontWeight:800,padding:"2px 5px",borderRadius:4,...mono}}>{g.dk}'</div>; })}
+        {v.golKron.length===0 && <div style={{position:"absolute",inset:0,display:"grid",placeItems:"center",color:pal.mut,fontSize:11}}>gol yok</div>}
+      </div>
+      <div style={{fontFamily:"-apple-system,sans-serif",fontSize:10,color:pal.mut,marginTop:8}}><span style={{color:"#38bdf8"}}>■</span> {v.takimA} &nbsp; <span style={{color:pal.accent}}>■</span> {v.takimB}</div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+      {tiles.map(function(t,i){ return <div key={i} style={{background:pal.card,border:"1px solid "+pal.line,borderRadius:12,padding:12}}>
+        <div style={{fontFamily:"-apple-system,sans-serif",fontSize:22,fontWeight:800,color:pal.accent,fontVariantNumeric:"tabular-nums"}}>{t[0]}</div>
+        <div style={{fontFamily:"-apple-system,sans-serif",fontSize:9,color:pal.mut,letterSpacing:.5,textTransform:"uppercase",marginTop:2}}>{t[1]}</div>
+      </div>; })}
+    </div>
+    {v.ratingArr.length>0 && <div style={{background:pal.card,border:"1px solid "+pal.line,borderRadius:12,padding:12,marginBottom:12}}>
+      <div style={{fontFamily:"-apple-system,sans-serif",fontSize:9,color:pal.mut,letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>Oyuncu reytingleri</div>
+      {v.ratingArr.map(function(r,i){ var yuz=Math.max(8,Math.min(100,(r[1]/10)*100));
+        return <div key={r[0]} style={{display:"flex",alignItems:"center",gap:8,margin:"7px 0",fontSize:11}}>
+          <span style={{width:74,fontFamily:"-apple-system,sans-serif",color:"#aab3bf",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r[0]}</span>
+          <span style={{flex:1,height:7,background:"#131a24",borderRadius:4,overflow:"hidden"}}><span style={{display:"block",height:"100%",width:yuz+"%",background:"linear-gradient(90deg,#22d3a0,#4ade80)"}}/></span>
+          <span style={{width:26,textAlign:"right",color:pal.accent,fontWeight:700,fontFamily:"-apple-system,sans-serif"}}>{r[1].toFixed(1)}</span>
+        </div>; })}
+    </div>}
+    <div style={{fontFamily:"-apple-system,sans-serif"}}><GzDetay v={v} pal={pal}/></div>
+  </div>;
+}
+
+/* ===== 4) CINEMATIC — hero + kayan sayfa ===== */
+function GzCinematic(props){ var v=props.v;
+  var pal={bg:"#0a0d12",card:"#12161d",ink:"#eef2f7",mut:"#7c8794",line:"#151a20",accent:"#a855f7"};
+  var kahraman=v.galip||v.takimA;
+  var baslik=(v.manset&&(v.manset.baslik||v.manset))||"Maç Sonucu";
+  return <div style={{background:"#05070a",color:pal.ink}}>
+    <div style={{position:"relative",height:300,overflow:"hidden",background:"radial-gradient(120% 90% at 30% 10%, "+(v.renkB||"#7c3aed")+"55, transparent 60%),radial-gradient(120% 90% at 90% 20%, "+(v.renkA||"#2563eb")+"44, transparent 55%),linear-gradient(180deg,#0b1020,#05070a)"}}>
+      <div style={{position:"absolute",inset:0,display:"grid",placeItems:"center",opacity:.5}}><Logo renk={v.renkB} ad={kahraman} boy={150}/></div>
+      <div style={{position:"absolute",left:0,right:0,bottom:0,padding:20}}>
+        <span style={{display:"inline-flex",alignItems:"center",gap:8,background:"#00000066",backdropFilter:"blur(6px)",border:"1px solid #ffffff22",borderRadius:10,padding:"6px 11px",fontSize:11,fontWeight:700}}>FT <span style={{fontSize:16,fontWeight:900,fontVariantNumeric:"tabular-nums"}}>{v.sA}–{v.sB}</span> · {kahraman}</span>
+        <div style={{fontFamily:"'Arial Black',Impact,sans-serif",fontWeight:900,fontSize:32,lineHeight:.96,letterSpacing:-.5,margin:"12px 0 0",textTransform:"uppercase",textShadow:"0 6px 24px #000a"}}>{baslik}</div>
+      </div>
+    </div>
+    <div style={{background:pal.bg,borderRadius:"20px 20px 0 0",borderTop:"1px solid #ffffff10",marginTop:-16,position:"relative",padding:"16px 18px 30px"}}>
+      <div style={{width:38,height:4,borderRadius:3,background:"#2a323c",margin:"0 auto 16px"}}/>
+      <div style={{marginBottom:8}}>
+        {v.golKron.map(function(g,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:"1px solid "+pal.line}}>
+          <div style={{width:36,height:36,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(g.oyuncu,36)}}/>
+          <span style={{flex:1,fontSize:14,fontWeight:700}}>{g.oyuncu}<span style={{color:pal.mut,fontWeight:400,fontSize:11}}> · {g.takim===v.takimA?v.takimA:v.takimB}</span></span>
+          <span style={{fontSize:12,color:pal.mut,fontVariantNumeric:"tabular-nums"}}>{g.dk}'</span>
+        </div>; })}
+        {v.yildiz && <div style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:"1px solid "+pal.line}}>
+          <div style={{width:36,height:36,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:"2px solid "+pal.accent}} dangerouslySetInnerHTML={{__html:svgAvatar(v.yildiz,36)}}/>
+          <span style={{flex:1,fontSize:14,fontWeight:700}}>{v.yildiz}<span style={{color:pal.mut,fontWeight:400,fontSize:11}}> · Maçın adamı</span></span>
+          <span style={{fontSize:12,color:pal.accent,fontWeight:800}}>{v.mvpRating?v.mvpRating.toFixed(1):"MVP"}</span>
+        </div>}
+      </div>
+      <div style={{marginTop:14}}><GzDetay v={v} pal={pal}/></div>
+    </div>
+  </div>;
+}
+
+/* ===== 5) GLASS — cam / gradient ===== */
+function GzGlass(props){ var v=props.v;
+  var glass={background:"#ffffff14",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:"1px solid #ffffff2e",borderRadius:18,boxShadow:"0 8px 32px #0004,inset 0 1px 0 #ffffff33",padding:16,marginBottom:14};
+  var pal={bg:"transparent",card:"#ffffff12",ink:"#ffffff",mut:"#ffffffb0",line:"#ffffff26",accent:"#ffffff"};
+  var H=function(t){ return <div style={{fontSize:10,letterSpacing:1.5,color:"#ffffffc8",textTransform:"uppercase",fontWeight:800,marginBottom:8}}>{t}</div>; };
+  return <div style={{position:"relative",overflow:"hidden",background:"radial-gradient(80% 60% at 15% 0%, "+(v.renkA||"#7c3aed")+", transparent 60%),radial-gradient(80% 60% at 100% 30%, "+(v.renkB||"#2563eb")+", transparent 55%),radial-gradient(90% 70% at 50% 100%, #db2777aa, transparent 60%), #0a0a16",color:"#fff",padding:"20px 16px 34px"}}>
+    <div style={{fontSize:10,letterSpacing:2,color:"#ffffffb0",textTransform:"uppercase",textAlign:"center",marginBottom:14}}>{v.lg}{v.hafta?" · "+v.hafta+". Hafta":""}</div>
+    <div style={{...glass,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div style={{textAlign:"center",flex:1}}><Logo renk={v.renkA} ad={v.takimA} boy={40}/><div style={{fontSize:10.5,marginTop:8,color:"#ffffffd0",fontWeight:600}}>{v.takimA}</div></div>
+      <div style={{fontSize:40,fontWeight:800,fontVariantNumeric:"tabular-nums",textShadow:"0 2px 20px #0006"}}>{v.sA}–{v.sB}</div>
+      <div style={{textAlign:"center",flex:1}}><Logo renk={v.renkB} ad={v.takimB} boy={40}/><div style={{fontSize:10.5,marginTop:8,color:"#ffffffd0",fontWeight:600}}>{v.takimB}</div></div>
+    </div>
+    <div style={glass}>{H("Goller")}
+      {v.golKron.map(function(g,i){ return <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:i<v.golKron.length-1?"1px solid #ffffff1a":"none",fontSize:12.5}}>
+        <span style={{color:"#ffffffb0",width:28,fontVariantNumeric:"tabular-nums",fontSize:11}}>{g.dk}'</span><span style={{flex:1,fontWeight:600}}>{g.oyuncu}</span><span>⚽</span>
+      </div>; })}
+      {v.golKron.length===0 && <div style={{fontSize:12.5,color:"#ffffffb0"}}>Gol yok.</div>}
+    </div>
+    {v.yildiz && <div style={glass}>{H("Maçın Yıldızı")}
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:42,height:42,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(v.yildiz,42)}}/>
+        <div><div style={{fontWeight:800,fontSize:15}}>{v.yildiz}</div><div style={{fontSize:12,color:"#ffffffc0"}}>{(v.golSay[v.yildiz]||0)+" gol"}{v.mvpRating?" · reyting "+v.mvpRating.toFixed(1):""}</div></div>
+      </div>
+    </div>}
+    {(v.yorumParcalar.length>0||v.ratingArr.length>0||v.puanTablo.length>0) && <div style={glass}><GzDetay v={v} pal={pal}/></div>}
+  </div>;
+}
+
+/* ===== 6) STORY — dikey, paylaşılabilir (wildcard) ===== */
+function GzStory(props){ var v=props.v; var T=props.T;
+  var cap=(v.manset&&(v.manset.baslik||v.manset))||(v.galip?v.galip+" kazandı":"Maç bitti");
+  var sub=(v.yorumParcalar[0]||"");
+  var chips=[];
+  var enCok=Object.entries(v.golSay).sort(function(a,b){return b[1]-a[1];})[0];
+  if(enCok&&enCok[1]>0) chips.push("⚽ "+enCok[0]+(enCok[1]>1?" ×"+enCok[1]:""));
+  if(v.yildiz) chips.push("🌟 "+v.yildiz+(v.mvpRating?" "+v.mvpRating.toFixed(1):""));
+  if(v.oduller.length>1) chips.push("🏅 "+v.oduller.length+" ödül");
+  var paylas=function(){
+    var metin=v.takimA+" "+v.sA+"–"+v.sB+" "+v.takimB+" · "+cap;
+    try{ if(navigator.share){ navigator.share({title:"ForzaLig",text:metin,url:location.href}); return; } }catch(e){}
+    try{ navigator.clipboard.writeText(metin+" "+location.href); alert("Kopyalandı ✓ İstediğin yere yapıştır."); }catch(e){}
+  };
+  return <div style={{position:"relative",overflow:"hidden",minHeight:560,background:"linear-gradient(160deg,"+(v.renkA||"#1a0b2e")+"55,"+(v.renkB||"#3b0d3d")+"cc 55%,#5b1030)",color:"#fff"}}>
+    <div style={{position:"absolute",inset:0,background:"linear-gradient(160deg,#1a0b2e,#3b0d3daa 55%,#5b1030)"}}/>
+    <div style={{position:"relative",padding:"26px 22px 26px",display:"flex",flexDirection:"column",minHeight:560}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+        <Logo renk={v.renkA} ad={v.takimA} boy={30}/><span style={{fontSize:11,color:"#ffffffb0"}}>vs</span><Logo renk={v.renkB} ad={v.takimB} boy={30}/>
+        <span style={{marginLeft:"auto",fontSize:10,letterSpacing:1.5,color:"#ffffffb0",textTransform:"uppercase"}}>{v.lg}{v.hafta?" · "+v.hafta+".H":""}</span>
+      </div>
+      <div style={{fontSize:86,fontWeight:900,lineHeight:.9,letterSpacing:-3,marginTop:"auto",fontVariantNumeric:"tabular-nums",background:"linear-gradient(180deg,#fff,#ffd9f0)",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}}>{v.sA}–{v.sB}</div>
+      <div style={{fontSize:20,fontWeight:800,lineHeight:1.12,marginTop:8}}>{cap}</div>
+      {sub && <div style={{fontSize:13,color:"#ffffffcc",marginTop:10,lineHeight:1.5}}>{sub.length>160?sub.slice(0,158)+"…":sub}</div>}
+      <div style={{display:"flex",gap:8,marginTop:16,flexWrap:"wrap"}}>
+        {chips.map(function(c,i){ return <span key={i} style={{background:"#ffffff1e",border:"1px solid #ffffff33",borderRadius:999,padding:"6px 12px",fontSize:12,fontWeight:700,backdropFilter:"blur(8px)"}}>{c}</span>; })}
+      </div>
+      <button onClick={paylas} className="tap" style={{marginTop:18,display:"flex",alignItems:"center",justifyContent:"center",gap:8,height:46,borderRadius:14,background:"#fff",color:"#3b0d3d",fontWeight:800,fontSize:14,border:"none",width:"100%"}}>↗ Story olarak paylaş</button>
+    </div>
+  </div>;
+}
+
+// ---- REGİSTRY: yeni görünüm eklemek = buraya 1 satır ----
+var GZ_GORUNUMLER=[
+  {id:"carbon",   ad:"Carbon",    ikon:"⚫", aciklama:"Sade, premium",     bilesen:GzCarbon},
+  {id:"editorial",ad:"Editorial", ikon:"📖", aciklama:"Dergi hikâyesi",    bilesen:GzEditorial},
+  {id:"datalab",  ad:"DataLab",   ikon:"📊", aciklama:"Analitik",          bilesen:GzDataLab},
+  {id:"cinematic",ad:"Cinematic", ikon:"🎬", aciklama:"Sinematik",         bilesen:GzCinematic},
+  {id:"story",    ad:"Story",     ikon:"📱", aciklama:"Paylaşılabilir",    bilesen:GzStory},
+  {id:"glass",    ad:"Glass",     ikon:"🧊", aciklama:"Cam / modern",      bilesen:GzGlass}
+];
+function gzBul(id){ for(var i=0;i<GZ_GORUNUMLER.length;i++) if(GZ_GORUNUMLER[i].id===id) return GZ_GORUNUMLER[i]; return null; }
+
+// ---- Görünüm paneli (role göre kontroller) ----
+function GorunumPanel(props){
+  var T=props.T, kapat=props.kapat, aktif=props.aktif, sec=props.sec;
+  var adminMi=props.adminMi, yetkili=props.yetkili, turnuva=props.turnuva, sistem=props.sistem;
+  var kapali=sistem.kapali||[];
+  var uyeAcik=!(turnuva&&turnuva.gzUyeAcik===false);
+  var [tik,setTik]=useState(0); var yenile=function(){ setTik(function(x){return x+1;}); };
+  // süper admin görünürde tüm görünümleri yönetir; diğerleri sadece açık olanları görür
+  var liste=GZ_GORUNUMLER.filter(function(g){ return adminMi || kapali.indexOf(g.id)<0; });
+  return <div onClick={kapat} style={{position:"fixed",inset:0,zIndex:120,background:"rgba(0,0,0,.55)",backdropFilter:"blur(3px)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+    <div onClick={function(e){e.stopPropagation();}} className="fade-in" style={{width:"100%",maxWidth:460,background:T.bg0,borderRadius:"20px 20px 0 0",border:"0.5px solid "+T.line,maxHeight:"86vh",overflowY:"auto",padding:"6px 14px 24px"}}>
+      <div style={{width:40,height:4,borderRadius:3,background:T.line,margin:"9px auto 12px"}}/>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+        <div style={{fontSize:16,fontWeight:800,color:T.text}}>🎨 Görünüm</div>
+        <button onClick={kapat} className="tap" style={{fontSize:13,color:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:9,padding:"5px 11px",fontWeight:700}}>Kapat</button>
+      </div>
+      <div style={{fontSize:12,color:T.textMut,marginBottom:12,lineHeight:1.5}}>Aynı maç verisi — sadece tasarım değişir. Seçimin cihazında hatırlanır.</div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+        {liste.map(function(g){ var secili=g.id===aktif; var pasif=kapali.indexOf(g.id)>=0;
+          return <button key={g.id} onClick={function(){ sec(g.id); }} className="tap" style={{textAlign:"left",padding:"12px 12px",borderRadius:14,background:secili?T.accent+"1c":T.bg1,border:"1.5px solid "+(secili?T.accent:T.line),position:"relative",opacity:pasif?.5:1}}>
+            <div style={{fontSize:20,marginBottom:5}}>{g.ikon}</div>
+            <div style={{fontSize:13.5,fontWeight:800,color:secili?T.accent:T.text}}>{g.ad}{secili?" ✓":""}</div>
+            <div style={{fontSize:11,color:T.textMut,marginTop:1}}>{g.aciklama}</div>
+            {pasif && <div style={{fontSize:9,color:T.danger,marginTop:3,fontWeight:700}}>KAPALI</div>}
+          </button>; })}
+      </div>
+
+      {yetkili && <div style={{marginTop:18,padding:14,background:T.bg1,borderRadius:14,border:"0.5px solid "+T.line}}>
+        <div style={{fontSize:12,fontWeight:800,color:T.accent2,letterSpacing:.5,marginBottom:2}}>🏆 LİG YÖNETİCİSİ</div>
+        <div style={{fontSize:11.5,color:T.textMut,marginBottom:11,lineHeight:1.5}}>Bu lig için varsayılan görünümü belirle; istersen üyeler kendi görünümünü seçebilsin.</div>
+        <button onClick={function(){ props.ligVarsayilan(aktif); yenile(); }} className="tap" style={{width:"100%",padding:11,borderRadius:11,background:T.accent,color:(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0),fontSize:13,fontWeight:800,border:"none",marginBottom:9}}>“{(gzBul(aktif)||{}).ad}” görünümünü lig varsayılanı yap</button>
+        <label style={{display:"flex",alignItems:"center",gap:10,fontSize:12.5,color:T.text,cursor:"pointer"}}>
+          <input type="checkbox" checked={uyeAcik} onChange={function(e){ props.uyeKilit(!e.target.checked); yenile(); }} style={{width:18,height:18}}/>
+          Üyeler görünümü değiştirebilsin
+        </label>
+        {turnuva&&turnuva.gzGorunum && <div style={{fontSize:11,color:T.textMut,marginTop:9}}>Şu anki lig varsayılanı: <b style={{color:T.textSoft}}>{(gzBul(turnuva.gzGorunum)||{}).ad||turnuva.gzGorunum}</b></div>}
+      </div>}
+
+      {adminMi && <div style={{marginTop:14,padding:14,background:T.danger+"0f",borderRadius:14,border:"0.5px solid "+T.danger+"33"}}>
+        <div style={{fontSize:12,fontWeight:800,color:T.danger,letterSpacing:.5,marginBottom:2}}>👑 SÜPER ADMIN</div>
+        <div style={{fontSize:11.5,color:T.textMut,marginBottom:11,lineHeight:1.5}}>Görünümleri sistem genelinde aç/kapa ve varsayılanı belirle.</div>
+        <button onClick={function(){ var s=gzSisOku(); s.varsayilan=aktif; gzSisYaz(s); yenile(); }} className="tap" style={{width:"100%",padding:11,borderRadius:11,background:T.text,color:T.bg0,fontSize:13,fontWeight:800,border:"none",marginBottom:11}}>“{(gzBul(aktif)||{}).ad}” sistem varsayılanı olsun</button>
+        <div style={{fontSize:10.5,color:T.textMut,letterSpacing:1,textTransform:"uppercase",marginBottom:7}}>Görünümler</div>
+        {GZ_GORUNUMLER.map(function(g){ var s=gzSisOku(); var acikG=(s.kapali||[]).indexOf(g.id)<0; var vars=(s.varsayilan||"carbon")===g.id;
+          return <div key={g.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid "+T.line}}>
+            <span style={{fontSize:16}}>{g.ikon}</span>
+            <span style={{flex:1,fontSize:13,color:T.text,fontWeight:600}}>{g.ad}{vars?<span style={{fontSize:10,color:T.accent,fontWeight:800}}> · varsayılan</span>:""}</span>
+            <button onClick={function(){ var ss=gzSisOku(); var k=(ss.kapali||[]).slice(); var ix=k.indexOf(g.id); if(ix>=0)k.splice(ix,1); else { if(vars){ alert("Varsayılan görünüm kapatılamaz."); return; } k.push(g.id); } ss.kapali=k; gzSisYaz(ss); yenile(); }} className="tap" style={{fontSize:11.5,fontWeight:800,padding:"5px 12px",borderRadius:9,border:"1px solid "+(acikG?T.accent+"55":T.danger+"55"),background:(acikG?T.accent:T.danger)+"18",color:acikG?T.accent:T.danger}}>{acikG?"Açık":"Kapalı"}</button>
+          </div>; })}
+      </div>}
+    </div>
+  </div>;
+}
+
+// ---- SHELL: MacGazete (dış kabuk) ----
+function MacGazete(props){
+  var m=props.mac, turnuva=props.turnuva, T=props.T, git=props.git;
+  var oturum=props.oturum, adminMi=!!props.adminMi, yetkili=!!props.yetkili, gazeteAyar=props.gazeteAyar;
+  var [tohum,setTohum]=useState(0);
+  var [panel,setPanel]=useState(false);
+  // lig varsayılanını yerel önbellekten hidrate et (yayında değilse sunucuda tutulmaz)
+  if(turnuva && turnuva.gzGorunum==null){ try{ var _lc=JSON.parse(localStorage.getItem('fz_gz_lig_'+turnuva.id)); if(_lc){ if(_lc.gzGorunum!=null)turnuva.gzGorunum=_lc.gzGorunum; if(_lc.gzUyeAcik!=null)turnuva.gzUyeAcik=_lc.gzUyeAcik; } }catch(e){} }
+  var sistem=gzSisOku(); var kapali=sistem.kapali||[];
+  // üye kilidi: lig üyeye kapattıysa ve kişi yönetici/admin değilse görünüm sabit
+  var uyeKilitli = turnuva && turnuva.gzUyeAcik===false && !yetkili && !adminMi;
+  var ligVar = turnuva && turnuva.gzGorunum;
+  var sistemVar = sistem.varsayilan;
+  var gecerli=function(id){ if(id && gzBul(id) && (adminMi || kapali.indexOf(id)<0)) return id; return null; };
+  var baslangic = uyeKilitli
+      ? (gecerli(ligVar)||gecerli(sistemVar)||"carbon")
+      : (gecerli(gzUsrOku())||gecerli(ligVar)||gecerli(sistemVar)||"carbon");
+  var [aktif,setAktif]=useState(function(){ return gecerli(baslangic)||"carbon"; });
+  var sec=function(id){ if(!gzBul(id)) return; setAktif(id); if(!uyeKilitli) gzUsrYaz(id); setPanel(false); };
+
+  var v=gazeteVeri(m,turnuva,tohum);
+  var akt=gzBul(aktif)||GZ_GORUNUMLER[0];
+  var Gorunum=akt.bilesen;
+
+  var ligVarsayilan=function(id){ if(!turnuva) return; turnuva.gzGorunum=id; if(gazeteAyar) gazeteAyar(turnuva,{gzGorunum:id}); };
+  var uyeKilit=function(kilit){ if(!turnuva) return; turnuva.gzUyeAcik=!kilit; if(gazeteAyar) gazeteAyar(turnuva,{gzUyeAcik:!kilit}); };
+
+  var gorunumButonu = !uyeKilitli;
 
   return <div className="fade-in" style={{paddingBottom:90}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",gap:8}}>
       <span style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:1}}>MAÇ GAZETESİ</span>
-      <button onClick={()=>setTohum(t=>t+1)} className="tap" style={{fontSize:11,color:T.accent2,background:T.accent2+"1A",borderRadius:8,padding:"5px 10px",fontWeight:700,border:"1px solid "+T.accent2+"44"}}>↻ Yeniden Üret</button>
+      <div style={{display:"flex",gap:6}}>
+        <button onClick={function(){ setTohum(function(t){return t+1;}); }} className="tap" style={{fontSize:11,color:T.textMut,background:T.bg1,borderRadius:9,padding:"6px 10px",fontWeight:700,border:"0.5px solid "+T.line}}>↻ Yeniden Üret</button>
+        {gorunumButonu && <button onClick={function(){ setPanel(true); }} className="tap" style={{fontSize:11.5,color:T.accent,background:T.accent+"18",borderRadius:9,padding:"6px 12px",fontWeight:800,border:"1px solid "+T.accent+"44"}}>🎨 Görünüm · {akt.ad}</button>}
+      </div>
     </div>
 
-    <div style={{margin:"0 10px",background:KAGIT,color:MUREKKEP,fontFamily:"Georgia,'Times New Roman',serif",boxShadow:"0 10px 40px -12px rgba(0,0,0,.55)",overflow:"hidden"}}>
-
-      {/* künye */}
-      <div style={{background:MUREKKEP,color:KAGIT,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 16px",fontFamily:"'Oswald',sans-serif",fontSize:11,letterSpacing:1,textTransform:"uppercase"}}>
-        <span style={{fontFamily:"'Anton','Arial Black',sans-serif",fontSize:19,color:KIRMIZI,letterSpacing:0.5}}>FORZA<span style={{color:KAGIT}}>LİG</span> SPOR</span>
-        <span>{tarih}</span>
-      </div>
-      <div style={{display:"flex",justifyContent:"space-between",padding:"5px 16px",fontFamily:"'Oswald',sans-serif",fontSize:10,letterSpacing:1.5,textTransform:"uppercase",color:SOLUK,borderBottom:"2px solid "+MUREKKEP}}>
-        <span>{lg}</span><span>{m.hafta}. Hafta</span>
-      </div>
-
-      {/* manşet */}
-      <div style={{padding:"20px 18px 16px",borderBottom:"3px solid "+MUREKKEP}}>
-        <span style={{display:"inline-block",background:KIRMIZI,color:"#fff",fontFamily:"'Oswald',sans-serif",fontSize:10,fontWeight:600,letterSpacing:2,textTransform:"uppercase",padding:"3px 10px",marginBottom:11}}>{manset.kategori||"Maç Raporu"}</span>
-        <div style={{fontFamily:"'Anton','Arial Black',sans-serif",fontSize:"clamp(34px,9vw,50px)",lineHeight:0.94,letterSpacing:-0.5,textTransform:"uppercase",color:MUREKKEP}}>{manset.baslik||manset}</div>
-        {manset.spot && <div style={{fontStyle:"italic",fontSize:15,color:"#444",marginTop:11,lineHeight:1.4}}>{manset.spot}</div>}
-
-        {/* skor - sıkışık ortada */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"18px 0 4px",flexWrap:"wrap"}}>
-          <div style={{display:"flex",alignItems:"center",gap:9}}>
-            <Logo renk={m.renkA} ad={m.takimA} boy={44}/>
-            <span style={{fontFamily:"'Oswald',sans-serif",fontSize:18,fontWeight:600,textTransform:"uppercase",color:MUREKKEP}}>{m.takimA}</span>
-          </div>
-          <span style={{fontFamily:"'Anton','Arial Black',sans-serif",fontSize:48,lineHeight:1,padding:"0 4px"}}><span style={{color:sA>sB?KIRMIZI:MUREKKEP}}>{sA}</span>-<span style={{color:sB>sA?KIRMIZI:MUREKKEP}}>{sB}</span></span>
-          <div style={{display:"flex",alignItems:"center",gap:9}}>
-            <span style={{fontFamily:"'Oswald',sans-serif",fontSize:18,fontWeight:600,textTransform:"uppercase",color:MUREKKEP}}>{m.takimB}</span>
-            <Logo renk={m.renkB} ad={m.takimB} boy={44}/>
-          </div>
-        </div>
-
-        {/* gol dökümü: sol=A, sağ=B */}
-        {golKron.length>0 && <div style={{display:"grid",gridTemplateColumns:"1fr 1px 1fr",gap:0,maxWidth:540,margin:"12px auto 0",borderTop:"1px solid "+CIZGI,paddingTop:10}}>
-          <div style={{textAlign:"right",paddingRight:14}}>
-            {aGoller.map((g,i)=><div key={i} style={{fontFamily:"'Oswald',sans-serif",fontSize:13,color:"#333",padding:"3px 0"}}><span style={{fontWeight:700,color:KIRMIZI}}>{g.dk}'</span> {g.oyuncu}{g.asist?<span style={{fontSize:11,color:SOLUK,fontStyle:"italic"}}> ({g.asist})</span>:""}</div>)}
-          </div>
-          <div style={{background:CIZGI}}/>
-          <div style={{textAlign:"left",paddingLeft:14}}>
-            {bGoller.map((g,i)=><div key={i} style={{fontFamily:"'Oswald',sans-serif",fontSize:13,color:"#333",padding:"3px 0"}}>{g.oyuncu}{g.asist?<span style={{fontSize:11,color:SOLUK,fontStyle:"italic"}}> ({g.asist})</span>:""} <span style={{fontWeight:700,color:KIRMIZI}}>{g.dk}'</span></div>)}
-          </div>
-        </div>}
-      </div>
-
-      {/* gövde: hikaye + yıldız/ödüller */}
-      <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:22,padding:20}} className="gazete-govde">
-        <div>
-          {bas("Maçın Hikayesi")}
-          {yorumParcalar.map((p,i)=>
-            <p key={i} style={{fontSize:14.5,lineHeight:1.62,textAlign:"justify",marginBottom:10,...(i===0?{}:{})}}>
-              {i===0 ? <span style={{fontFamily:"'Anton',sans-serif",fontSize:48,float:"left",lineHeight:0.78,paddingRight:8,paddingTop:3,color:KIRMIZI}}>{p.charAt(0)}</span> : null}
-              {i===0?p.slice(1):p}
-            </p>
-          )}
-        </div>
-
-        <div>
-          {/* yıldız kartı */}
-          {yildiz && <div style={{background:MUREKKEP,color:KAGIT,overflow:"hidden",marginBottom:14}}>
-            <div style={{background:KIRMIZI,padding:"7px 13px",fontFamily:"'Oswald',sans-serif",fontSize:11,fontWeight:600,letterSpacing:2,textTransform:"uppercase"}}>Maçın Yıldızı</div>
-            <div style={{height:130,background:"linear-gradient(135deg,#2a2a2a,#0f0f0f)",display:"flex",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden"}}>
-              <div style={{position:"absolute",inset:0,background:"repeating-linear-gradient(115deg,transparent,transparent 18px,rgba(193,18,31,.08) 18px,rgba(193,18,31,.08) 20px)"}}/>
-              <div style={{width:80,height:80,borderRadius:"50%",overflow:"hidden",border:"3px solid "+KIRMIZI,zIndex:1}} dangerouslySetInnerHTML={{__html:svgAvatar(yildiz,80)}}/>
-            </div>
-            <div style={{padding:13}}>
-              <div style={{fontFamily:"'Oswald',sans-serif",fontSize:19,fontWeight:700,textTransform:"uppercase",lineHeight:1}}>{yildiz}</div>
-              <div style={{fontSize:12,color:"#aaa",margin:"3px 0 11px"}}>{galip||m.takimA}</div>
-              <div style={{display:"flex",borderTop:"1px solid #333"}}>
-                <div style={{flex:1,textAlign:"center",padding:"8px 0",borderRight:"1px solid #333"}}><div style={{fontFamily:"'Anton',sans-serif",fontSize:22,color:KIRMIZI}}>{m.ratingler&&m.ratingler[yildiz]?m.ratingler[yildiz].toFixed(1):"-"}</div><div style={{fontFamily:"'Oswald',sans-serif",fontSize:9,letterSpacing:1,color:"#888"}}>PUAN</div></div>
-                <div style={{flex:1,textAlign:"center",padding:"8px 0",borderRight:"1px solid #333"}}><div style={{fontFamily:"'Anton',sans-serif",fontSize:22,color:KIRMIZI}}>{golSay[yildiz]||0}</div><div style={{fontFamily:"'Oswald',sans-serif",fontSize:9,letterSpacing:1,color:"#888"}}>GOL</div></div>
-                <div style={{flex:1,textAlign:"center",padding:"8px 0"}}><div style={{fontFamily:"'Anton',sans-serif",fontSize:22,color:KIRMIZI}}>{goller.filter(g=>g.asist===yildiz).length}</div><div style={{fontFamily:"'Oswald',sans-serif",fontSize:9,letterSpacing:1,color:"#888"}}>ASİST</div></div>
-              </div>
-            </div>
-          </div>}
-
-          {/* ödüller - fotoğraflı kartlar */}
-          {oduller.length>0 && <div>
-            {bas("Maçın Ödülleri")}
-            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:7}}>
-              {oduller.map(([rol,ad],i)=>
-                <div key={i} style={{background:"#efe9d8",border:"1px solid "+CIZGI,padding:8,display:"flex",alignItems:"center",gap:9}}>
-                  <div style={{width:36,height:36,borderRadius:"50%",overflow:"hidden",border:"2px solid "+MUREKKEP,flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(ad,36)}}/>
-                  <div style={{minWidth:0}}><div style={{fontFamily:"'Oswald',sans-serif",fontSize:9,letterSpacing:0.8,textTransform:"uppercase",color:KIRMIZI,fontWeight:600}}>{rol}</div><div style={{fontFamily:"'Oswald',sans-serif",fontSize:13,fontWeight:500,color:MUREKKEP,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ad}</div></div>
-                </div>
-              )}
-            </div>
-          </div>}
-        </div>
-      </div>
-
-      {/* grafikler: gol çizelgesi + donut */}
-      {(golKron.length>0 || ist) && <div style={{borderTop:"3px solid "+MUREKKEP,padding:"18px 20px",display:"grid",gridTemplateColumns:ist?"1.4fr 1fr":"1fr",gap:22}} className="gazete-grafik">
-        {golKron.length>0 && <div>
-          {bas("Gol Çizelgesi")}
-          <div style={{position:"relative",height:50,margin:"8px 0 6px"}}>
-            <div style={{position:"absolute",top:24,left:0,right:0,height:2,background:CIZGI}}/>
-            <div style={{position:"absolute",top:16,bottom:16,left:"50%",width:1,background:SOLUK}}/>
-            {golKron.map((g,i)=>{const ev=g.takim===m.takimA; const sol=Math.min(94,(g.dk/60)*100);
-              return <div key={i} style={{position:"absolute",left:sol+"%",transform:"translateX(-50%)",[ev?"top":"bottom"]:0,fontFamily:"'Oswald',sans-serif",fontSize:9,fontWeight:700,color:"#fff",background:ev?MAVI:KIRMIZI,padding:"2px 4px",borderRadius:3,whiteSpace:"nowrap"}}>{g.dk}'</div>;
-            })}
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",fontFamily:"'Oswald',sans-serif",fontSize:9,color:SOLUK}}><span>İlk düdük</span><span>Devre</span><span>Son</span></div>
-          <div style={{marginTop:8,fontSize:12,color:"#444"}}><span style={{display:"inline-block",width:9,height:9,background:MAVI,borderRadius:2,marginRight:4}}/>{m.takimA} <span style={{display:"inline-block",width:9,height:9,background:KIRMIZI,borderRadius:2,margin:"0 4px 0 8px"}}/>{m.takimB}</div>
-        </div>}
-        {ist && <div>
-          {bas("Topla Oynama")}
-          <div style={{display:"flex",alignItems:"center",gap:14}}>
-            <div style={{width:80,height:80,borderRadius:"50%",flexShrink:0,position:"relative",background:`conic-gradient(${MAVI} 0% ${ist.sahiplikA}%, ${KIRMIZI} ${ist.sahiplikA}% 100%)`}}><div style={{position:"absolute",inset:17,background:KAGIT,borderRadius:"50%"}}/></div>
-            <div style={{fontFamily:"'Oswald',sans-serif",fontSize:12}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}><span style={{width:11,height:11,borderRadius:2,background:MAVI}}/>{m.takimA} <b style={{marginLeft:"auto"}}>%{ist.sahiplikA}</b></div>
-              <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{width:11,height:11,borderRadius:2,background:KIRMIZI}}/>{m.takimB} <b style={{marginLeft:"auto"}}>%{ist.sahiplikB}</b></div>
-            </div>
-          </div>
-        </div>}
-      </div>}
-
-      {/* en iyi oyuncular */}
-      {ratingArr.length>0 && <div style={{borderTop:"1px solid "+CIZGI,padding:"16px 20px"}}>
-        {bas("En İyi Oyuncular")}
-        {ratingArr.map(([ad,r],i)=>
-          <div key={ad} style={{display:"flex",alignItems:"center",gap:9,padding:"5px 0",borderBottom:i<ratingArr.length-1?"1px dotted "+CIZGI:"none"}}>
-            <span style={{fontFamily:"'Anton',sans-serif",color:i===0?KIRMIZI:SOLUK,width:18}}>{i+1}</span>
-            <span style={{flex:1,fontFamily:"'Oswald',sans-serif",fontWeight:500,fontSize:14}}>{ad}</span>
-            <span style={{fontFamily:"'Anton',sans-serif",fontSize:16,color:MUREKKEP}}>{r.toFixed(1)}</span>
-          </div>
-        )}
-      </div>}
-
-      {/* maç sonrası puan durumu */}
-      {puanTablo.length>0 && <div style={{borderTop:"3px solid "+MUREKKEP,padding:"16px 20px"}}>
-        {bas("Maç Sonrası Puan Durumu")}
-        <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Oswald',sans-serif"}}>
-          <thead><tr>
-            {["#","Takım","O","G","B","M","AV","P"].map((h,i)=><th key={i} style={{fontSize:9,letterSpacing:1,textTransform:"uppercase",color:SOLUK,textAlign:i===1?"left":"center",padding:"5px 4px",borderBottom:"2px solid "+MUREKKEP}}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {puanTablo.map((t,i)=>{const vurgu=t.ad===m.takimA||t.ad===m.takimB;
-              return <tr key={t.id} style={{background:vurgu?"#efe9d8":"transparent"}}>
-                <td style={{textAlign:"center",padding:"7px 4px",borderBottom:"1px solid "+CIZGI,fontFamily:"'Anton',sans-serif",color:KIRMIZI}}>{i+1}</td>
-                <td style={{textAlign:"left",padding:"7px 4px",borderBottom:"1px solid "+CIZGI,fontWeight:vurgu?600:400,fontSize:13}}>{t.ad}</td>
-                <td style={{textAlign:"center",padding:"7px 4px",borderBottom:"1px solid "+CIZGI,fontSize:13}}>{t.o}</td>
-                <td style={{textAlign:"center",padding:"7px 4px",borderBottom:"1px solid "+CIZGI,fontSize:13}}>{t.g}</td>
-                <td style={{textAlign:"center",padding:"7px 4px",borderBottom:"1px solid "+CIZGI,fontSize:13}}>{t.b}</td>
-                <td style={{textAlign:"center",padding:"7px 4px",borderBottom:"1px solid "+CIZGI,fontSize:13}}>{t.m}</td>
-                <td style={{textAlign:"center",padding:"7px 4px",borderBottom:"1px solid "+CIZGI,fontSize:13}}>{(t.ag-t.yg>0?"+":"")+(t.ag-t.yg)}</td>
-                <td style={{textAlign:"center",padding:"7px 4px",borderBottom:"1px solid "+CIZGI,fontFamily:"'Anton',sans-serif",fontSize:15}}>{t.puan}</td>
-              </tr>;
-            })}
-          </tbody>
-        </table>
-      </div>}
-
-      <div style={{background:MUREKKEP,color:"#888",padding:"9px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
-        <FzImza variant="gazete" boy={0.78}/>
-        <span style={{fontFamily:"'Oswald',sans-serif",fontSize:9,letterSpacing:2,textTransform:"uppercase",color:"#7a7268",textAlign:"right"}}>{lg} · Bedelsiz</span>
-      </div>
+    <div style={{margin:"0 10px",borderRadius:18,overflow:"hidden",boxShadow:"0 10px 40px -14px rgba(0,0,0,.55)"}}>
+      <Gorunum v={v} m={m} turnuva={turnuva} T={T} tohum={tohum}/>
     </div>
 
     <div style={{padding:"12px 14px"}}>
-      <button onClick={()=>git({sayfa:"mac",mac:m,turnuva})} className="tap" style={{width:"100%",padding:"12px",borderRadius:11,background:T.bg1,color:T.text,fontSize:13,fontWeight:700,border:"0.5px solid "+T.line}}>‹ Maça Dön</button>
+      <button onClick={function(){ git({sayfa:"mac",mac:m,turnuva:turnuva}); }} className="tap" style={{width:"100%",padding:"12px",borderRadius:11,background:T.bg1,color:T.text,fontSize:13,fontWeight:700,border:"0.5px solid "+T.line}}>‹ Maça Dön</button>
     </div>
+
+    {panel && <GorunumPanel T={T} kapat={function(){ setPanel(false); }} aktif={aktif} sec={sec} adminMi={adminMi} yetkili={yetkili} turnuva={turnuva} sistem={gzSisOku()} ligVarsayilan={ligVarsayilan} uyeKilit={uyeKilit}/>}
   </div>;
 }
 
@@ -12663,6 +12856,13 @@ function App(){
     if(iliskiselMi(turnuva)){ const db={}; if(alanlar.ad!=null)db.ad=alanlar.ad; if(alanlar.renk!=null)db.renk=alanlar.renk; if(alanlar.sehir!=null)db.sehir=alanlar.sehir; if(alanlar.ilce!=null)db.ilce=alanlar.ilce; if(alanlar.logo!=null)db.logo=alanlar.logo; if(alanlar.bitisTarihi!=null)db.bitis_tarihi=alanlar.bitisTarihi; if(alanlar.kurallar!=null)db.kurallar=alanlar.kurallar; if(Object.keys(db).length) Db.ligGuncelle(turnuva.id, db); }
     guncelle();
   };
+  // Maç Gazetesi görünümü — lig varsayılanı + üye kilidi (yetkili belirler)
+  const gazeteAyar=(turnuva, alanlar)=>{
+    Object.assign(turnuva, alanlar);
+    try{ localStorage.setItem('fz_gz_lig_'+turnuva.id, JSON.stringify({gzGorunum:turnuva.gzGorunum, gzUyeAcik:turnuva.gzUyeAcik})); }catch(e){}
+    if(turnuva.paylasimSlug){ paylasLig(turnuva); } // yayındaki ligse izleyicilere yansı
+    guncelle();
+  };
   // Lig arşivle / aktif yap (madde 22) — maç oynanmışsa silinemez, arşivlenir
   const ligArsivle=async(turnuva, arsiv)=>{
     if(iliskiselMi(turnuva)){ const r=await Db.ligArsivle(turnuva.id, arsiv); if(r.hata){ alert("Olmadı: "+r.hata); return; } Db.logla(oturum, arsiv?"Lig arşivledi":"Ligi aktif etti", turnuva.ad); }
@@ -12960,7 +13160,7 @@ function App(){
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur} adminMi={etkinAdminMi}/>; break;
       case "mac": icerik=<MacSayfa mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} oturum={oturum} sahiplenme={sahiplenme} yetkili={ligYetkim(nav.turnuva)}/>; break;
       case "skorgir": icerik=<SkorGir mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} skorKaydet={ligYetkim(nav.turnuva)?skorKaydet:kilitliKaydet}/>; break;
-      case "gazete": icerik=<MacGazete mac={nav.mac} turnuva={nav.turnuva} T={T} git={git}/>; break;
+      case "gazete": icerik=<MacGazete mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} oturum={oturum} adminMi={etkinAdminMi} yetkili={ligYetkim(nav.turnuva)} gazeteAyar={gazeteAyar}/>; break;
       case "afis": icerik=<MacAfis mac={nav.mac} turnuva={nav.turnuva} T={T} git={git}/>; break;
       case "sezonsonu": icerik=<SezonSonu turnuva={nav.turnuva} T={T} git={git}/>; break;
       case "skorkart": icerik=<SkorKart mac={nav.mac} turnuva={nav.turnuva} T={T} git={git}/>; break;
