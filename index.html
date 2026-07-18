@@ -58,6 +58,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
+  window.__FL_RELEASE = "FL_SW_SURUM"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -70,12 +71,32 @@
       s.crossOrigin = "anonymous";
       s.onload = function(){
         if(!window.Sentry) return;
+        var rel = window.__FL_RELEASE;
         window.Sentry.init({
           dsn: dsn,
+          release: (rel && rel.indexOf("FL_SW_")<0) ? rel : undefined, // yalnız gerçek sürüm damgası varsa
           environment: "production",
           tracesSampleRate: 0,          // performans izleme kapalı (ücretsiz kotayı korur)
           replaysSessionSampleRate: 0,  // oturum tekrarı kapalı
-          replaysOnErrorSampleRate: 0
+          replaysOnErrorSampleRate: 0,
+          // B1 — GÜRÜLTÜ FİLTRESİ: kotayı yiyen anlamsız/harici hatalar hiç gönderilmesin
+          ignoreErrors: [
+            "ResizeObserver loop limit exceeded",
+            "ResizeObserver loop completed with undelivered notifications",
+            "Non-Error promise rejection captured",
+            "AbortError", "The operation was aborted",
+            /Load failed/i, /NetworkError/i, /Failed to fetch/i, /Importing a module script failed/i
+          ],
+          denyUrls: [ /^chrome-extension:\/\//i, /^moz-extension:\/\//i, /safari-web-extension:/i, /extensions\//i ],
+          // B1 — KOTA KORUMASI: oturum başına en çok 12 olay (döngüye giren hata 5.000/ay hakkını bitirmesin) + PII temizliği
+          beforeSend: function(event){
+            try{
+              window.__FL_SN = (window.__FL_SN||0) + 1;
+              if(window.__FL_SN > 12) return null;
+              if(event.user){ delete event.user.email; delete event.user.ip_address; delete event.user.username; }
+            }catch(e){}
+            return event;
+          }
         });
       };
       document.head.appendChild(s);
@@ -4212,7 +4233,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
 
     {tab==="kurallar" && <LigKurallar turnuva={turnuva} T={T} yonetim={yonetim}/>}
 
-    {tab==="yonet" && yonetim && <><YonetimPaneli turnuva={turnuva} T={T} git={git} yonetim={yonetim}/><YardimciYonetim turnuva={turnuva} T={T} oturum={oturum} sahip={!!(oturum && ((turnuva.yonetici_id===oturum.id) || yonetim.adminMi))}/></>}
+    {tab==="yonet" && yonetim && <><YonetimPaneli turnuva={turnuva} T={T} git={git} yonetim={yonetim} oturum={oturum}/><YardimciYonetim turnuva={turnuva} T={T} oturum={oturum} sahip={!!(oturum && ((turnuva.yonetici_id===oturum.id) || yonetim.adminMi))}/></>}
   </div>;
 }
 
@@ -4337,7 +4358,7 @@ function BosUyari({T, metin, ikon, aksiyon, aksiyonMetin}){
 }
 
 /* FAZ 4 — Yönetim paneli: takım ekle/sil, maç ekle/fikstür, skor gir/sil */
-function YonetimPaneli({turnuva, T, git, yonetim}){
+function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
   const [yeniTakimAd,setYeniTakimAd]=useState("");
   const [macA,setMacA]=useState("");
   const [macB,setMacB]=useState("");
@@ -5285,6 +5306,8 @@ function MaclarSayfa({turnuva, T, git}){
   const MacKart=(m)=>{
     const aGalip=m.skorA>m.skorB, bGalip=m.skorB>m.skorA, berabere=m.skorA===m.skorB;
     const yesil="#34D399";
+    // A4 — yayın linki varsa "İzle" çipi (yoksa gösterme). Canlı yayın açıksa kırmızı "CANLI".
+    const md=m.medya||{}; const videoLink=md.canli||md.tamMac||md.roportaj; const canliAcik=!!(md.canliAcik&&md.canli);
     return <div key={m.id} onClick={()=>git({sayfa:"mac",mac:m,turnuva})} className="tap prem-tap" style={{background:T.bg1,borderRadius:14,padding:"13px",marginBottom:8,border:"0.5px solid "+T.line,position:"relative",overflow:"hidden",boxShadow:"0 5px 18px rgba(0,0,0,.28)"}}>
       {(m.tarih||m.saat||m.stad) && <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,fontSize:9,color:T.textMut,marginBottom:9,flexWrap:"wrap"}}>
         {(m.tarih||m.saat) && <span style={{color:T.accent}}>📅 {m.tarih?(m.tarih.includes("-")?m.tarih.split("-").reverse().join("."):m.tarih):""}{m.saat?" "+m.saat:""}</span>}
@@ -5307,10 +5330,11 @@ function MaclarSayfa({turnuva, T, git}){
           <Logo renk={m.renkB} ad={m.takimB} boy={26}/>
         </div>
       </div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontSize:10,color:T.textMut,marginTop:8}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontSize:10,color:T.textMut,marginTop:8,flexWrap:"wrap"}}>
         <span>{m.hafta}. hafta</span>
         {m.oynandi && m.mvp && <><span style={{color:T.line}}>·</span><span style={{color:T.gold}}>⭐ {m.mvp}</span></>}
         {!m.oynandi && <><span style={{color:T.line}}>·</span><span style={{color:T.textSoft}}>oynanmadı</span></>}
+        {videoLink && <span onClick={(e)=>{ e.stopPropagation(); git({sayfa:"mac",mac:m,turnuva}); }} className="tap" style={{color:canliAcik?"#F4525A":(T.accent2||T.accent),background:(canliAcik?"#F4525A":(T.accent2||T.accent))+"1c",border:"0.5px solid "+(canliAcik?"#F4525A":(T.accent2||T.accent))+"55",borderRadius:20,padding:"3px 10px",fontWeight:800,fontSize:10.5}}>{canliAcik?"🔴 CANLI":"▶ İzle"}</span>}
       </div>
     </div>;
   };
@@ -6642,16 +6666,7 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
   const [darMi,setDarMi]=useState(()=> typeof window!=="undefined" && window.innerWidth<820);
   useEffect(()=>{ const f=()=>setDarMi(window.innerWidth<820); window.addEventListener("resize",f); return ()=>window.removeEventListener("resize",f); },[]);
 
-  // maç tahmini (OVR farkına göre) — oynanmadan önce favori
-  const tahmin=useMemo(()=>{
-    const ovrA=takimA?Math.round(takimA.oyuncular.reduce((s,o)=>s+o.ovr,0)/Math.max(1,takimA.oyuncular.length)):75;
-    const ovrB=takimB?Math.round(takimB.oyuncular.reduce((s,o)=>s+o.ovr,0)/Math.max(1,takimB.oyuncular.length)):75;
-    const fark=ovrA-ovrB;
-    let ev=34+fark*1.6, dep=34-fark*1.6;
-    ev=Math.max(12,Math.min(70,ev)); dep=Math.max(12,Math.min(70,dep));
-    let ber=100-ev-dep; if(ber<12){const t=(12-ber)/2;ev-=t;dep-=t;ber=12;}
-    return {ev:Math.round(ev), ber:Math.round(ber), dep:Math.round(100-Math.round(ev)-Math.round(ber))};
-  },[m.id]);
+  // (Maç Tahmini kaldırıldı — biten maçta anlamsızdı + uydurma veriydi. Yerine hero'da ForzaLig watermark.)
 
   // maç temposu etiketi
   const tempo=useMemo(()=>{
@@ -6697,7 +6712,12 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
 
   return <div className="fade-in" style={{paddingBottom:90}}>
     {/* KAPAK + SKOR — premium çift-renk hero */}
-    <div style={{margin:"12px 14px 2px",borderRadius:20,overflow:"hidden",border:"1px solid "+T.line,boxShadow:"0 16px 40px rgba(0,0,0,.3)",background:`radial-gradient(120% 130% at 0% 0%, ${m.renkA}40, transparent 46%), radial-gradient(120% 130% at 100% 0%, ${m.renkB}40, transparent 46%), linear-gradient(160deg, ${T.bg1}, ${T.bg0} 78%)`,padding:"16px 14px 14px"}}>
+    <div style={{position:"relative",isolation:"isolate",margin:"12px 14px 2px",borderRadius:20,overflow:"hidden",border:"1px solid "+T.line,boxShadow:"0 16px 40px rgba(0,0,0,.3)",background:`radial-gradient(120% 130% at 0% 0%, ${m.renkA}40, transparent 46%), radial-gradient(120% 130% at 100% 0%, ${m.renkB}40, transparent 46%), linear-gradient(160deg, ${T.bg1}, ${T.bg0} 78%)`,padding:"16px 14px 14px"}}>
+      {/* A2 — silik ForzaLig marka watermark (içeriğin arkasında, okunabilirliği bozmaz) */}
+      <div aria-hidden="true" style={{position:"absolute",inset:0,zIndex:-1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",overflow:"hidden"}}>
+        <div style={{fontSize:"clamp(38px,15vw,82px)",fontWeight:900,letterSpacing:-2,color:T.text,opacity:.06,fontFamily:T.fontDisplay,lineHeight:1,whiteSpace:"nowrap"}}>ForzaLig</div>
+        <div style={{fontSize:11,fontWeight:800,letterSpacing:5,color:T.text,opacity:.06,marginTop:4}}>FORZALIG.COM</div>
+      </div>
       <div style={{textAlign:"center",fontSize:10,color:T.textSoft,fontWeight:600,letterSpacing:1,marginBottom:4}}>{turnuva?turnuva.ad+" · ":""}{m.hafta}. HAFTA</div>
       {/* tarih · saat · stad */}
       {(m.tarih||m.saat||m.stad) && <div style={{textAlign:"center",fontSize:10,color:T.textMut,marginBottom:12,display:"flex",justifyContent:"center",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -6739,16 +6759,6 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
           </div>
         </div>;
       })()}
-      {/* MAÇ TAHMİNİ */}
-      <div style={{background:"#00000033",borderRadius:10,padding:10,marginTop:12}}>
-        <div style={{textAlign:"center",fontSize:9,color:T.textSoft,fontWeight:700,marginBottom:7,letterSpacing:.5}}>📊 MAÇ TAHMİNİ</div>
-        <div style={{display:"flex",gap:3,height:22,borderRadius:7,overflow:"hidden"}}>
-          <div style={{width:tahmin.ev+"%",background:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#06281d",transition:"width .8s ease"}}>%{tahmin.ev}</div>
-          <div style={{width:tahmin.ber+"%",background:"#3a4759",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#cbd5e1",transition:"width .8s ease"}}>%{tahmin.ber}</div>
-          <div style={{width:tahmin.dep+"%",background:T.danger,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#3a0a0a",transition:"width .8s ease"}}>%{tahmin.dep}</div>
-        </div>
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:5,fontSize:8,fontWeight:700}}><span style={{color:T.accent}}>{m.takimA}</span><span style={{color:T.textMut}}>BERABERE</span><span style={{color:T.danger}}>{m.takimB}</span></div>
-      </div>
     </div>
 
     {/* CANLI İZLE (Faz 7) */}
@@ -11368,10 +11378,11 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           const depoMB=metrik.depo_bayt/1048576;
           const ortKB=metrik.depo_dosya?(metrik.depo_bayt/metrik.depo_dosya/1024):0;
           const puanDepo=Math.max(0,Math.round(100-depoY));
-          const puanGuv=hatalar.length?74:92, puanPerf=90, puanOpt=88;
+          const puanGuv=hatalar.length?74:92;
           const puanDb=Math.max(50,Math.round(100-(metrik.mac/5000)*100));
           const puanOlcek=Math.max(50,Math.round(100-(metrik.mau/50000)*100));
-          const genel=Math.round((puanDepo+puanGuv+puanPerf+puanOpt+puanDb+puanOlcek)/6);
+          // B5: sabit-kodlu "Perf 90 / Optim 88" alt-skorları kaldırıldı → sağlık puanı sadece GERÇEK ölçülenlerden
+          const genel=Math.round((puanDepo+puanGuv+puanDb+puanOlcek)/4);
           const renk=genel>=80?T.accent:genel>=60?T.gold:T.danger;
           const uyari=[];
           if(depoY>70) uyari.push(["🔴","Depolama %"+depoY.toFixed(0)+" dolu. Bakım → sahipsiz dosyaları temizle."]);
@@ -11393,13 +11404,12 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
                     <span style={{fontSize:9,color:opTek.api!=null?(opTek.api<400?T.accent:T.gold):T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"3px 7px",fontWeight:700}}>⚡ API {opTek.api!=null?opTek.api+"ms":"…"}</span>
                     <span style={{fontSize:9,color:opTek.cf?T.accent:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"3px 7px",fontWeight:700}}>☁ {opTek.cf||"CDN"}</span>
-                    <span style={{fontSize:9,color:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"3px 7px",fontWeight:700}}>🔒 SSL aktif</span>
                     {opTek.deploy && <span title="Son yayınlanan sürüm" style={{fontSize:9,color:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"3px 7px",fontWeight:700}}>🚀 {String(opTek.deploy).split("-")[0]}</span>}
                   </div>
                 </div>
               </div>
               <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
-                {[["Güvenlik",puanGuv],["Perf",puanPerf],["Depolama",puanDepo],["DB",puanDb],["Optim.",puanOpt],["Ölçek",puanOlcek]].map(([ad,p],i)=>
+                {[["Güvenlik",puanGuv],["Depolama",puanDepo],["DB",puanDb],["Ölçek",puanOlcek]].map(([ad,p],i)=>
                   <div key={i} style={{fontSize:9.5,color:T.textMut,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:8,padding:"4px 8px"}}>{ad} <b style={{color:p>=80?T.accent:p>=60?T.gold:T.danger}} className="tab">{p}</b></div>)}
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>

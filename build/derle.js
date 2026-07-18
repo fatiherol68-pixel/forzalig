@@ -24,13 +24,18 @@ html = html.replace(/<script src="https:\/\/unpkg\.com\/@babel\/standalone[^"]*"
 // Kalan CDN kütüphanelerine defer ekle (React/ReactDOM/Chart/Supabase/qrcode) → render'ı bloklamaz.
 // Uygulama DOMContentLoaded'da başladığı için defer'liler ondan ÖNCE çalışır, sıra garanti.
 html = html.replace(/<script src="(https:\/\/(?:cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\/[^"]+)"><\/script>/g, '<script defer src="$1"></script>');
-fs.writeFileSync(OUT,html);
-// Service worker sürüm damgası: her derlemede değişir → istemciler "yeni sürüm" toast'ı görür
+// TEK sürüm damgası: hem index.html (Sentry release) hem sw.js için aynı değer.
+let surum='src';
 try{
   let kisaHash='src';
   try{ kisaHash=require('child_process').execSync('git -C "'+KOK+'" rev-parse --short HEAD').toString().trim(); }catch(gitErr){}
-  const surum=kisaHash+'-'+Math.floor(Date.now()/1000);
-  const swSrc=fs.readFileSync(path.join(KOK,'sw.js'),'utf8').split('FL_SW_SURUM').join(surum); // TÜM geçişleri değiştir (yorumdaki dahil)
+  surum=kisaHash+'-'+Math.floor(Date.now()/1000);
+}catch(e){ console.error('sürüm hesaplanamadı:',e.message); }
+html = html.split('FL_SW_SURUM').join(surum);   // Sentry release (window.__FL_RELEASE) + varsa diğer geçişler
+fs.writeFileSync(OUT,html);
+// Service worker sürüm damgası: her derlemede değişir → istemciler "yeni sürüm" toast'ı görür
+try{
+  const swSrc=fs.readFileSync(path.join(KOK,'sw.js'),'utf8').split('FL_SW_SURUM').join(surum);
   fs.writeFileSync(__dirname+'/sw.compiled.js',swSrc);
   console.log('SW sürümü:',surum);
 }catch(e){ console.error('SW damgalanamadı:',e.message); }
