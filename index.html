@@ -144,6 +144,9 @@
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap"></noscript>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  /* iOS Safari otomatik yazı büyütmesini KAPAT — sabitlenmiş sohbette her şeyi "kocaman"
+     gösteren, PC emülasyonunda GÖRÜNMEYEN davranış. En kritik iOS düzeltmesi. */
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   /* Yatay kayma/esneme tamamen kapalı; dikey overscroll zinciri kırık (iOS/Android/PWA).
      overflow-x:clip (hidden değil) → sticky header'ı bozacak scroll-container yan etkisi yok. */
   html, body { overscroll-behavior:none; overscroll-behavior-x:none; max-width:100%; overflow-x:clip; }
