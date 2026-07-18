@@ -378,6 +378,23 @@ const HERKESE_ACIK = true; // 🌍 YAYINDA — herkes üye olup girebilir
 let sb = null;
 try { if (typeof supabase !== "undefined" && supabase.createClient) sb = supabase.createClient(SB_URL, SB_ANAHTAR); }
 catch(e){ console.warn("Supabase başlatılamadı:", e); }
+/* ===== VERİ KATMANI READ-ONLY KİLİDİ =====
+   Destek Modu / paylaşım-linki gibi salt-okunur durumlarda YAZMA çağrıları
+   veri katmanında engellenir (sadece UI'da değil). Tek noktada, additive. */
+let FL_SALT_OKUNUR = false;
+function _fzRoStub(){
+  const res={ data:null, error:{ message:"Salt-okunur mod: değişiklik yapılamaz." }, count:null };
+  const h={ get(t,prop){ if(prop==='then')return t.then.bind(t); if(prop==='catch')return t.catch.bind(t); if(prop==='finally')return t.finally.bind(t); return ()=>new Proxy(Promise.resolve(res),h); } };
+  return new Proxy(Promise.resolve(res),h);
+}
+if(sb){ try{
+  const _from=sb.from.bind(sb);
+  sb.from=(t)=>{ const qb=_from(t); ["insert","update","delete","upsert"].forEach(m=>{ if(typeof qb[m]==="function"){ const o=qb[m].bind(qb); qb[m]=(...a)=>FL_SALT_OKUNUR?_fzRoStub():o(...a); } }); return qb; };
+  const _rpc=sb.rpc.bind(sb);
+  const RPC_OKUR=new Set(["mac_kart_ozet","panel_metrikler","depo_orphan_bul","bekleyen_katilimlar","ben_buradayim","pazar_oyuncular"]);
+  sb.rpc=(fn,args,opts)=>(FL_SALT_OKUNUR && !RPC_OKUR.has(fn))?_fzRoStub():_rpc(fn,args,opts);
+  if(sb.storage && sb.storage.from){ const _sf=sb.storage.from.bind(sb.storage); sb.storage.from=(b)=>{ const o=_sf(b); ["upload","remove","update","move","copy"].forEach(m=>{ if(typeof o[m]==="function"){ const of=o[m].bind(o); o[m]=(...a)=>FL_SALT_OKUNUR?Promise.resolve({data:null,error:{message:"Salt-okunur mod."}}):of(...a); } }); return o; }; }
+}catch(e){ console.warn("RO kilidi kurulamadı:",e); } }
 const mailIzinli = (email)=> HERKESE_ACIK || IZINLI_MAILLER.map(m=>m.toLowerCase()).includes((email||"").trim().toLowerCase());
 /* Paylaşılan lig linki: ...?lig=SLUG → salt-okunur public görünüm */
 const PAYLASIM_SLUG = (()=>{ try{ return new URLSearchParams(window.location.search).get('lig')||null; }catch(e){ return null; } })();
@@ -684,6 +701,11 @@ const Db = {
   async kulupOyuncuCikar(kulupId, playerId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('kulup_oyuncu').update({aktif:false}).eq('kulup_id',kulupId).eq('player_id',playerId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async kulupLigeKatil(kulupId, ligId, ad){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('kulup_lige_katil',{p_kulup:kulupId, p_lig:ligId, p_ad:ad||null}); return error?{hata:error.message}:{ok:true,takim_id:data}; }catch(e){ return {hata:String(e)}; } },
   async kulupSil(kulupId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('kulup_kalici_sil',{p_kulup:kulupId}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  // ---- Read-only kilidi (destek/paylaşım modu) + Sorun Bildir ----
+  saltOkunurKilit(v){ FL_SALT_OKUNUR = !!v; },
+  async sorunBildir(obj){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('destek_talep').insert(obj); if(error){ const {teshis, ...sade}=obj; const r2=await sb.from('destek_talep').insert(sade); return r2.error?{hata:r2.error.message}:{ok:true}; } return {ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async destekTalepListe(){ if(!sb) return []; try{ const {data}=await sb.from('destek_talep').select('*').order('olusma',{ascending:false}).limit(50); return data||[]; }catch(e){ return []; } },
+  async destekTalepDurum(id, durum){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('destek_talep').update({durum}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   // ---- Faz 3: Lig soft-delete / çöp kutusu ----
   async ligSoftSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_soft_sil',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ligGeriAl(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_geri_al',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
@@ -2807,6 +2829,13 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
         <div style={{width:44,height:44,flexShrink:0,borderRadius:12,background:T.gold+"22",border:"1px solid "+T.gold+"55",display:"flex",alignItems:"center",justifyContent:"center",fontSize:21}}>🛡️</div>
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:15.5,fontWeight:800,color:T.text}}>Takımlarım</div><div style={{fontSize:11.5,color:T.textMut,marginTop:2}}>Kalıcı takımını kur, her ligde kullan</div></div>
         <span style={{color:T.textMut,fontSize:20}}>›</span>
+      </div>}
+
+      {/* 🆘 Sorun bildir — kullanıcı-başlatan destek + otomatik teşhis */}
+      {oturum && <div onClick={()=>git({sayfa:"sorun"})} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 13px",marginTop:9,cursor:"pointer"}}>
+        <span style={{fontSize:17}}>🆘</span>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:700,color:T.text}}>Sorun bildir</div><div style={{fontSize:11,color:T.textMut}}>Bir aksaklık mı var? Bize anlat</div></div>
+        <span style={{color:T.textMut,fontSize:18}}>›</span>
       </div>}
 
       {/* ÖZET */}
@@ -10210,9 +10239,12 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const [opEk,setOpEk]=useState(null);             // Operasyon Merkezi ek: canlı akış + trafik + trend
   const [opTek,setOpTek]=useState({deploy:null, api:null, cf:null});  // deploy sürüm · API gecikme · Cloudflare
   const [mkOzet,setMkOzet]=useState(null);         // sohbet maç kartları: {adet,bayt,eski} (null=yüklenmedi)
+  const [destekTalep,setDestekTalep]=useState([]); // 🆘 sorun bildirimleri
+  const [acikTeshis,setAcikTeshis]=useState(null); // teşhisi açık talep id
   // Operasyon ek veri + istemci ölçümleri (yalnızca Sistem sekmesi açılınca, tek sefer — polling YOK)
   useEffect(()=>{ if(sekme!=="sistem"||opEk) return; let a=true;
     Db.operasyonEk().then(d=>{ if(a) setOpEk(d||{}); });
+    Db.destekTalepListe().then(d=>{ if(a) setDestekTalep(d||[]); });
     // Sohbet maç kartları: fırsatçı otomatik temizlik (14 gün+) sonra özeti göster. Polling YOK.
     (async()=>{ try{ await Db.macKartTemizle(14); }catch(e){} const oz=await Db.macKartOzet(); if(a) setMkOzet(oz||{adet:0,bayt:0,eski:null}); })();
     (async()=>{ // deploy sürümü: /sw.js'ten SURUM (tek fetch)
@@ -10955,6 +10987,24 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             </div>
           </>;
         })()}
+        {/* ===== 🆘 DESTEK TALEPLERİ ===== */}
+        {destekTalep.length>0 && (()=>{ const btn={fontSize:10,fontWeight:700,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"5px 9px",color:T.textSoft,cursor:"pointer"}; return <div style={{background:T.bg1,border:"0.5px solid "+T.gold+"44",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+          <div style={{fontSize:11,color:T.gold,fontWeight:800,marginBottom:9}}>🆘 DESTEK TALEPLERİ · {destekTalep.filter(t=>t.durum!=='kapandi').length} açık</div>
+          {destekTalep.slice(0,15).map(t=><div key={t.id} style={{background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"9px 11px",marginBottom:6,opacity:t.durum==='kapandi'?.55:1}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <span style={{fontSize:12,fontWeight:700,color:T.text,flex:1,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad||t.email||'Kullanıcı'} <span style={{color:T.textMut,fontWeight:400}}>· {t.sayfa||'—'}</span></span>
+              <span style={{fontSize:9,fontWeight:700,color:t.durum==='kapandi'?T.textMut:t.durum==='inceleniyor'?T.accent2:T.gold,background:T.bg1,borderRadius:5,padding:"2px 7px",flexShrink:0}}>{t.durum}</span>
+            </div>
+            <div style={{fontSize:12,color:T.textSoft,margin:"5px 0",lineHeight:1.5}}>{t.mesaj}</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {t.sayfa && <button onClick={()=>git({sayfa:t.sayfa})} className="tap" style={btn}>↪ Ekrana git</button>}
+              {t.teshis && <button onClick={()=>setAcikTeshis(acikTeshis===t.id?null:t.id)} className="tap" style={btn}>{acikTeshis===t.id?'Teşhisi gizle':'🔍 Teşhis'}</button>}
+              {t.durum!=='inceleniyor' && t.durum!=='kapandi' && <button onClick={async()=>{ await Db.destekTalepDurum(t.id,'inceleniyor'); setDestekTalep(p=>p.map(x=>x.id===t.id?{...x,durum:'inceleniyor'}:x)); }} className="tap" style={btn}>İncele</button>}
+              {t.durum!=='kapandi' && <button onClick={async()=>{ await Db.destekTalepDurum(t.id,'kapandi'); setDestekTalep(p=>p.map(x=>x.id===t.id?{...x,durum:'kapandi'}:x)); }} className="tap" style={{...btn,color:T.accent}}>✓ Kapat</button>}
+            </div>
+            {acikTeshis===t.id && <pre style={{fontSize:9.5,color:T.textMut,background:T.bg1,borderRadius:7,padding:"8px",marginTop:6,overflowX:"auto",maxHeight:150,whiteSpace:"pre-wrap"}}>{JSON.stringify(t.teshis,null,1)}</pre>}
+          </div>)}
+        </div>; })()}
         {/* ===== BAKIM MERKEZİ ===== */}
         <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
           <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:9}}>🧹 BAKIM MERKEZİ</div>
@@ -11894,6 +11944,45 @@ function Kuluplerim({T, oturum, git, turnuvalar}){
   </div>;
 }
 
+/* ===== 🆘 SORUN BİLDİR — kullanıcı-başlatan destek + otomatik teşhis ===== */
+function SorunBildir({T, git, oturum, teshis}){
+  const [mesaj,setMesaj]=React.useState("");
+  const [durum,setDurum]=React.useState("");
+  const [bekle,setBekle]=React.useState(false);
+  const gonder=async()=>{
+    if(!(mesaj||"").trim()){ setDurum("⚠️ Kısaca ne olduğunu yaz"); return; }
+    setBekle(true);
+    const r=await Db.sorunBildir({
+      user_id:(oturum&&oturum.id)||null,
+      ad:(oturum&&oturum.user_metadata&&(oturum.user_metadata.ad||oturum.user_metadata.full_name))||null,
+      email:(oturum&&oturum.email)||null,
+      sayfa:(teshis&&teshis.sayfa)||null, mesaj:mesaj.trim(), teshis:teshis||null
+    });
+    setBekle(false);
+    setDurum(r&&r.ok ? "ok" : ("Olmadı: "+((r&&r.hata)||"")));
+  };
+  const BTN={background:T.accent,color:(T.renkCifti&&T.renkCifti[1]==="#FFFFFF")?"#fff":T.bg0,border:0,borderRadius:12,padding:"13px 18px",fontSize:14,fontWeight:800,cursor:"pointer"};
+  if(durum==="ok") return <div style={{maxWidth:440,margin:"0 auto",padding:"64px 24px",textAlign:"center"}}>
+    <div style={{fontSize:46,marginBottom:14}}>✅</div>
+    <div style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>Teşekkürler, aldık!</div>
+    <div style={{fontSize:13.5,color:T.textMut,marginTop:8,lineHeight:1.6}}>Sorununu en kısa sürede inceleyeceğiz. Gerekirse e-postandan döneriz.</div>
+    <button onClick={()=>git({sayfa:"profil"})} style={{...BTN,marginTop:22}}>Tamam</button>
+  </div>;
+  return <div style={{maxWidth:460,margin:"0 auto",padding:"14px 16px 90px"}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+      <span onClick={()=>git({sayfa:"profil"})} className="tap" style={{fontSize:22,color:T.textSoft,cursor:"pointer"}}>‹</span>
+      <span style={{fontSize:19,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>🆘 Sorun Bildir</span>
+    </div>
+    <div style={{fontSize:13,color:T.textMut,lineHeight:1.6,marginBottom:14}}>Bir sorun mu yaşıyorsun? Kısaca anlat — hangi ekranda, ne bekliyordun, ne oldu. Çözmemize yardımcı olur.</div>
+    <textarea value={mesaj} onChange={e=>setMesaj(e.target.value)} rows={5} placeholder="Örn: Takımlarım'a girince kadro görünmüyor…" style={{width:"100%",boxSizing:"border-box",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"13px 14px",color:T.text,fontSize:14,fontFamily:"inherit",outline:"none",resize:"vertical"}}/>
+    <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginTop:12,fontSize:12,color:T.textMut,lineHeight:1.6}}>
+      🔒 <b style={{color:T.textSoft}}>Otomatik eklenecek:</b> bulunduğun ekran, cihaz/tarayıcı, uygulama sürümü, rolün. <b style={{color:T.textSoft}}>Telefon, şifre gibi kişisel veri gönderilmez.</b>
+    </div>
+    {durum && durum!=="ok" && <div style={{fontSize:12.5,color:T.gold,margin:"10px 2px"}}>{durum}</div>}
+    <button onClick={gonder} disabled={bekle} style={{...BTN,width:"100%",marginTop:14,opacity:bekle?.6:1}}>{bekle?"Gönderiliyor…":"Gönder"}</button>
+  </div>;
+}
+
 function App(){
   // localStorage yardımcıları
   const KAYIT="fatihpro_veri_v1";
@@ -11999,6 +12088,10 @@ function App(){
     setDestek(null); setDestekProfil(null); setDestekAdminMi(false); setDestekLigKur(false);
     if(typeof git==="function") git({sayfa:"admin"});
   };
+  // Veri katmanı read-only kilidini salt-okunur duruma bağla (destek/paylaşım) — UI+veri birlikte
+  useEffect(()=>{ Db.saltOkunurKilit(saltOkunur); return ()=>Db.saltOkunurKilit(false); },[saltOkunur]);
+  // 🆘 Teşhis paketi — hassas olmayan bağlam (kullanıcı Sorun Bildir'de otomatik eklenir)
+  const teshisUret=()=>{ try{ return { sayfa:nav.sayfa||"ana", rol:(profil&&profil.rol)||null, roller:(profil&&profil.roller)||null, adminMi:!!adminMi, ligKur:!!ligKurYetkim, ligSay:(turnuvalar&&turnuvalar.length)||0, surum:(window.__FL_SURUM||null), cihaz:((navigator&&navigator.userAgent)||"").slice(0,200), ekran:(window.innerWidth+"x"+window.innerHeight), online:!!(navigator&&navigator.onLine), dil:(navigator&&navigator.language)||null, ts:Date.now() }; }catch(e){ return {sayfa:"?", hata:String(e)}; } };
   const [paylasimYuk,setPaylasimYuk]=useState(()=> !!PAYLASIM_SLUG);
   const [paylasimHata,setPaylasimHata]=useState(false);
   const [tab,setTab]=useState("ana");
@@ -12768,6 +12861,7 @@ function App(){
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
       case "profil": icerik = destek ? destekKapali : <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi}/>; break;
       case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar}/>; break;
+      case "sorun": icerik=<SorunBildir T={T} git={git} oturum={oturum} teshis={teshisUret()}/>; break;
       case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
       case "ayar": icerik = destek ? destekKapali : <Ayarlar T={T} stilKey={stilKey} setStilKey={setStilKey} renkKey={renkKey} setRenkKey={setRenkKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
