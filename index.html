@@ -7380,74 +7380,77 @@ function macYorumUret(m,turnuva,tohum){
   // ---- Faz 3: yuzey + gonderim cesitleme ----
   var anilan={};
   var oy=function(ad,rol){if(!ad)return"";anilan[ad]=(anilan[ad]||0)+1;if(anilan[ad]===1)return ad;return rol&&R()>0.4?rol:ad;};
-  // ---- P1: aci + kirilma ----
+  // ---- P1: sahne kuran acilis + aci (hali saha tonu) ----
   var p1=[];
-  var kirilmaCumle=function(){if(!kirilma||!kirilma.oyuncu)return"";return pickU("kir",[kirilma.dk+"' geldiğinde "+cek(kirilma.oyuncu,"in")+" golü tabelayı "+galip+" lehine kilitledi ve bir daha açılmadı.","Maçı kıran an "+kirilma.dk+"' idi: "+oy(kirilma.oyuncu)+" onu buldu, "+galip+" bir daha önde kalmayı bırakmadı."]);};
+  var rot=function(a){return a[(Math.floor(R()*a.length)+(tohum||0))%a.length];};
+  var mood=function(){
+    if(toplam>=5)return rot(["İlk düdükle birlikte tempo tavandaydı.","Maça iki taraf da fişi çekercesine hızlı girdi.","Başlar başlamaz goller gelmeye başladı, nefes aldırmadı.","Sahaya çıkışta top durmadan gidip geldi, tempo baştan açıktı."]);
+    if(toplam===0)return rot(["İlk düdükten itibaren iki taraf da temkinliydi.","Maç ağır ağır ısındı, ipler baştan gergindi.","Baştan sona dişe diş, kontrollü bir maç oldu."]);
+    return rot(["İlk düdükle birlikte tempo yüksekti.","Maça iki taraf da istekli girdi.","İlk dakikalardan itibaren top hızlı gidip geldi.","Sahaya çıkışta iki takım da canlıydı, kimse geri durmadı."]);
+  };
+  p1.push(mood());
+  var kirilmaCumle=function(){if(!kirilma||!kirilma.oyuncu)return"";return pickU("kir",["İşte o an "+kirilma.dk+"'de geldi: "+cek(kirilma.oyuncu,"in")+" golüyle "+galip+" öne geçti ve bir daha bırakmadı.",kirilma.dk+"'de "+oy(kirilma.oyuncu)+" sahneye çıktı; "+galip+" o golden sonra önü bir daha bırakmadı."]);};
   switch(ana.tip){
     case"geridonus":
-      p1.push(pickU("ac",[galip+" bu maçı iki kez kaybetmiş gibiydi: "+(deficitStr?deficitStr+" geriye düştü":"skoru rakibine kaptırdı")+", sonra her şeyi tersine çevirdi.",(deficitStr?deficitStr+" gerideyken ":"Skoru açamazken ")+galip+" pes etmedi; "+(kirilma?kirilma.dk+"' bulunan golle ":"ikinci yarıda ")+"önce dengeyi, sonra üstünlüğü kurdu."]));
-      if(kirilma&&R()>0.5)p1.push(kirilmaCumle());
+      p1.push(rot(["Ama asıl olay sonraydı: "+galip+" "+(deficitStr?deficitStr+" geriye düştü":"skoru kaptırdı")+", herkes bitti derken pes etmedi ve "+(kirilma?kirilma.dk+"'de "+cek(kirilma.oyuncu,"in")+" golüyle ":"")+"maçı çevirdi.",(deficitStr?deficitStr+" geride kalınca ":"Skoru açamayınca ")+galip+" kopmadı; derken maç tersine döndü, işte o an her şey değişti."]));
       break;
     case"sondakika":
-      p1.push(pickU("ac",[sonGol.dk+"' top ağlara gittiğinde skor "+cek(galip,"in")+" değildi, ama oldu: "+oy(sonGol.oyuncu)+" son dakikalarda "+cek(maglup,"i")+" cezalandırdı.","Maç uzun süre dengedeydi; "+sonGol.dk+"' "+cek(sonGol.oyuncu,"in")+" golü o dengeyi son anda "+galip+" lehine bozdu."]));
+      p1.push(rot(["Maç beraberliğe giderken tam o anda "+cek(sonGol.oyuncu,"in")+" golü geldi; "+galip+" son düdüğe saniyeler kala fişi çekti.","Son dakikalara denge ile girilmişti, derken "+oy(sonGol.oyuncu)+" sahneye çıktı ve "+galip+" maçı tam o anda kopardı."]));
       break;
     case"kirmizi":
-      p1.push(pickU("ac",[kirmiziEtkili.dk+"' "+cek(kirmiziEtkili.takim,"in")+" bir eksik kalması maçı ikiye bölen andı; "+(galip?galip+" bu boşluğu "+gS_(sA,sB)+" değerlendirdi":"buna rağmen kazanan çıkmadı")+".","Bu maçı goller değil, "+kirmiziEtkili.dk+"' görülen kırmızı kart belirledi. "+(galip?galip+" sayısal üstünlüğü acımadan kullandı":"kartlı maçı iki taraf da çözemedi")+"."]));
+      p1.push(rot([kirmiziEtkili.dk+"'de gelen kırmızı kartla maç koptu; "+(galip?galip+" boşluğu affetmedi, rakip toparlanamadı":"kartlı maçta iki taraf da açılamadı")+".","İşin rengi "+kirmiziEtkili.dk+"'deki kırmızıyla değişti. "+(galip?galip+" bu andan sonra yüklenmeye devam etti":"buna rağmen kazanan çıkmadı")+"."]));
       break;
     case"hattrick":
-      p1.push(pickU("ac",[enCok[0]+" bu akşam sahayı tek başına yönetti: üç gol, tek imza. "+galip+" onun sırtında kazandı.","Gecenin tek adamı "+enCok[0]+"; hat-trick yaptı ve "+cek(maglup,"in")+" savunmasını tek başına dağıttı."]));
+      p1.push(rot(["Gecenin adamı belli: "+enCok[0]+". Üç gol atıp maçın fişini resmen çekti, rakip toparlanamadı.",enCok[0]+" adeta tek başına maça çıktı; hat-trick yaptı, "+galip+" onun sırtında güldü."]));
       break;
     case"ciftgol":
-      p1.push(pickU("ac",[enCok[0]+" iki golle farkı yarattı; "+galip+" galibiyeti büyük ölçüde onun ayağına borçlu.","İki kez fileleri havalandıran "+enCok[0]+", "+cek(galip,"in")+" gecesini belirledi."]));
+      p1.push(rot([enCok[0]+" iki golle maçın fişini çeken isim oldu; "+galip+" büyük ölçüde ona borçlu.","İki kez ağları havalandıran "+enCok[0]+", "+cek(galip,"in")+" gecesini tek başına yazdı."]));
       break;
     case"kaleci":
-      p1.push(pickU("ac",[(toplam===0?"Tabelada sıfır yazıyor ama bu bir çaresizlik maçı değildi — ":"")+cek(kaleciKahraman.ad,"in")+" gecesiydi: "+kaleciKahraman.say+" kurtarışla kaleyi kapattı.",kaleciKahraman.ad+" "+kaleciKahraman.say+" topa uzandı; "+(kaleciKahraman.yedi===0?"kalesini gole kapattı":"olmasa skor çok başka olurdu")+"."]));
+      p1.push(rot([cek(kaleciKahraman.ad,"in")+" gecesiydi bu; "+kaleciKahraman.say+" kurtarışla kaleyi resmen kapattı"+(toplam===0?", tabelayı sıfırda tuttu":"")+".",kaleciKahraman.ad+" bugün kaleyi kapattı resmen; "+kaleciKahraman.say+" topa çıktı, olmasa skor bambaşkaydı."]));
       break;
     case"salinim":
-      p1.push(pickU("ac",["Üstünlük "+leadChanges+" kez el değiştirdi; "+A+" ile "+B+" birbirine sürekli cevap verdi.",A+" "+sA+"-"+sB+" "+B+": skor durmadan değişti, kimse rahat bir an yakalayamadı."]));
+      p1.push(rot(["Bir o kaleye bir bu kaleye derken skor "+leadChanges+" kez el değiştirdi; kimse durduramadı. "+A+" "+sA+"-"+sB+" "+B+".",A+" "+sA+"-"+sB+" "+B+": önce biri öne geçti, derken öbürü cevap verdi; maç resmen gidip geldi."]));
       break;
     case"golduello_b":
-      if(drawLeader)p1.push(pickU("ac",[drawLeader+" iki kez öne geçti ama "+drawOther+" her seferinde dengeyi buldu; "+sA+"-"+sB+".",drawLeader+" öne geçmesini bildi, "+cek(drawOther,"i")+" ise yakalamak yordu; puanlar "+sA+"-"+sB+" bölüşüldü."]));
-      else p1.push(pickU("ac",[A+" "+sA+"-"+sB+" "+B+". İki taraf da gol yemeyi göze alıp hücumu seçti, kaybeden olmadı.","Karşılıklı gollerle geçen maçta "+A+" ile "+B+" puanları bölüştü; seyir zevki yüksekti."]));
+      if(drawLeader)p1.push(rot([drawLeader+" iki kez öne geçti ama "+drawOther+" pes etmedi, her seferinde yetişti; "+sA+"-"+sB+".",drawLeader+" öne geçmesini bildi ama "+drawOther+" kopmadı, yakaladıkça yakaladı; "+sA+"-"+sB+"."]));
+      else p1.push(rot([A+" ile "+B+" gol yemeyi göze alıp hücuma çıktı; karşılıklı gollerle keyifli bir "+sA+"-"+sB+" oldu.","Goller havada uçuştu; "+A+" ile "+B+" birbirine cevap vere vere "+sA+"-"+sB+" bitirdi."]));
       break;
     case"tektarafli":
-      p1.push(pickU("ac",[galip+", "+cek(maglup,"i")+" "+gS_(sA,sB)+" geçti; fark daha ilk yarıda belli olmuştu.","Tek taraflı geçen maçta "+galip+" üstünlüğünü "+gS_(sA,sB)+" skora taşıdı, "+maglup+" karşılık veremedi."]));
+      p1.push(rot([galip+" oyunu eline aldı ve yüklenmeye devam etti; "+maglup+" toparlanamadı, "+gS_(sA,sB)+".","Maç tek tarafa aktı resmen; "+galip+" bastırdıkça bastırdı, "+cek(maglup,"i")+" "+gS_(sA,sB)+" geçti."]));
       break;
     case"surpriz":
-      p1.push(pickU("ac",["Kâğıt üzerinde "+surpriz.fav+" favoriydi ama saha başka konuştu: "+galip+" "+gS_(sA,sB)+" kazandı.",galip+" sıralamayı hiçe saydı ve "+cek(surpriz.fav,"i")+" "+gS_(sA,sB)+" geçti; gecenin sürprizi buydu."]));
+      p1.push(rot(["Kâğıt üzerinde "+surpriz.fav+" favoriydi ama saha başka söyledi; "+galip+" "+gS_(sA,sB)+" kazanıp herkesi şaşırttı.",galip+" sürprizi yaptı: "+cek(surpriz.fav,"i")+" "+gS_(sA,sB)+" geçti, kimse beklemiyordu."]));
       break;
     case"golsuz":
-      p1.push(pickU("ac",[A+" ile "+B+" gol atamadan ayrıldı, ama mücadele eksik değildi; iki savunma da geçit vermedi.","Golsüz bitti; "+A+" ve "+B+" birbirine üstünlük kuramadı, denge bozulmadı."]));
+      p1.push(rot([A+" ile "+B+" gol atamadan ayrıldı ama mücadele eksik değildi; iki savunma da geçit vermedi.","Goller küstü bu akşam; "+A+" ve "+B+" birbirine üstünlük kuramadı, "+sA+"-"+sB+"."]));
       break;
     case"cekismeli":
-      p1.push(pickU("ac",[galip+" "+cek(maglup,"i")+" tek golle "+gS_(sA,sB)+" geçti; maçı "+(kirilma?kirilma.dk+"' "+oy(kirilma.oyuncu)+" belirledi":"tek an belirledi")+".","Dar skorlu maçta "+galip+" farkı koruyup üç puanı aldı, "+maglup+" golü bulamadı."]));
+      p1.push(rot([galip+" o tek golü bulup "+cek(maglup,"i")+" "+gS_(sA,sB)+" geçti; "+(kirilma?"işte o an "+kirilma.dk+"'de "+oy(kirilma.oyuncu)+" sahneye çıktı":"tek an her şeyi belirledi")+".","Dar ama çekişmeli bir maçtı; "+galip+" fişi tek golle çekti, "+maglup+" bastırdı ama olmadı."]));
       break;
     default:
-      p1.push(pickU("ac",[galip?galip+" "+cek(maglup,"i")+" "+gS_(sA,sB)+" yendi; kontrollü oynadı, hak ettiğini aldı.":A+" "+sA+"-"+sB+" "+B+", denge bozulmadan bitti.",galip?gS_(sA,sB)+", "+galip+" maçın genelinde üstündü.":"Puanlar paylaşıldı, iki taraf da başı dik ayrıldı."]));
+      p1.push(rot([galip?galip+" kontrollü oynadı ve "+cek(maglup,"i")+" "+gS_(sA,sB)+" geçti; işini temiz bitirdi.":A+" "+sA+"-"+sB+" "+B+"; iki taraf da elinden geleni yaptı, denge bozulmadı.",galip?galip+" maçın genelinde üstündü ve "+gS_(sA,sB)+" kazandı; hak ettiğini aldı.":"Puanlar paylaşıldı; ne "+A+" ne "+B+" pes etti."]));
   }
-  if(ana.tip==="normal"&&kirilma&&kirilma.oyuncu&&toplam>=2&&R()>0.5){p1.push(kirilmaCumle());}
-  // ---- P2: kahramanlar (somutluk) ----
+  if(ana.tip==="normal"&&kirilma&&kirilma.oyuncu&&toplam>=2&&R()>0.5)p1.push(kirilmaCumle());
+  else if(ana.tip==="geridonus"&&kirilma&&kirilma.oyuncu&&R()>0.6)p1.push(kirilmaCumle());
+  // ---- P2: kahramanlar (samimi) ----
   var p2=[];
-  if(["hattrick","ciftgol"].indexOf(ana.tip)<0&&enCok&&enCok[1]>=2){var rg=rating(enCok[0]);p2.push((enCok[1]>=3?enCok[0]+" hat-trick yaptı":enCok[0]+" iki gol attı")+(rg?" ve maçın en yüksek notunu ("+rg.toFixed(1)+") aldı":"")+".");}
-  if(asistciler.length&&(!enCok||asistciler[0]!==enCok[0]))p2.push(pickU("as",[cek(asistciler[0],"in")+" son pası olmasa o gol yoktu.","Gole giden topta "+asistciler[0]+" vardı; asist onun ayağından çıktı."]));
-  if(kaleciKahraman&&ana.tip!=="kaleci")p2.push(cek(kaleciKahraman.ad,"in")+" "+kaleciKahraman.say+" kurtarışı skoru ayakta tuttu.");
-  if(m.mvp&&(!enCok||m.mvp!==enCok[0])&&asistciler.indexOf(m.mvp)<0&&(!kaleciKahraman||m.mvp!==kaleciKahraman.ad)){var rm=rating(m.mvp);p2.push(m.mvp+" sahanın her yerindeydi"+(rm?" ("+rm.toFixed(1)+")":"")+"; maçın yıldızı seçilmesi sürpriz olmadı.");}
-  // ---- P3: istatistik (mutabakat) + kapanis ----
+  if(["hattrick","ciftgol"].indexOf(ana.tip)<0&&enCok&&enCok[1]>=2)p2.push((enCok[1]>=3?enCok[0]+" üç gol attı":enCok[0]+" iki gol attı")+", maçın fişini çeken isim oldu.");
+  if(asistciler.length&&(!enCok||asistciler[0]!==enCok[0]))p2.push(pickU("as",["O golün altında "+asistciler[0]+" vardı; asisti görmek bile keyifti.",cek(asistciler[0],"in")+" o pası olmasa gol yok; ayağı bir başkaydı."]));
+  if(kaleciKahraman&&ana.tip!=="kaleci")p2.push(pickU("ok",[cek(kaleciKahraman.ad,"in")+" kurtarışları olmasa skor başkaydı; kaleyi kapattı.",kaleciKahraman.ad+" arkada duvar gibiydi, "+kaleciKahraman.say+" topa çıktı."]));
+  if(m.mvp&&(!enCok||m.mvp!==enCok[0])&&asistciler.indexOf(m.mvp)<0&&(!kaleciKahraman||m.mvp!==kaleciKahraman.ad))p2.push(m.mvp+" sahanın her yerindeydi; maçın adamı seçilmesi kimseyi şaşırtmadı.");
+  // ---- P3: sicak, degisken kapanis (istatistik yok) ----
   var p3=[];
-  if(ist){
-    var sahip=(ist.sahiplikA||0)>(ist.sahiplikB||0)?A:B;var sf=Math.abs((ist.sahiplikA||0)-(ist.sahiplikB||0));var sahipY=Math.max(ist.sahiplikA||0,ist.sahiplikB||0);
-    if(sf>=10)p3.push(sahip+" topu daha çok elinde tuttu (%"+sahipY+")"+(sahip!==galip&&galip?" ama skora yansıyan taraf o olmadı":"")+".");
-    var sutCok=(ist.sutA||0)>(ist.sutB||0)?A:B;var sutF=Math.abs((ist.sutA||0)-(ist.sutB||0));var sutCokSkor=sutCok===A?sA:sB;var sutAdet=sutCok===A?ist.sutA:ist.sutB;
-    if(sutF>=6&&sutCokSkor>0)p3.push(sutCok+" kaleyi daha çok yokladı ("+sutAdet+" şut) ve bunu "+sutCokSkor+" golle ödüllendirdi.");
-    else if(sutF>=6&&sutCokSkor===0)p3.push(sutCok+" "+sutAdet+" şut çekti ama hiçbirini gole çeviremedi.");
-  }
   var kapanis="";
-  if(ligCtx&&ligCtx.t==="lider")kapanis=galip+" bu galibiyetle zirvedeki yerini sağlamlaştırdı.";
-  else if(ligCtx&&ligCtx.t==="zirve")kapanis=galip+" "+ligCtx.s+". sırada, gözü yukarıda.";
-  else if(galip)kapanis=pickU("kp",[galip+" üç puanı cebine attı, "+maglup+" eksiklerine bakacak.",galip+" yoluna emin adımlarla devam ediyor."]);
-  else kapanis=pickU("kp",["Puanlar bölüşüldü ama izleyen kazandı.","İki takım da bir şey kaptığı maçta denge bozulmadı."]);
-  if(kapanis)p3.push(kapanis);
-  // ---- montaj + Faz 5 denetim ----
+  if(galip){
+    kapanis=rot(["Son düdük çaldığında sahadan gülerek ayrılan taraf "+galip+" oldu.",galip+" bu akşam işini bitirdi; keyifli, moralli bir galibiyet.","Maç bitince kazanan belliydi: "+galip+". Rakip elinden geleni yaptı ama olmadı.",galip+" üç puanı cebe koydu, saha çıkışı keyifliydi."]);
+    if(ligCtx&&ligCtx.t==="lider")kapanis+=" Bu gidişle zirveyi kolay kolay bırakmaz.";
+    else if(ligCtx&&ligCtx.t==="zirve")kapanis+=" Zirve yarışında iddiasını sürdürdü.";
+  }else{
+    kapanis=rot(["Son düdükte kazanan çıkmadı ama izleyen kazandı; iki taraf da başı dik ayrıldı.","Puanlar bölüşüldü; ne "+A+" ne "+B+" pes etti, güzel maçtı.","Berabere bitti ama tempo doyurdu; iki takım da alnının akıyla çıktı."]);
+  }
+  p3.push(kapanis);
+  // ---- montaj ----
   var bag=function(arr){return arr.filter(function(x){return x&&x.trim();}).join(" ").replace(/\s+/g," ").trim();};
   var paras=[bag(p1),bag(p2),bag(p3)].filter(function(x){return x.length>0;});
   var zengin=toplam+F.length+(ana.imp>=8?2:0);
