@@ -162,6 +162,19 @@
     .main-area { padding-bottom: 30px !important; }
   }
   .desktop-side { display: none; }
+  /* SOHBET: akıştan çıkarılmış, görünür viewport'a sabitlenmiş kap → iOS klavyesi layout'u itemez.
+     Yükseklik görünür viewport'a göre; klavye açılınca composer klavyenin üstünde kalır. */
+  .fz-sohbet {
+    position: fixed; top: var(--fz-hdr, 52px); left: 0; right: 0; margin: 0 auto; max-width: 480px;
+    height: calc(var(--vvh, 100dvh) - var(--fz-hdr, 52px));
+    transform: translateY(var(--vvtop, 0px));
+    display: flex; flex-direction: column; overflow: hidden; z-index: 20;
+  }
+  @media (min-width: 600px) and (max-width: 819px) { .fz-sohbet { max-width: 640px; } }
+  @media (min-width: 820px) {
+    /* Masaüstü: normal akışta kalsın (kenar çubuğu düzeni bozulmasın) */
+    .fz-sohbet { position: static; transform: none; max-width: none; height: calc(100dvh - var(--fz-hdr, 60px)); }
+  }
   /* Güvenli alan (çentik/status bar) artık sabit header'ın kendi padding'inde ele alınır
      (.fz-topbar → env(safe-area-inset-top)). Böylece hem Safari hem PWA/standalone'da
      header background çentiği doldurur, içerik çakışmaz. */
@@ -11888,7 +11901,8 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
 
   // Okunmamış badge (genel + kendi takımım)
   // Tek dokunuş: tek aktif ligi olan kullanıcı Sohbet'e basınca direkt o ligin sohbetine girer
-  useEffect(()=>{ if(!turnuva && oturum){ const ls=(turnuvalar||[]).filter(t=>t.iliskisel && (t.durum||'aktif')!=='arsiv'); if(ls.length===1) git({sayfa:"sohbet",turnuva:ls[0]}); } },[turnuva]);
+  // NOT: "tek lig → direkt sohbet" kısayolu artık menuGit içinde (nav'a basınca) yapılır.
+  // Efekt ile yapılınca geri kaydırınca hub'a düşüp anında tekrar içeri giriyordu (tuzak) — kaldırıldı.
   useEffect(()=>{
     if(!turnuva||!sb||!oturum) return; let a=true;
     (async()=>{ const son=await Db.sonOkumalar(oturum.id, turnuva.id); const u={}; const kanallar=[["genel",null]]; benimTakimlar.forEach(tk=>kanallar.push(["t:"+tk.id, tk.id]));
@@ -11964,7 +11978,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
   const rozet=(n)=> n>0 ? <span style={{marginLeft:6,background:T.accent,color:T.bg0,fontSize:10,fontWeight:800,borderRadius:10,padding:"0 6px",minWidth:16,display:"inline-block",textAlign:"center"}}>{n>99?"99+":n}</span> : null;
   const zaman=(iso)=>{ try{ return new Date(iso).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } };
 
-  return <div className="fade-in" style={{display:"flex",flexDirection:"column",height:"calc(var(--vvh, 100dvh) - var(--fz-hdr, 52px))",position:"relative",overflow:"hidden"}}>
+  return <div className="fz-sohbet" style={{background:T.bg0}}>
     {/* BAŞLIK + SEKMELER */}
     <div style={{flexShrink:0,padding:"12px 14px 10px",borderBottom:"0.5px solid "+T.line,background:T.bg0}}>
       <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
@@ -12496,9 +12510,11 @@ function App(){
     const olcHeader=()=>{ const tb=document.querySelector('.fz-topbar'); if(tb) document.documentElement.style.setProperty('--fz-hdr', Math.round(tb.getBoundingClientRect().height)+'px'); };
     const uygula=()=>{
       const h=vv?vv.height:window.innerHeight;
+      const ofs=vv?vv.offsetTop:0;                                              // iOS klavye açınca görünür viewport kayması
       const kb=Math.max(0, window.innerHeight-(vv?(vv.height+vv.offsetTop):window.innerHeight)); // klavye yüksekliği
       const r=document.documentElement.style;
       r.setProperty('--vvh', Math.round(h)+'px');
+      r.setProperty('--vvtop', Math.round(ofs)+'px');
       r.setProperty('--kb', Math.round(kb)+'px');
       olcHeader();
     };
@@ -13376,7 +13392,11 @@ function App(){
   const aktifTab = nav.sayfa==="ana"?"ana":nav.sayfa==="ligler"?"lig":nav.sayfa==="sohbet"?"sohbet":nav.sayfa==="profil"?"profil":"";
 
   const menuItems=[["ana","🏠","Ana"],["lig","🔍","Keşfet"],["sohbet","💬","Sohbet"],["profil","👤","Profil"]];
-  const menuGit=(k)=>{ titret(); setNavGecmis([]); const s = k==="lig"?"ligler":k; setNav({sayfa:s}); try{ window.history.replaceState({fz:1},"",URL_FOR({sayfa:s})); }catch(e){} window.scrollTo(0,0); };
+  const menuGit=(k)=>{ titret(); setNavGecmis([]); const s = k==="lig"?"ligler":k;
+    let hedef={sayfa:s};
+    // "Sohbet"e basınca tek aktif ligi olan kullanıcı doğrudan o ligin sohbetine girsin (hub'ı atla → geri tuzağı yok)
+    if(k==="sohbet" && oturum){ const ls=(turnuvalar||[]).filter(t=>t.iliskisel && (t.durum||'aktif')!=='arsiv'); if(ls.length===1) hedef={sayfa:"sohbet",turnuva:ls[0]}; }
+    setNav(hedef); try{ window.history.replaceState({fz:1},"",URL_FOR(hedef)); }catch(e){} window.scrollTo(0,0); };
 
   return <div style={{minHeight:"100vh",background:T.bg0,fontFamily:T.fontBody}}>
     {/* 👁 DESTEK MODU ŞERİDİ — her zaman üstte, tek tık çıkış (sticky, içeriği iter) */}
