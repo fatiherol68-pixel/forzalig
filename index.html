@@ -8741,14 +8741,20 @@ function MEDYA_ALGILA(url){
 
 /* Inline 16:9 oynatıcı: iframe embed / yerleşik <video> / "dışarıda aç" yedeği */
 function MedyaOynatici({algi, canli, T}){
+  var [oran,setOran]=useState(null); // mp4 gerçek en/boy (auto yön)
   if(!algi) return null;
-  var dikey = (algi.platform==="instagram" || algi.platform==="tiktok");
+  var u=(algi.dis||"").toLowerCase();
+  var iframeDikey = algi.platform==="tiktok"
+    || (algi.platform==="instagram" && u.indexOf("/reel")>=0)
+    || (algi.platform==="youtube" && (u.indexOf("/shorts/")>=0))
+    || (algi.platform==="facebook" && u.indexOf("/reel")>=0);
+  var dikey = algi.direkt ? (oran!=null ? oran<0.95 : false) : iframeDikey;
   var cerceve = dikey
     ? {position:"relative", width:"100%", maxWidth:340, margin:"0 auto", aspectRatio:"9/16", maxHeight:"74vh", background:"#000", borderRadius:12, overflow:"hidden", border:"1px solid "+T.line}
     : {position:"relative", width:"100%", aspectRatio:"16/9", background:"#000", borderRadius:12, overflow:"hidden", border:"1px solid "+T.line};
   var ic;
   if(algi.direkt){
-    ic = <video src={algi.embed} controls playsInline style={{width:"100%",height:"100%",objectFit:"contain",background:"#000"}}/>;
+    ic = <video src={algi.embed} controls playsInline onLoadedMetadata={e=>{ try{ var v=e.target; if(v.videoWidth&&v.videoHeight) setOran(v.videoWidth/v.videoHeight); }catch(_){} }} style={{width:"100%",height:"100%",objectFit:"contain",background:"#000"}}/>;
   } else if(algi.embed){
     ic = <iframe src={algi.embed} title={algi.ad} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen frameBorder="0" style={{position:"absolute",inset:0,width:"100%",height:"100%",border:0}}/>;
   } else {
