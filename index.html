@@ -122,6 +122,10 @@
         document.addEventListener("visibilitychange", function(){
           if(document.visibilityState === "visible") reg.update().catch(function(){});
         });
+        // Açıkken bile yeni sürümü KENDİLİĞİNDEN yakala: düzenli kontrol + tekrar çevrimiçi olunca
+        try{ reg.update().catch(function(){}); }catch(e){}                 // hemen bir kez
+        setInterval(function(){ reg.update().catch(function(){}); }, 90000); // her 90 sn
+        window.addEventListener("online", function(){ reg.update().catch(function(){}); });
       }).catch(function(){});
       // Yeni SW devraldığında sayfayı tazele (Yenile'ye basıldıysa)
       var yenilendi = false;
