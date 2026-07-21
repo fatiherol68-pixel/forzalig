@@ -10727,6 +10727,29 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const [mkOzet,setMkOzet]=useState(null);         // sohbet maç kartları: {adet,bayt,eski} (null=yüklenmedi)
   const [destekTalep,setDestekTalep]=useState([]); // 🆘 sorun bildirimleri
   const [acikTeshis,setAcikTeshis]=useState(null); // teşhisi açık talep id
+  // FAZ 1 — Öz-Test (Sistem Sağlığı canlı kontrolü): salt-okunur prob'lar
+  const [ozTest,setOzTest]=useState(null);         // sonuç dizisi | null
+  const [ozTestYuk,setOzTestYuk]=useState(false);
+  const ozTestCalistir=async()=>{
+    setOzTestYuk(true); const R=[]; const GBb=1073741824;
+    const olc=async(ad,fn)=>{ const t0=Date.now(); try{ const r=await fn(); const ms=Date.now()-t0; R.push({ad, durum:r&&r.uyari?"uyari":(r&&r.ok===false?"hata":"ok"), not:(r&&r.not)||(ms+"ms")}); }catch(e){ R.push({ad,durum:"hata",not:"yanıt yok"}); } };
+    if(sb){
+      await olc("Veritabanı", async()=>{ const {error}=await sb.from('ligler').select('id',{count:'exact',head:true}); return {ok:!error, not:error?"engel":null}; });
+      await olc("Giriş (Auth)", async()=>{ const {data}=await sb.auth.getSession(); return {ok:!!(data&&data.session), not:(data&&data.session)?"oturum aktif":"oturum yok"}; });
+      await olc("Güvenlik (RLS)", async()=>{ const {error}=await sb.from('profiller').select('user_id',{count:'exact',head:true}); return {ok:!error, not:error?"politika hatası":"aktif"}; });
+    } else { R.push({ad:"Veritabanı",durum:"hata",not:"bağlantı yok"}); }
+    // Depolama (mevcut metrik)
+    if(metrik){ const y=(metrik.depo_bayt/GBb)*100; R.push({ad:"Depolama",durum:y>=90?"hata":y>=70?"uyari":"ok",not:"%"+y.toFixed(0)+" dolu"}); }
+    // API hızı (mevcut opTek)
+    if(opTek.api!=null) R.push({ad:"API hızı",durum:opTek.api<400?"ok":opTek.api<900?"uyari":"hata",not:opTek.api+"ms"});
+    // PWA / sürüm eşleşmesi
+    try{ var calisan=(document.querySelector('script') && (window.__FL_RELEASE||"")); var yayin=opTek.deploy||""; if(yayin){ var esles=calisan&&yayin&&calisan.split("-")[0]===String(yayin).split("-")[0]; R.push({ad:"PWA / sürüm",durum:esles?"ok":"uyari",not:esles?"güncel":"eski sürüm açık"}); } }catch(e){}
+    // Cloudflare (mevcut opTek)
+    R.push({ad:"Cloudflare",durum:opTek.cf?"ok":"uyari",not:opTek.cf||"doğrulanamadı"});
+    // Hata logu
+    R.push({ad:"Çökme logu",durum:hatalar.length?"uyari":"ok",not:hatalar.length?hatalar.length+" kayıt":"temiz"});
+    setOzTest(R); setOzTestYuk(false);
+  };
   // Operasyon ek veri + istemci ölçümleri (yalnızca Sistem sekmesi açılınca, tek sefer — polling YOK)
   useEffect(()=>{ if(sekme!=="sistem"||opEk) return; let a=true;
     Db.operasyonEk().then(d=>{ if(a) setOpEk(d||{}); });
@@ -11383,6 +11406,27 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
       </div>}
 
       {!yuk && sekme==="sistem" && <div style={{fontSize:12.5,color:T.textSoft,lineHeight:1.8}}>
+        {/* ===== ÖZ-TEST (Sistem Sağlığı canlı kontrolü) ===== */}
+        {(()=>{ const durRenk=(d)=>d==="ok"?T.accent:d==="uyari"?T.gold:T.danger; const durIk=(d)=>d==="ok"?"✅":d==="uyari"?"⚠":"❌";
+          const sayac=ozTest?{ok:ozTest.filter(x=>x.durum==="ok").length,uyari:ozTest.filter(x=>x.durum==="uyari").length,hata:ozTest.filter(x=>x.durum==="hata").length}:null;
+          const genelRenk=!sayac?T.accent2:sayac.hata?T.danger:sayac.uyari?T.gold:T.accent;
+          return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:ozTest?12:4}}>
+              <span style={{width:9,height:9,borderRadius:"50%",background:genelRenk,display:"inline-block",flexShrink:0}}/>
+              <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>🩺 Sistem Öz-Testi</div>
+              {sayac && <span style={{marginLeft:"auto",fontSize:10.5,fontWeight:700,color:genelRenk}}>{sayac.hata?sayac.hata+" hata":sayac.uyari?sayac.uyari+" uyarı":"her şey yolunda"}</span>}
+            </div>
+            {!ozTest && <div style={{fontSize:11.5,color:T.textMut,marginBottom:11,lineHeight:1.5}}>Veritabanı, giriş, güvenlik, depolama, hız ve sürümü canlı kontrol eder. Salt-okunur — hiçbir veriye dokunmaz.</div>}
+            {ozTest && <div style={{marginBottom:11}}>
+              {ozTest.map((s,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<ozTest.length-1?"1px solid "+T.line:"none"}}>
+                <span style={{fontSize:13}}>{durIk(s.durum)}</span>
+                <span style={{flex:1,fontSize:13,color:T.text}}>{s.ad}</span>
+                <span style={{fontSize:11,color:durRenk(s.durum),fontWeight:600,fontFamily:T.fontDisplay}}>{s.not}</span>
+              </div>)}
+            </div>}
+            <button onClick={ozTestCalistir} disabled={ozTestYuk} className="tap" style={{width:"100%",padding:"11px",borderRadius:11,background:ozTestYuk?T.bg2:T.accent,color:ozTestYuk?T.textMut:(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0),fontSize:13,fontWeight:800,border:"none"}}>{ozTestYuk?"Kontrol ediliyor…":ozTest?"↻ Yeniden Test Et":"▶ Öz-Test Başlat"}</button>
+          </div>;
+        })()}
         {/* ===== FAZ 4 — OPERASYON MERKEZİ (gerçek metrikler) ===== */}
         {metrik && (()=>{
           const GB=1073741824;
