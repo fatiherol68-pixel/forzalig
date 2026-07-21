@@ -7981,7 +7981,7 @@ function MacIstatistik({mac:m, turnuva, T, git, onKaydet}){
     </div>
 
     {/* aksiyonlar */}
-    <div style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:1080,margin:"0 auto",padding:"10px 14px",background:T.bg0+"F2",borderTop:"0.5px solid "+T.line,display:"flex",gap:8}}>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:1080,margin:"0 auto",padding:"10px 14px calc(10px + env(safe-area-inset-bottom))",background:T.bg0+"F2",borderTop:"0.5px solid "+T.line,display:"flex",gap:8,zIndex:30}}>
       <button onClick={yenidenUret} className="tap" style={{flex:1,padding:"13px",borderRadius:11,background:T.bg2,color:T.text,fontSize:13,fontWeight:700,border:"1px solid "+T.line}}>🎲 Yeniden Üret</button>
       <button onClick={()=>git&&git({sayfa:"mac",mac:m,turnuva})} className="tap" style={{padding:"13px 16px",borderRadius:11,background:"transparent",color:T.textMut,fontSize:13,fontWeight:700,border:"1px solid "+T.line}}>İptal</button>
       <button onClick={()=>{ const temiz={...veri}; delete temiz.golA; delete temiz.golB; onKaydet(m, temiz); git&&git({sayfa:"mac",mac:{...m,istatistik:temiz},turnuva}); }} className="tap" style={{flex:1.4,padding:"13px",borderRadius:11,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,fontSize:13,fontWeight:800}}>💾 Kaydet</button>
@@ -9047,7 +9047,7 @@ function SkorGir({mac:m, turnuva, T, git, skorKaydet}){
     </div>
 
     {/* kaydet */}
-    <div style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:1080,margin:"0 auto",padding:"10px 14px",background:T.bg0+"F2",borderTop:"0.5px solid "+T.line,display:"flex",gap:8}}>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:1080,margin:"0 auto",padding:"10px 14px calc(10px + env(safe-area-inset-bottom))",background:T.bg0+"F2",borderTop:"0.5px solid "+T.line,display:"flex",gap:8,zIndex:30}}>
       <button onClick={()=>git({sayfa:"mac",mac:m,turnuva})} className="tap" style={{padding:"13px 18px",borderRadius:11,background:"transparent",color:T.textMut,fontSize:13,fontWeight:700,border:"1px solid "+T.line}}>İptal</button>
       <button onClick={kaydet} className="tap" style={{flex:1,padding:"13px",borderRadius:11,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,fontSize:14,fontWeight:800}}>💾 Skoru Kaydet</button>
     </div>
@@ -9710,7 +9710,7 @@ function RatingDuzenle({mac:m, turnuva, T, git, ratingKaydet, skorKaydet}){
       {kolon(A, m.renkA, m.takimA)}
       {kolon(B, m.renkB, m.takimB)}
     </div>
-    <div style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:1080,margin:"0 auto",padding:"10px 14px",background:T.bg0+"F2",borderTop:"0.5px solid "+T.line,display:"flex",gap:8}}>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:1080,margin:"0 auto",padding:"10px 14px calc(10px + env(safe-area-inset-bottom))",background:T.bg0+"F2",borderTop:"0.5px solid "+T.line,display:"flex",gap:8,zIndex:30}}>
       <button onClick={otomatik} className="tap" style={{flex:1,padding:"13px",borderRadius:11,background:T.bg2,color:T.text,fontSize:13,fontWeight:700,border:"1px solid "+T.line}}>🔄 Otomatik</button>
       <button onClick={()=>git({sayfa:"mac",mac:m,turnuva})} className="tap" style={{padding:"13px 16px",borderRadius:11,background:"transparent",color:T.textMut,fontSize:13,fontWeight:700,border:"1px solid "+T.line}}>İptal</button>
       <button onClick={kaydet} className="tap" style={{flex:1.4,padding:"13px",borderRadius:11,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,fontSize:14,fontWeight:800}}>💾 Kaydet</button>
@@ -10172,7 +10172,7 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
     </div>}
 
     {/* ====== ALT NAVİGASYON ====== */}
-    <div style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:1080,margin:"0 auto",padding:"10px 14px",background:T.bg0+"F2",borderTop:"0.5px solid "+T.line,display:"flex",gap:8,backdropFilter:"blur(8px)"}}>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:1080,margin:"0 auto",padding:"10px 14px calc(10px + env(safe-area-inset-bottom))",background:T.bg0+"F2",borderTop:"0.5px solid "+T.line,display:"flex",gap:8,zIndex:30,backdropFilter:"blur(8px)"}}>
       <button onClick={geriAdim} className="tap" style={{padding:"13px 18px",borderRadius:11,background:"transparent",color:T.textMut,fontSize:13,fontWeight:700,border:"1px solid "+T.line}}>{adim===1?"İptal":"‹ Geri"}</button>
       {adim<4
         ? <button onClick={ileri} className="tap" style={{flex:1,padding:"13px",borderRadius:11,background:T.accent,color:(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0),fontSize:14,fontWeight:800,border:"none"}}>İleri ›</button>
@@ -13627,7 +13627,7 @@ function App(){
     </div>}
 
     {/* mobil alt menü */}
-    {!saltOkunur && !(nav.sayfa==="sohbet"&&nav.turnuva) && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
+    {!saltOkunur && !(nav.sayfa==="sohbet"&&nav.turnuva) && !["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa) && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
       {menuItems.map(([k,ik,l])=>
         <button key={k} onClick={()=>menuGit(k)} style={{flex:1,textAlign:"center",position:"relative"}}>
           <div className="nav-ic" style={{fontSize:19,display:"inline-block",padding:"3px 16px",borderRadius:14,filter:aktifTab===k?"none":"grayscale(1) opacity(.5)",background:aktifTab===k?T.accent+"22":"transparent"}}>{ik}</div>
