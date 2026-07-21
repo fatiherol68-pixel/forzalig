@@ -28,37 +28,45 @@ const port = server.address().port;
 const url = `http://127.0.0.1:${port}/`;
 
 const browser = await chromium.launch({ args: ['--no-sandbox'] });
-const page = await browser.newPage();
-const hatalar = [];
-const konsolHatalar = [];
-page.on('pageerror', e => hatalar.push(e.message));
-page.on('console', m => { if (m.type() === 'error') konsolHatalar.push(m.text()); });
+
+// Ana ekranların her biri: yükle → #root doldu mu + JS hatası var mı (çıkış-yapmamış kullanıcı gözünden).
+const ROTALAR = [
+  { ad: 'Ana Sayfa',   yol: '/' },
+  { ad: 'Keşfet',      yol: '/?p=ligler' },
+  { ad: 'Profil',      yol: '/?p=profil' },
+  { ad: 'Bildirim',    yol: '/?p=bildirim' },
+  { ad: 'Takip',       yol: '/?p=takip' },
+];
 
 let cikis = 0;
-try {
-  await page.goto(url, { waitUntil: 'load', timeout: 45000 });
-  await page.waitForTimeout(4000); // React boot + splash
-
-  // #root içi doldu mu? (uygulama render etti mi)
-  const rootDolu = await page.evaluate(() => {
-    const r = document.getElementById('root');
-    return !!r && r.innerHTML.trim().length > 50;
-  });
-
-  console.log('Sayfa JS hataları:', hatalar.length);
-  hatalar.forEach((e, i) => console.log(`  pageerror ${i + 1}: ${e.substring(0, 200)}`));
-  console.log('#root render edildi:', rootDolu ? 'EVET' : 'HAYIR');
-  // Konsol hatalarından ağ/CDN kaynaklı olanları bilgi amaçlı göster (fail sayma)
-  if (konsolHatalar.length) console.log('Konsol error (bilgi):', konsolHatalar.length);
-
-  if (hatalar.length > 0) { console.log('SMOKE: FAIL (JS hatası var)'); cikis = 1; }
-  else if (!rootDolu) { console.log('SMOKE: FAIL (#root boş — uygulama render etmedi)'); cikis = 1; }
-  else { console.log('SMOKE: PASS'); }
-} catch (e) {
-  console.error('SMOKE: FAIL (istisna):', e.message);
-  cikis = 1;
-} finally {
-  await browser.close();
-  server.close();
+const sonuclar = [];
+for (const r of ROTALAR) {
+  const page = await browser.newPage();
+  const hatalar = [];
+  page.on('pageerror', e => hatalar.push(e.message));
+  let ok = false, sebep = '';
+  try {
+    await page.goto(url.replace(/\/$/, '') + r.yol, { waitUntil: 'load', timeout: 45000 });
+    await page.waitForTimeout(3500); // React boot + splash
+    const rootDolu = await page.evaluate(() => {
+      const el = document.getElementById('root');
+      return !!el && el.innerHTML.trim().length > 50;
+    });
+    if (hatalar.length) sebep = 'JS hatası: ' + hatalar[0].substring(0, 120);
+    else if (!rootDolu) sebep = '#root boş (render yok)';
+    else ok = true;
+  } catch (e) { sebep = 'istisna: ' + e.message; }
+  await page.close();
+  sonuclar.push({ ad: r.ad, ok, sebep });
+  if (!ok) cikis = 1;
 }
+
+console.log('\n=== ForzaLig Duman Testi ===');
+sonuclar.forEach(s => console.log(`  ${s.ok ? '✔' : '✘'} ${s.ad}${s.ok ? '' : '  → ' + s.sebep}`));
+const gecti = sonuclar.filter(s => s.ok).length;
+console.log(`\n${gecti}/${sonuclar.length} ekran geçti`);
+console.log(cikis ? 'SMOKE: FAIL' : 'SMOKE: PASS');
+
+await browser.close();
+server.close();
 process.exit(cikis);

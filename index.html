@@ -1195,6 +1195,29 @@ const Db = {
       return sonuc;
     }catch(e){ return []; }
   },
+  // VERİ SAĞLIK TARAMASI (Süper Admin) — salt-okunur anomali sayımı. Yeni tablo/RPC yok.
+  async veriSaglik(){
+    if(!sb) return {hata:"bağlantı yok"};
+    var s={takimsizLig:0, oksuzOyuncu:0, hayaletMac:0};
+    try{
+      var lgP=sb.from('ligler').select('id').or('silindi.is.null,silindi.eq.false');
+      var tkP=sb.from('takimlar').select('lig_id');
+      var oyP=sb.from('oyuncular').select('player_id');
+      var otP=sb.from('oyuncu_takim').select('player_id');
+      var hmP=sb.from('maclar').select('id',{count:'exact',head:true}).eq('oynandi',false).or('ev_skor.gt.0,dep_skor.gt.0');
+      var [lg,tk,oy,ot,hm]=await Promise.all([lgP,tkP,oyP,otP,hmP]);
+      var takimli=new Set(((tk.data)||[]).map(function(x){return x.lig_id;}));
+      s.takimsizLig=((lg.data)||[]).filter(function(l){return !takimli.has(l.id);}).length;
+      var aktif=new Set(((ot.data)||[]).map(function(x){return x.player_id;}));
+      s.oksuzOyuncu=((oy.data)||[]).filter(function(o){return !aktif.has(o.player_id);}).length;
+      s.hayaletMac=hm.count||0;
+      s.zaman=new Date().toISOString();
+      return s;
+    }catch(e){ return {hata:String(e&&e.message||e)}; }
+  },
+  // SİSTEM ANAHTARLARI (Faz 3) — sistem_ayar kv tablosu. Tablo yoksa sessizce boş döner (güvenli).
+  async ayarlarOku(){ if(!sb) return {}; try{ const {data,error}=await sb.from('sistem_ayar').select('anahtar,deger'); if(error) return {}; const o={}; (data||[]).forEach(x=>{o[x.anahtar]=x.deger;}); return o; }catch(e){ return {}; } },
+  async ayarYaz(anahtar,deger){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('sistem_ayar').upsert({anahtar, deger:String(deger), guncelleme:new Date().toISOString()},{onConflict:'anahtar'}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   // DEMO EVREN — sadece bu evreni sil (gerçek liglere dokunmaz). evren=null → tüm demo.
   async evrenSil(evren){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('evren_sil',{p_evren:evren||null}); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
 };
@@ -10730,6 +10753,13 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   // FAZ 1 — Öz-Test (Sistem Sağlığı canlı kontrolü): salt-okunur prob'lar
   const [ozTest,setOzTest]=useState(null);         // sonuç dizisi | null
   const [ozTestYuk,setOzTestYuk]=useState(false);
+  // FAZ 2 — Veri Sağlık Taraması (Veri Doktoru)
+  const [veriSaglik,setVeriSaglik]=useState(null);
+  const [veriSaglikYuk,setVeriSaglikYuk]=useState(false);
+  const veriTara=async()=>{ setVeriSaglikYuk(true); const r=await Db.veriSaglik(); setVeriSaglik(r||{hata:"yok"}); setVeriSaglikYuk(false); };
+  // FAZ 3 — Sistem anahtarları (bakım modu + özellik bayrakları)
+  const [anahtarlar,setAnahtarlar]=useState(null);
+  const anahtarCevir=async(key,deger)=>{ const r=await Db.ayarYaz(key,deger); if(r&&r.ok){ setAnahtarlar(p=>({...(p||{}),[key]:deger})); } else alert("Kaydedilemedi (Faz 5'teki SQL çalıştırılınca aktif olur)."); };
   const ozTestCalistir=async()=>{
     setOzTestYuk(true); const R=[]; const GBb=1073741824;
     const olc=async(ad,fn)=>{ const t0=Date.now(); try{ const r=await fn(); const ms=Date.now()-t0; R.push({ad, durum:r&&r.uyari?"uyari":(r&&r.ok===false?"hata":"ok"), not:(r&&r.not)||(ms+"ms")}); }catch(e){ R.push({ad,durum:"hata",not:"yanıt yok"}); } };
@@ -10860,6 +10890,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
     Db.yasakliListe().then(yy=>setYasaklilar(yy||[])); // FAZ 3
     Db.tumYardimcilar().then(yy=>setHepYardimci(yy||[])); // YARDIMCI — merkezi görünüm
     Db.panelMetrikler().then(m=>setMetrik(m));            // FAZ 4 — gerçek metrikler
+    Db.veriSaglik().then(v=>setVeriSaglik(v));            // FAZ 2 — veri sağlık taraması
+    Db.ayarlarOku().then(a=>setAnahtarlar(a||{}));        // FAZ 3 — sistem anahtarları
     Db.ligCopListe().then(c=>setCopLigler(c||[]));        // FAZ 3 — çöp kutusu
     Db.basvuruListe().then(b=>setBasvurular(b||[]));      // lig kurma başvuruları
     Db.tumLiglerBasit().then(ll=>setTumLiglerY(ll||[]));  // ekleme formu lig listesi
@@ -11425,6 +11457,38 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
               </div>)}
             </div>}
             <button onClick={ozTestCalistir} disabled={ozTestYuk} className="tap" style={{width:"100%",padding:"11px",borderRadius:11,background:ozTestYuk?T.bg2:T.accent,color:ozTestYuk?T.textMut:(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0),fontSize:13,fontWeight:800,border:"none"}}>{ozTestYuk?"Kontrol ediliyor…":ozTest?"↻ Yeniden Test Et":"▶ Öz-Test Başlat"}</button>
+          </div>;
+        })()}
+        {/* ===== FAZ 2 — VERİ SAĞLIK TARAMASI (Veri Doktoru) ===== */}
+        {(()=>{ const v=veriSaglik; const hata=v&&v.hata; const say=v&&!hata?((v.takimsizLig||0)+(v.oksuzOyuncu||0)+(v.hayaletMac||0)):null;
+          const sat=[["Takımsız lig",v&&v.takimsizLig||0],["Öksüz oyuncu (üyeliksiz)",v&&v.oksuzOyuncu||0],["Hayalet maç (skor var, oynanmadı)",v&&v.hayaletMac||0]];
+          const renk=say===null?T.accent2:say===0?T.accent:T.gold;
+          return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:10}}>
+              <span style={{width:9,height:9,borderRadius:"50%",background:renk,flexShrink:0}}/>
+              <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>🩺 Veri Doktoru</div>
+              {say!==null && <span style={{marginLeft:"auto",fontSize:10.5,fontWeight:700,color:renk}}>{say===0?"temiz":say+" uyarı"}</span>}
+            </div>
+            {hata && <div style={{fontSize:11.5,color:T.textMut,marginBottom:10}}>Tarama yapılamadı ({v.hata}).</div>}
+            {!hata && sat.map(([ad,n],i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<sat.length-1?"1px solid "+T.line:"none"}}>
+              <span style={{fontSize:13}}>{n>0?"⚠":"✅"}</span><span style={{flex:1,fontSize:13,color:T.text}}>{ad}</span>
+              <span style={{fontSize:13,fontWeight:800,color:n>0?T.gold:T.accent,fontFamily:T.fontDisplay}}>{n}</span>
+            </div>)}
+            {v&&v.zaman && <div style={{fontSize:10,color:T.textMut,margin:"8px 0 0"}}>Son tarama: {new Date(v.zaman).toLocaleString("tr-TR")}</div>}
+            <button onClick={veriTara} disabled={veriSaglikYuk} className="tap" style={{width:"100%",marginTop:11,padding:"10px",borderRadius:11,background:veriSaglikYuk?T.bg2:T.bg1,color:veriSaglikYuk?T.textMut:T.accent,fontSize:12.5,fontWeight:800,border:"1px solid "+T.accent+"55"}}>{veriSaglikYuk?"Taranıyor…":"↻ Şimdi Tara"}</button>
+          </div>;
+        })()}
+        {/* ===== FAZ 3 — SİSTEM ANAHTARLARI (Bakım modu + özellik bayrakları) ===== */}
+        {(()=>{ const A=anahtarlar||{}; const sw=(on)=>({width:36,height:20,borderRadius:11,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
+          const knob=(on)=>({position:"absolute",top:2,left:on?18:2,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"});
+          const flags=[["bakim","🧯 Bakım modu (herkes salt-okunur)",A.bakim==="1"||A.bakim===true],["yeni_ozellik","🧪 Beta özellik anahtarı",A.yeni_ozellik==="1"||A.yeni_ozellik===true]];
+          return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:10}}><span style={{fontSize:15}}>🎛</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Sistem Anahtarları</div></div>
+            {flags.map(([k,et,on])=><div key={k} onClick={()=>anahtarCevir(k,on?"0":"1")} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"9px 0",borderBottom:"1px solid "+T.line,cursor:"pointer"}}>
+              <span style={{flex:1,fontSize:13,color:T.text}}>{et}</span>
+              <span style={sw(on)}><span style={knob(on)}/></span>
+            </div>)}
+            <div style={{fontSize:10.5,color:T.textMut,marginTop:9,lineHeight:1.5}}>Kapalı = kullanıcı görmez/etkilenmez · Bakım modu açıkken sadece sen düzenleyebilirsin. Anında etki eder, güncelleme beklemez.</div>
           </div>;
         })()}
         {/* ===== FAZ 4 — OPERASYON MERKEZİ (gerçek metrikler) ===== */}
@@ -12620,7 +12684,11 @@ function App(){
   const [destekLigKur,setDestekLigKur]=useState(false);
   const destekTimer=useRef(null);
   const [saltOkunurBase]=useState(()=> !!PAYLASIM_SLUG);
-  const saltOkunur = saltOkunurBase || !!destek;      // destek modu = global salt-okunur (yazma/yetki otomatik kapanır)
+  // FAZ 3 — sistem anahtarları (bakım modu). Açılışta tek hafif okuma; kullanıcıyı yavaşlatmaz.
+  const [sistemBayrak,setSistemBayrak]=useState({});
+  useEffect(()=>{ let a=true; Db.ayarlarOku().then(x=>{ if(a) setSistemBayrak(x||{}); }); return ()=>{a=false;}; },[]);
+  const bakimModu = (sistemBayrak.bakim==="1"||sistemBayrak.bakim===true) && !adminMi;  // admin hariç herkes salt-okunur
+  const saltOkunur = saltOkunurBase || !!destek || bakimModu;  // destek/bakım = global salt-okunur (yazma/yetki otomatik kapanır)
   // 👁 DESTEK MODU — kullanıcı gözünden görüntüle. Oturum DEVRALINMAZ (admin kendi oturumunda kalır).
   const destekBaslat=async(u)=>{
     if(!u||!u.user_id) return;
@@ -13561,7 +13629,8 @@ function App(){
           </>}
         </div>
       </div>
-      {saltOkunur && <div style={{background:T.accent+"14",borderBottom:"0.5px solid "+T.accent+"33",padding:"6px 16px",fontSize:11,color:T.accent,textAlign:"center",fontWeight:600}}>👁 Salt-okunur · paylaşılan lig — düzenleyemezsin</div>}
+      {bakimModu && <div style={{background:T.gold+"1a",borderBottom:"0.5px solid "+T.gold+"44",padding:"7px 16px",fontSize:11.5,color:T.gold,textAlign:"center",fontWeight:700}}>🧯 Kısa bir bakımdayız — şu an yalnızca görüntüleme açık. Birazdan normale döneriz.</div>}
+      {saltOkunur && !bakimModu && <div style={{background:T.accent+"14",borderBottom:"0.5px solid "+T.accent+"33",padding:"6px 16px",fontSize:11,color:T.accent,textAlign:"center",fontWeight:600}}>👁 Salt-okunur · paylaşılan lig — düzenleyemezsin</div>}
 
       {/* ARAMA OVERLAY */}
       {aramaAcik && (()=>{
