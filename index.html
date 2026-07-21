@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "e3d6e59-1784621610"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "5fca792-1784621940"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -131,7 +131,9 @@
       document.body.appendChild(t);
     }
     window.addEventListener("load", function(){
-      navigator.serviceWorker.register("/sw.js").then(function(reg){
+      // updateViaCache:"none" → tarayıcı sw.js'yi HER ZAMAN ağdan kontrol eder (HTTP önbelleğinden değil).
+      // PWA/ana-ekran modunda "yeni sürümü fark etmeme" tuzağının kalıcı çözümü.
+      navigator.serviceWorker.register("/sw.js", {updateViaCache:"none"}).then(function(reg){
         // Sayfa açıkken yeni sürüm bulunursa kullanıcıya sor
         if(reg.waiting) toastGoster(reg);
         reg.addEventListener("updatefound", function(){
