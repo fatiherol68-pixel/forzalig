@@ -4419,6 +4419,12 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
   const [excelAcik,setExcelAcik]=useState(false);
   const [excelMetin,setExcelMetin]=useState("");
   const [excelSonuc,setExcelSonuc]=useState(null);
+  // Takımlarımdan seç-ekle (kalıcı kulüp → lige, kadro otomatik)
+  const [kulupListe,setKulupListe]=useState(null); // null=henüz yüklenmedi
+  const [kulupYuk,setKulupYuk]=useState(false);
+  const [kulupMsj,setKulupMsj]=useState("");
+  const kuluplariGetir=async()=>{ setKulupYuk(true); const l=(await Db.kuluplerim(oturum&&oturum.id))||[]; const mevcut=new Set((turnuva.takimlar||[]).map(t=>t.kulup_id).filter(Boolean)); setKulupListe(l.filter(k=>!mevcut.has(k.id))); setKulupYuk(false); };
+  const kulupEkleLige=async(k)=>{ if(!yonetim.kulupLigeEkle) return; setKulupMsj("Ekleniyor…"); const r=await yonetim.kulupLigeEkle(turnuva, k.id); if(r&&r.ok){ setKulupMsj("✓ "+k.ad+" eklendi — oyuncular otomatik geldi"); setKulupListe(p=>(p||[]).filter(x=>x.id!==k.id)); } else setKulupMsj("Olmadı: "+((r&&r.hata)||"")); };
   // transfer istekleri
   const [bekTransfer,setBekTransfer]=useState([]);
   const [trfYuk,setTrfYuk]=useState(false);
@@ -4639,6 +4645,22 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
     <div style={{display:"flex",gap:6,marginBottom:10}}>
       <button onClick={()=>takimEkleYap(true)} className="tap vav-bar" style={{position:"relative",overflow:"hidden",flex:1,padding:"10px",borderRadius:10,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,fontSize:12,fontWeight:700,border:"none"}}>+ Boş Takım (oyuncuları gir)</button>
       <button onClick={()=>takimEkleYap(false)} className="tap" style={{padding:"10px 12px",borderRadius:10,background:T.bg2,color:T.textSoft,fontSize:12,fontWeight:700,border:"0.5px solid "+T.line}}>🎲 Hazır 12</button>
+    </div>
+    {/* TAKIMLARIMDAN SEÇ-EKLE — kalıcı kulüp + kadrosu lige otomatik gelir (Q4) */}
+    <div style={{marginBottom:12}}>
+      {kulupListe===null
+        ? <button onClick={kuluplariGetir} disabled={kulupYuk} className="tap" style={{width:"100%",padding:"10px",borderRadius:10,background:T.bg1,border:"0.5px dashed "+T.accent+"66",color:T.accent,fontSize:12,fontWeight:700}}>{kulupYuk?"Yükleniyor…":"📋 Takımlarımdan Seç (oyuncular otomatik gelir)"}</button>
+        : kulupListe.length===0
+          ? <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:"8px"}}>Eklenebilecek başka kayıtlı takımın yok. Yukarıdan yeni takım adı yazarak ekleyebilirsin.</div>
+          : <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:8}}>
+              <div style={{fontSize:10.5,color:T.textMut,marginBottom:6,padding:"0 2px"}}>Dokun → takım ve kadrosu bu lige otomatik eklensin:</div>
+              {kulupListe.map(k=><button key={k.id} onClick={()=>kulupEkleLige(k)} className="tap" style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"9px 10px",marginBottom:5,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:9,textAlign:"left"}}>
+                <span style={{width:26,height:26,borderRadius:7,background:(k.renk||T.accent)+"22",color:k.renk||T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,flexShrink:0}}>{(k.ad||"?").slice(0,1).toUpperCase()}</span>
+                <span style={{flex:1,fontSize:12.5,fontWeight:600,color:T.text}}>{k.ad}</span>
+                <span style={{fontSize:16,color:T.accent,fontWeight:700}}>+</span>
+              </button>)}
+            </div>}
+      {kulupMsj && <div style={{fontSize:11,color:kulupMsj[0]==="✓"?T.accent:T.textMut,marginTop:6,textAlign:"center",fontWeight:600}}>{kulupMsj}</div>}
     </div>
     {tk.map(t=>
       <div key={t.id} style={{display:"flex",alignItems:"center",gap:9,background:T.bg1,borderRadius:10,padding:"9px 11px",marginBottom:6,border:"0.5px solid "+T.line}}>
@@ -13353,6 +13375,16 @@ function App(){
     guncelle();
     return yeni;
   };
+  // Mevcut kulübü (Takımlarım) lige ekle — kadro otomatik kopyalanır (Q4/kulup_lige_katil)
+  const kulupLigeEkle=async(turnuva, kulupId)=>{
+    if(!iliskiselMi(turnuva)) return {hata:"kayıtlı lig gerekli"};
+    const r=await Db.kulupLigeKatil(kulupId, turnuva.id, null);
+    if(r.hata) return {hata:r.hata};
+    const yeni=await Db.ligYukle(turnuva.id);
+    if(yeni){ turnuva.takimlar=yeni.takimlar; turnuva.maclar=yeni.maclar; turnuvaHesapla(turnuva); }
+    guncelle();
+    return {ok:true};
+  };
   // Takım düzenle (ad / renk) — lig sorumlusu
   const takimDuzenle=async(turnuva, takimId, alanlar)=>{
     const t=turnuva.takimlar.find(x=>x.id===takimId); if(!t) return;
@@ -13573,7 +13605,7 @@ function App(){
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} saltOkunur={saltOkunur}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
-      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,yeniSezon,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
+      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,kulupLigeEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,yeniSezon,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum} adminMi={etkinAdminMi}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur} adminMi={etkinAdminMi}/>; break;
