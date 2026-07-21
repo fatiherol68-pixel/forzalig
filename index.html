@@ -883,6 +883,12 @@ const Db = {
   async bekleyenKatilimlar(ligId){ if(!sb) return []; try{ const {data,error}=await sb.rpc('bekleyen_katilimlar',{p_lig:ligId}); return error?[]:(data||[]); }catch(e){ return []; } },
   async katilimOnayla(otId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('katilim_onayla',{p_ot:otId}); return error?{hata:error.message}:{ok:!!data}; }catch(e){ return {hata:String(e)}; } },
   async katilimReddet(otId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('katilim_reddet',{p_ot:otId}); return error?{hata:error.message}:{ok:!!data}; }catch(e){ return {hata:String(e)}; } },
+  // ---- Faz 5: ayrılma talebi (Q16) + çıkarma & bildirim (Q17/Q18) ----
+  async oyuncuCikar(playerId, takimId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('oyuncu_cikar',{p_player:playerId, p_takim:takimId}); return error?{hata:error.message}:{ok:!!data}; }catch(e){ return {hata:String(e)}; } },
+  async ayrilmaTalep(playerId, ligId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('ayrilma_talep_olustur',{p_player:playerId, p_lig:ligId}); return error?{hata:error.message}:{ok:!!data}; }catch(e){ return {hata:String(e)}; } },
+  async bekleyenAyrilmalar(ligId){ if(!sb) return []; try{ const {data,error}=await sb.rpc('bekleyen_ayrilmalar',{p_lig:ligId}); return error?[]:(data||[]); }catch(e){ return []; } },
+  async ayrilmaOnayla(otId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('ayrilma_onayla',{p_ot:otId}); return error?{hata:error.message}:{ok:!!data}; }catch(e){ return {hata:String(e)}; } },
+  async ayrilmaReddet(otId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('ayrilma_reddet',{p_ot:otId}); return error?{hata:error.message}:{ok:!!data}; }catch(e){ return {hata:String(e)}; } },
   // Tüm üyeler + yetki bilgisi (admin panel "Üyeler" sekmesi)
   async uyeler(){
     if(!sb) return [];
@@ -4443,6 +4449,13 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
   useEffect(()=>{ if(iliskisel2 && sb){ Db.bekleyenKatilimlar(turnuva.id).then(d=>setBekKatilim(d||[])); } },[turnuva.id]);
   const katOnayla=async(k)=>{ setKatYuk(true); setKatMesaj(""); const r=await Db.katilimOnayla(k.ot_id); setKatYuk(false); if(r&&r.ok){ setBekKatilim(p=>p.filter(x=>x.ot_id!==k.ot_id)); setKatMesaj("✓ Onaylandı — oyuncu eklendi (yenileyince kadroda görünür)"); Db.logla(oturum,"Katılım onayladı",k.ad_soyad||""); } else setKatMesaj("Hata: "+((r&&r.hata)||"yetki yok")); };
   const katReddet=async(k)=>{ setKatYuk(true); setKatMesaj(""); const r=await Db.katilimReddet(k.ot_id); setKatYuk(false); if(r&&r.ok){ setBekKatilim(p=>p.filter(x=>x.ot_id!==k.ot_id)); setKatMesaj("İstek reddedildi"); } else setKatMesaj("Hata: "+((r&&r.hata)||"")); };
+  // bekleyen AYRILMA talepleri (Q16)
+  const [bekAyrilma,setBekAyrilma]=useState([]);
+  const [ayrYuk,setAyrYuk]=useState(false);
+  const [ayrMesaj,setAyrMesaj]=useState("");
+  useEffect(()=>{ if(iliskisel2 && sb){ Db.bekleyenAyrilmalar(turnuva.id).then(d=>setBekAyrilma(d||[])); } },[turnuva.id]);
+  const ayrOnayla=async(a)=>{ setAyrYuk(true); setAyrMesaj(""); const r=await Db.ayrilmaOnayla(a.ot_id); setAyrYuk(false); if(r&&r.ok){ setBekAyrilma(p=>p.filter(x=>x.ot_id!==a.ot_id)); setAyrMesaj("✓ Ayrılma onaylandı (yenileyince kadrodan çıkar)"); Db.logla(oturum,"Ayrılma onayladı",a.ad_soyad||""); } else setAyrMesaj("Hata: "+((r&&r.hata)||"yetki yok")); };
+  const ayrReddet=async(a)=>{ setAyrYuk(true); setAyrMesaj(""); const r=await Db.ayrilmaReddet(a.ot_id); setAyrYuk(false); if(r&&r.ok){ setBekAyrilma(p=>p.filter(x=>x.ot_id!==a.ot_id)); setAyrMesaj("Talep reddedildi, oyuncu takımda kaldı"); } else setAyrMesaj("Hata: "+((r&&r.hata)||"")); };
   // lig bilgileri düzenleme
   const [ligAcik,setLigAcik]=useState(false);
   const [lAd,setLAd]=useState(turnuva.ad||"");
@@ -4548,6 +4561,22 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
         </div>
       )}
       {katMesaj && <div style={{fontSize:11,color:/✓/.test(katMesaj)?T.accent:T.danger,textAlign:"center",marginTop:6}}>{katMesaj}</div>}
+    </div>}
+    {/* BEKLEYEN AYRILMA TALEPLERİ (Q16) */}
+    {iliskisel2 && bekAyrilma.length>0 && <div style={{background:"linear-gradient(120deg,"+T.gold+"14,"+T.bg1+")",border:"0.5px solid "+T.gold+"44",borderRadius:12,padding:13,marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:700,color:T.gold,marginBottom:8}}>🚪 Bekleyen Ayrılma Talepleri <span style={{fontSize:11}}>({bekAyrilma.length})</span></div>
+      {bekAyrilma.map(a=>
+        <div key={a.ot_id} style={{display:"flex",alignItems:"center",gap:9,background:T.bg0,borderRadius:10,padding:"9px 11px",marginBottom:6}}>
+          <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(a.ad_soyad||"?",34,a.foto)}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.ad_soyad}</div>
+            <div style={{fontSize:10,color:T.textMut}}>{a.takim_ad} takımından ayrılmak istiyor</div>
+          </div>
+          <button onClick={()=>ayrOnayla(a)} disabled={ayrYuk} className="tap" style={{background:T.gold,color:"#1A1505",border:0,borderRadius:8,padding:"7px 11px",fontSize:12,fontWeight:800,opacity:ayrYuk?.6:1}}>✓ Onayla</button>
+          <button onClick={()=>ayrReddet(a)} disabled={ayrYuk} className="tap" style={{background:"none",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:8,padding:"7px 10px",fontSize:12,fontWeight:700,opacity:ayrYuk?.6:1}}>✗</button>
+        </div>
+      )}
+      {ayrMesaj && <div style={{fontSize:11,color:/✓/.test(ayrMesaj)?T.accent:T.textSoft,textAlign:"center",marginTop:6}}>{ayrMesaj}</div>}
     </div>}
     {iliskisel2 && <div style={{background:bekTransfer.length?"linear-gradient(120deg,"+T.gold+"14,"+T.bg1+")":T.bg1,border:"0.5px solid "+(bekTransfer.length?T.gold+"44":T.line),borderRadius:12,padding:13,marginBottom:14}}>
       <div style={{fontSize:13,fontWeight:700,color:bekTransfer.length?T.gold:T.text,marginBottom:bekTransfer.length?8:0}}>🔄 Bekleyen Transfer İstekleri {bekTransfer.length>0 && <span style={{fontSize:11}}>({bekTransfer.length})</span>}</div>
@@ -5929,6 +5958,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   const [sahipYuk,setSahipYuk]=useState(false);
   const [sahipMesaj,setSahipMesaj]=useState("");
   const [kariyer,setKariyer]=useState(null); // Faz 4: tüm sezonların toplamı (player_id bazlı)
+  const [ayrMsj,setAyrMsj]=useState(""); const [ayrYuk,setAyrYuk]=useState(false); // Faz 5: ayrılma talebi (Q16)
   // TRANSFER — kaptan istek gönderir, lig yöneticisi onaylar
   const [transferAcik,setTransferAcik]=useState(false);
   const [transferHedef,setTransferHedef]=useState("");
@@ -5966,6 +5996,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   },[o.id]);
   useEffect(()=>{ if(typeof o.id==="string" && sb){ Db.oyuncuKariyer(o.id).then(setKariyer); } else setKariyer(null); },[o.id]);
   const benimMi = (oturum && o.sahip_user_id && o.sahip_user_id===oturum.id) || (sahiplenme && (sahiplenme.oyuncu_id===o.id || sahiplenme.oyuncu_ad===o.ad));
+  const ayrilmaGonder=async()=>{ if(!oyLig||typeof o.id!=="string"){ setAyrMsj("Bu oyuncuda ayrılma talebi kullanılamaz."); return; } if(!confirm((oyTakim?oyTakim.ad:"takım")+" takımından ayrılma talebi gönderilsin mi? Lig yöneticisi onaylarsa takımdan ayrılırsın, istatistiklerin korunur.")) return; setAyrYuk(true); const r=await Db.ayrilmaTalep(o.id, oyLig.id); setAyrYuk(false); setAyrMsj(r&&r.ok?"✅ Ayrılma talebin gönderildi. Yönetici onayını bekliyor.":"❌ "+((r&&r.hata)||"olmadı")); };
   const sahiplen=async()=>{
     if(!oturum){ setSahipMesaj("Sahiplenmek için giriş yapmalısın."); return; }
     setSahipYuk(true); setSahipMesaj("");
@@ -6248,6 +6279,10 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
           </div>
           <div style={{fontSize:9,color:T.textMut,marginTop:8,lineHeight:1.5}}>Sezon istatistiği yukarıdaki kartta; bu bölüm tüm liglerin toplamıdır. Yeni sezon puanları sıfırlasa da kariyer birikmeye devam eder.</div>
         </div>
+      </div>}
+      {benimMi && oyTakim && !saltOkunur && typeof o.id==="string" && <div style={{padding:"0 14px 8px"}}>
+        <button onClick={ayrilmaGonder} disabled={ayrYuk} className="tap" style={{width:"100%",background:"none",border:"0.5px solid "+T.gold+"66",color:T.gold,borderRadius:10,padding:"10px",fontSize:12,fontWeight:700,opacity:ayrYuk?.6:1}}>🚪 {oyTakim.ad} takımından ayrılma talebi gönder</button>
+        {ayrMsj && <div style={{fontSize:11,color:/✅/.test(ayrMsj)?T.accent:T.danger,textAlign:"center",marginTop:7}}>{ayrMsj}</div>}
       </div>}
       <div style={{padding:"0 14px 6px"}}>
         <button onClick={()=>alert("Kart paylaşma özelliği yakında eklenecek.")} className="tap" style={{width:"100%",background:T.bg1,border:"0.5px solid "+T.line,color:T.accent,borderRadius:10,padding:"10px",fontSize:12,fontWeight:700}}>📤 Kartı Paylaş <span style={{fontSize:9,color:T.textMut,fontWeight:500}}>· yakında</span></button>
@@ -13459,7 +13494,8 @@ function App(){
   // Oyuncu sil (madde 24: kariyer korunur → üyelikten çıkar, kayıt kalır)
   const oyuncuSil=async(takim, oyuncuId)=>{
     const trn=takiminTurnuvasi(takim);
-    if(iliskiselMi(trn) && typeof oyuncuId==="string"){ await Db.kadrodanCikarPid(oyuncuId, takim.id); }
+    // Q17/Q18: çıkar → üyelik pasif (silinmez), istatistik korunur, oyuncuya bildirim gider
+    if(iliskiselMi(trn) && typeof oyuncuId==="string"){ const r=await Db.oyuncuCikar(oyuncuId, takim.id); if(r&&r.hata){ await Db.kadrodanCikarPid(oyuncuId, takim.id); } }
     takim.oyuncular=takim.oyuncular.filter(x=>x.id!==oyuncuId); guncelle();
   };
 
@@ -13628,7 +13664,6 @@ function App(){
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} saltOkunur={saltOkunur}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
       case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,kulupLigeEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,yeniSezon,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
-      case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum} adminMi={etkinAdminMi}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur} adminMi={etkinAdminMi}/>; break;
       case "mac": icerik=<MacSayfa mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} oturum={oturum} sahiplenme={sahiplenme} yetkili={ligYetkim(nav.turnuva)}/>; break;
