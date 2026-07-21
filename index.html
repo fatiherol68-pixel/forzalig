@@ -132,7 +132,9 @@
       document.body.appendChild(t);
     }
     window.addEventListener("load", function(){
-      navigator.serviceWorker.register("/sw.js").then(function(reg){
+      // updateViaCache:"none" → tarayıcı sw.js'yi HER ZAMAN ağdan kontrol eder (HTTP önbelleğinden değil).
+      // PWA/ana-ekran modunda "yeni sürümü fark etmeme" tuzağının kalıcı çözümü.
+      navigator.serviceWorker.register("/sw.js", {updateViaCache:"none"}).then(function(reg){
         // Sayfa açıkken yeni sürüm bulunursa kullanıcıya sor
         if(reg.waiting) toastGoster(reg);
         reg.addEventListener("updatefound", function(){
