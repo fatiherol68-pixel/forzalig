@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "e53d74a-1784625058"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "3f311e6-1784629156"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -103,6 +103,21 @@
     var boslaYukle = function(){ (window.requestIdleCallback || function(f){ setTimeout(f, 1); })(baslat); };
     if(document.readyState === "complete") boslaYukle();
     else window.addEventListener("load", boslaYukle);
+  })();
+</script>
+<!-- Microsoft Clarity (ısı haritası + oturum kaydı, ücretsiz). Açılışı yavaşlatmasın diye sayfa yüklendikten SONRA boşta tembel yüklenir. -->
+<script>
+  (function(){
+    function clarityYukle(){
+      (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+      })(window, document, "clarity", "script", "xpvbhgctj3");
+    }
+    var boslaClarity = function(){ (window.requestIdleCallback || function(f){ setTimeout(f, 1); })(clarityYukle); };
+    if(document.readyState === "complete") boslaClarity();
+    else window.addEventListener("load", boslaClarity);
   })();
 </script>
 <!-- Service worker: kabuk önbelleği + "yeni sürüm hazır" bildirimi -->
