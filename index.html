@@ -778,6 +778,10 @@ const Db = {
   async kulupOyuncuCikar(kulupId, playerId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('kulup_oyuncu').update({aktif:false}).eq('kulup_id',kulupId).eq('player_id',playerId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async kulupLigeKatil(kulupId, ligId, ad){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('kulup_lige_katil',{p_kulup:kulupId, p_lig:ligId, p_ad:ad||null}); return error?{hata:error.message}:{ok:true,takim_id:data}; }catch(e){ return {hata:String(e)}; } },
   async kulupSil(kulupId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('kulup_kalici_sil',{p_kulup:kulupId}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  // ---- Faz 3: Sezon serisi (yeni sezon devri) + Faz 4: kariyer/tüm-zamanlar ----
+  async yeniSezonBaslat(ligId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('yeni_sezon_baslat',{p_eski:ligId}); return error?{hata:error.message}:{ok:true, yeniId:data}; }catch(e){ return {hata:String(e)}; } },
+  async oyuncuKariyer(pid){ if(!sb||!pid) return null; try{ const {data}=await sb.from('oyuncu_kariyer').select('*').eq('player_id',pid).maybeSingle(); return data||null; }catch(e){ return null; } },
+  async kulupTumZamanlar(kulupId){ if(!sb||!kulupId) return null; try{ const {data}=await sb.from('kulup_tum_zamanlar').select('*').eq('kulup_id',kulupId).maybeSingle(); return data||null; }catch(e){ return null; } },
   // ---- Read-only kilidi (destek/paylaşım modu) + Sorun Bildir ----
   saltOkunurKilit(v){ FL_SALT_OKUNUR = !!v; },
   async sorunBildir(obj){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('destek_talep').insert(obj); if(error){ const {teshis, ...sade}=obj; const r2=await sb.from('destek_talep').insert(sade); return r2.error?{hata:r2.error.message}:{ok:true}; } return {ok:true}; }catch(e){ return {hata:String(e)}; } },
@@ -914,7 +918,7 @@ const Db = {
   // ---- Takımlar ----
   async takimEkle(ligId, ad){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('takimlar').insert({lig_id:ligId, ad}).select('id').single(); return error?{hata:error.message}:{ok:true,id:data.id}; }catch(e){ return {hata:String(e)}; } },
   async takimGuncelle(id, alanlar){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('takimlar').update(alanlar).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
-  async takimSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('takimlar').delete().eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async takimSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('takimlar').update({durum:'arsiv'}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } }, // Q8: takım silinmez, arşivlenir
   async takimlar(ligId){ if(!sb) return []; try{ const {data}=await sb.from('takimlar').select('*').eq('lig_id',ligId).order('olusturma'); return data||[]; }catch(e){ return []; } },
   // ---- Oyuncular (hassas tablo) + açık görünüm ----
   async oyuncuOlustur(o){ // {ad_soyad,takma_ad,forma_no,dogum,ayak,boy,kilo,telefon,email,tc_pasaport,uyruk,sahip_user_id}
@@ -1096,7 +1100,7 @@ const Db = {
       const {data:L}=await sb.from('ligler').select('*').eq('id',ligId).maybeSingle();
       if(!L || L.silindi) return null;   // çöpe atılmış (soft-delete) lig ana görünümde yüklenmesin
       const [tkR,otR,mcR]=await Promise.all([
-        sb.from('takimlar').select('*').eq('lig_id',ligId),
+        sb.from('takimlar').select('*').eq('lig_id',ligId).neq('durum','arsiv'),
         sb.from('oyuncu_takim').select('*').eq('lig_id',ligId).eq('aktif',true),
         sb.from('maclar').select('*').eq('lig_id',ligId)
       ]);
@@ -1121,7 +1125,7 @@ const Db = {
             gol:0,asist:0,mac:0,kurtaris:0,sari:0,kirmizi:0,mvp:0,dk:0,
             altin:0,gumus:0,forvet:0,ortasaha:0,defans:0,kaleci:0,centilmen:0,enerjik:0,macinGolu:0 };
         });
-        return { id:t.id, lisNo:t.lis_no, ad:t.ad, renk:t.renk, renk2:t.renk2||null, logo:t.logo||null, yonetici_id:t.yonetici_id||null, td:t.td||null, oyuncular, grup:t.grup||0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0,form:[] };
+        return { id:t.id, lisNo:t.lis_no, ad:t.ad, renk:t.renk, renk2:t.renk2||null, logo:t.logo||null, yonetici_id:t.yonetici_id||null, td:t.td||null, kulup_id:t.kulup_id||null, oyuncular, grup:t.grup||0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0,form:[] };
       });
       const maclar=mc.map(m=>{ const evT=takimlar.find(x=>x.id===m.ev_takim_id), depT=takimlar.find(x=>x.id===m.dep_takim_id);
         return { id:m.id, hafta:m.hafta, tur:m.tur, grup:m.grup, bye:m.bye, penGalip:m.pen_galip,
@@ -4720,6 +4724,12 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
       <div style={{fontSize:10.5,color:T.textMut,marginTop:3,lineHeight:1.5}}>Maç oynandığı için <b>puan sistemi · averaj · fikstür tipi</b> değiştirilemez. Lig adı, logo, bitiş tarihi serbest.</div>
     </div>}
 
+    {typeof turnuva.id==="string" && yonetim.yeniSezon && <div style={{margin:"14px 0 4px",background:"linear-gradient(135deg,"+T.accent+"14,"+T.bg1+")",border:"0.5px solid "+T.accent+"44",borderRadius:11,padding:"12px 13px"}}>
+      <div style={{fontSize:12.5,color:T.text,fontWeight:800,marginBottom:3}}>🗓️ Yeni Sezon</div>
+      <div style={{fontSize:10.5,color:T.textMut,marginBottom:9,lineHeight:1.5}}>Bu sezonu bitir, <b>aynı takımlar ve kadrolarla</b> yeni sezona geç. Geçmiş ve kariyer korunur, puan durumu sıfırlanır. Yeni lig hakkı gerekmez.</div>
+      <button onClick={()=>yonetim.yeniSezon(turnuva)} className="tap" style={{width:"100%",background:T.accent,color:T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:"none",borderRadius:9,padding:"11px",fontSize:12.5,fontWeight:800}}>🚀 Yeni Sezonu Başlat →</button>
+    </div>}
+
     <div style={{margin:"14px 0 4px",background:T.bg1,border:"0.5px solid "+T.danger+"33",borderRadius:11,padding:"12px 13px"}}>
       <div style={{fontSize:11,color:T.danger,fontWeight:800,marginBottom:8}}>⚠️ TEHLİKELİ BÖLGE</div>
       {turnuva.durum==="arsiv"
@@ -5882,6 +5892,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   const [duzenle,setDuzenle]=useState(false);
   const [sahipYuk,setSahipYuk]=useState(false);
   const [sahipMesaj,setSahipMesaj]=useState("");
+  const [kariyer,setKariyer]=useState(null); // Faz 4: tüm sezonların toplamı (player_id bazlı)
   // TRANSFER — kaptan istek gönderir, lig yöneticisi onaylar
   const [transferAcik,setTransferAcik]=useState(false);
   const [transferHedef,setTransferHedef]=useState("");
@@ -5917,6 +5928,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   useEffect(()=>{
     if(typeof o.id==="string" && sb){ Db.oyuncuTransferGecmisi(o.id).then(g=>{ if(g.length){ const takimAd=(tid)=>{ if(!oyLig) return tid; const t=oyLig.takimlar.find(x=>x.id===tid); return t?t.ad:tid; }; setEskiTakimlar(g.map(x=>({id:x.id, eskiAd:takimAd(x.eski_takim_id), yeniAd:takimAd(x.yeni_takim_id), tarih:x.yonetici_onay_t}))); } }); }
   },[o.id]);
+  useEffect(()=>{ if(typeof o.id==="string" && sb){ Db.oyuncuKariyer(o.id).then(setKariyer); } else setKariyer(null); },[o.id]);
   const benimMi = (oturum && o.sahip_user_id && o.sahip_user_id===oturum.id) || (sahiplenme && (sahiplenme.oyuncu_id===o.id || sahiplenme.oyuncu_ad===o.ad));
   const sahiplen=async()=>{
     if(!oturum){ setSahipMesaj("Sahiplenmek için giriş yapmalısın."); return; }
@@ -6183,6 +6195,22 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
             <span style={{fontSize:12,color:T.text,fontWeight:600}}>{t.yeniAd}</span>
             {t.tarih && <span style={{fontSize:9,color:T.textMut,marginLeft:"auto"}}>{new Date(t.tarih).toLocaleDateString("tr-TR")}</span>}
           </div>)}
+        </div>
+      </div>}
+      {kariyer && (kariyer.sezon_sayisi>0 || kariyer.gol>0 || kariyer.asist>0) && <div style={{padding:"0 14px 6px"}}>
+        <div style={{background:"linear-gradient(135deg,"+T.gold+"12,"+T.bg1+")",borderRadius:12,padding:"12px 13px",border:"0.5px solid "+T.gold+"33"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <div style={{fontSize:11,color:T.gold,fontWeight:800,letterSpacing:.3}}>🏆 KARİYER · TÜM SEZONLAR</div>
+            <div style={{fontSize:9.5,color:T.textMut}}>{kariyer.sezon_sayisi||0} sezon · {kariyer.etkili_mac||0} maç</div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7}}>
+            {[["Gol",kariyer.gol||0,"#34D399"],["Asist",kariyer.asist||0,T.accent],["🟨",kariyer.sari||0,T.gold],["🟥",kariyer.kirmizi||0,T.danger]].map(([k,v,c],i)=>
+              <div key={i} style={{background:T.bg0,borderRadius:9,padding:"9px 4px",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:900,color:c,fontFamily:T.fontDisplay}}>{v}</div>
+                <div style={{fontSize:8.5,color:T.textMut,marginTop:1}}>{k}</div>
+              </div>)}
+          </div>
+          <div style={{fontSize:9,color:T.textMut,marginTop:8,lineHeight:1.5}}>Sezon istatistiği yukarıdaki kartta; bu bölüm tüm liglerin toplamıdır. Yeni sezon puanları sıfırlasa da kariyer birikmeye devam eder.</div>
         </div>
       </div>}
       <div style={{padding:"0 14px 6px"}}>
@@ -13250,6 +13278,17 @@ function App(){
     if(arsiv){ git({sayfa:"ana"}); }
     guncelle();
   };
+  // Yeni sezon başlat (Faz 3) — bu sezonu arşivle, takımlar+kadrolar yeni sezona otomatik taşınsın (Q21-24)
+  const yeniSezon=async(turnuva)=>{
+    if(!iliskiselMi(turnuva)){ alert("Yeni sezon yalnızca kayıtlı liglerde kullanılabilir."); return; }
+    if(!confirm("Yeni sezon başlatılsın mı?\n\n• Bu sezon arşivlenir (geçmiş korunur)\n• Takımlar ve kadrolar yeni sezona otomatik taşınır\n• Puan durumu sıfırlanır, fikstürü yeniden oluşturursun\n• Kariyer istatistikleri korunur")) return;
+    const r=await Db.yeniSezonBaslat(turnuva.id);
+    if(r.hata){ alert("Olmadı: "+r.hata); return; }
+    Db.logla(oturum, "Yeni sezon başlattı", turnuva.ad);
+    const yeni=await Db.ligYukle(r.yeniId);
+    setTurnuvalar(p=>{ const upd=p.map(t=>t.id===turnuva.id?{...t,durum:'arsiv'}:t); return yeni?[yeni, ...upd.filter(t=>t.id!==yeni.id)]:upd; });
+    if(yeni) setTimeout(()=>git({sayfa:"turnuva",turnuva:yeni}),0); else git({sayfa:"ana"});
+  };
   // Lig tamamen sil (sadece maç oynanmamışsa; admin her zaman) — RLS korur
   const ligSilTam=async(turnuva)=>{
     if(iliskiselMi(turnuva)){ const r=await Db.ligSil(turnuva.id); if(r.hata){ alert("Silinemedi (maç oynanmış olabilir — arşivle): "+r.hata); return; } Db.logla(oturum, "Lig sildi", turnuva.ad); }
@@ -13534,7 +13573,7 @@ function App(){
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} saltOkunur={saltOkunur}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
-      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
+      case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,yeniSezon,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
       case "takimyonet": icerik=<TakimYonet takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} yonetim={{oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil}}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum} adminMi={etkinAdminMi}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur} adminMi={etkinAdminMi}/>; break;
