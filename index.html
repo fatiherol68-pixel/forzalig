@@ -11506,6 +11506,26 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             <div style={{fontSize:10.5,color:T.textMut,marginTop:9,lineHeight:1.5}}>Kapalı = kullanıcı görmez/etkilenmez · Bakım modu açıkken sadece sen düzenleyebilirsin. Anında etki eder, güncelleme beklemez.</div>
           </div>;
         })()}
+        {/* ===== İZLEME PANELLERİ — tek dokunuşla dış servisler (Clarity/Sentry/UptimeRobot) ===== */}
+        {(()=>{ const paneller=[
+            ["🎬","Clarity","Isı haritası + kayıtlar","https://clarity.microsoft.com"],
+            ["🐞","Sentry","Hata kayıtları","https://sentry.io"],
+            ["📡","UptimeRobot","Kesinti izleme","https://uptimerobot.com/dashboard"],
+          ];
+          return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>📊</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>İzleme Panelleri</div></div>
+            <div style={{fontSize:10.5,color:T.textMut,marginBottom:11,lineHeight:1.5}}>Tek dokunuşla açılır. İlk girişten sonra servis seni hatırlar, tekrar şifre sormaz.</div>
+            {paneller.map(([ik,ad,ac,url])=>
+              <a key={ad} href={url} target="_blank" rel="noopener noreferrer" className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 11px",marginBottom:7,background:T.bg1,border:"1px solid "+T.line,borderRadius:11,textDecoration:"none",cursor:"pointer"}}>
+                <span style={{fontSize:18,flexShrink:0}}>{ik}</span>
+                <span style={{flex:1,minWidth:0}}>
+                  <span style={{display:"block",fontSize:13,fontWeight:700,color:T.text}}>{ad}</span>
+                  <span style={{display:"block",fontSize:10.5,color:T.textMut,marginTop:1}}>{ac}</span>
+                </span>
+                <span style={{fontSize:15,color:T.accent,flexShrink:0}}>↗</span>
+              </a>)}
+          </div>;
+        })()}
         {/* ===== FAZ 4 — OPERASYON MERKEZİ (gerçek metrikler) ===== */}
         {metrik && (()=>{
           const GB=1073741824;
