@@ -13834,18 +13834,7 @@ function App(){
         onKapat={()=>{ setRolSor(false); setRolBaslangic("secim"); }}
         onKaydet={(p)=>{ setProfil(p); setRolSor(false); setRolBaslangic("secim"); }}/>}
     {/* HOŞ GELDİN ŞERİDİ — rol yok, opsiyonel, kapatılabilir (kimse role zorlanmaz) */}
-    {oturum && kapi===null && !saltOkunur && !rolSor && !rehberGoster && profil && !profil.rol && !rolGizli && nav.sayfa==="ana" &&
-      <div className="fade-in" style={{position:"fixed",left:12,right:12,bottom:"calc(76px + env(safe-area-inset-bottom))",zIndex:1200,background:T.bg1,border:"1px solid "+T.line,borderRadius:16,padding:14,boxShadow:"0 14px 36px -14px rgba(0,0,0,.55)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
-          <span style={{fontSize:15,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,flex:1}}>👋 Hoş geldin!</span>
-          <span onClick={()=>{ try{localStorage.setItem('fz_rol_gizle','1');}catch(e){} setRolGizli(true); }} className="tap" style={{fontSize:12,color:T.textMut,cursor:"pointer"}}>Şimdilik geç ✕</span>
-        </div>
-        <div style={{fontSize:12.5,color:T.textMut,lineHeight:1.5,marginBottom:11}}>İstersen rolünü seç — istediğin zaman değişir, birden fazlası da olabilir.</div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{ setRolBaslangic("futbolcu"); setRolSor(true); }} className="tap" style={{flex:1,background:T.accent,color:(T.renkCifti&&T.renkCifti[1]==="#FFFFFF")?"#fff":T.bg0,border:0,borderRadius:11,padding:"11px",fontSize:13,fontWeight:800}}>⚽ Futbolcuyum</button>
-          <button onClick={()=>{ setRolBaslangic("hakem"); setRolSor(true); }} className="tap" style={{flex:1,background:T.bg2,color:T.text,border:"1px solid "+T.line,borderRadius:11,padding:"11px",fontSize:13,fontWeight:750}}>🧑‍⚖️ Hakemim</button>
-        </div>
-      </div>}
+    {/* "Hoş geldin · Futbolcuyum/Hakemim" rol seçim şeridi kaldırıldı — oyuncu artık davet linkiyle takıma katılıyor, ayrı rol sorulmuyor */}
 
     {/* ÇAKIŞMA UYARISI — başka cihaz veriyi değiştirdi */}
     {catisma && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:1800,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
