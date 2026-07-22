@@ -1,6 +1,6 @@
 /* ForzaLig service worker — kabuk önbelleği + güncelleme bildirimi
-   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (b7ebebe-1784356366). */
-const SURUM = "b7ebebe-1784356366";
+   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (e4793c1-1784726179). */
+const SURUM = "e4793c1-1784726179";
 const KABUK = "forzalig-kabuk-" + SURUM;
 
 // Açılış için gereken çekirdek dosyalar (CDN dosyaları ilk kullanımda önbelleğe alınır)
@@ -58,10 +58,11 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET") return;
 
-  // HTML (gezinme): ÖNCE AĞ — her zaman güncel sürümü dene, çevrimdışıysa önbellek
+  // HTML (gezinme): ÖNCE AĞ — cache:"no-store" ile HER ZAMAN taze index.html (HTTP önbelleğini atla),
+  // böylece PWA/ana-ekran modunda eski sürüm takılı kalmaz. Çevrimdışıysa önbellek.
   if (e.request.mode === "navigate") {
     e.respondWith(
-      fetch(e.request)
+      fetch(e.request, { cache: "no-store" })
         .then((r) => {
           const kopya = r.clone();
           caches.open(KABUK).then((c) => c.put("/", kopya)).catch(() => {});
