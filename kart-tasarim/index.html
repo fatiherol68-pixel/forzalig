@@ -3,683 +3,663 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>ForzaLig · Ultimate Card System — V1 Concepts</title>
+<title>ForzaLig · Card Design Language — V2 · 5 Concepts</title>
 <style>
 /* =====================================================================
-   ForzaLig — Ultimate Card System · V1 Concept Demo
-   Tek dosya · Vanilla HTML/CSS/JS · Framework yok · CDN yok
+   ForzaLig — CARD DESIGN LANGUAGE · V2
+   Tek dosya · Vanilla · Framework/CDN yok
    --------------------------------------------------------------------
-   MİMARİ
-   - Tek kart yapısı (ön + arka yüz) tüm konseptlerde paylaşılır.
-   - Konsept  = sanat yönetimi (arka plan, çerçeve, tipografi, ışık).
-   - Rarity   = vurgu ekseni (renk, glow, hologram gücü) — bağımsız.
-   - Theme Engine dosyanın en sonunda: yeni tema eklemek tek obje.
+   FELSEFE: 5 konsept BİRBİRİNİN RENGİ DEĞİL — her biri kendi
+   geometrisi / silüeti / layout'u / tipografisi / ışığı ile ayrı bir kart.
+   - Ortak: flip · hover · 3D tilt · parallax · rarity · theme engine.
+   - Rarity = SADECE vurgu (--a,--b,--g) → geometri/kimlik konsepte ait.
    ===================================================================== */
 
-/* ---------------- 0 · RESET & TEMEL ---------------- */
+/* ---------- RESET & GLOBAL ---------- */
 *,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
 html,body{ height:100%; }
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,Arial,sans-serif;
-  background:radial-gradient(120% 120% at 50% -10%,#0d1220 0%,#070a12 45%,#04060c 100%);
-  color:#eef2fb; min-height:100vh; overflow-x:hidden;
-  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  background:radial-gradient(130% 120% at 50% -10%,#0c111e,#06080f 50%,#030509);
+  color:#eef2fb; min-height:100vh; overflow-x:hidden; -webkit-font-smoothing:antialiased;
 }
 :root{
-  /* Global tokenlar — konsept/rarity bunları geçersiz kılar */
-  --card-w:340px;               /* kart temel genişliği */
-  --radius:26px;
   --ease:cubic-bezier(.22,.61,.36,1);
-  --accent:#39ff7a;             /* rarity vurgu 1 */
-  --accent2:#c9a24a;            /* rarity vurgu 2 */
-  --glow:0 0 40px rgba(57,255,122,.35);
-  --ink:#eef2fb;                /* ana metin */
-  --ink-soft:#aab4c8;           /* ikincil metin */
-  --frame:linear-gradient(135deg,#e9d9a3,#8a6f2e 40%,#f5e9bf 60%,#7c6327);
-  --surface:rgba(14,20,34,.72);
-  --holo:.9;                    /* hologram gücü 0..1 */
+  --a:#f5d67b;               /* rarity vurgu 1 */
+  --b:#c9a24a;               /* rarity vurgu 2 */
+  --g:rgba(245,214,123,.42); /* rarity glow */
 }
 
-/* ---------------- 1 · ÜST BAR / SEKMELER ---------------- */
+/* ---------- TOPBAR / SEKMELER ---------- */
 .topbar{
-  position:sticky; top:0; z-index:50;
-  display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center;
-  padding:14px 16px calc(14px + env(safe-area-inset-top,0));
-  background:linear-gradient(180deg,rgba(4,6,12,.92),rgba(4,6,12,.55) 70%,transparent);
-  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  position:sticky; top:0; z-index:60;
+  display:flex; flex-wrap:wrap; gap:10px 12px; align-items:center; justify-content:center;
+  padding:13px 16px calc(13px + env(safe-area-inset-top,0));
+  background:linear-gradient(180deg,rgba(3,5,9,.94),rgba(3,5,9,.4) 75%,transparent);
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
 }
-.brand{ display:flex; align-items:center; gap:9px; margin-right:6px; }
-.brand svg{ width:26px; height:26px; filter:drop-shadow(0 2px 8px rgba(0,0,0,.6)); }
-.brand b{ font-size:15px; letter-spacing:.5px; font-weight:800; }
-.brand span{ color:var(--accent2); }
-.tabs{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+.brand{ display:flex; align-items:center; gap:9px; }
+.brand svg{ width:24px; height:24px; }
+.brand b{ font-size:15px; font-weight:800; letter-spacing:.4px; }
+.brand b i{ color:var(--b); font-style:normal; }
+.tabs{ display:flex; flex-wrap:wrap; gap:7px; justify-content:center; }
 .tab{
-  cursor:pointer; border:0; color:var(--ink-soft);
-  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
-  padding:9px 15px; border-radius:12px; font-size:12.5px; font-weight:700; letter-spacing:.3px;
-  transition:all .28s var(--ease); white-space:nowrap;
+  cursor:pointer; color:#aab4c8; background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.09); padding:9px 14px; border-radius:12px;
+  font-size:12px; font-weight:700; letter-spacing:.2px; transition:all .28s var(--ease); white-space:nowrap;
 }
-.tab:hover{ color:var(--ink); background:rgba(255,255,255,.09); transform:translateY(-1px); }
-.tab.active{
-  color:#04070c; background:linear-gradient(135deg,var(--accent),var(--accent2));
-  border-color:transparent; box-shadow:0 6px 22px rgba(0,0,0,.4), var(--glow);
+.tab:hover{ color:#fff; transform:translateY(-1px); background:rgba(255,255,255,.09); }
+.tab.active{ color:#05070c; background:linear-gradient(135deg,var(--a),var(--b)); border-color:transparent; box-shadow:0 8px 24px rgba(0,0,0,.45); }
+.rar-wrap{ display:flex; align-items:center; gap:8px; }
+.rar-wrap label{ font-size:11px; color:#aab4c8; font-weight:700; letter-spacing:.4px; }
+.rar-wrap select{
+  background:rgba(255,255,255,.06); color:#eef2fb; border:1px solid rgba(255,255,255,.14);
+  border-radius:11px; padding:8px 10px; font-size:12px; font-weight:700; font-family:inherit; outline:none; cursor:pointer;
 }
-.rarity-picker{ display:flex; align-items:center; gap:8px; margin-left:6px; }
-.rarity-picker label{ font-size:11px; color:var(--ink-soft); font-weight:700; letter-spacing:.4px; }
-.rarity-picker select{
-  background:rgba(255,255,255,.06); color:var(--ink); border:1px solid rgba(255,255,255,.12);
-  border-radius:11px; padding:8px 11px; font-size:12px; font-weight:700; font-family:inherit;
-  outline:none; cursor:pointer;
-}
-.hint{
-  width:100%; text-align:center; font-size:11px; color:var(--ink-soft); margin-top:2px; opacity:.75;
-}
+.subhint{ width:100%; text-align:center; font-size:11px; color:#8a93a6; opacity:.8; }
 
-/* ---------------- 2 · SAHNE ---------------- */
+/* ---------- SAHNE ---------- */
 .stage{
-  min-height:calc(100vh - 96px);
-  display:grid; place-items:center; padding:34px 16px 70px;
-  perspective:1600px;                 /* 3D derinlik */
-  perspective-origin:50% 40%;
+  min-height:calc(100vh - 100px); display:grid; place-items:center;
+  padding:44px 16px 74px; perspective:1700px; perspective-origin:50% 42%;
 }
-.concept-meta{
-  position:absolute; top:104px; left:50%; transform:translateX(-50%);
-  text-align:center; pointer-events:none; z-index:2;
-}
-.concept-meta .no{ font-size:11px; letter-spacing:3px; color:var(--accent2); font-weight:800; }
-.concept-meta .name{ font-size:13px; color:var(--ink-soft); letter-spacing:1px; margin-top:2px; }
+.concept-label{ position:absolute; top:100px; left:50%; transform:translateX(-50%); text-align:center; pointer-events:none; z-index:2; }
+.concept-label .n{ font-size:11px; letter-spacing:4px; color:var(--b); font-weight:800; }
+.concept-label .d{ font-size:12px; color:#8a93a6; letter-spacing:1px; margin-top:3px; }
 
-/* Yüzen katman — flip/tilt ile çakışmasın diye ayrı */
-.floater{ animation:float 6s ease-in-out infinite; will-change:transform; }
-@keyframes float{ 0%,100%{ transform:translate3d(0,-6px,0); } 50%{ transform:translate3d(0,8px,0); } }
-
-/* ---------------- 3 · KART GÖVDESİ ---------------- */
+/* ---------- ORTAK KART İSKELETİ (flip + tilt) ---------- */
+.floater{ animation:float 6.5s ease-in-out infinite; will-change:transform; }
+@keyframes float{ 0%,100%{ transform:translateY(-7px);} 50%{ transform:translateY(9px);} }
 .card{
-  width:var(--card-w); aspect-ratio:1/1.56; position:relative;
-  transform-style:preserve-3d;
+  position:relative; transform-style:preserve-3d; cursor:pointer; user-select:none;
   transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
-  transition:transform .18s var(--ease);
-  will-change:transform; cursor:pointer; user-select:none;
+  transition:transform .16s var(--ease); will-change:transform;
 }
-.card__inner{
-  position:absolute; inset:0; transform-style:preserve-3d;
-  transition:transform .9s var(--ease); will-change:transform;
-}
+.card__inner{ position:absolute; inset:0; transform-style:preserve-3d; transition:transform .95s var(--ease); will-change:transform; }
 .card.is-flipped .card__inner{ transform:rotateY(180deg); }
-.face{
-  position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden;
-  border-radius:var(--radius); overflow:hidden;
-  /* PREMIUM SİLÜET — dikdörtgen değil, omuzlu köşeler */
-  clip-path:polygon(0 8%,7% 0,93% 0,100% 8%,100% 92%,93% 100%,7% 100%,0 92%);
+.face{ position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; overflow:hidden; }
+.face.back{ transform:rotateY(180deg); }
+.card::after{ /* rarity glow */
+  content:""; position:absolute; inset:-8%; z-index:-1; border-radius:44px;
+  background:radial-gradient(58% 58% at 50% 45%,var(--a),transparent 70%);
+  opacity:.28; filter:blur(34px); transition:opacity .4s var(--ease);
 }
-.face--back{ transform:rotateY(180deg); }
+.card:hover::after{ opacity:.46; }
+.sweep{ position:absolute; inset:0; z-index:20; pointer-events:none; opacity:0;
+  background:linear-gradient(115deg,transparent 34%,rgba(255,255,255,.55) 50%,transparent 66%);
+  transform:translateX(-120%); mix-blend-mode:overlay; }
+.card:hover .sweep{ animation:sweep 1.15s var(--ease); }
+@keyframes sweep{ 0%{opacity:0;transform:translateX(-120%);} 30%{opacity:.9;} 100%{opacity:0;transform:translateX(120%);} }
+.dust{ position:absolute; width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,.7); filter:blur(.3px); animation:rise linear infinite; opacity:0; }
+@keyframes rise{ 0%{transform:translateY(16px) scale(.6);opacity:0;} 15%{opacity:.7;} 85%{opacity:.4;} 100%{transform:translateY(-360px) scale(1);opacity:0;} }
+.flip-tip{ position:absolute; bottom:16px; left:50%; transform:translateX(-50%); z-index:6; font-size:9.5px; letter-spacing:1px; color:#8a93a6; opacity:.6; pointer-events:none; }
 
-/* Metalik çerçeve (frame) — ayrı katman, glow taşımaz */
-.frame{
-  position:absolute; inset:0; padding:3px; border-radius:var(--radius);
-  clip-path:polygon(0 8%,7% 0,93% 0,100% 8%,100% 92%,93% 100%,7% 100%,0 92%);
-  background:var(--frame); background-size:200% 200%;
-  animation:frameShift 8s linear infinite; z-index:1; pointer-events:none;
-}
-@keyframes frameShift{ 0%{ background-position:0% 50%; } 100%{ background-position:200% 50%; } }
-.frame::after{ /* iç kenar ince ışık */
-  content:""; position:absolute; inset:3px; border-radius:calc(var(--radius) - 3px);
-  clip-path:polygon(0 8%,7% 0,93% 0,100% 8%,100% 92%,93% 100%,7% 100%,0 92%);
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.10), inset 0 0 26px rgba(0,0,0,.55);
-}
-
-/* Kartın dış glow'u — rarity'ye göre */
-.card::before{
-  content:""; position:absolute; inset:-6%; z-index:-1; border-radius:40px;
-  background:radial-gradient(60% 60% at 50% 45%,var(--accent),transparent 70%);
-  opacity:.32; filter:blur(30px); transition:opacity .4s var(--ease);
-}
-.card:hover::before{ opacity:.5; }
-
-/* Yüzey (arka plan) */
-.surface{
-  position:absolute; inset:3px; border-radius:calc(var(--radius) - 3px);
-  clip-path:polygon(0 8%,7% 0,93% 0,100% 8%,100% 92%,93% 100%,7% 100%,0 92%);
-  background:var(--surface); overflow:hidden;
-}
-
-/* Işık süpürme (light sweep) — hover'da */
-.sweep{
-  position:absolute; inset:0; z-index:6; pointer-events:none; opacity:0;
-  background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 48%,transparent 66%);
-  transform:translateX(-120%); mix-blend-mode:overlay;
-}
-.card:hover .sweep{ animation:sweep 1.1s var(--ease); }
-@keyframes sweep{ 0%{ opacity:.0; transform:translateX(-120%); } 30%{ opacity:.9; } 100%{ opacity:0; transform:translateX(120%); } }
-
-/* ---------------- 4 · ÖN YÜZ İÇERİK ---------------- */
-.pad{ position:absolute; inset:0; padding:22px 20px; z-index:5; display:flex; flex-direction:column; }
-
-/* Üst şerit: logo + season */
-.top-row{ display:flex; align-items:center; justify-content:center; gap:8px; }
-.top-row .lg{ width:20px; height:20px; }
-.top-row b{ font-size:13px; font-weight:800; letter-spacing:.5px; }
-.top-row b span{ color:var(--accent2); }
-.season{
-  position:absolute; top:18px; right:18px; font-size:9px; font-weight:800; letter-spacing:1px;
-  padding:3px 8px; border-radius:20px; color:var(--ink);
-  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14);
-}
-
-/* OVR bloğu — en dikkat çekici alan */
-.ovr{ position:absolute; top:64px; left:22px; z-index:7; text-align:center; line-height:.9; }
-.ovr .num{
-  font-size:56px; font-weight:900; letter-spacing:-2px;
-  background:linear-gradient(180deg,#fff,var(--accent2)); -webkit-background-clip:text; background-clip:text;
-  -webkit-text-fill-color:transparent; filter:drop-shadow(0 3px 10px rgba(0,0,0,.5));
-}
-.ovr .pos{ font-size:15px; font-weight:800; color:var(--accent); letter-spacing:1px; margin-top:-2px; }
-.ovr .divider{ width:34px; height:2px; margin:6px auto; background:linear-gradient(90deg,transparent,var(--accent2),transparent); }
-.ovr .flag{ width:30px; height:22px; border-radius:4px; overflow:hidden; margin:2px auto 0; box-shadow:0 2px 8px rgba(0,0,0,.5); }
-.ovr .flag svg{ width:100%; height:100%; display:block; }
-
-/* Oyuncu fotoğrafı alanı */
-.photo{
-  position:absolute; inset:0; z-index:3; display:grid; place-items:end center;
-  filter:drop-shadow(0 20px 30px rgba(0,0,0,.55));
-}
-.photo svg{ width:78%; height:78%; margin-bottom:24%; }
-
-/* Alt panel: isim + statlar */
-.lower{ margin-top:auto; position:relative; z-index:6; }
-.name{
-  text-align:center; font-size:26px; font-weight:900; letter-spacing:1px; margin-bottom:8px;
-  text-transform:uppercase; text-shadow:0 2px 14px rgba(0,0,0,.6);
-}
-.name .star{ color:var(--accent2); font-size:18px; vertical-align:middle; }
-.stat-line{ height:1px; background:linear-gradient(90deg,transparent,var(--accent2),transparent); opacity:.7; margin-bottom:10px; }
-.stats{ display:grid; grid-template-columns:repeat(6,1fr); gap:2px; }
-.stat{ text-align:center; }
-.stat .v{ font-size:18px; font-weight:900; color:var(--ink); }
-.stat .k{ font-size:8.5px; font-weight:700; color:var(--ink-soft); letter-spacing:.5px; margin-top:1px; }
-
-/* Alt bilgi çubuğu: rarity + imza + id + hologram */
-.footer{ display:flex; align-items:flex-end; justify-content:space-between; margin-top:12px; }
-.footer .rar{ font-size:8px; color:var(--ink-soft); font-weight:700; letter-spacing:.5px; }
-.footer .rar b{ display:block; font-size:11px; color:var(--accent2); letter-spacing:1px; }
-.sign{ flex:1; display:grid; place-items:center; }
-.sign svg{ width:82px; height:26px; }
-.sign svg path{ stroke:var(--accent2); }
-.idlab{ font-size:8px; color:var(--ink-soft); font-weight:700; text-align:right; }
-.idlab b{ display:block; font-size:11px; color:var(--ink); letter-spacing:.5px; }
-
-/* Hologram diski */
-.holo{
-  width:30px; height:30px; border-radius:50%; margin-left:8px; position:relative; overflow:hidden;
-  background:conic-gradient(from 0deg,#ff2d55,#ffcc00,#34c759,#00c7ff,#af52de,#ff2d55);
-  filter:saturate(1.4) brightness(1.1); opacity:var(--holo);
-  box-shadow:0 0 10px rgba(255,255,255,.35), inset 0 0 8px rgba(255,255,255,.4);
-  animation:holoSpin 6s linear infinite;
-}
-.holo::after{ content:""; position:absolute; inset:22%; border-radius:50%; background:rgba(6,10,18,.85);
-  display:grid; }
-@keyframes holoSpin{ to{ transform:rotate(360deg); } }
-
-/* ---------------- 5 · ARKA YÜZ İÇERİK ---------------- */
-.back-pad{ position:absolute; inset:0; padding:22px 20px; z-index:5; display:flex; flex-direction:column; }
-.back-head{ text-align:center; margin-bottom:12px; }
-.back-head .nm{ font-size:19px; font-weight:900; letter-spacing:1px; text-transform:uppercase; }
-.back-head .ps{ font-size:10px; color:var(--accent); font-weight:800; letter-spacing:2px; }
-.back-head .id{ font-size:9px; color:var(--ink-soft); margin-top:3px; }
-.sect-t{ font-size:9px; font-weight:800; letter-spacing:2px; color:var(--accent2); text-align:center; margin:6px 0 8px; }
-.career{ display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin-bottom:10px; }
-.crow{ display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.06); }
-.crow .lab{ font-size:10px; color:var(--ink-soft); font-weight:600; }
-.crow .val{ font-size:14px; color:var(--ink); font-weight:900; }
-.crow .val.hot{ color:var(--accent); }
-/* Takım geçmişi */
-.teams{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:10px; }
-.tm{ text-align:center; }
-.tm .badge{ width:34px; height:38px; margin:0 auto 4px; }
-.tm .yr{ font-size:7.5px; color:var(--accent2); font-weight:800; }
-.tm .tn{ font-size:7px; color:var(--ink-soft); font-weight:700; line-height:1.2; margin-top:1px; }
-/* Doğrulama satırı: QR + rozet */
-.verify{ margin-top:auto; display:flex; align-items:center; gap:12px; }
-.qr{ width:58px; height:58px; border-radius:8px; background:#fff; padding:5px; flex-shrink:0; }
-.qr canvas{ width:100%; height:100%; display:block; image-rendering:pixelated; }
-.vtext{ flex:1; }
-.vtext .t1{ font-size:8px; color:var(--ink-soft); font-weight:700; }
-.vtext .t2{ font-size:11px; font-weight:900; letter-spacing:.5px; }
-.vbadge{ text-align:right; }
-.vbadge .vb-t{ font-size:8px; color:var(--ink-soft); font-weight:700; }
-.vbadge .vb-s{ font-size:11px; font-weight:900; color:var(--accent); display:flex; align-items:center; gap:4px; justify-content:flex-end; }
-.serial{ text-align:center; font-size:8px; letter-spacing:2px; color:var(--ink-soft); margin-top:8px; font-weight:700; }
-
-/* ---------------- 6 · ATMOSFER KATMANLARI (hafif) ---------------- */
-.atmos{ position:absolute; inset:0; z-index:2; pointer-events:none; overflow:hidden; }
-.atmos .glow-blob{ position:absolute; width:70%; height:50%; top:-10%; left:15%;
-  background:radial-gradient(closest-side,var(--accent),transparent); opacity:.12; filter:blur(20px); }
-.particles{ position:absolute; inset:0; z-index:4; pointer-events:none; }
-.dust{ position:absolute; width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,.7);
-  filter:blur(.3px); animation:rise linear infinite; opacity:0; }
-@keyframes rise{
-  0%{ transform:translateY(20px) scale(.6); opacity:0; }
-  15%{ opacity:.7; } 85%{ opacity:.5; }
-  100%{ transform:translateY(-380px) scale(1); opacity:0; }
-}
-/* Konsept-özel dekor katmanları (CSS ile açılıp kapanır) */
-.deco{ position:absolute; inset:0; z-index:2; pointer-events:none; display:none; }
+/* Ortak küçük öğeler */
+.holo{ border-radius:50%; background:conic-gradient(from 0deg,#ff2d55,#ffcc00,#34c759,#00c7ff,#af52de,#ff2d55);
+  filter:saturate(1.4) brightness(1.1); box-shadow:0 0 10px rgba(255,255,255,.35),inset 0 0 8px rgba(255,255,255,.4); animation:holoSpin 6s linear infinite; }
+.holo::after{ content:""; position:absolute; inset:24%; border-radius:50%; background:rgba(5,8,14,.85); }
+@keyframes holoSpin{ to{ transform:rotate(360deg);} }
+.qrbox{ background:#fff; border-radius:8px; padding:5px; }
+.qrbox canvas{ display:block; width:100%; height:100%; image-rendering:pixelated; }
 
 /* =====================================================================
-   7 · KONSEPT SANAT YÖNETİMLERİ
-   Her konsept farklı: renk / çerçeve / arka plan / tipografi / ışık / derinlik
+   CONCEPT 1 · APPLE / VISIONOS / GLASS / MINIMAL
+   Geometri: uzun, çok yumuşak yuvarlak panel. Ferah. Katmanlı cam.
    ===================================================================== */
+.c1 .card{ width:330px; height:510px; }
+.c1 .face{ border-radius:38px;
+  background:linear-gradient(165deg,#eef3fb,#dbe6f5 55%,#cdd9ee);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 30px 60px rgba(10,20,40,.5); }
+.c1 .glass-layer{ position:absolute; inset:14px; border-radius:28px; overflow:hidden;
+  background:linear-gradient(160deg,rgba(255,255,255,.55),rgba(255,255,255,.15));
+  border:1px solid rgba(255,255,255,.7); backdrop-filter:blur(4px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 10px 30px rgba(30,50,90,.2); }
+.c1 .c1-top{ position:absolute; top:26px; left:26px; right:26px; display:flex; align-items:center; justify-content:space-between; z-index:5; }
+.c1 .c1-ovr{ display:flex; align-items:baseline; gap:6px; color:#1b2434; }
+.c1 .c1-ovr .n{ font-size:34px; font-weight:800; letter-spacing:-1.5px; }
+.c1 .c1-ovr .p{ font-size:13px; font-weight:700; color:#4b6a9c; letter-spacing:.5px; }
+.c1 .c1-brand{ display:flex; align-items:center; gap:6px; color:#33415a; font-size:12px; font-weight:800; }
+.c1 .c1-brand svg{ width:18px; height:18px; }
+.c1 .c1-photo{ position:absolute; top:66px; left:0; right:0; display:grid; place-items:center; z-index:3; }
+.c1 .c1-photo svg{ width:74%; height:300px; filter:drop-shadow(0 24px 30px rgba(30,50,90,.35)); }
+.c1 .c1-flag{ position:absolute; top:70px; right:30px; width:30px; height:22px; border-radius:5px; overflow:hidden; z-index:6; box-shadow:0 3px 8px rgba(0,0,0,.25); }
+.c1 .c1-flag svg{ width:100%; height:100%; }
+.c1 .c1-lower{ position:absolute; left:22px; right:22px; bottom:22px; z-index:5;
+  background:rgba(255,255,255,.5); border:1px solid rgba(255,255,255,.8); border-radius:24px; padding:16px 16px 14px; backdrop-filter:blur(8px); }
+.c1 .c1-name{ text-align:center; font-size:21px; font-weight:800; letter-spacing:.5px; color:#141c2b; }
+.c1 .c1-season{ text-align:center; font-size:9.5px; letter-spacing:2px; color:#5a6b86; font-weight:700; margin:2px 0 12px; }
+.c1 .c1-stats{ display:flex; justify-content:space-between; gap:4px; }
+.c1 .c1-stats .s{ flex:1; text-align:center; background:rgba(255,255,255,.7); border-radius:12px; padding:8px 2px; box-shadow:inset 0 1px 0 #fff; }
+.c1 .c1-stats .s .v{ font-size:16px; font-weight:800; color:#1b2434; }
+.c1 .c1-stats .s .k{ font-size:8px; font-weight:700; color:#6a7a93; letter-spacing:.5px; }
+.c1 .c1-foot{ display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding-top:10px; border-top:1px solid rgba(30,50,90,.12); }
+.c1 .c1-foot .rr{ font-size:8px; color:#5a6b86; font-weight:700; } .c1 .c1-foot .rr b{ display:block; font-size:10px; color:var(--b); }
+.c1 .c1-foot .holo{ width:26px; height:26px; position:relative; opacity:.85; }
+.c1 .c1-foot .id{ font-size:8px; color:#5a6b86; font-weight:700; text-align:right; } .c1 .c1-foot .id b{ display:block; font-size:10px; color:#1b2434; }
+/* C1 arka */
+.c1 .back{ background:linear-gradient(165deg,#eef3fb,#d3deef); color:#1b2434; padding:30px 26px; }
+.c1 .back h3{ text-align:center; font-size:12px; letter-spacing:3px; color:#4b6a9c; font-weight:800; }
+.c1 .back .nm{ text-align:center; font-size:20px; font-weight:800; margin-bottom:14px; }
+.c1 .back .grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; margin-bottom:14px; }
+.c1 .back .row{ display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid rgba(30,50,90,.1); font-size:11px; }
+.c1 .back .row b{ font-size:14px; font-weight:800; } .c1 .back .row b.h{ color:#2c7; }
+.c1 .back .verify{ display:flex; align-items:center; gap:12px; margin-top:auto; background:rgba(255,255,255,.6); border-radius:18px; padding:12px; border:1px solid rgba(255,255,255,.9); }
+.c1 .back .verify .qrbox{ width:52px; height:52px; }
+.c1 .back .verify .vt b{ font-size:12px; } .c1 .back .verify .vt span{ font-size:9px; color:#5a6b86; display:block; }
+.c1 .back .verify .ok{ margin-left:auto; text-align:right; font-size:10px; font-weight:800; color:#1a9e57; }
 
-/* --- CONCEPT 1 · APPLE VISION GLASS (aydınlık, cam, minimal) --- */
-[data-concept="1"]{
-  --surface:linear-gradient(160deg,rgba(255,255,255,.14),rgba(210,225,255,.05));
-  --frame:linear-gradient(135deg,rgba(255,255,255,.9),rgba(180,200,230,.5),rgba(255,255,255,.85));
-  --ink:#f4f7ff; --ink-soft:#c6d1e6;
-}
-[data-concept="1"] .surface{ backdrop-filter:blur(8px); }
-[data-concept="1"] .surface::before{ /* buzlu cam parıltısı */
-  content:""; position:absolute; inset:0;
-  background:linear-gradient(135deg,rgba(255,255,255,.16),transparent 40%),radial-gradient(80% 60% at 50% 0%,rgba(255,255,255,.14),transparent);
-}
-[data-concept="1"] .name{ font-weight:800; letter-spacing:2px; }
-[data-concept="1"] .deco.glass{ display:block;
-  background:repeating-linear-gradient(115deg,transparent,transparent 22px,rgba(255,255,255,.03) 23px,transparent 24px); }
+/* =====================================================================
+   CONCEPT 2 · PORSCHE / F1 / CARBON / TITANIUM
+   Geometri: geniş, köşeli (chamfer). Asimetrik spec-sheet. Sağ-üst eğik OVR.
+   ===================================================================== */
+.c2 .card{ width:360px; height:500px; }
+.c2 .face{ background:#0b0c0f;
+  clip-path:polygon(0 6%,6% 0,100% 0,100% 88%,94% 100%,0 100%);
+  box-shadow:0 30px 60px rgba(0,0,0,.6); }
+.c2 .carbon{ position:absolute; inset:0;
+  background-image:linear-gradient(45deg,rgba(255,255,255,.045) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.045) 75%),
+                   linear-gradient(45deg,rgba(255,255,255,.045) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.045) 75%);
+  background-size:7px 7px; background-position:0 0,3.5px 3.5px; }
+.c2 .edge{ position:absolute; inset:0; border:1px solid rgba(255,255,255,.08);
+  clip-path:polygon(0 6%,6% 0,100% 0,100% 88%,94% 100%,0 100%); }
+.c2 .redline{ position:absolute; top:0; bottom:0; left:52%; width:2px; background:linear-gradient(180deg,transparent,var(--a),transparent); box-shadow:0 0 14px var(--a); opacity:.85; }
+.c2 .c2-ovr{ position:absolute; top:22px; right:0; transform:skewX(-12deg); background:linear-gradient(135deg,#e9edf2,#7f858e); color:#0b0c0f; padding:8px 22px 8px 26px; z-index:6; box-shadow:0 6px 18px rgba(0,0,0,.5); }
+.c2 .c2-ovr>span{ display:block; transform:skewX(12deg); text-align:center; }
+.c2 .c2-ovr .n{ font-size:38px; font-weight:900; font-style:italic; letter-spacing:-1px; line-height:.9; }
+.c2 .c2-ovr .p{ font-size:11px; font-weight:800; letter-spacing:2px; }
+.c2 .c2-top{ position:absolute; top:20px; left:20px; display:flex; align-items:center; gap:7px; z-index:6; color:#e9edf2; }
+.c2 .c2-top svg{ width:18px; height:18px; } .c2 .c2-top b{ font-size:12px; font-weight:800; } .c2 .c2-top b i{ color:var(--a); font-style:normal; }
+.c2 .c2-photo{ position:absolute; top:52px; left:-6%; width:66%; height:300px; z-index:3; display:grid; place-items:center; }
+.c2 .c2-photo svg{ width:100%; height:100%; filter:drop-shadow(14px 20px 24px rgba(0,0,0,.6)) contrast(1.05); }
+.c2 .c2-flag{ position:absolute; top:80px; left:22px; width:28px; height:20px; border-radius:3px; overflow:hidden; z-index:6; }
+.c2 .c2-flag svg{ width:100%; height:100%; }
+/* sağ telemetri */
+.c2 .c2-tele{ position:absolute; top:96px; right:22px; width:38%; z-index:6; }
+.c2 .c2-tele .row{ margin-bottom:11px; }
+.c2 .c2-tele .lab{ display:flex; justify-content:space-between; font-size:9px; font-weight:800; letter-spacing:1px; color:#aeb4bd; margin-bottom:3px; font-family:ui-monospace,monospace; }
+.c2 .c2-tele .lab b{ color:#fff; }
+.c2 .c2-tele .bar{ height:5px; background:rgba(255,255,255,.1); border-radius:3px; overflow:hidden; }
+.c2 .c2-tele .bar i{ display:block; height:100%; background:linear-gradient(90deg,var(--b),var(--a)); box-shadow:0 0 10px var(--a); border-radius:3px; transform-origin:left; animation:grow 1s var(--ease) both; }
+@keyframes grow{ from{ transform:scaleX(0);} }
+.c2 .c2-name{ position:absolute; left:20px; bottom:64px; z-index:6; color:#fff; }
+.c2 .c2-name .nm{ font-size:30px; font-weight:900; font-style:italic; letter-spacing:-.5px; text-transform:uppercase; line-height:.95; }
+.c2 .c2-name .sea{ font-size:10px; letter-spacing:3px; color:var(--a); font-weight:800; }
+.c2 .c2-foot{ position:absolute; left:20px; right:20px; bottom:20px; z-index:6; display:flex; align-items:center; justify-content:space-between; font-family:ui-monospace,monospace; }
+.c2 .c2-foot .m{ font-size:8px; color:#8b929c; letter-spacing:1px; } .c2 .c2-foot .m b{ display:block; font-size:11px; color:#fff; }
+.c2 .c2-foot .holo{ width:26px; height:26px; position:relative; }
+/* C2 arka */
+.c2 .back{ background:#0b0c0f; padding:30px 24px; color:#e9edf2; }
+.c2 .back .carbon{ opacity:.6; }
+.c2 .back h3{ position:relative; font-family:ui-monospace,monospace; font-size:11px; letter-spacing:3px; color:var(--a); font-weight:800; margin-bottom:4px; }
+.c2 .back .nm{ position:relative; font-size:22px; font-weight:900; font-style:italic; text-transform:uppercase; margin-bottom:16px; }
+.c2 .back .grid{ position:relative; display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-bottom:16px; }
+.c2 .back .row{ display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:10px; font-family:ui-monospace,monospace; letter-spacing:1px; color:#aeb4bd; }
+.c2 .back .row b{ font-size:14px; color:#fff; } .c2 .back .row b.h{ color:var(--a); }
+.c2 .back .verify{ position:relative; display:flex; align-items:center; gap:12px; margin-top:auto; }
+.c2 .back .verify .qrbox{ width:52px; height:52px; }
+.c2 .back .verify .vt b{ font-size:12px; } .c2 .back .verify .vt span{ font-size:8px; color:#8b929c; display:block; font-family:ui-monospace,monospace; }
+.c2 .back .verify .ok{ margin-left:auto; text-align:right; font-size:10px; font-weight:800; color:var(--a); font-family:ui-monospace,monospace; }
 
-/* --- CONCEPT 2 · CARBON / TITANIUM / F1 (agresif, koyu, teknik) --- */
-[data-concept="2"]{
-  --accent:#ff3b30; --accent2:#c8ccd2;
-  --surface:linear-gradient(160deg,#15171b,#0a0b0e);
-  --frame:linear-gradient(135deg,#d9dde3,#5a5f66 45%,#eef1f5 55%,#43474d);
-  --glow:0 0 40px rgba(255,59,48,.35);
-}
-[data-concept="2"] .deco.carbon{ display:block; opacity:.5;
-  background-image:
-    linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%),
-    linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%);
-  background-size:8px 8px; background-position:0 0,4px 4px; }
-[data-concept="2"] .name{ font-style:italic; letter-spacing:0; }
-[data-concept="2"] .ovr .num{ background:linear-gradient(180deg,#fff,#ff3b30); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
-
-/* --- CONCEPT 3 · STADIUM EDITION (gece maçı, projektör, çim) --- */
-[data-concept="3"]{
-  --accent:#7CFF6B; --accent2:#eafff0;
-  --surface:linear-gradient(180deg,#0a1420 0%,#0e2a1a 70%,#0a3d1f 100%);
-  --frame:linear-gradient(135deg,#eafff0,#3a7d4f 45%,#dfffe9 55%,#2f6b41);
-  --glow:0 0 46px rgba(124,255,107,.4);
-}
-[data-concept="3"] .deco.stadium{ display:block; }
-[data-concept="3"] .deco.stadium::before{ /* projektör hüzmeleri */
-  content:""; position:absolute; inset:0;
-  background:
-    conic-gradient(from 200deg at 20% -5%,rgba(255,255,255,.14),transparent 25%),
-    conic-gradient(from 140deg at 80% -5%,rgba(255,255,255,.12),transparent 25%);
-}
-[data-concept="3"] .deco.stadium::after{ /* çim çizgileri */
-  content:""; position:absolute; left:0; right:0; bottom:0; height:34%;
-  background:repeating-linear-gradient(90deg,rgba(255,255,255,.06) 0 14px,transparent 14px 28px);
+/* =====================================================================
+   CONCEPT 3 · NIKE / STADIUM / CHAMPIONS / SPORT
+   Geometri: dinamik, büyük diyagonal blok. Dev OVR üstte. Atletik.
+   ===================================================================== */
+.c3 .card{ width:338px; height:516px; }
+.c3 .face{ border-radius:22px; background:linear-gradient(180deg,#0a1420 0%,#0c2718 68%,#0a3a1e 100%);
+  box-shadow:0 30px 60px rgba(0,0,0,.6); }
+.c3 .flood{ position:absolute; inset:0; background:
+  conic-gradient(from 200deg at 18% -8%,rgba(255,255,255,.16),transparent 22%),
+  conic-gradient(from 140deg at 82% -8%,rgba(255,255,255,.14),transparent 22%); }
+.c3 .pitch{ position:absolute; left:0; right:0; bottom:0; height:40%;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 16px,transparent 16px 32px);
   -webkit-mask:linear-gradient(180deg,transparent,#000); mask:linear-gradient(180deg,transparent,#000);
-  transform:perspective(200px) rotateX(55deg); transform-origin:bottom;
-}
-
-/* --- CONCEPT 4 · BLACK GOLD (obsidyen + altın, Rolex lüksü) --- */
-[data-concept="4"]{
-  --accent:#f5d67b; --accent2:#c9a24a;
-  --surface:linear-gradient(160deg,#141210,#08070a 55%,#000);
-  --frame:linear-gradient(135deg,#f7e9b0,#a17c2c 40%,#fff4cf 58%,#8a6a24);
-  --glow:0 0 44px rgba(245,214,123,.34);
-}
-[data-concept="4"] .deco.gold{ display:block; opacity:.5;
-  background:radial-gradient(60% 40% at 50% 0%,rgba(245,214,123,.18),transparent),
-  repeating-conic-gradient(from 0deg at 50% 120%,rgba(245,214,123,.05) 0deg 6deg,transparent 6deg 12deg); }
-[data-concept="4"] .name{ font-weight:900; letter-spacing:3px; }
-[data-concept="4"] .surface::after{ content:""; position:absolute; inset:0;
-  background:linear-gradient(180deg,transparent 60%,rgba(0,0,0,.5)); }
-
-/* --- CONCEPT 5 · FUTURE EDITION (sci-fi, hologram, neon 3D) --- */
-[data-concept="5"]{
-  --accent:#00e5ff; --accent2:#c766ff;
-  --surface:linear-gradient(160deg,#0a0f2a,#140a2e 60%,#05030f);
-  --frame:linear-gradient(135deg,#00e5ff,#c766ff 50%,#00e5ff);
-  --glow:0 0 50px rgba(0,229,255,.45);
-  --holo:1;
-}
-[data-concept="5"] .deco.future{ display:block; }
-[data-concept="5"] .deco.future::before{ /* neon grid */
-  content:""; position:absolute; inset:0; opacity:.35;
-  background:
-    linear-gradient(rgba(0,229,255,.18) 1px,transparent 1px) 0 0/100% 26px,
-    linear-gradient(90deg,rgba(199,102,255,.14) 1px,transparent 1px) 0 0/26px 100%;
-  -webkit-mask:radial-gradient(80% 80% at 50% 40%,#000,transparent); mask:radial-gradient(80% 80% at 50% 40%,#000,transparent);
-}
-[data-concept="5"] .name{ letter-spacing:4px; text-shadow:0 0 14px var(--accent); }
-[data-concept="5"] .ovr .num{ background:linear-gradient(180deg,#fff,var(--accent)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; text-shadow:0 0 20px rgba(0,229,255,.4); }
+  transform:perspective(220px) rotateX(58deg); transform-origin:bottom; }
+.c3 .slash{ position:absolute; inset:0; z-index:2;
+  background:linear-gradient(120deg,transparent 46%,var(--a) 46.5%,var(--b) 54%,transparent 54.5%); opacity:.22; }
+.c3 .c3-ovr{ position:absolute; top:20px; left:22px; z-index:6; line-height:.82; }
+.c3 .c3-ovr .n{ font-size:72px; font-weight:900; font-style:italic; letter-spacing:-4px; color:#fff; text-shadow:0 4px 20px rgba(0,0,0,.5); }
+.c3 .c3-ovr .p{ display:inline-block; background:var(--a); color:#04120a; font-size:13px; font-weight:900; letter-spacing:1px; padding:2px 10px; border-radius:4px; transform:skewX(-8deg); margin-top:2px; }
+.c3 .c3-brand{ position:absolute; top:22px; right:22px; z-index:6; display:flex; align-items:center; gap:6px; color:#eafff0; font-size:12px; font-weight:900; font-style:italic; }
+.c3 .c3-brand svg{ width:18px; height:18px; }
+.c3 .c3-flag{ position:absolute; top:52px; right:22px; width:30px; height:22px; border-radius:4px; overflow:hidden; z-index:6; }
+.c3 .c3-flag svg{ width:100%; height:100%; }
+.c3 .c3-photo{ position:absolute; top:60px; left:0; right:0; z-index:3; display:grid; place-items:center; }
+.c3 .c3-photo svg{ width:88%; height:320px; filter:drop-shadow(0 20px 26px rgba(0,0,0,.55)); }
+.c3 .c3-lower{ position:absolute; left:0; right:0; bottom:0; z-index:5; padding:0 20px 20px; }
+.c3 .c3-name{ font-size:34px; font-weight:900; font-style:italic; text-transform:uppercase; color:#fff; letter-spacing:-1px; text-shadow:0 3px 16px rgba(0,0,0,.6); line-height:.95; }
+.c3 .c3-season{ font-size:10px; letter-spacing:3px; color:var(--a); font-weight:800; margin-bottom:12px; }
+.c3 .c3-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.c3 .c3-stats .s{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-left:3px solid var(--a); border-radius:8px; padding:9px 10px; }
+.c3 .c3-stats .s .v{ font-size:22px; font-weight:900; font-style:italic; color:#fff; } .c3 .c3-stats .s .k{ font-size:8.5px; font-weight:800; letter-spacing:1px; color:#9fb3a6; }
+.c3 .c3-foot{ display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+.c3 .c3-foot .rr{ font-size:8px; color:#9fb3a6; font-weight:700; } .c3 .c3-foot .rr b{ display:block; font-size:11px; color:var(--a); }
+.c3 .c3-foot .id{ font-size:8px; color:#9fb3a6; text-align:center; } .c3 .c3-foot .id b{ display:block; font-size:11px; color:#fff; }
+.c3 .c3-foot .holo{ width:28px; height:28px; position:relative; }
+/* C3 arka */
+.c3 .back{ background:linear-gradient(180deg,#0a1420,#0a3a1e); padding:28px 24px; color:#eafff0; }
+.c3 .back .flood{ opacity:.5; }
+.c3 .back h3{ position:relative; font-size:12px; letter-spacing:3px; color:var(--a); font-weight:900; font-style:italic; margin-bottom:2px; }
+.c3 .back .nm{ position:relative; font-size:24px; font-weight:900; font-style:italic; text-transform:uppercase; margin-bottom:14px; }
+.c3 .back .grid{ position:relative; display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-bottom:14px; }
+.c3 .back .row{ display:flex; justify-content:space-between; align-items:center; padding:7px 10px; background:rgba(255,255,255,.05); border-left:3px solid var(--a); border-radius:6px; font-size:10px; color:#9fb3a6; font-weight:700; }
+.c3 .back .row b{ font-size:15px; font-style:italic; color:#fff; } .c3 .back .row b.h{ color:var(--a); }
+.c3 .back .verify{ position:relative; display:flex; align-items:center; gap:12px; margin-top:auto; }
+.c3 .back .verify .qrbox{ width:52px; height:52px; }
+.c3 .back .verify .vt b{ font-size:12px; font-style:italic; } .c3 .back .verify .vt span{ font-size:8px; color:#9fb3a6; display:block; }
+.c3 .back .verify .ok{ margin-left:auto; font-size:10px; font-weight:900; color:var(--a); font-style:italic; }
 
 /* =====================================================================
-   8 · RARITY TEMALARI (vurgu ekseni) — data-rarity ile
+   CONCEPT 4 · NETFLIX / CINEMATIC / LUXURY / BLACK GOLD
+   Geometri: sinema-poster oranı, letterbox bar, altın köşe süsleri.
    ===================================================================== */
-[data-rarity="bronze"]{ --accent:#e08a4a; --accent2:#f0b483; --frame:linear-gradient(135deg,#e3a06a,#8a5322 45%,#f0c199 60%,#7a481e); --glow:0 0 40px rgba(224,138,74,.35); }
-[data-rarity="silver"]{ --accent:#cfd6df; --accent2:#eef2f7; --frame:linear-gradient(135deg,#eef2f7,#8b929c 45%,#fff 58%,#767c86); --glow:0 0 40px rgba(207,214,223,.35); }
-[data-rarity="gold"]{ --accent:#f5d67b; --accent2:#c9a24a; --frame:linear-gradient(135deg,#f7e9b0,#a17c2c 40%,#fff4cf 58%,#8a6a24); --glow:0 0 42px rgba(245,214,123,.34); }
-[data-rarity="elite"]{ --accent:#8ab4ff; --accent2:#c9dbff; --frame:linear-gradient(135deg,#dfeaff,#4f74c4 45%,#eef4ff 58%,#3d5aa0); --glow:0 0 46px rgba(138,180,255,.4); }
-[data-rarity="legend"]{ --accent:#ff5f9e; --accent2:#ffd36e; --frame:linear-gradient(135deg,#ffd36e,#ff5f9e 50%,#ffe9a8); --glow:0 0 50px rgba(255,95,158,.42); }
-[data-rarity="totw"]{ --accent:#e9edf3; --accent2:#9aa3b0; --frame:linear-gradient(135deg,#f4f6fa,#3a3f47 45%,#fff 58%,#20242b); --surface:linear-gradient(160deg,#1b1f26,#05070b); --glow:0 0 44px rgba(233,237,243,.3); }
-[data-rarity="hof"]{ --accent:#c9a24a; --accent2:#7c5cff; --frame:linear-gradient(135deg,#f7e9b0,#7c5cff 55%,#fff4cf); --glow:0 0 50px rgba(124,92,255,.4); }
-[data-rarity="mvp"]{ --accent:#ffcc00; --accent2:#ff9500; --frame:linear-gradient(135deg,#ffe08a,#ff9500 50%,#fff3c4); --glow:0 0 50px rgba(255,204,0,.42); }
-[data-rarity="galaxy"]{ --accent:#a06bff; --accent2:#5ad1ff; --frame:linear-gradient(135deg,#5ad1ff,#a06bff 50%,#ff8ad1); --surface:linear-gradient(160deg,#120a2e,#05030f); --glow:0 0 54px rgba(160,107,255,.45); }
-[data-rarity="carbon"]{ --accent:#ff3b30; --accent2:#c8ccd2; --frame:linear-gradient(135deg,#d9dde3,#43474d 50%,#eef1f5); --surface:linear-gradient(160deg,#141619,#08090c); --glow:0 0 42px rgba(255,59,48,.34); }
-[data-rarity="fire"]{ --accent:#ff5a2c; --accent2:#ffb347; --frame:linear-gradient(135deg,#ffb347,#ff2d2d 55%,#ffd98a); --glow:0 0 52px rgba(255,90,44,.46); }
-[data-rarity="ice"]{ --accent:#7fe6ff; --accent2:#dff8ff; --frame:linear-gradient(135deg,#dff8ff,#4aa9d6 50%,#fff); --surface:linear-gradient(160deg,#0a1a24,#04121a); --glow:0 0 50px rgba(127,230,255,.42); }
-[data-rarity="black"]{ --accent:#c9a24a; --accent2:#8a8f98; --frame:linear-gradient(135deg,#2a2c30,#000 50%,#3a3d42); --surface:linear-gradient(160deg,#0a0a0c,#000); --glow:0 0 42px rgba(201,162,74,.3); }
-[data-rarity="neon"]{ --accent:#39ff14; --accent2:#00e5ff; --frame:linear-gradient(135deg,#39ff14,#00e5ff 50%,#39ff14); --surface:linear-gradient(160deg,#07120a,#03060a); --glow:0 0 54px rgba(57,255,20,.5); }
+.c4 .card{ width:328px; height:520px; }
+.c4 .face{ background:#050505; border:1px solid rgba(245,214,123,.25);
+  box-shadow:0 30px 70px rgba(0,0,0,.7), inset 0 0 60px rgba(0,0,0,.9); }
+.c4 .bars{ position:absolute; left:0; right:0; z-index:5; height:34px; background:#000; }
+.c4 .bars.t{ top:0; border-bottom:1px solid rgba(245,214,123,.25); }
+.c4 .bars.b{ bottom:0; height:150px; background:linear-gradient(180deg,transparent,#000 40%); border:0; }
+.c4 .grain{ position:absolute; inset:0; z-index:6; pointer-events:none; opacity:.06; mix-blend-mode:overlay;
+  background-image:radial-gradient(rgba(255,255,255,.9) .5px,transparent .5px); background-size:3px 3px; animation:grain .4s steps(3) infinite; }
+@keyframes grain{ to{ background-position:2px 1px; } }
+.c4 .spot{ position:absolute; inset:0; z-index:2; background:radial-gradient(60% 45% at 50% 28%,rgba(245,214,123,.16),transparent 60%); }
+.c4 .corner{ position:absolute; width:34px; height:34px; z-index:7; border:1.5px solid var(--a); opacity:.7; }
+.c4 .corner.tl{ top:44px; left:14px; border-right:0; border-bottom:0; }
+.c4 .corner.tr{ top:44px; right:14px; border-left:0; border-bottom:0; }
+.c4 .corner.bl{ bottom:44px; left:14px; border-right:0; border-top:0; }
+.c4 .corner.br{ bottom:44px; right:14px; border-left:0; border-top:0; }
+.c4 .c4-top{ position:absolute; top:0; left:0; right:0; height:34px; z-index:8; display:flex; align-items:center; justify-content:space-between; padding:0 16px; }
+.c4 .c4-top .lg{ display:flex; align-items:center; gap:6px; color:var(--a); font-size:11px; font-weight:800; letter-spacing:2px; } .c4 .c4-top .lg svg{ width:15px; height:15px; }
+.c4 .c4-top .sea{ font-size:9px; letter-spacing:3px; color:#8a7c50; font-weight:700; }
+.c4 .c4-photo{ position:absolute; top:34px; left:0; right:0; z-index:3; display:grid; place-items:center; }
+.c4 .c4-photo svg{ width:80%; height:340px; filter:drop-shadow(0 20px 30px rgba(0,0,0,.7)) sepia(.2) saturate(1.1); }
+.c4 .c4-flag{ position:absolute; top:52px; right:26px; width:26px; height:19px; border-radius:3px; overflow:hidden; z-index:8; opacity:.9; }
+.c4 .c4-flag svg{ width:100%; height:100%; }
+.c4 .c4-seal{ position:absolute; top:150px; left:24px; z-index:8; width:66px; height:66px; border-radius:50%;
+  border:1.5px solid var(--a); display:grid; place-items:center; text-align:center;
+  background:radial-gradient(circle,rgba(245,214,123,.14),transparent); box-shadow:0 0 22px rgba(245,214,123,.25); }
+.c4 .c4-seal .n{ font-size:26px; font-weight:900; color:var(--a); font-family:Georgia,'Times New Roman',serif; line-height:1; }
+.c4 .c4-seal .p{ font-size:8px; letter-spacing:2px; color:#c8b880; font-weight:700; }
+.c4 .c4-lower{ position:absolute; left:0; right:0; bottom:0; z-index:8; padding:0 26px 22px; text-align:center; }
+.c4 .c4-name{ font-family:Georgia,'Times New Roman',serif; font-size:32px; font-weight:700; letter-spacing:3px; color:#fff; text-shadow:0 2px 20px rgba(245,214,123,.3); }
+.c4 .c4-sub{ font-size:9px; letter-spacing:5px; color:var(--a); font-weight:600; margin:4px 0 14px; }
+.c4 .c4-stats{ display:flex; justify-content:center; gap:0; flex-wrap:wrap; }
+.c4 .c4-stats .s{ padding:0 12px; border-right:1px solid rgba(245,214,123,.2); }
+.c4 .c4-stats .s:last-child{ border:0; }
+.c4 .c4-stats .s .v{ font-family:Georgia,serif; font-size:17px; font-weight:700; color:#fff; } .c4 .c4-stats .s .k{ font-size:7.5px; letter-spacing:1px; color:#8a7c50; font-weight:700; }
+.c4 .c4-cred{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:14px; font-size:8px; letter-spacing:2px; color:#8a7c50; }
+.c4 .c4-cred .holo{ width:22px; height:22px; position:relative; opacity:.9; }
+/* C4 arka */
+.c4 .back{ background:#050505; padding:44px 28px 30px; color:#e9dfc4; }
+.c4 .back .spot{ opacity:1; }
+.c4 .back h3{ position:relative; text-align:center; font-family:Georgia,serif; font-size:12px; letter-spacing:4px; color:var(--a); margin-bottom:2px; }
+.c4 .back .nm{ position:relative; text-align:center; font-family:Georgia,serif; font-size:22px; letter-spacing:2px; color:#fff; margin-bottom:18px; }
+.c4 .back .grid{ position:relative; display:grid; grid-template-columns:1fr 1fr; gap:4px 22px; margin-bottom:16px; }
+.c4 .back .row{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(245,214,123,.15); font-size:10px; letter-spacing:1px; color:#8a7c50; }
+.c4 .back .row b{ font-family:Georgia,serif; font-size:15px; color:#fff; } .c4 .back .row b.h{ color:var(--a); }
+.c4 .back .verify{ position:relative; display:flex; align-items:center; gap:12px; margin-top:auto; border-top:1px solid rgba(245,214,123,.2); padding-top:16px; }
+.c4 .back .verify .qrbox{ width:50px; height:50px; }
+.c4 .back .verify .vt b{ font-family:Georgia,serif; font-size:12px; color:#fff; } .c4 .back .verify .vt span{ font-size:8px; color:#8a7c50; display:block; letter-spacing:1px; }
+.c4 .back .verify .ok{ margin-left:auto; text-align:right; font-size:10px; font-weight:800; color:var(--a); }
 
-/* ---------------- 9 · RESPONSIVE ---------------- */
-@media (max-width:430px){ :root{ --card-w:320px; } .ovr .num{ font-size:50px; } }
-@media (max-width:390px){ :root{ --card-w:300px; } .ovr .num{ font-size:46px; } .name{ font-size:23px; } }
-@media (min-width:768px){ :root{ --card-w:360px; } }
-@media (min-width:1200px){ :root{ --card-w:380px; } .stage{ perspective:1900px; } }
+/* =====================================================================
+   CONCEPT 5 · CYBERPUNK / SCI-FI / HOLOGRAM / NEON / 2035
+   Geometri: HUD, notch köşeler, RGB-split foto, neon bar grafik, scanline.
+   ===================================================================== */
+.c5 .card{ width:346px; height:508px; }
+.c5 .face{ background:linear-gradient(160deg,#0a0f24,#140a2e 55%,#04030c);
+  clip-path:polygon(0 0,88% 0,100% 9%,100% 100%,12% 100%,0 91%);
+  box-shadow:0 30px 60px rgba(0,0,0,.65); }
+.c5 .grid5{ position:absolute; inset:0; opacity:.4;
+  background:linear-gradient(rgba(0,229,255,.16) 1px,transparent 1px) 0 0/100% 24px,
+            linear-gradient(90deg,rgba(199,102,255,.12) 1px,transparent 1px) 0 0/24px 100%;
+  -webkit-mask:radial-gradient(90% 80% at 50% 40%,#000,transparent); mask:radial-gradient(90% 80% at 50% 40%,#000,transparent); }
+.c5 .scan{ position:absolute; inset:0; z-index:9; pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(0,229,255,.05) 0 2px,transparent 2px 4px); mix-blend-mode:screen; }
+.c5 .scanline{ position:absolute; left:0; right:0; height:60px; z-index:10; pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(0,229,255,.18),transparent); animation:scanMove 3.4s linear infinite; }
+@keyframes scanMove{ 0%{ top:-60px; } 100%{ top:100%; } }
+.c5 .bracket{ position:absolute; width:26px; height:26px; z-index:8; border:2px solid var(--a); box-shadow:0 0 10px var(--a); }
+.c5 .bracket.tl{ top:16px; left:16px; border-right:0; border-bottom:0; }
+.c5 .bracket.br{ bottom:16px; right:16px; border-left:0; border-top:0; }
+.c5 .c5-top{ position:absolute; top:18px; left:52px; right:18px; z-index:7; display:flex; align-items:center; justify-content:space-between; font-family:ui-monospace,monospace; }
+.c5 .c5-top .lg{ display:flex; align-items:center; gap:6px; color:var(--a); font-size:11px; font-weight:800; letter-spacing:1px; } .c5 .c5-top .lg svg{ width:16px; height:16px; }
+.c5 .c5-top .sea{ font-size:9px; color:var(--b); letter-spacing:2px; text-shadow:0 0 8px var(--b); }
+.c5 .c5-photo{ position:absolute; top:52px; left:0; right:0; z-index:3; display:grid; place-items:center; }
+.c5 .c5-photo .rgb{ position:relative; width:78%; height:300px; }
+.c5 .c5-photo .rgb svg{ position:absolute; inset:0; width:100%; height:100%; }
+.c5 .c5-photo .rgb svg.r{ filter:drop-shadow(0 0 0 #ff0044); transform:translateX(-3px); opacity:.55; mix-blend-mode:screen; }
+.c5 .c5-photo .rgb svg.b{ filter:drop-shadow(0 0 0 #00e5ff); transform:translateX(3px); opacity:.55; mix-blend-mode:screen; animation:glitch 4s steps(1) infinite; }
+@keyframes glitch{ 0%,92%,100%{ transform:translateX(3px);} 93%{ transform:translate(6px,-2px);} 95%{ transform:translate(-5px,2px);} 97%{ transform:translateX(3px);} }
+.c5 .c5-ovr{ position:absolute; top:70px; right:20px; z-index:7; text-align:right; font-family:ui-monospace,monospace; }
+.c5 .c5-ovr .n{ font-size:52px; font-weight:900; color:var(--a); line-height:.9; text-shadow:0 0 18px var(--a); }
+.c5 .c5-ovr .p{ font-size:11px; letter-spacing:3px; color:var(--b); text-shadow:0 0 8px var(--b); }
+.c5 .c5-flag{ position:absolute; top:66px; left:22px; width:30px; height:21px; z-index:7; border:1px solid var(--a); box-shadow:0 0 8px var(--a); }
+.c5 .c5-flag svg{ width:100%; height:100%; }
+.c5 .c5-lower{ position:absolute; left:0; right:0; bottom:0; z-index:7; padding:0 22px 24px; }
+.c5 .c5-name{ font-family:ui-monospace,monospace; font-size:26px; font-weight:800; letter-spacing:3px; color:#fff; text-shadow:0 0 14px var(--a); text-transform:uppercase; }
+.c5 .c5-tag{ font-family:ui-monospace,monospace; font-size:8.5px; letter-spacing:2px; color:var(--b); margin-bottom:12px; }
+.c5 .c5-stats{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px 14px; }
+.c5 .c5-stats .s .lab{ display:flex; justify-content:space-between; font-family:ui-monospace,monospace; font-size:8.5px; color:#9fb0c8; letter-spacing:1px; } .c5 .c5-stats .s .lab b{ color:#fff; }
+.c5 .c5-stats .s .bar{ height:4px; background:rgba(255,255,255,.1); margin-top:2px; overflow:hidden; }
+.c5 .c5-stats .s .bar i{ display:block; height:100%; background:linear-gradient(90deg,var(--b),var(--a)); box-shadow:0 0 8px var(--a); animation:grow 1s var(--ease) both; }
+.c5 .c5-foot{ display:flex; align-items:center; justify-content:space-between; margin-top:14px; font-family:ui-monospace,monospace; }
+.c5 .c5-foot .m{ font-size:8px; color:#7f8aa0; letter-spacing:1px; } .c5 .c5-foot .m b{ display:block; color:var(--a); }
+.c5 .c5-foot .holo{ width:26px; height:26px; position:relative; }
+/* C5 arka */
+.c5 .back{ background:linear-gradient(160deg,#0a0f24,#04030c); padding:30px 24px; color:#cfe0ff; }
+.c5 .back .grid5{ opacity:.4; }
+.c5 .back h3{ position:relative; font-family:ui-monospace,monospace; font-size:11px; letter-spacing:3px; color:var(--a); text-shadow:0 0 8px var(--a); margin-bottom:2px; }
+.c5 .back .nm{ position:relative; font-family:ui-monospace,monospace; font-size:20px; font-weight:800; letter-spacing:2px; color:#fff; margin-bottom:16px; }
+.c5 .back .grid{ position:relative; display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-bottom:16px; }
+.c5 .back .row{ display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid rgba(0,229,255,.14); font-family:ui-monospace,monospace; font-size:10px; letter-spacing:1px; color:#7f8aa0; }
+.c5 .back .row b{ font-size:14px; color:#fff; } .c5 .back .row b.h{ color:var(--a); text-shadow:0 0 8px var(--a); }
+.c5 .back .verify{ position:relative; display:flex; align-items:center; gap:12px; margin-top:auto; }
+.c5 .back .verify .qrbox{ width:52px; height:52px; box-shadow:0 0 14px var(--a); }
+.c5 .back .verify .vt b{ font-family:ui-monospace,monospace; font-size:12px; } .c5 .back .verify .vt span{ font-size:8px; color:#7f8aa0; display:block; font-family:ui-monospace,monospace; }
+.c5 .back .verify .ok{ margin-left:auto; text-align:right; font-family:ui-monospace,monospace; font-size:10px; font-weight:800; color:var(--a); text-shadow:0 0 8px var(--a); }
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width:430px){
+  .c1 .card,.c2 .card,.c3 .card,.c4 .card,.c5 .card{ transform:scale(.92); }
+}
+@media (max-width:390px){
+  .c1 .card,.c2 .card,.c3 .card,.c4 .card,.c5 .card{ transform:scale(.84); }
+}
+@media (min-width:1200px){ .stage{ perspective:2000px; } }
 @media (prefers-reduced-motion:reduce){ *{ animation:none !important; transition:none !important; } }
-
-/* Küçük yardımcı: alt buton */
-.flip-hint{ position:absolute; bottom:26px; left:50%; transform:translateX(-50%); z-index:3;
-  font-size:10.5px; color:var(--ink-soft); letter-spacing:.5px; opacity:.7; pointer-events:none; }
 </style>
 </head>
-<body data-concept="1" data-rarity="gold">
+<body>
 
-<!-- ============ ÜST BAR + SEKMELER ============ -->
 <div class="topbar">
   <div class="brand">
-    <!-- ForzaLig logo (inline svg) -->
-    <svg viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="lgg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7e9b0"/><stop offset="1" stop-color="#a17c2c"/></linearGradient></defs><path d="M20 2 L36 8 V20 C36 30 29 36 20 39 C11 36 4 30 4 20 V8 Z" fill="#0d1220" stroke="url(#lgg)" stroke-width="2"/><circle cx="20" cy="19" r="8" fill="none" stroke="url(#lgg)" stroke-width="2"/><path d="M20 12 l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8Z" fill="url(#lgg)"/></svg>
-    <b>Forza<span>Lig</span></b>
+    <svg viewBox="0 0 40 40"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7e9b0"/><stop offset="1" stop-color="#a17c2c"/></linearGradient></defs><path d="M20 2 36 8V20c0 10-7 16-16 19C11 36 4 30 4 20V8Z" fill="#0d1220" stroke="url(#lg)" stroke-width="2"/><path d="M20 12l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8Z" fill="url(#lg)"/></svg>
+    <b>Forza<i>Lig</i></b>
   </div>
   <div class="tabs" id="tabs">
-    <button class="tab active" data-c="1">Concept 1 · Glass</button>
-    <button class="tab" data-c="2">Concept 2 · Carbon</button>
-    <button class="tab" data-c="3">Concept 3 · Stadium</button>
-    <button class="tab" data-c="4">Concept 4 · Black Gold</button>
-    <button class="tab" data-c="5">Concept 5 · Future</button>
+    <button class="tab active" data-c="1">1 · Glass</button>
+    <button class="tab" data-c="2">2 · Carbon</button>
+    <button class="tab" data-c="3">3 · Stadium</button>
+    <button class="tab" data-c="4">4 · Cinematic</button>
+    <button class="tab" data-c="5">5 · Cyber</button>
   </div>
-  <div class="rarity-picker">
+  <div class="rar-wrap">
     <label for="rar">Rarity</label>
     <select id="rar">
-      <option value="bronze">Bronze</option>
-      <option value="silver">Silver</option>
-      <option value="gold" selected>Gold</option>
-      <option value="elite">Elite</option>
-      <option value="legend">Legend</option>
-      <option value="totw">TOTW</option>
-      <option value="hof">Hall of Fame</option>
-      <option value="mvp">MVP</option>
-      <option value="galaxy">Galaxy</option>
-      <option value="carbon">Carbon</option>
-      <option value="fire">Fire</option>
-      <option value="ice">Ice</option>
-      <option value="black">Black Edition</option>
-      <option value="neon">Neon</option>
+      <option value="bronze">Bronze</option><option value="silver">Silver</option>
+      <option value="gold" selected>Gold</option><option value="elite">Elite</option>
+      <option value="legend">Legend</option><option value="totw">TOTW</option>
+      <option value="hof">Hall of Fame</option><option value="mvp">MVP</option>
+      <option value="galaxy">Galaxy</option><option value="carbon">Carbon</option>
+      <option value="fire">Fire</option><option value="ice">Ice</option>
+      <option value="black">Black Edition</option><option value="neon">Neon</option>
     </select>
   </div>
-  <div class="hint">Karta tıkla → çevir · Fareyle üzerine gel → 3D eğim & ışık · Sekmeler → 5 konsept</div>
+  <div class="subhint">Karta tıkla → çevir · Fareyle üzerine gel → 3D tilt + ışık · Sekmeler → 5 farklı tasarım dili</div>
 </div>
 
-<!-- ============ SAHNE ============ -->
 <div class="stage" id="stage">
-  <div class="concept-meta"><div class="no" id="cNo">CONCEPT 1</div><div class="name" id="cName">Apple Vision · Glass · Minimal</div></div>
-
-  <div class="floater">
-    <div class="card" id="card">
-      <div class="card__inner" id="inner">
-
-        <!-- ============ ÖN YÜZ ============ -->
-        <div class="face face--front">
-          <div class="frame"></div>
-          <div class="surface">
-            <!-- atmosfer + konsept dekorları -->
-            <div class="atmos"><div class="glow-blob"></div></div>
-            <div class="deco glass"></div>
-            <div class="deco carbon"></div>
-            <div class="deco stadium"></div>
-            <div class="deco gold"></div>
-            <div class="deco future"></div>
-            <div class="particles" id="particles"></div>
-
-            <!-- oyuncu fotoğrafı (placeholder silüet — gerçek foto ile değişir) -->
-            <div class="photo" data-depth="8">
-              <svg viewBox="0 0 200 240" aria-hidden="true"><defs>
-                <radialGradient id="spot" cx="50%" cy="30%" r="70%"><stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/><stop offset="1" stop-color="transparent"/></radialGradient>
-                <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a3140"/><stop offset="1" stop-color="#0b0f18"/></linearGradient></defs>
-                <ellipse cx="100" cy="70" rx="95" ry="70" fill="url(#spot)"/>
-                <!-- kafa -->
-                <circle cx="100" cy="66" r="34" fill="url(#body)"/>
-                <circle cx="100" cy="60" r="30" fill="#1a2130"/>
-                <!-- omuz/gövde -->
-                <path d="M30 240 C34 168 60 132 100 132 C140 132 166 168 170 240 Z" fill="url(#body)"/>
-                <path d="M100 132 C132 132 156 162 164 214 L36 214 C44 162 68 132 100 132Z" fill="#141a27"/>
-                <!-- forma numarası -->
-                <text x="100" y="196" text-anchor="middle" font-size="40" font-weight="900" fill="var(--accent)" opacity=".85" font-family="Arial">9</text>
-              </svg>
-            </div>
-
-            <!-- içerik -->
-            <div class="pad">
-              <div class="top-row" data-depth="3">
-                <svg class="lg" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 2 L36 8 V20 C36 30 29 36 20 39 C11 36 4 30 4 20 V8 Z" fill="none" stroke="var(--accent2)" stroke-width="2.4"/><path d="M20 12 l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8Z" fill="var(--accent2)"/></svg>
-                <b>Forza<span>Lig</span></b>
-              </div>
-              <div class="season" data-depth="2">SEASON <span id="fSeason">2027</span></div>
-
-              <!-- OVR -->
-              <div class="ovr" data-depth="14">
-                <div class="num" id="fOvr">92</div>
-                <div class="pos" id="fPos">FOR</div>
-                <div class="divider"></div>
-                <div class="flag" data-depth="10">
-                  <!-- TR bayrağı -->
-                  <svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#e30a17"/><circle cx="11" cy="10" r="5" fill="#fff"/><circle cx="12.5" cy="10" r="4" fill="#e30a17"/><path d="M17 10 l4.7-1.5-2.9 4 0-5 2.9 4Z" fill="#fff"/></svg>
-                </div>
-              </div>
-
-              <!-- alt panel -->
-              <div class="lower" data-depth="6">
-                <div class="name" id="fName">FATİH EROL <span class="star">★</span></div>
-                <div class="stat-line"></div>
-                <div class="stats" id="fStats"></div>
-                <div class="footer">
-                  <div class="rar">RARITY<b id="fRar">GOLD</b></div>
-                  <div class="sign">
-                    <svg viewBox="0 0 82 26" fill="none"><path d="M4 20 C10 6 14 6 16 16 C18 24 22 4 28 12 C33 18 34 8 40 14 C47 21 50 4 58 12 C64 18 68 10 78 8" stroke-width="2" stroke-linecap="round"/></svg>
-                  </div>
-                  <div class="idlab">ID<b id="fId">#000124</b></div>
-                  <div class="holo" data-depth="12"></div>
-                </div>
-              </div>
-            </div>
-            <div class="sweep"></div>
-          </div>
-        </div>
-
-        <!-- ============ ARKA YÜZ ============ -->
-        <div class="face face--back">
-          <div class="frame"></div>
-          <div class="surface">
-            <div class="atmos"><div class="glow-blob"></div></div>
-            <div class="deco glass"></div><div class="deco carbon"></div>
-            <div class="deco stadium"></div><div class="deco gold"></div><div class="deco future"></div>
-
-            <div class="back-pad">
-              <div class="back-head">
-                <div class="nm" id="bName">FATİH EROL</div>
-                <div class="ps" id="bPos">FORVET</div>
-                <div class="id" id="bId">ID #000124 · SEASON 2027</div>
-              </div>
-
-              <div class="sect-t">KARİYER ÖZETİ</div>
-              <div class="career" id="bCareer"></div>
-
-              <div class="sect-t">TAKIM GEÇMİŞİ</div>
-              <div class="teams" id="bTeams"></div>
-
-              <div class="verify">
-                <div class="qr"><canvas id="qr" width="42" height="42"></canvas></div>
-                <div class="vtext">
-                  <div class="t1">BU KARTIN SAHİBİ</div>
-                  <div class="t2" id="bOwner">FATİH EROL</div>
-                </div>
-                <div class="vbadge">
-                  <div class="vb-t">DİJİTAL DOĞRULAMA</div>
-                  <div class="vb-s">AKTİF ✓</div>
-                </div>
-              </div>
-              <div class="serial" id="bSerial">FL-000124-2027</div>
-            </div>
-            <div class="sweep"></div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </div>
+  <div class="concept-label"><div class="n" id="cN">CONCEPT 1</div><div class="d" id="cD">Apple · VisionOS · Glass · Minimal</div></div>
+  <div class="floater"><div id="mount"></div></div>
 </div>
 
 <script>
 /* =====================================================================
-   THEME ENGINE + VERİ + ETKİLEŞİM
-   Tek yerden yönetim: PLAYER (veri), CONCEPTS (sanat), RARITIES CSS'te.
+   VERİ · THEME ENGINE · 5 KONSEPT RENDER · ETKİLEŞİM
    ===================================================================== */
 
-/* ---- 1 · OYUNCU VERİSİ (tek kaynak) ---- */
-const PLAYER = {
-  ad:"FATİH EROL", pozKisa:"FOR", pozUzun:"FORVET", ovr:92,
-  season:2027, id:"#000124", rarity:"GOLD", serial:"FL-000124-2027",
-  stats:[ ["HIZ",90],["ŞUT",88],["PAS",84],["DRİ",89],["DEF",42],["FİZ",87] ],
-  kariyer:[
-    ["TOPLAM MAÇ",245,false],["GOL",182,true],["ASİST",97,false],["MVP",36,true],
-    ["SARI KART",18,false],["KIRMIZI KART",2,false],["KUPA",7,true]
-  ],
-  teams:[
-    ["2019-21","YILDIRIM SK"],["2021-23","ATAKENT FC"],
-    ["2023-25","FORZALİG SK"],["2025-","EFSANELER"]
-  ]
+/* ---- OYUNCU (tek kaynak) ---- */
+const P = {
+  ad:"FATİH EROL", pos:"FOR", posLong:"FORVET", ovr:92, season:2027,
+  id:"#000124", serial:"FL-000124-2027",
+  stats:[["HIZ",90],["ŞUT",88],["PAS",84],["DRİ",89],["DEF",42],["FİZ",87]],
+  kariyer:[["TOPLAM MAÇ",245,0],["GOL",182,1],["ASİST",97,0],["MVP",36,1],["SARI",18,0],["KIRMIZI",2,0],["KUPA",7,1]],
+  teams:[["2019-21","YILDIRIM SK"],["2021-23","ATAKENT FC"],["2023-25","FORZALİG SK"],["2025-","EFSANELER"]]
 };
 
-/* ---- 2 · KONSEPT META (sanat yönetimi etiketleri) ---- */
+/* ---- THEME ENGINE: rarity = sadece vurgu tokenları (--a,--b,--g) ---- */
+const RARITY = {
+  bronze:{a:'#e6935a',b:'#f2bd93',g:'rgba(224,138,74,.4)',label:'BRONZE'},
+  silver:{a:'#d3dae4',b:'#f2f6fb',g:'rgba(207,214,223,.4)',label:'SILVER'},
+  gold:{a:'#f5d67b',b:'#c9a24a',g:'rgba(245,214,123,.42)',label:'GOLD'},
+  elite:{a:'#8ab4ff',b:'#cfe0ff',g:'rgba(138,180,255,.45)',label:'ELITE'},
+  legend:{a:'#ff5f9e',b:'#ffd36e',g:'rgba(255,95,158,.5)',label:'LEGEND'},
+  totw:{a:'#eef2f7',b:'#aab3c0',g:'rgba(233,237,243,.35)',label:'TOTW'},
+  hof:{a:'#f5d67b',b:'#7c5cff',g:'rgba(124,92,255,.45)',label:'HALL OF FAME'},
+  mvp:{a:'#ffcc00',b:'#ff9500',g:'rgba(255,204,0,.5)',label:'MVP'},
+  galaxy:{a:'#a06bff',b:'#5ad1ff',g:'rgba(160,107,255,.5)',label:'GALAXY'},
+  carbon:{a:'#ff3b30',b:'#c8ccd2',g:'rgba(255,59,48,.4)',label:'CARBON'},
+  fire:{a:'#ff5a2c',b:'#ffb347',g:'rgba(255,90,44,.5)',label:'FIRE'},
+  ice:{a:'#7fe6ff',b:'#e2f8ff',g:'rgba(127,230,255,.46)',label:'ICE'},
+  black:{a:'#c9a24a',b:'#8a8f98',g:'rgba(201,162,74,.35)',label:'BLACK EDITION'},
+  neon:{a:'#39ff14',b:'#00e5ff',g:'rgba(57,255,20,.5)',label:'NEON'}
+};
+
+/* ---- ORTAK SVG PARÇALARI ---- */
+const SVG = {
+  logo:(c='var(--b)')=>`<svg viewBox="0 0 40 40"><path d="M20 2 36 8V20c0 10-7 16-16 19C11 36 4 30 4 20V8Z" fill="none" stroke="${c}" stroke-width="2.4"/><path d="M20 12l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8Z" fill="${c}"/></svg>`,
+  flag:()=>`<svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#e30a17"/><circle cx="11" cy="10" r="5" fill="#fff"/><circle cx="12.5" cy="10" r="4" fill="#e30a17"/><path d="M17 10l4.7-1.5-2.9 4 0-5 2.9 4Z" fill="#fff"/></svg>`,
+  // oyuncu silüeti — accent'e göre spot, gerçek foto ile değişecek placeholder
+  player:(spot='var(--a)')=>`<svg viewBox="0 0 200 260"><defs><radialGradient id="sp" cx="50%" cy="26%" r="72%"><stop offset="0" stop-color="${spot}" stop-opacity=".4"/><stop offset="1" stop-color="transparent"/></radialGradient><linearGradient id="bd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#33405a"/><stop offset="1" stop-color="#0b0f18"/></linearGradient></defs><ellipse cx="100" cy="72" rx="96" ry="72" fill="url(#sp)"/><circle cx="100" cy="68" r="34" fill="url(#bd)"/><circle cx="100" cy="62" r="30" fill="#1b2333"/><path d="M28 260C33 178 60 140 100 140s67 38 72 120Z" fill="url(#bd)"/><path d="M100 140c33 0 57 32 65 88l-130 0c8-56 32-88 65-88Z" fill="#151c2b"/><text x="100" y="214" text-anchor="middle" font-size="42" font-weight="900" fill="${spot}" opacity=".85" font-family="Arial">9</text></svg>`,
+  sign:(c='var(--b)')=>`<svg viewBox="0 0 82 26" fill="none"><path d="M4 20C10 6 14 6 16 16s6-12 12-4c5 6 6-4 12 2 7 7 10-10 18-2 6 6 10-2 20-4" stroke="${c}" stroke-width="2" stroke-linecap="round"/></svg>`,
+  badge:()=>`<svg viewBox="0 0 34 38"><path d="M17 1 33 6v14c0 9-7 15-16 17C8 35 1 29 1 20V6Z" fill="#0d1220" stroke="var(--b)" stroke-width="1.6"/><circle cx="17" cy="17" r="6" fill="none" stroke="var(--a)" stroke-width="1.4"/></svg>`
+};
+
+/* Ortak arka-yüz veri parçaları */
+const careerRows = ()=> P.kariyer.map(c=>`<div class="row"><span>${c[0]}</span><b class="${c[2]?'h':''}">${c[1]}</b></div>`).join('');
+const teamRows = ()=> P.teams.map(t=>`<div class="tm">${SVG.badge()}<div class="yr">${t[0]}</div><div class="tn">${t[1]}</div></div>`).join('');
+
+/* ---- 5 KONSEPT · her biri KENDİ HTML yapısı ---- */
 const CONCEPTS = {
-  1:{ no:"CONCEPT 1", name:"Apple Vision · Glass · Minimal" },
-  2:{ no:"CONCEPT 2", name:"Carbon · Titanium · Formula 1" },
-  3:{ no:"CONCEPT 3", name:"Stadium · Gece Maçı · Projektör" },
-  4:{ no:"CONCEPT 4", name:"Black Gold · Obsidian · Luxury" },
-  5:{ no:"CONCEPT 5", name:"Future · Hologram · Neon 3D" }
+  /* ---------- 1 · GLASS ---------- */
+  1:{ n:'CONCEPT 1', d:'Apple · VisionOS · Glass · Minimal', render:(R)=>`
+    <div class="c1"><div class="card"><div class="card__inner">
+      <div class="face front">
+        <div class="glass-layer"></div>
+        <div class="c1-top">
+          <div class="c1-ovr"><span class="n">${P.ovr}</span><span class="p">${P.pos}</span></div>
+          <div class="c1-brand">${SVG.logo('#33415a')}<span>ForzaLig</span></div>
+        </div>
+        <div class="c1-flag">${SVG.flag()}</div>
+        <div class="c1-photo" data-depth="10">${SVG.player()}</div>
+        <div class="c1-lower" data-depth="4">
+          <div class="c1-name">${P.ad}</div>
+          <div class="c1-season">SEASON ${P.season}</div>
+          <div class="c1-stats">${P.stats.map(s=>`<div class="s"><div class="v">${s[1]}</div><div class="k">${s[0]}</div></div>`).join('')}</div>
+          <div class="c1-foot"><div class="rr">RARITY<b>${R.label}</b></div><div class="holo"></div><div class="id">ID<b>${P.id}</b></div></div>
+        </div>
+        <div class="sweep"></div>
+      </div>
+      <div class="face back">
+        <h3>KARİYER</h3><div class="nm">${P.ad}</div>
+        <div class="grid">${careerRows()}</div>
+        <div class="verify"><div class="qrbox"><canvas class="qr" width="42" height="42"></canvas></div>
+          <div class="vt"><b>${P.ad}</b><span>${P.serial}</span></div><div class="ok">DOĞRULAMA<br>AKTİF ✓</div></div>
+      </div>
+    </div></div></div>`},
+
+  /* ---------- 2 · CARBON / F1 ---------- */
+  2:{ n:'CONCEPT 2', d:'Porsche · Formula 1 · Carbon · Titanium', render:(R)=>`
+    <div class="c2"><div class="card"><div class="card__inner">
+      <div class="face front">
+        <div class="carbon"></div><div class="edge"></div><div class="redline" data-depth="6"></div>
+        <div class="c2-top">${SVG.logo('var(--a)')}<b>Forza<i>Lig</i></b></div>
+        <div class="c2-ovr" data-depth="14"><span><span class="n">${P.ovr}</span><span class="p">${P.pos}</span></span></div>
+        <div class="c2-flag">${SVG.flag()}</div>
+        <div class="c2-photo" data-depth="9">${SVG.player('var(--a)')}</div>
+        <div class="c2-tele" data-depth="5">${P.stats.map(s=>`<div class="row"><div class="lab"><span>${s[0]}</span><b>${s[1]}</b></div><div class="bar"><i style="width:${s[1]}%"></i></div></div>`).join('')}</div>
+        <div class="c2-name" data-depth="4"><div class="nm">${P.ad}</div><div class="sea">SEASON ${P.season}</div></div>
+        <div class="c2-foot"><div class="m">RARITY<b>${R.label}</b></div><div class="holo"></div><div class="m" style="text-align:right">ID<b>${P.id}</b></div></div>
+        <div class="sweep"></div>
+      </div>
+      <div class="face back">
+        <div class="carbon"></div>
+        <h3>// CAREER_DATA</h3><div class="nm">${P.ad}</div>
+        <div class="grid">${careerRows()}</div>
+        <div class="verify"><div class="qrbox"><canvas class="qr" width="42" height="42"></canvas></div>
+          <div class="vt"><b>${P.ad}</b><span>${P.serial}</span></div><div class="ok">VERIFIED<br>AKTİF ✓</div></div>
+      </div>
+    </div></div></div>`},
+
+  /* ---------- 3 · STADIUM / SPORT ---------- */
+  3:{ n:'CONCEPT 3', d:'Nike · Stadium · Champions · Sport', render:(R)=>`
+    <div class="c3"><div class="card"><div class="card__inner">
+      <div class="face front">
+        <div class="flood"></div><div class="pitch"></div><div class="slash"></div>
+        <div class="c3-brand">${SVG.logo('var(--a)')}<span>FORZALİG</span></div>
+        <div class="c3-flag">${SVG.flag()}</div>
+        <div class="c3-ovr" data-depth="14"><div class="n">${P.ovr}</div><div class="p">${P.pos}</div></div>
+        <div class="c3-photo" data-depth="9">${SVG.player('var(--a)')}</div>
+        <div class="c3-lower" data-depth="4">
+          <div class="c3-name">${P.ad}</div><div class="c3-season">SEASON ${P.season}</div>
+          <div class="c3-stats">${P.stats.map(s=>`<div class="s"><div class="v">${s[1]}</div><div class="k">${s[0]}</div></div>`).join('')}</div>
+          <div class="c3-foot"><div class="rr">RARITY<b>${R.label}</b></div><div class="id">ID<b>${P.id}</b></div><div class="holo"></div></div>
+        </div>
+        <div class="sweep"></div>
+      </div>
+      <div class="face back">
+        <div class="flood"></div>
+        <h3>KARİYER</h3><div class="nm">${P.ad}</div>
+        <div class="grid">${careerRows()}</div>
+        <div class="verify"><div class="qrbox"><canvas class="qr" width="42" height="42"></canvas></div>
+          <div class="vt"><b>${P.ad}</b><span>${P.serial}</span></div><div class="ok">DOĞRULAMA AKTİF ✓</div></div>
+      </div>
+    </div></div></div>`},
+
+  /* ---------- 4 · CINEMATIC / BLACK GOLD ---------- */
+  4:{ n:'CONCEPT 4', d:'Netflix · Cinematic · Luxury · Black Gold', render:(R)=>`
+    <div class="c4"><div class="card"><div class="card__inner">
+      <div class="face front">
+        <div class="spot"></div>
+        <div class="c4-photo" data-depth="8">${SVG.player('var(--a)')}</div>
+        <div class="bars t"></div><div class="bars b"></div>
+        <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+        <div class="c4-top"><div class="lg">${SVG.logo('var(--a)')}FORZALİG</div><div class="sea">SEASON ${P.season}</div></div>
+        <div class="c4-flag">${SVG.flag()}</div>
+        <div class="c4-seal" data-depth="12"><div class="n">${P.ovr}</div><div class="p">${P.pos}</div></div>
+        <div class="c4-lower" data-depth="4">
+          <div class="c4-name">${P.ad}</div><div class="c4-sub">FORZALİG ORIGINALS</div>
+          <div class="c4-stats">${P.stats.map(s=>`<div class="s"><div class="v">${s[1]}</div><div class="k">${s[0]}</div></div>`).join('')}</div>
+          <div class="c4-cred"><span>RARITY · ${R.label}</span><div class="holo"></div><span>ID ${P.id}</span></div>
+        </div>
+        <div class="grain"></div><div class="sweep"></div>
+      </div>
+      <div class="face back">
+        <div class="spot"></div>
+        <h3>K A R İ Y E R</h3><div class="nm">${P.ad}</div>
+        <div class="grid">${careerRows()}</div>
+        <div class="verify"><div class="qrbox"><canvas class="qr" width="42" height="42"></canvas></div>
+          <div class="vt"><b>${P.ad}</b><span>${P.serial}</span></div><div class="ok">DİJİTAL<br>DOĞRULAMA ✓</div></div>
+      </div>
+    </div></div></div>`},
+
+  /* ---------- 5 · CYBERPUNK / HUD ---------- */
+  5:{ n:'CONCEPT 5', d:'Cyberpunk · Sci-Fi · Hologram · Neon 2035', render:(R)=>`
+    <div class="c5"><div class="card"><div class="card__inner">
+      <div class="face front">
+        <div class="grid5"></div><div class="bracket tl"></div><div class="bracket br"></div>
+        <div class="c5-top"><div class="lg">${SVG.logo('var(--a)')}FORZALIG</div><div class="sea">SEASON_${P.season}</div></div>
+        <div class="c5-flag">${SVG.flag()}</div>
+        <div class="c5-photo" data-depth="9"><div class="rgb"><svg class="r" viewBox="0 0 200 260">${SVG.player('#ff0044').replace(/<svg[^>]*>|<\/svg>/g,'')}</svg><svg class="b" viewBox="0 0 200 260">${SVG.player('#00e5ff').replace(/<svg[^>]*>|<\/svg>/g,'')}</svg>${SVG.player('var(--a)')}</div></div>
+        <div class="c5-ovr" data-depth="14"><div class="n">${P.ovr}</div><div class="p">${P.pos}</div></div>
+        <div class="c5-lower" data-depth="4">
+          <div class="c5-name">${P.ad}</div><div class="c5-tag">// PLAYER_ID ${P.id} · RARITY_${R.label}</div>
+          <div class="c5-stats">${P.stats.map(s=>`<div class="s"><div class="lab"><span>${s[0]}</span><b>${s[1]}</b></div><div class="bar"><i style="width:${s[1]}%"></i></div></div>`).join('')}</div>
+          <div class="c5-foot"><div class="m">SERIAL<b>${P.serial}</b></div><div class="holo"></div></div>
+        </div>
+        <div class="scan"></div><div class="scanline"></div><div class="sweep"></div>
+      </div>
+      <div class="face back">
+        <div class="grid5"></div>
+        <h3>// CAREER_LOG</h3><div class="nm">${P.ad}</div>
+        <div class="grid">${careerRows()}</div>
+        <div class="verify"><div class="qrbox"><canvas class="qr" width="42" height="42"></canvas></div>
+          <div class="vt"><b>${P.ad}</b><span>${P.serial}</span></div><div class="ok">VERIFIED<br>AKTİF ✓</div></div>
+      </div>
+    </div></div></div>`}
 };
 
-/* ---- 3 · ÖN/ARKA İÇERİĞİ DOLDUR ---- */
-function render(){
-  document.getElementById("fOvr").textContent = PLAYER.ovr;
-  document.getElementById("fPos").textContent = PLAYER.pozKisa;
-  document.getElementById("fName").innerHTML = PLAYER.ad + ' <span class="star">★</span>';
-  document.getElementById("fSeason").textContent = PLAYER.season;
-  document.getElementById("fId").textContent = PLAYER.id;
-  document.getElementById("fRar").textContent = PLAYER.rarity;
-  // ön statlar
-  document.getElementById("fStats").innerHTML = PLAYER.stats
-    .map(s=>`<div class="stat"><div class="v">${s[1]}</div><div class="k">${s[0]}</div></div>`).join("");
-  // arka yüz
-  document.getElementById("bName").textContent = PLAYER.ad;
-  document.getElementById("bOwner").textContent = PLAYER.ad;
-  document.getElementById("bPos").textContent = PLAYER.pozUzun;
-  document.getElementById("bId").textContent = "ID "+PLAYER.id+" · SEASON "+PLAYER.season;
-  document.getElementById("bSerial").textContent = PLAYER.serial;
-  document.getElementById("bCareer").innerHTML = PLAYER.kariyer
-    .map(c=>`<div class="crow"><span class="lab">${c[0]}</span><span class="val ${c[2]?'hot':''}">${c[1]}</span></div>`).join("");
-  document.getElementById("bTeams").innerHTML = PLAYER.teams.map(t=>`
-    <div class="tm">
-      <svg class="badge" viewBox="0 0 34 38"><path d="M17 1 L33 6 V20 C33 29 26 35 17 37 C8 35 1 29 1 20 V6 Z" fill="#0d1220" stroke="var(--accent2)" stroke-width="1.6"/><circle cx="17" cy="17" r="6" fill="none" stroke="var(--accent)" stroke-width="1.4"/></svg>
-      <div class="yr">${t[0]}</div><div class="tn">${t[1]}</div>
-    </div>`).join("");
+/* ---- DURUM ---- */
+let state = { c:1, r:'gold' };
+const stage = document.getElementById('stage');
+const mount = document.getElementById('mount');
+
+/* ---- SAHTE QR (deterministik) ---- */
+function drawQR(cv){
+  const ctx=cv.getContext('2d'); const N=21, px=cv.width/N; ctx.clearRect(0,0,cv.width,cv.height);
+  let s=12457; const rnd=()=>{ s=(s*1103515245+12345)&0x7fffffff; return (s>>8)/0x7fffff; };
+  ctx.fillStyle='#0a0a0a';
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){ if(rnd()>.55) ctx.fillRect(x*px,y*px,px,px); }
+  const f=(ox,oy)=>{ ctx.fillStyle='#0a0a0a'; ctx.fillRect(ox*px,oy*px,7*px,7*px);
+    ctx.fillStyle='#fff'; ctx.fillRect((ox+1)*px,(oy+1)*px,5*px,5*px);
+    ctx.fillStyle='#0a0a0a'; ctx.fillRect((ox+2)*px,(oy+2)*px,3*px,3*px); };
+  f(0,0); f(N-7,0); f(0,N-7);
 }
 
-/* ---- 4 · SAHTE QR (deterministik desen — gerçek QR ile değişir) ---- */
-function drawQR(){
-  const c = document.getElementById("qr"); const ctx = c.getContext("2d");
-  const N = 21, px = c.width/N; ctx.clearRect(0,0,c.width,c.height); ctx.fillStyle="#0a0a0a";
-  // basit seedli PRNG
-  let seed = 12457; const rnd=()=>{ seed=(seed*1103515245+12345)&0x7fffffff; return (seed>>8)/0x7fffff; };
-  for(let y=0;y<N;y++) for(let x=0;x<N;x++){ if(rnd()>.55) ctx.fillRect(x*px,y*px,px,px); }
-  // 3 köşe bulucu (finder) desenleri
-  const finder=(ox,oy)=>{ ctx.fillStyle="#0a0a0a"; ctx.fillRect(ox*px,oy*px,7*px,7*px);
-    ctx.fillStyle="#fff"; ctx.fillRect((ox+1)*px,(oy+1)*px,5*px,5*px);
-    ctx.fillStyle="#0a0a0a"; ctx.fillRect((ox+2)*px,(oy+2)*px,3*px,3*px); };
-  finder(0,0); finder(N-7,0); finder(0,N-7);
+/* ---- PARÇACIK (birkaç toz) ---- */
+function particles(card){
+  const front=card.querySelector('.front'); if(!front) return;
+  for(let i=0;i<8;i++){ const d=document.createElement('div'); d.className='dust';
+    d.style.left=(8+Math.random()*84)+'%'; d.style.bottom='0';
+    d.style.animationDuration=(6+Math.random()*7)+'s'; d.style.animationDelay=(Math.random()*6)+'s';
+    d.style.opacity=String(.25+Math.random()*.4); front.appendChild(d); }
 }
 
-/* ---- 5 · TOZ PARÇACIKLARI (hafif, perf dostu) ---- */
-function particles(){
-  const box = document.getElementById("particles"); box.innerHTML="";
-  for(let i=0;i<10;i++){ const d=document.createElement("div"); d.className="dust";
-    d.style.left=(6+Math.random()*88)+"%"; d.style.bottom="-6px";
-    d.style.animationDuration=(6+Math.random()*7)+"s";
-    d.style.animationDelay=(Math.random()*6)+"s";
-    d.style.opacity=String(.3+Math.random()*.5);
-    box.appendChild(d);
+/* ---- FLIP + TILT + PARALLAX (yeniden bağlanır) ---- */
+function bindCard(){
+  const card=mount.querySelector('.card'); if(!card) return;
+  // flip (sürükleme değilse)
+  let dx=0,dy=0,moved=false;
+  card.addEventListener('pointerdown',e=>{ dx=e.clientX; dy=e.clientY; moved=false; });
+  card.addEventListener('pointermove',e=>{ if(Math.abs(e.clientX-dx)>6||Math.abs(e.clientY-dy)>6) moved=true; });
+  card.addEventListener('click',()=>{ if(!moved) card.classList.toggle('is-flipped'); });
+  // tilt + parallax — sadece fare
+  if(window.matchMedia('(pointer:fine)').matches){
+    const depth=[...card.querySelectorAll('[data-depth]')];
+    let raf=null,tx=0,ty=0;
+    const apply=()=>{ raf=null; const m=11;
+      card.style.setProperty('--ry',(tx*m).toFixed(2)+'deg');
+      card.style.setProperty('--rx',(-ty*m).toFixed(2)+'deg');
+      depth.forEach(el=>{ const d=parseFloat(el.dataset.depth)||0;
+        el.style.transform=`translate3d(${(-tx*d).toFixed(1)}px,${(-ty*d).toFixed(1)}px,0)`; }); };
+    card.addEventListener('pointermove',e=>{ const r=card.getBoundingClientRect();
+      tx=(e.clientX-r.left)/r.width-.5; ty=(e.clientY-r.top)/r.height-.5; if(!raf) raf=requestAnimationFrame(apply); });
+    card.addEventListener('pointerleave',()=>{ card.style.setProperty('--ry','0deg'); card.style.setProperty('--rx','0deg');
+      depth.forEach(el=>el.style.transform='translate3d(0,0,0)'); });
   }
+  // QR + parçacık
+  card.querySelectorAll('canvas.qr').forEach(drawQR);
+  particles(card);
 }
 
-/* ---- 6 · KONSEPT & RARITY DEĞİŞTİR ---- */
-function setConcept(n){
-  document.body.dataset.concept = n;
-  document.getElementById("cNo").textContent = CONCEPTS[n].no;
-  document.getElementById("cName").textContent = CONCEPTS[n].name;
-  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.c===String(n)));
+/* ---- RARITY UYGULA (theme engine) ---- */
+function applyRarity(){
+  const R=RARITY[state.r];
+  stage.style.setProperty('--a',R.a); stage.style.setProperty('--b',R.b); stage.style.setProperty('--g',R.g);
+  document.querySelectorAll('.tab.active,.topbar').forEach(()=>{});
+  document.documentElement.style.setProperty('--a',R.a);
+  document.documentElement.style.setProperty('--b',R.b);
 }
-document.getElementById("tabs").addEventListener("click",e=>{
-  const b=e.target.closest(".tab"); if(!b) return; setConcept(b.dataset.c);
+
+/* ---- MOUNT (konsept değişince yeniden kur) ---- */
+function build(){
+  const R=RARITY[state.r];
+  mount.innerHTML=CONCEPTS[state.c].render(R);
+  document.getElementById('cN').textContent=CONCEPTS[state.c].n;
+  document.getElementById('cD').textContent=CONCEPTS[state.c].d;
+  bindCard();
+}
+
+/* ---- SEKME + RARITY OLAYLARI ---- */
+document.getElementById('tabs').addEventListener('click',e=>{
+  const b=e.target.closest('.tab'); if(!b) return; state.c=+b.dataset.c;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===b));
+  build();
 });
-document.getElementById("rar").addEventListener("change",e=>{
-  document.body.dataset.rarity = e.target.value;
-  PLAYER.rarity = e.target.selectedOptions[0].textContent.toUpperCase();
-  document.getElementById("fRar").textContent = PLAYER.rarity;
-});
+document.getElementById('rar').addEventListener('change',e=>{ state.r=e.target.value; applyRarity(); build(); });
 
-/* ---- 7 · FLIP (tıkla çevir) — sürükleme ile karışmasın ---- */
-const card = document.getElementById("card");
-let downX=0, downY=0, moved=false;
-card.addEventListener("pointerdown",e=>{ downX=e.clientX; downY=e.clientY; moved=false; });
-card.addEventListener("pointermove",e=>{ if(Math.abs(e.clientX-downX)>6||Math.abs(e.clientY-downY)>6) moved=true; });
-card.addEventListener("click",()=>{ if(!moved) card.classList.toggle("is-flipped"); });
-
-/* ---- 8 · 3D TILT + MOUSE PARALLAX ---- */
-const stage = document.getElementById("stage");
-const depthEls = [...document.querySelectorAll("[data-depth]")];
-let raf=null, tx=0, ty=0;
-function onMove(e){
-  const r = card.getBoundingClientRect();
-  const px = (e.clientX - r.left)/r.width - .5;   // -0.5..0.5
-  const py = (e.clientY - r.top)/r.height - .5;
-  tx = px; ty = py;
-  if(!raf) raf = requestAnimationFrame(apply);
-}
-function apply(){
-  raf=null;
-  const max = 12;                                  // maksimum eğim derece
-  card.style.setProperty("--ry", (tx*max).toFixed(2)+"deg");
-  card.style.setProperty("--rx", (-ty*max).toFixed(2)+"deg");
-  // katman parallax'ı (derinliğe göre kaydır)
-  depthEls.forEach(el=>{
-    const d = parseFloat(el.dataset.depth)||0;
-    el.style.transform = `translate3d(${(-tx*d).toFixed(1)}px,${(-ty*d).toFixed(1)}px,0)`;
-  });
-}
-function reset(){
-  card.style.setProperty("--ry","0deg"); card.style.setProperty("--rx","0deg");
-  depthEls.forEach(el=> el.style.transform="translate3d(0,0,0)");
-}
-/* Sadece pointer:fine (fare) cihazlarda tilt — mobilde dokunmayı bozmasın */
-if(window.matchMedia("(pointer:fine)").matches){
-  stage.addEventListener("pointermove",onMove);
-  stage.addEventListener("pointerleave",reset);
-}
-
-/* ---- 9 · BAŞLAT ---- */
-render(); drawQR(); particles(); setConcept(1);
+/* ---- BAŞLAT ---- */
+applyRarity(); build();
 </script>
 </body>
 </html>
