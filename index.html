@@ -985,8 +985,9 @@ const Db = {
   async bildirimSil(id){ if(!sb) return; try{ await sb.from('bildirimler').delete().eq('id',id); }catch(e){} },
   // ---- SOHBET (Realtime) ----
   // Son N mesajı çeker (sayfalama: ilk açılışta son 30). ravdan (öncesi) getirmek için oncesiTs verilir.
-  async mesajlar(ligId, takimId, oncesiTs){ if(!sb) return []; try{ let q=sb.from('sohbet_mesajlari').select('*').eq('lig_id',ligId).eq('silindi',false); q = takimId ? q.eq('takim_id',takimId) : q.is('takim_id',null); if(oncesiTs) q=q.lt('olusma',oncesiTs); const {data}=await q.order('olusma',{ascending:false}).limit(30); return (data||[]).reverse(); }catch(e){ return []; } },
-  async mesajGonder(ligId, takimId, userId, ad, ek){ if(!sb) return {hata:"yok"}; try{ const kayit=Object.assign({lig_id:ligId, takim_id:takimId||null, user_id:userId, ad}, ek||{}); const {data,error}=await sb.from('sohbet_mesajlari').insert(kayit).select('*').single(); return error?{hata:error.message}:{ok:true, mesaj:data}; }catch(e){ return {hata:String(e)}; } },
+  async mesajlar(ligId, takimId, oncesiTs, kulupId){ if(!sb) return []; try{ let q=sb.from('sohbet_mesajlari').select('*').eq('silindi',false); if(kulupId){ q=q.eq('kulup_id',kulupId); } else { q=q.eq('lig_id',ligId); q = takimId ? q.eq('takim_id',takimId) : q.is('takim_id',null); } if(oncesiTs) q=q.lt('olusma',oncesiTs); const {data}=await q.order('olusma',{ascending:false}).limit(30); return (data||[]).reverse(); }catch(e){ return []; } },
+  async mesajGonder(ligId, takimId, userId, ad, ek, kulupId){ if(!sb) return {hata:"yok"}; try{ const kayit=Object.assign(kulupId?{kulup_id:kulupId, user_id:userId, ad}:{lig_id:ligId, takim_id:takimId||null, user_id:userId, ad}, ek||{}); const {data,error}=await sb.from('sohbet_mesajlari').insert(kayit).select('*').single(); return error?{hata:error.message}:{ok:true, mesaj:data}; }catch(e){ return {hata:String(e)}; } },
+  sohbetDinleKulup(kulupId, geldi){ if(!sb||!kulupId) return null; try{ const kanal=sb.channel('sohbet:kulup:'+kulupId).on('postgres_changes',{event:'INSERT',schema:'public',table:'sohbet_mesajlari',filter:'kulup_id=eq.'+kulupId},(p)=>{ const m=p.new; if(!m.silindi) geldi(m); }).subscribe(); return kanal; }catch(e){ return null; } },
   async mesajSil(id){ if(!sb) return; try{ await sb.from('sohbet_mesajlari').update({silindi:true}).eq('id',id); }catch(e){} },
   // Tepkiler (emoji)
   async tepkiler(mesajIdler){ if(!sb||!mesajIdler||!mesajIdler.length) return []; try{ const {data}=await sb.from('sohbet_tepkileri').select('mesaj_id,user_id,emoji').in('mesaj_id',mesajIdler); return data||[]; }catch(e){ return []; } },
@@ -12165,7 +12166,8 @@ function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
 
 // ==================== SOHBET v2 (Apple tarzı: tepki/yanıt/sistem/okunmamış) ====================
 const FL_EMOJILER=["👍","❤️","😂","⚽","🔥"];
-function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
+function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar, kulup}){
+  const kulupMod=!!(kulup && !turnuva); // takım (kulüp) sohbeti — lige bağlı değil
   const ligYon=!!(oturum&&turnuva&&(((turnuva.yonetici_id!=null)&&turnuva.yonetici_id===oturum.id)||adminMi));
   const benimTakimlar=(turnuva&&oturum)?(turnuva.takimlar||[]).filter(tk=> ligYon || tk.yonetici_id===oturum.id || (tk.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id) ):[];
   // Gönderirken kimlik: kendi oyuncumun bulunduğu takım (lig sohbetinde "kim hangi takımdan" görünsün)
@@ -12195,20 +12197,26 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
 
   // Kanal yüklemesi + realtime
   useEffect(()=>{
-    if(!turnuva||!sb){ setYuk(false); return; }
+    if((!turnuva&&!kulupMod)||!sb){ setYuk(false); return; }
     let aktif=true; setYuk(true); setDahaVar(true); setSecili(null); setYeniVar(false);
+    if(kulupMod){
+      Db.mesajlar(null, null, null, kulup.id).then(m=>{ if(!aktif) return; setMesajlar(m); setYuk(false); tepkileriYukle(m); dibeKaydir(); if(m.length<30) setDahaVar(false); });
+      if(aboneRef.current){ Db.sohbetKapat(aboneRef.current); aboneRef.current=null; }
+      aboneRef.current=Db.sohbetDinleKulup(kulup.id, (m)=>{ setMesajlar(p=>{ if(p.some(x=>x.id===m.id)) return p; const yeni=[...p,m]; if(dipteRef.current || (oturum&&m.user_id===oturum.id)){ dibeKaydir(); } else setYeniVar(true); return yeni; }); });
+      return ()=>{ aktif=false; if(aboneRef.current){ Db.sohbetKapat(aboneRef.current); aboneRef.current=null; } };
+    }
     Db.mesajlar(turnuva.id, aktifTakimId).then(m=>{ if(!aktif) return; setMesajlar(m); setYuk(false); tepkileriYukle(m); dibeKaydir(); if(m.length<30) setDahaVar(false); if(oturum) Db.okumaKaydet(oturum.id, turnuva.id, aktifTakimId||"genel"); });
     if(aboneRef.current){ Db.sohbetKapat(aboneRef.current); aboneRef.current=null; }
     aboneRef.current=Db.sohbetDinle(turnuva.id, aktifTakimId, (m)=>{ setMesajlar(p=>{ if(p.some(x=>x.id===m.id)) return p; const yeni=[...p,m]; if(dipteRef.current || (oturum&&m.user_id===oturum.id)){ dibeKaydir(); } else setYeniVar(true); return yeni; }); if(oturum) Db.okumaKaydet(oturum.id, turnuva.id, aktifTakimId||"genel"); });
     return ()=>{ aktif=false; if(aboneRef.current){ Db.sohbetKapat(aboneRef.current); aboneRef.current=null; } };
-  },[turnuva&&turnuva.id, kanal]);
+  },[turnuva&&turnuva.id, kulup&&kulup.id, kanal]);
 
   // Okunmamış badge (genel + kendi takımım)
   // Tek dokunuş: tek aktif ligi olan kullanıcı Sohbet'e basınca direkt o ligin sohbetine girer
   // NOT: "tek lig → direkt sohbet" kısayolu artık menuGit içinde (nav'a basınca) yapılır.
   // Efekt ile yapılınca geri kaydırınca hub'a düşüp anında tekrar içeri giriyordu (tuzak) — kaldırıldı.
   useEffect(()=>{
-    if(!turnuva||!sb||!oturum) return; let a=true;
+    if(!turnuva||kulupMod||!sb||!oturum) return; let a=true;
     (async()=>{ const son=await Db.sonOkumalar(oturum.id, turnuva.id); const u={}; const kanallar=[["genel",null]]; benimTakimlar.forEach(tk=>kanallar.push(["t:"+tk.id, tk.id]));
       for(const [k,tid] of kanallar){ if(k===kanal) continue; u[k]=await Db.okunmamisSay(turnuva.id, tid, son[tid||"genel"]); }
       if(a) setUnread(u); })();
@@ -12218,12 +12226,12 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
   const kanalDegis=(yeni)=>{ taslaklar.current[kanal]=metin; setMetin(taslaklar.current[yeni]||""); setYanit(null); setKanal(yeni); setUnread(u=>({...u,[yeni]:0})); };
 
   const gonder=async()=>{
-    const t=metin.trim(); if(!t||!oturum||!turnuva) return;
+    const t=metin.trim(); if(!t||!oturum||(!turnuva&&!kulupMod)) return;
     setGonderiliyor(true);
-    const ek={ metin:t, takim_ad:benimTakim?benimTakim.ad:null, takim_logo:benimTakim?(benimTakim.logo||null):null, foto:benimOyuncu?(benimOyuncu.foto||null):null };
+    const ek={ metin:t, takim_ad:kulupMod?(kulup.ad||null):(benimTakim?benimTakim.ad:null), takim_logo:kulupMod?(kulup.logo||null):(benimTakim?(benimTakim.logo||null):null), foto:benimOyuncu?(benimOyuncu.foto||null):null };
     if(yonetimMod && ligYon){ ek.yonetim=true; ek.takim_ad=null; ek.takim_logo=null; }
     if(yanit){ ek.yanit_id=yanit.id; ek.yanit_ad=yanit.ad; ek.yanit_metin=(yanit.metin||"").slice(0,120); }
-    const r=await Db.mesajGonder(turnuva.id, aktifTakimId, oturum.id, ad, ek);
+    const r=kulupMod ? await Db.mesajGonder(null, null, oturum.id, ad, ek, kulup.id) : await Db.mesajGonder(turnuva.id, aktifTakimId, oturum.id, ad, ek);
     setGonderiliyor(false);
     if(r&&r.ok){ setMetin(""); setYanit(null); taslaklar.current[kanal]=""; if(r.mesaj) setMesajlar(p=> p.some(x=>x.id===r.mesaj.id)?p:[...p,r.mesaj]); dibeKaydir(); }
     else alert("Gönderilemedi: "+((r&&r.hata)||""));
@@ -12235,7 +12243,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
   };
   const mesajSil=async(m)=>{ setSecili(null); if(!confirm("Mesaj silinsin mi?")) return; await Db.mesajSil(m.id); setMesajlar(p=>p.filter(x=>x.id!==m.id)); };
   const sikayet=async(m)=>{ setSecili(null); const s=prompt("Şikâyet sebebi (opsiyonel):",""); if(s===null) return; const r=await Db.sikayetEt(m,oturum.id,s); alert(r&&r.ok?"Şikâyetin iletildi, teşekkürler.":"Gönderilemedi."); };
-  const eskiYukle=async()=>{ if(!mesajlar.length||eskiYuk||!dahaVar) return; setEskiYuk(true); const enEski=mesajlar[0].olusma; const eski=await Db.mesajlar(turnuva.id, aktifTakimId, enEski); const el=kaydirRef.current; const oncekiH=el?el.scrollHeight:0; setMesajlar(p=>[...eski,...p]); if(eski.length<30) setDahaVar(false); tepkileriYukle([...eski,...mesajlar]); setTimeout(()=>{ if(el) el.scrollTop=el.scrollHeight-oncekiH; },30); setEskiYuk(false); };
+  const eskiYukle=async()=>{ if(!mesajlar.length||eskiYuk||!dahaVar) return; setEskiYuk(true); const enEski=mesajlar[0].olusma; const eski=kulupMod ? await Db.mesajlar(null, null, enEski, kulup.id) : await Db.mesajlar(turnuva.id, aktifTakimId, enEski); const el=kaydirRef.current; const oncekiH=el?el.scrollHeight:0; setMesajlar(p=>[...eski,...p]); if(eski.length<30) setDahaVar(false); tepkileriYukle([...eski,...mesajlar]); setTimeout(()=>{ if(el) el.scrollTop=el.scrollHeight-oncekiH; },30); setEskiYuk(false); };
   const scrollDinle=(e)=>{ const el=e.target; dipteRef.current=dipteMi(); if(dipteRef.current) setYeniVar(false); if(el.scrollTop<40) eskiYukle(); };
   // Klavye açılıp kapanınca (visualViewport) dipteysek son mesajı görünür tut
   useEffect(()=>{
@@ -12246,7 +12254,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
   },[]);
 
   // GLOBAL SOHBET HUB — belirli lig seçilmemişse: sohbet edilebilir ligleri listele
-  if(!turnuva){
+  if(!turnuva && !kulupMod){
     const ligler=(turnuvalar||[]).filter(t=>t.iliskisel && (t.durum||'aktif')!=='arsiv');
     return <div className="fade-in main-area" style={{paddingBottom:90}}>
       <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"22px 18px 18px",background:"linear-gradient(120deg,"+T.accent2+"33,"+T.bg0+" 45%,"+T.accent+"22 75%,"+T.bg0+")"}}>
@@ -12285,6 +12293,15 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
   return <div className="fz-sohbet" style={{background:T.bg0}}>
     {/* BAŞLIK + SEKMELER */}
     <div style={{flexShrink:0,padding:"12px 14px 10px",borderBottom:"0.5px solid "+T.line,background:T.bg0}}>
+      {kulupMod
+        ? <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <Logo renk={kulup.renk} ad={kulup.ad} logo={kulup.logo} renk2={kulup.renk2} boy={34}/>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{kulup.ad}</div>
+              <div style={{fontSize:10.5,color:T.accent2,fontWeight:700,marginTop:1}}>💬 Takım Sohbeti · sadece kadro</div>
+            </div>
+          </div>
+        : <React.Fragment>
       <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
       <div style={{display:"flex",gap:8,marginTop:10,overflowX:"auto",alignItems:"center",overscrollBehaviorX:"contain",WebkitOverflowScrolling:"touch"}}>
         <button onClick={()=>kanalDegis("genel")} className="tap" style={{flexShrink:0,background:kanal==="genel"?T.accent:T.bg1,color:kanal==="genel"?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="genel"?T.accent:T.line),borderRadius:20,padding:"7px 15px",fontSize:12.5,fontWeight:700}}>Lig Sohbeti{rozet(unread["genel"]||0)}</button>
@@ -12297,6 +12314,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar}){
               <button key={tk.id} onClick={()=>kanalDegis("t:"+tk.id)} className="tap" style={{flexShrink:0,display:"flex",alignItems:"center",gap:5,background:kanal==="t:"+tk.id?T.accent:T.bg1,color:kanal==="t:"+tk.id?T.bg0:T.textSoft,border:"0.5px solid "+(kanal==="t:"+tk.id?T.accent:T.line),borderRadius:20,padding:"7px 14px",fontSize:12.5,fontWeight:700}}>🛡️ {tk.ad}{rozet(unread["t:"+tk.id]||0)}</button>
             )}
       </div>
+      </React.Fragment>}
     </div>
 
     {/* MESAJLAR */}
@@ -12738,6 +12756,11 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
         </div>
         <div style={{fontSize:9.5,color:T.textMut,marginTop:8,textAlign:"center"}}>Averaj {tz.atilan-tz.yenen>=0?"+":""}{tz.atilan-tz.yenen} · tüm sezonların toplamı</div>
       </div> : null}
+      {/* TAKIM SOHBETİ — lige bağlı değil, sadece kadro + admin */}
+      {oturum && (benimKulup || sec.katildi) && <button onClick={()=>git({sayfa:"sohbet",kulup:sec})} className="tap" style={{width:"100%",display:"flex",alignItems:"center",gap:10,background:T.accent2,color:(T.renkCifti&&T.renkCifti[1]==="#FFFFFF")?"#fff":T.bg0,border:0,borderRadius:12,padding:"12px 14px",marginBottom:14,fontWeight:800}}>
+        <span style={{fontSize:16}}>💬</span>
+        <span style={{flex:1,textAlign:"left",minWidth:0}}><span style={{display:"block",fontSize:13.5}}>Takım Sohbeti →</span><span style={{display:"block",fontSize:10,opacity:.85,fontWeight:600}}>sadece bu takımın oyuncuları · lig gerekmez</span></span>
+      </button>}
       {/* DETAYLI TAKIM SAYFASI — zengin sekmeli/istatistik sayfası (ligde oynayınca) */}
       {(()=>{ const gr=(turnuvalar||[]).map(t=>{ const tk=(t.takimlar||[]).find(x=>x&&x.kulup_id===sec.id); return tk?{t, tk}:null; }).filter(Boolean);
         if(gr.length) return <div style={{marginBottom:14}}>
@@ -13795,7 +13818,7 @@ function App(){
       case "istatistik": icerik=<MacIstatistik mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} onKaydet={ligYetkim(nav.turnuva)?(mac,ist)=>{ mac.istatistik=ist; }:kilitliKaydet}/>; break;
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
       case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
-      case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} adminMi={etkinAdminMi} turnuvalar={turnuvalar}/>; break;
+      case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} kulup={nav.kulup} adminMi={etkinAdminMi} turnuvalar={turnuvalar}/>; break;
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
       case "profil": icerik = <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil} destekBilgi={destek?{uid:destek.uid, ad:destek.ad, profil:destekProfil, adminMi:destekAdminMi}:null}/>; break;
       case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar} adminMi={etkinAdminMi} takimKurabilir={!!(adminMi||ligKurYetkim||(oturum&&turnuvalar.some(t=>t&&t.yonetici_id===oturum.id)))}/>; break;
