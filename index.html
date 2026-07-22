@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "92fcf75-1784726750"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "a3d1f86-1784727332"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -125,68 +125,57 @@
   (function(){
     if(!("serviceWorker" in navigator)) return;
     if(location.protocol !== "https:" && location.hostname !== "localhost") return;
-    // "Yenile" niyeti reload'ları AŞAR (sessionStorage) — yavaş cihazda toast döngüsünü kırar.
-    var yenileIstendi = false;
-    try{ yenileIstendi = sessionStorage.getItem("fl_yenile") === "1"; }catch(e){}
-    function skipEt(reg){
-      yenileIstendi = true;
-      try{ sessionStorage.setItem("fl_yenile","1"); }catch(e){}
-      if(reg.waiting){ reg.waiting.postMessage("FL_SKIP_WAITING"); } // → SW aktifleşince controllerchange tazeler
-      else { location.reload(); }                                   // beklemede sürüm yoksa doğrudan tazele
+    // ============================================================
+    //  MERKEZÎ SESSİZ GÜNCELLEME — PWA / mobil Chrome / Safari / PC birebir aynı.
+    //  Toast/soru YOK. Yeni sürüm bulununca otomatik aktifleşir ve sayfa BİR KEZ
+    //  tazelenir. Döngü koruması: son reload'dan bu yana 25 sn geçmeden tekrar
+    //  yenilemez (CDN yayılımı / yarış / eski cihaz kaynaklı sonsuz döngüyü keser).
+    // ============================================================
+    var DONGU_MS = 25000;
+    function sonReload(){ try{ return +sessionStorage.getItem("fl_sw_reload_ts")||0; }catch(e){ return 0; } }
+    function simdi(){ try{ return Date.now(); }catch(e){ return 0; } }
+    function tazele(){
+      if(simdi() - sonReload() < DONGU_MS) return;   // yakın zamanda yenilendi → döngüyü kes
+      try{ sessionStorage.setItem("fl_sw_reload_ts", String(simdi())); }catch(e){}
+      location.reload();
     }
-    function toastGoster(reg){
-      // Kullanıcı zaten "Yenile" dediyse (reload sonrası SW hâlâ beklemedeyse) SESSİZCE aktifleştir — tekrar sorma.
-      if(yenileIstendi){ skipEt(reg); return; }
-      if(document.getElementById("fl-guncel-toast")) return;
-      var t = document.createElement("div");
-      t.id = "fl-guncel-toast";
-      t.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));z-index:99999;background:#0F1728;color:#F1F5F9;border:1px solid #39FF7A55;border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;font:600 13px Inter,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:92vw";
-      t.innerHTML = '<span>✨ Yeni sürüm hazır</span>';
-      var b = document.createElement("button");
-      b.textContent = "Yenile";
-      b.style.cssText = "background:#39FF7A;color:#06240F;border:none;border-radius:10px;padding:9px 16px;font:700 13px Inter,sans-serif;cursor:pointer;min-height:36px";
-      b.onclick = function(){
-        b.textContent = "…";
-        skipEt(reg);
-        // Güvenlik ağı SADECE ilk tıklamada, uzun süre (8sn): controllerchange hiç gelmezse tek reload.
-        // Reload sonrası SW hâlâ beklemedeyse toastGoster sessizce skipEt çağırır → döngü olmaz.
-        setTimeout(function(){ location.reload(); }, 8000);
-      };
-      t.appendChild(b);
-      document.body.appendChild(t);
+    var sonSkip = 0;
+    function aktiflestir(reg){
+      // beklemede sürümü otomatik devreye al (kısa aralıkta tekrar çağrılmasın)
+      if(!reg || !reg.waiting) return;
+      if(simdi() - sonSkip < 5000) return;
+      sonSkip = simdi();
+      reg.waiting.postMessage("FL_SKIP_WAITING");   // SW skipWaiting+claim → controllerchange → tazele()
     }
+    // Sayfa yüklenirken zaten bir kontrolcü var mıydı? (İlk kurulumun claim'inde gereksiz reload olmasın.)
+    var ilkKontrolVar = !!navigator.serviceWorker.controller;
     window.addEventListener("load", function(){
       // updateViaCache:"none" → tarayıcı sw.js'yi HER ZAMAN ağdan kontrol eder (HTTP önbelleğinden değil).
-      // PWA/ana-ekran modunda "yeni sürümü fark etmeme" tuzağının kalıcı çözümü.
       navigator.serviceWorker.register("/sw.js", {updateViaCache:"none"}).then(function(reg){
-        // Güncelken (beklemede sürüm yok + kontrolcü var) kalmış "yenile" niyetini temizle → sonraki sürümde sessiz güncelleme olmasın.
-        if(!reg.waiting && navigator.serviceWorker.controller){ yenileIstendi = false; try{ sessionStorage.removeItem("fl_yenile"); }catch(e){} }
-        // Sayfa açıkken yeni sürüm bulunursa kullanıcıya sor
-        if(reg.waiting) toastGoster(reg);
+        // Açılışta beklemede sürüm varsa hemen sessizce devreye al
+        if(reg.waiting && navigator.serviceWorker.controller) aktiflestir(reg);
         reg.addEventListener("updatefound", function(){
           var yeni = reg.installing;
           if(!yeni) return;
           yeni.addEventListener("statechange", function(){
-            if(yeni.state === "installed" && navigator.serviceWorker.controller) toastGoster(reg);
+            if(yeni.state === "installed" && navigator.serviceWorker.controller) aktiflestir(reg);
           });
         });
-        // Uygulama her öne geldiğinde güncelleme kontrol et (PWA'da sekme hiç kapanmaz)
+        // Uygulama öne gelince + düzenli + tekrar çevrimiçi olunca güncelleme kontrol et
         document.addEventListener("visibilitychange", function(){
           if(document.visibilityState === "visible") reg.update().catch(function(){});
         });
-        // Açıkken bile yeni sürümü KENDİLİĞİNDEN yakala: düzenli kontrol + tekrar çevrimiçi olunca
-        try{ reg.update().catch(function(){}); }catch(e){}                 // hemen bir kez
-        setInterval(function(){ reg.update().catch(function(){}); }, 90000); // her 90 sn
+        try{ reg.update().catch(function(){}); }catch(e){}                  // hemen bir kez
+        setInterval(function(){ reg.update().catch(function(){}); }, 120000); // her 2 dk
         window.addEventListener("online", function(){ reg.update().catch(function(){}); });
       }).catch(function(){});
-      // Yeni SW devraldığında sayfayı TAM OLARAK BİR KEZ tazele — ama yalnız kullanıcı "Yenile"ye bastıysa.
-      // (İlk kurulumdaki clients.claim() controllerchange'inde gereksiz reload olmasın; sonsuz döngü de böyle biter.)
+      // Yeni SW devraldığında sayfayı BİR KEZ tazele (döngü koruması tazele() içinde).
       var yenilendi = false;
       navigator.serviceWorker.addEventListener("controllerchange", function(){
-        if(!yenileIstendi || yenilendi) return;   // ilk kurulumdaki claim'de gereksiz reload olmasın
+        if(yenilendi) return;   // aynı sayfa yaşamında tek reload
         yenilendi = true;
-        try{ sessionStorage.removeItem("fl_yenile"); }catch(e){}  // niyet tüketildi → sonraki sürümde temiz başla
-        location.reload();
+        if(!ilkKontrolVar) return;   // ilk kurulumun claim'i → içerik zaten taze, reload gereksiz
+        tazele();
       });
     });
   })();
