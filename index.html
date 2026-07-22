@@ -780,15 +780,17 @@ const Db = {
         sb.from('oyuncular').select('player_id').eq('sahip_user_id',userId)
       ]);
       const harita={};
-      (sr.data||[]).forEach(c=>{ harita[c.id]={...c, benim:true}; });
+      (sr.data||[]).forEach(c=>{ harita[c.id]={...c, benim:true, katildi:true}; });
       const pids=(or_.data||[]).map(x=>x.player_id);
       if(pids.length){
         const {data:ko}=await sb.from('kulup_oyuncu').select('kulupler(id,ad,logo,renk,renk2,td,olusturma,sahip_user_id,evren)').in('player_id',pids).eq('aktif',true);
-        (ko||[]).forEach(x=>{ const c=x.kulupler; if(c && !c.evren && !harita[c.id]) harita[c.id]={...c, benim:c.sahip_user_id===userId}; });
+        (ko||[]).forEach(x=>{ const c=x.kulupler; if(c && !c.evren && !harita[c.id]) harita[c.id]={...c, benim:c.sahip_user_id===userId, katildi:true}; });
       }
       return Object.values(harita);
     }catch(e){ return []; }
   },
+  // Tüm takımlar (keşfet/vitrin) — herkese açık, üyeler sistemin takımlarını görsün
+  async tumTakimlar(){ if(!sb) return []; try{ const {data}=await sb.from('kulupler').select('id,ad,logo,renk,renk2,td,olusturma,sahip_user_id').is('evren',null).order('olusturma',{ascending:false}).limit(300); return data||[]; }catch(e){ return []; } },
   async kulupKur(userId, obj){ if(!sb||!userId) return {hata:"yok"}; try{ const {data,error}=await sb.from('kulupler').insert({ad:(obj.ad||'').trim(), renk:obj.renk||null, renk2:obj.renk2||null, logo:obj.logo||null, sahip_user_id:userId}).select('id,ad,logo,renk,renk2').single(); return error?{hata:error.message}:{ok:true,kulup:data}; }catch(e){ return {hata:String(e)}; } },
   async kulupKadro(kulupId){ if(!sb||!kulupId) return []; try{ const {data}=await sb.from('kulup_oyuncu').select('player_id,forma_no,mevki,aktif, oyuncular(ad_soyad,foto,poz,ovr)').eq('kulup_id',kulupId).eq('aktif',true); return (data||[]).map(x=>({player_id:x.player_id, forma_no:x.forma_no, mevki:x.mevki||(x.oyuncular&&x.oyuncular.poz)||null, ad:(x.oyuncular&&x.oyuncular.ad_soyad)||'Oyuncu', foto:(x.oyuncular&&x.oyuncular.foto)||null, ovr:(x.oyuncular&&x.oyuncular.ovr)||null})); }catch(e){ return []; } },
   async kulupOyuncuEkle(kulupId, ad, mevki, forma){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('kulup_oyuncu_ekle',{p_kulup:kulupId, p_ad:ad, p_mevki:mevki||null, p_forma:forma?parseInt(forma)||null:null}); return error?{hata:error.message}:{ok:true,player_id:data}; }catch(e){ return {hata:String(e)}; } },
@@ -12642,7 +12644,8 @@ function IlanYanitModal({T, ilan, onKapat}){
 
 /* ===== TAKIMLARIM (kalıcı Kulüp yönetimi) — Aşama 4-6 ===== */
 function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, adminMi}){
-  const [liste,setListe]=React.useState(null);   // null=yükleniyor
+  const [liste,setListe]=React.useState(null);   // null=yükleniyor (senin takımların)
+  const [tumListe,setTumListe]=React.useState(null); // tüm takımlar (keşfet/vitrin)
   const [sec,setSec]=React.useState(null);        // seçili kulüp (detay)
   const [kadro,setKadro]=React.useState([]);
   const [kur,setKur]=React.useState(false);       // kur formu açık
@@ -12655,7 +12658,7 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
   const [tz,setTz]=React.useState(null); // tüm-zamanlar istatistik (lig seçmeden)
   const yetkili = takimKurabilir!==false; // takım KURMA yetkisi (admin/lig yöneticisi)
   const benimKulup = !!(sec && oturum && (sec.benim || adminMi)); // bu takımı YÖNETME yetkisi (sahip/admin)
-  const yenile=async()=>{ if(!oturum) return; const l=await Db.takimlarim(oturum.id); setListe(l); };
+  const yenile=async()=>{ if(!oturum) return; const l=await Db.takimlarim(oturum.id); setListe(l); Db.tumTakimlar().then(setTumListe); };
   React.useEffect(()=>{ yenile(); },[oturum]);
   const kadroYukle=async(k)=>{ setSec(k); setKadro([]); setDavetLink(""); setDuz(false); setTz(null); Db.kulupTumZamanlar(k.id).then(setTz); const c=await Db.kulupKadro(k.id); setKadro(c); };
   const kulupKur=async()=>{ const a=(ad||"").trim(); if(!a){ setMesaj("⚠️ Takım adı gerekli"); return; } setBekle(true); const r=await Db.kulupKur(oturum.id,{ad:a,renk}); setBekle(false); if(r&&r.ok){ setAd(""); setKur(false); setMesaj(""); await yenile(); kadroYukle(r.kulup); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
@@ -12672,7 +12675,7 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
   const BTN={background:T.accent,color:(T.renkCifti&&T.renkCifti[1]==="#FFFFFF")?"#fff":T.bg0,border:0,borderRadius:11,padding:"11px 15px",fontSize:13,fontWeight:800,cursor:"pointer"};
   const KART=(c)=>{ const rk=c.renk||T.accent; return <div key={c.id} onClick={()=>kadroYukle(c)} className="tap" style={{display:"flex",alignItems:"center",gap:12,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:14,padding:13,marginBottom:9,cursor:"pointer"}}>
     <div style={{width:40,height:40,borderRadius:11,background:rk+"26",color:rk,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,fontWeight:800,flexShrink:0}}>{(c.ad||"K")[0].toUpperCase()}</div>
-    <div style={{flex:1,minWidth:0}}><div style={{fontSize:15,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.ad}</div><div style={{fontSize:11,color:c.benim?T.textMut:T.accent2}}>{c.benim?"Takımın · kalıcı":"⚽ Oyuncu olarak katıldın"}</div></div>
+    <div style={{flex:1,minWidth:0}}><div style={{fontSize:15,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.ad}</div><div style={{fontSize:11,color:c.benim?T.textMut:(c.katildi?T.accent2:T.textMut)}}>{c.benim?"Takımın · kalıcı":c.katildi?"⚽ Oyuncu olarak katıldın":"Takım · görüntüle"}</div></div>
     <span style={{color:T.textMut,fontSize:20}}>›</span>
   </div>; };
 
@@ -12685,20 +12688,30 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
     {mesaj && <div style={{fontSize:12.5,color:mesaj[0]==="✓"?T.accent:T.gold,marginBottom:11,lineHeight:1.5}}>{mesaj}</div>}
 
     {!sec ? <>
-      {liste===null ? <div style={{color:T.textMut,fontSize:13,padding:20,textAlign:"center"}}>Yükleniyor…</div> :
-        liste.length===0 && !kur ? <div style={{textAlign:"center",padding:"30px 10px",color:T.textMut}}><div style={{fontSize:40,marginBottom:10}}>🛡️</div><div style={{fontSize:14,color:T.textSoft,lineHeight:1.6}}>{yetkili?<>Henüz takımın yok.<br/>Kalıcı bir takım kur — her ligde tekrar kullan.</>:<>Henüz bir takıma katılmadın.<br/>Takım yöneticisi sana davet linki gönderince takımın burada görünür.</>}</div></div> :
-        liste.map(KART)}
-      {kur ? <div style={{background:T.bg1,border:"1px solid "+T.line,borderRadius:14,padding:14,marginTop:6}}>
-        <input value={ad} onChange={e=>setAd(e.target.value)} placeholder="Takım adı · örn. Şimşekler FC" style={IN}/>
-        <div style={{display:"flex",alignItems:"center",gap:10,margin:"11px 0"}}>
-          <span style={{fontSize:12,color:T.textMut,fontWeight:700}}>Renk</span>
-          {["#22E07A","#3B9EFF","#FF5252","#E5B84B","#A855F7","#FF7A1A"].map(c=><span key={c} onClick={()=>setRenk(c)} className="tap" style={{width:26,height:26,borderRadius:8,background:c,cursor:"pointer",border:renk===c?"2px solid "+T.text:"2px solid transparent"}}/>)}
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={kulupKur} disabled={bekle} style={{...BTN,flex:1}}>{bekle?"…":"Takımı oluştur"}</button>
-          <button onClick={()=>{setKur(false);setMesaj("");}} style={{background:T.bg2,color:T.textSoft,border:"1px solid "+T.line,borderRadius:11,padding:"11px 15px",fontSize:13,fontWeight:700}}>İptal</button>
-        </div>
-      </div> : (yetkili ? <button onClick={()=>{setKur(true);setMesaj("");}} className="tap" style={{...BTN,width:"100%",marginTop:6}}>＋ Takım Kur</button> : <div style={{fontSize:11.5,color:T.textMut,textAlign:"center",padding:"12px"}}>Takım kurma yetkisi Süper Admin ve lig yöneticisindedir. Sen bir takımın davet linkiyle katılabilirsin.</div>)}
+      {liste===null ? <div style={{color:T.textMut,fontSize:13,padding:20,textAlign:"center"}}>Yükleniyor…</div> : <>
+        {liste.length>0 && <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.5,margin:"2px 2px 8px",textTransform:"uppercase"}}>Takımlarım</div>}
+        {liste.length===0 && !kur && <div style={{textAlign:"center",padding:"18px 10px 4px",color:T.textMut}}><div style={{fontSize:32,marginBottom:6}}>🛡️</div><div style={{fontSize:13,color:T.textSoft,lineHeight:1.6}}>{yetkili?"Henüz takımın yok — aşağıdan kur.":"Henüz bir takıma katılmadın. Aşağıdaki takımlara göz atabilir, davet linkiyle katılabilirsin."}</div></div>}
+        {liste.map(KART)}
+        {kur ? <div style={{background:T.bg1,border:"1px solid "+T.line,borderRadius:14,padding:14,marginTop:6}}>
+          <input value={ad} onChange={e=>setAd(e.target.value)} placeholder="Takım adı · örn. Şimşekler FC" style={IN}/>
+          <div style={{display:"flex",alignItems:"center",gap:10,margin:"11px 0"}}>
+            <span style={{fontSize:12,color:T.textMut,fontWeight:700}}>Renk</span>
+            {["#22E07A","#3B9EFF","#FF5252","#E5B84B","#A855F7","#FF7A1A"].map(c=><span key={c} onClick={()=>setRenk(c)} className="tap" style={{width:26,height:26,borderRadius:8,background:c,cursor:"pointer",border:renk===c?"2px solid "+T.text:"2px solid transparent"}}/>)}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={kulupKur} disabled={bekle} style={{...BTN,flex:1}}>{bekle?"…":"Takımı oluştur"}</button>
+            <button onClick={()=>{setKur(false);setMesaj("");}} style={{background:T.bg2,color:T.textSoft,border:"1px solid "+T.line,borderRadius:11,padding:"11px 15px",fontSize:13,fontWeight:700}}>İptal</button>
+          </div>
+        </div> : (yetkili && <button onClick={()=>{setKur(true);setMesaj("");}} className="tap" style={{...BTN,width:"100%",marginTop:6}}>＋ Takım Kur</button>)}
+        {/* TÜM TAKIMLAR — keşfet/vitrin (herkes görür, tıklayınca takım sayfası açılır) */}
+        {(()=>{ const mineIds=new Set((liste||[]).map(c=>c.id)); const browse=(tumListe||[]).filter(c=>c&&!mineIds.has(c.id));
+          if(!browse.length) return null;
+          return <div style={{marginTop:18}}>
+            <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.5,margin:"2px 2px 8px",textTransform:"uppercase"}}>Tüm Takımlar · {browse.length}</div>
+            {browse.map(KART)}
+          </div>;
+        })()}
+      </>}
     </> : <>
       {/* DÜZENLE (ad/renk/logo) — süper admin/yönetici */}
       {duz && <div style={{background:T.bg1,border:"1px solid "+T.line,borderRadius:12,padding:12,marginBottom:12}}>
