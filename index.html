@@ -12813,6 +12813,7 @@ function App(){
   const [oturum,setOturum]=useState(null);      // supabase kullanıcı (null=çıkış)
   const [bulutDurum,setBulutDurum]=useState(""); // kısa senkron göstergesi
   const [liglerYuk,setLiglerYuk]=useState(true); // ligler ilk yükleniyor mu (boş ekran yerine gösterge)
+  const [evrenAktif,setEvrenAktif]=useState(false); // demo/evren görüntüleme modunda mıyız (kendi ligler gizlenir)
   const bulutHazir=useRef(false);                // ilk bulut yüklemesi bitti mi
   const bulutZaman=useRef(null);                 // son bilinen bulut zamanı (çakışma tespiti)
   const [catisma,setCatisma]=useState(false);    // başka cihaz veriyi değiştirdi
@@ -13036,6 +13037,7 @@ function App(){
         evrenHepsi=evren; ligler = evrenBirlestir(benim);
       }
       if(!aktif) return;
+      setEvrenAktif(!!(oturum && (()=>{ try{ return localStorage.getItem('fz_aktif_evren'); }catch(e){ return null; } })()));
       if(oturum){ window.__FL_UID=oturum.id; Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); Db.yasakliMi(oturum.id).then(y=>{ if(aktif && y) setYasakli(true); }); Db.yardimciLiglerim(oturum.id).then(ids=>{ if(aktif) setYardimciLigler(new Set(ids)); }); Db.profilGetir(oturum.id).then(p=>{ if(!aktif) return; setProfil(p||{}); }); } else { window.__FL_UID=null; setAdminMi(false); setLigKurYetkim(false); setYasakli(null); setYardimciLigler(new Set()); setProfil(null); setRolSor(false); }
       ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
       setIliskiselModu(true);            // blob otomatik kaydı/yeniden yayını KAPALI
@@ -13048,6 +13050,18 @@ function App(){
     return ()=>{ aktif=false; };
   },[oturum]);
 
+  // Demo/evren görüntüleme modundan çık → gerçek liglere dön (görünür şerit için)
+  const evrenModundanCik=async()=>{
+    try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){}
+    setEvrenAktif(false);
+    if(!oturum) return;
+    setLiglerYuk(true);
+    const [benim,evren]=await Promise.all([Db.liglerYukle(oturum.id,false),Db.liglerEvrenHepsi(60)]);
+    const varOlan=new Set((benim||[]).map(l=>l.id));
+    const ligler=(benim||[]).concat((evren||[]).filter(l=>!varOlan.has(l.id)));
+    ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
+    setTurnuvalar(ligler); setLiglerYuk(false); git({sayfa:"ana"});
+  };
   // ÇEKİRDEK — bildirimleri yükle + periyodik yenile (girişliyken)
   const bildirimYenile=async()=>{ if(!sb||!oturum) return; const b=await Db.bildirimlerim(); setGercekBildirim(b); };
   useEffect(()=>{
@@ -13883,6 +13897,14 @@ function App(){
 
         {/* içerik — sayfa bazında hata kalkanı (bir sekme çökerse menü ayakta kalır) */}
         <div className="main-area" style={{flex:1,minWidth:0}}>
+          {evrenAktif && <div onClick={evrenModundanCik} className="tap" style={{margin:"10px 14px 0",background:"linear-gradient(90deg,"+T.gold+"22,"+T.bg1+")",border:"1px solid "+T.gold+"66",borderRadius:12,padding:"11px 14px",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+            <span style={{fontSize:18}}>🎬</span>
+            <span style={{flex:1,minWidth:0}}>
+              <span style={{display:"block",fontSize:12.5,fontWeight:800,color:T.gold}}>Demo (evren) modundasın</span>
+              <span style={{display:"block",fontSize:10.5,color:T.textMut,marginTop:1}}>Kendi liglerin gizli. Gerçek liglerine dönmek için dokun.</span>
+            </span>
+            <span style={{fontSize:12,fontWeight:800,color:T.gold,background:T.gold+"22",borderRadius:8,padding:"6px 10px",whiteSpace:"nowrap"}}>🏠 Çık</span>
+          </div>}
           <HataSiniri key={nav.sayfa} sayfa={nav.sayfa} gomulu>{icerik}</HataSiniri>
         </div>
       </div>
