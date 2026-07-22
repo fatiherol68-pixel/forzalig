@@ -12615,10 +12615,11 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir}){
   const [ligSec,setLigSec]=React.useState(false);
   const [davetLink,setDavetLink]=React.useState(""); const [davetKopya,setDavetKopya]=React.useState(false);
   const [duz,setDuz]=React.useState(false); const [dAd,setDAd]=React.useState(""); const [dRenk,setDRenk]=React.useState("");
+  const [tz,setTz]=React.useState(null); // tüm-zamanlar istatistik (lig seçmeden)
   const yetkili = takimKurabilir!==false; // takım kurma/davet yetkisi (admin/lig yöneticisi)
   const yenile=async()=>{ if(!oturum) return; const l=await Db.kuluplerim(oturum.id); setListe(l); };
   React.useEffect(()=>{ yenile(); },[oturum]);
-  const kadroYukle=async(k)=>{ setSec(k); setKadro([]); setDavetLink(""); setDuz(false); const c=await Db.kulupKadro(k.id); setKadro(c); };
+  const kadroYukle=async(k)=>{ setSec(k); setKadro([]); setDavetLink(""); setDuz(false); setTz(null); Db.kulupTumZamanlar(k.id).then(setTz); const c=await Db.kulupKadro(k.id); setKadro(c); };
   const kulupKur=async()=>{ const a=(ad||"").trim(); if(!a){ setMesaj("⚠️ Takım adı gerekli"); return; } setBekle(true); const r=await Db.kulupKur(oturum.id,{ad:a,renk}); setBekle(false); if(r&&r.ok){ setAd(""); setKur(false); setMesaj(""); await yenile(); kadroYukle(r.kulup); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   const oyuncuEkle=async()=>{ const a=(oy||"").trim(); if(!a||!sec) return; setBekle(true); const r=await Db.kulupOyuncuEkle(sec.id,a,oyMevki||null,null); setBekle(false); if(r&&r.ok){ setOy(""); setOyMevki(""); kadroYukle(sec); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   const oyuncuCikar=async(p)=>{ if(!sec) return; if(!confirm(p.ad+" oyuncusunu takımdan çıkar? Serbest kalır (istatistikleri korunur).")) return; const r=await Db.kulupOyuncuSerbest(sec.id,p.player_id); if(r&&r.ok){ kadroYukle(sec); setMesaj("✓ "+p.ad+" takımdan çıkarıldı (serbest kaldı, istatistik korundu)"); } else setMesaj("Olmadı: "+((r&&r.hata)||"yetki yok")); };
@@ -12674,6 +12675,18 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir}){
           <button onClick={()=>setDuz(false)} style={{background:T.bg2,color:T.textSoft,border:"1px solid "+T.line,borderRadius:11,padding:"11px 15px",fontSize:13,fontWeight:700}}>İptal</button>
         </div>
       </div>}
+      {/* TÜM ZAMANLAR İSTATİSTİK — lig seçmeden, doğrudan */}
+      {tz && tz.mac>0 ? <div style={{background:"linear-gradient(135deg,"+T.gold+"12,"+T.bg1+")",border:"0.5px solid "+T.gold+"33",borderRadius:14,padding:"13px 14px",marginBottom:14}}>
+        <div style={{fontSize:11,color:T.gold,fontWeight:800,letterSpacing:.3,marginBottom:10}}>📊 TÜM ZAMANLAR</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+          {[["Maç",tz.mac,T.text],["Galibiyet",tz.galibiyet,T.accent],["Beraberlik",tz.beraberlik,T.textSoft],["Mağlubiyet",tz.maglubiyet,T.danger],["Attığı",tz.atilan,T.accent],["Yediği",tz.yenen,T.danger]].map(([k,v,c],i)=>
+            <div key={i} style={{background:T.bg0,borderRadius:10,padding:"9px 6px",textAlign:"center"}}>
+              <div style={{fontSize:18,fontWeight:900,color:c,fontFamily:T.fontDisplay}}>{v}</div>
+              <div style={{fontSize:8.5,color:T.textMut,marginTop:1}}>{k}</div>
+            </div>)}
+        </div>
+        <div style={{fontSize:9.5,color:T.textMut,marginTop:8,textAlign:"center"}}>Averaj {tz.atilan-tz.yenen>=0?"+":""}{tz.atilan-tz.yenen} · tüm sezonların toplamı</div>
+      </div> : null}
       {/* KADRO */}
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.5,margin:"2px 2px 8px",textTransform:"uppercase"}}>Kadro · {kadro.length} oyuncu</div>
       {kadro.map(p=><div key={p.player_id} style={{display:"flex",alignItems:"center",gap:10,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"9px 11px",marginBottom:6}}>
