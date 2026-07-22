@@ -3007,6 +3007,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur, yukleniyor, oturum, t
   const [sira,setSira]=useState("gol"); // takım/oyuncu sıralama
   const [mevki,setMevki]=useState("hepsi");
   const q=ara.trim().toLocaleLowerCase("tr");
+  const aktifTurnuvalar=turnuvalar.filter(t=>t&&(t.durum||'aktif')!=='arsiv'); // arşivlenen (bitmiş) sezonlar katalogda görünmez
   // FAZ 9 — herkese açık (paylaşılan) ligler
   const [acikLigler,setAcikLigler]=useState([]);
   useEffect(()=>{ if(!sb) return; let a=true; Paylas.liste().then(l=>{ if(a) setAcikLigler(l||[]); }); return ()=>{a=false;}; },[]);
@@ -3083,7 +3084,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur, yukleniyor, oturum, t
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"4px 2px 12px"}}>
         <div style={{display:"flex",alignItems:"center",gap:9}}>
           <span style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>Lig Kataloğu</span>
-          {(turnuvalar.length+acikLigler.length)>0 && <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accent+"1e",border:"0.5px solid "+T.accent+"44",padding:"3px 9px",borderRadius:20}}>{turnuvalar.length+acikLigler.length} Lig</span>}
+          {(aktifTurnuvalar.length+acikLigler.length)>0 && <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accent+"1e",border:"0.5px solid "+T.accent+"44",padding:"3px 9px",borderRadius:20}}>{aktifTurnuvalar.length+acikLigler.length} Lig</span>}
         </div>
         {ligKurAc && <button onClick={ligKurAc} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:11,padding:"9px 14px",fontSize:12.5,fontWeight:800}}>+ Lig Kur</button>}
       </div>
@@ -3102,13 +3103,13 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur, yukleniyor, oturum, t
       )}
 
       {/* Kullanıcının ligleri — zengin kartlar */}
-      {turnuvalar.length===0 && acikLigler.length===0 && (yukleniyor
+      {aktifTurnuvalar.length===0 && acikLigler.length===0 && (yukleniyor
         ? <div style={{textAlign:"center",padding:"26px 20px"}}>
             {[0,1].map(i=><div key={i} className="skel" style={{height:76,borderRadius:16,marginBottom:10}}/>)}
             <div style={{fontSize:12,color:T.textMut,marginTop:4}}>⏳ Ligler yükleniyor…</div>
           </div>
         : <div style={{fontSize:12.5,color:T.textMut,textAlign:"center",padding:"30px 20px",lineHeight:1.6}}>Henüz lig yok.<br/>{ligKurAc?"Yukarıdan kendi ligini kurabilirsin.":"Bir lige katıldığında burada görünür."}</div>)}
-      {turnuvalar.filter(t=>!q||((t.ad||"")+" "+(t.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(t=>{
+      {aktifTurnuvalar.filter(t=>!q||((t.ad||"")+" "+(t.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(t=>{
         const oynanan=t.maclar.filter(m=>m.oynandi).length;
         const lider=[...t.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
         const ilkTakimlar=(t.takimlar||[]).slice(0,3);
@@ -4418,6 +4419,7 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
   const kuluplariGetir=async()=>{ setKulupYuk(true); const l=(await Db.kuluplerim(oturum&&oturum.id))||[]; const mevcut=new Set((turnuva.takimlar||[]).map(t=>t.kulup_id).filter(Boolean)); setKulupListe(l.filter(k=>!mevcut.has(k.id))); setKulupYuk(false); };
   const kulupEkleLige=async(k)=>{ if(!yonetim.kulupLigeEkle) return; setKulupMsj("Ekleniyor…"); const r=await yonetim.kulupLigeEkle(turnuva, k.id); if(r&&r.ok){ setKulupMsj("✓ "+k.ad+" eklendi — oyuncular otomatik geldi"); setKulupListe(p=>(p||[]).filter(x=>x.id!==k.id)); } else setKulupMsj("Olmadı: "+((r&&r.hata)||"")); };
   const [oyDavet,setOyDavet]=useState(null); // {ad, link} — takıma özel oyuncu davet linki penceresi
+  const [ysOnay,setYsOnay]=useState(false); // yeni sezon iki-adımlı onay
   // transfer istekleri
   const [bekTransfer,setBekTransfer]=useState([]);
   const [trfYuk,setTrfYuk]=useState(false);
@@ -4778,7 +4780,16 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
     {typeof turnuva.id==="string" && yonetim.yeniSezon && <div style={{margin:"14px 0 4px",background:"linear-gradient(135deg,"+T.accent+"14,"+T.bg1+")",border:"0.5px solid "+T.accent+"44",borderRadius:11,padding:"12px 13px"}}>
       <div style={{fontSize:12.5,color:T.text,fontWeight:800,marginBottom:3}}>🗓️ Yeni Sezon</div>
       <div style={{fontSize:10.5,color:T.textMut,marginBottom:9,lineHeight:1.5}}>Bu sezonu bitir, <b>aynı takımlar ve kadrolarla</b> yeni sezona geç. Geçmiş ve kariyer korunur, puan durumu sıfırlanır. Yeni lig hakkı gerekmez.</div>
-      <button onClick={()=>yonetim.yeniSezon(turnuva)} className="tap" style={{width:"100%",background:T.accent,color:T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:"none",borderRadius:9,padding:"11px",fontSize:12.5,fontWeight:800}}>🚀 Yeni Sezonu Başlat →</button>
+      {!ysOnay
+        ? <button onClick={()=>setYsOnay(true)} className="tap" style={{width:"100%",background:T.accent,color:T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:"none",borderRadius:9,padding:"11px",fontSize:12.5,fontWeight:800}}>🚀 Yeni Sezonu Başlat →</button>
+        : <div style={{background:T.gold+"14",border:"1px solid "+T.gold+"55",borderRadius:10,padding:"11px 12px"}}>
+            <div style={{fontSize:11.5,color:T.gold,fontWeight:800,marginBottom:5}}>⚠️ Emin misin?</div>
+            <div style={{fontSize:10.5,color:T.textSoft,lineHeight:1.5,marginBottom:9}}>Bu sezon <b>arşivlenecek</b> (geçmiş korunur). Aynı takımlar ve kadrolar yeni sezona <b>otomatik eklenecek</b>, puan durumu <b>sıfırlanacak</b>. Yanlışlıkla başlatma!</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{ setYsOnay(false); yonetim.yeniSezon(turnuva); }} className="tap" style={{flex:1,background:T.accent,color:T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:"none",borderRadius:9,padding:"10px",fontSize:12,fontWeight:800}}>✓ Evet, yeni sezon başlat</button>
+              <button onClick={()=>setYsOnay(false)} className="tap" style={{background:T.bg2,color:T.textSoft,border:"0.5px solid "+T.line,borderRadius:9,padding:"10px 14px",fontSize:12,fontWeight:700}}>Vazgeç</button>
+            </div>
+          </div>}
     </div>}
 
     <div style={{margin:"14px 0 4px",background:T.bg1,border:"0.5px solid "+T.danger+"33",borderRadius:11,padding:"12px 13px"}}>
@@ -13428,7 +13439,7 @@ function App(){
   // Yeni sezon başlat (Faz 3) — bu sezonu arşivle, takımlar+kadrolar yeni sezona otomatik taşınsın (Q21-24)
   const yeniSezon=async(turnuva)=>{
     if(!iliskiselMi(turnuva)){ alert("Yeni sezon yalnızca kayıtlı liglerde kullanılabilir."); return; }
-    if(!confirm("Yeni sezon başlatılsın mı?\n\n• Bu sezon arşivlenir (geçmiş korunur)\n• Takımlar ve kadrolar yeni sezona otomatik taşınır\n• Puan durumu sıfırlanır, fikstürü yeniden oluşturursun\n• Kariyer istatistikleri korunur")) return;
+    // Onay artık YonetimPaneli'nde iki-adımlı (yanlışlıkla basma koruması)
     const r=await Db.yeniSezonBaslat(turnuva.id);
     if(r.hata){ alert("Olmadı: "+r.hata); return; }
     Db.logla(oturum, "Yeni sezon başlattı", turnuva.ad);
