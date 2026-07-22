@@ -8774,11 +8774,15 @@ function LigKur({T, git, ligKur, oturum}){
   ];
   const formatAd={serbest:"Serbest",tek:"Tek Devre",cift:"Çift Devre",gruplu:"Gruplu",kupa:"Kupa"}[format];
   const yetkiliKur = !!oturum && (adminMi || (hakBilgi && hakBilgi.kalan>0));
-  const kur=()=>{
+  const [kurBekle,setKurBekle]=useState(false);
+  const kur=async()=>{
+    if(kurBekle) return;   // çift-tıklama koruması → iki lig oluşmasın
     if(!oturum){ alert("Lig kurmak için önce Google ile giriş yap."); return; }
     if(!yetkiliKur){ alert("⚠️ Lig açma hakkın yok.\n\nLig oluşturmak için Süper Admin'in sana lig hakkı vermesi gerekiyor."); return; }
     if(!ad.trim()){return;}
-    ligKur({ad:ad.trim(), sehir, ilce:ilce.trim(), renk, kisi, format, grupSayi:format==="gruplu"?grupSayi:0, baslangic, hedefTakim});
+    setKurBekle(true);
+    await ligKur({ad:ad.trim(), sehir, ilce:ilce.trim(), renk, kisi, format, grupSayi:format==="gruplu"?grupSayi:0, baslangic, hedefTakim});
+    setTimeout(()=>setKurBekle(false), 2500); // başarılıysa zaten yönlendirdi; başarısızsa tekrar denenebilir
   };
 
   // Yetkisi olmayan (admin değil + hakkı 0) → lig kurma yerine BAŞVURU formu
@@ -8880,8 +8884,8 @@ function LigKur({T, git, ligKur, oturum}){
       </div>
 
       {!yetkiliKur && <div style={{margin:"0 0 10px",background:T.danger+"14",border:"0.5px solid "+T.danger+"44",borderRadius:11,padding:"11px 13px",fontSize:12,color:T.danger,lineHeight:1.5,fontWeight:600}}>{!oturum?"Lig kurmak için önce Google ile giriş yap.":"Lig açma hakkın yok. Süper Admin'den lig hakkı alman gerekiyor."}</div>}
-      <button onClick={kur} disabled={!ad.trim()||!yetkiliKur} className="tap" style={{width:"100%",padding:"14px",borderRadius:12,background:(ad.trim()&&yetkiliKur)?T.accent:T.bg2,color:(ad.trim()&&yetkiliKur)?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut,fontSize:15,fontWeight:800,border:"none",opacity:yetkiliKur?1:.7}}>
-        ✓ Ligi Oluştur
+      <button onClick={kur} disabled={!ad.trim()||!yetkiliKur||kurBekle} className="tap" style={{width:"100%",padding:"14px",borderRadius:12,background:(ad.trim()&&yetkiliKur&&!kurBekle)?T.accent:T.bg2,color:(ad.trim()&&yetkiliKur&&!kurBekle)?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut,fontSize:15,fontWeight:800,border:"none",opacity:yetkiliKur?1:.7}}>
+        {kurBekle?"⏳ Oluşturuluyor…":"✓ Ligi Oluştur"}
       </button>
       <div style={{fontSize:11,color:T.textMut,textAlign:"center",marginTop:10}}>Oluşturduktan sonra takım ve maç ekleyebilirsin</div>
     </div>
