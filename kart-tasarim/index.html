@@ -91,6 +91,13 @@ body{
 .flag{ overflow:hidden; } .flag svg{ width:100%; height:100%; display:block; }
 /* fitText hedefleri tek satır + taşma engeli */
 .fit{ display:block; white-space:nowrap; overflow:hidden; }
+/* GERÇEK FOTO otomatik yerleştirme: JS px ile konumlar (object-fit devre dışı) */
+.ph--fit{ object-fit:none !important; inset:auto !important; max-width:none; }
+/* sürükle-bırak vurgusu */
+.stage.drag{ outline:2px dashed var(--a); outline-offset:-8px; }
+.dropnote{ position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:80; background:rgba(6,10,18,.9);
+  border:1px solid var(--a); color:#eef2fb; font-size:12px; font-weight:700; padding:9px 16px; border-radius:12px; display:none; }
+.stage.drag ~ .dropnote,.dropnote.show{ display:block; }
 
 /* =====================================================================
    CONCEPT 1 · GLASS — foto ayrı pencerede, yazılar AYRI cam panelde (çakışma yok)
@@ -313,6 +320,11 @@ body{
     <button id="next" title="Sonraki oyuncu">›</button>
   </div>
   <div class="ctl">
+    <button id="fotoBtn" style="width:auto;padding:0 12px;font-size:11.5px;font-weight:700">📷 Fotoğraf</button>
+    <button id="fotoClr" style="width:auto;padding:0 10px;font-size:11px" title="Foto kaldır">✕</button>
+    <input id="fotoInp" type="file" accept="image/*" style="display:none">
+  </div>
+  <div class="ctl">
     <label for="rar">Rarity</label>
     <select id="rar">
       <option value="bronze">Bronze</option><option value="silver">Silver</option><option value="gold" selected>Gold</option>
@@ -329,6 +341,7 @@ body{
   <div class="concept-label"><div class="n" id="cN">CONCEPT 1</div><div class="d" id="cD">Apple · VisionOS · Glass · Minimal</div></div>
   <div class="floater"><div id="mount"></div></div>
 </div>
+<div class="dropnote" id="dropnote">📷 Fotoğrafı bırak — otomatik yerleşecek</div>
 
 <script>
 /* =====================================================================
@@ -437,7 +450,7 @@ const CONCEPTS={
   1:{n:'CONCEPT 1',d:'Apple · VisionOS · Glass · Minimal',render:(P,R,ph,car)=>`
     <div class="c1"><div class="card"><div class="card__inner">
       <div class="face front">
-        <div class="win"><img class="ph" src="${ph}" alt=""><div class="scrim"></div></div>
+        <div class="win rphoto"><img class="ph" src="${ph}" alt=""><div class="scrim"></div></div>
         <div class="c1-top"><div class="c1-ovr chip"><span class="n">${P.ovr}</span><span class="p">${P.pos}</span></div><div class="c1-brand chip">${SVG.logo('#fff')}<span>ForzaLig</span></div></div>
         <div class="c1-flag flag">${FLAGS[P.nat]}</div>
         <div class="c1-lower" data-depth="4">
@@ -455,7 +468,7 @@ const CONCEPTS={
     <div class="c2"><div class="card"><div class="card__inner">
       <div class="face front">
         <div class="carbon"></div>
-        <div class="c2-photo" data-depth="8"><img class="ph" src="${ph}" alt=""><div class="scrim"></div></div>
+        <div class="c2-photo rphoto" data-depth="8"><img class="ph" src="${ph}" alt=""><div class="scrim"></div></div>
         <div class="redline" data-depth="5"></div>
         <div class="c2-top">${SVG.logo('var(--a)')}<b>Forza<i>Lig</i></b></div>
         <div class="c2-flag flag">${FLAGS[P.nat]}</div>
@@ -472,7 +485,7 @@ const CONCEPTS={
   3:{n:'CONCEPT 3',d:'Nike · Stadium · Champions · Sport',render:(P,R,ph,car)=>`
     <div class="c3"><div class="card"><div class="card__inner">
       <div class="face front">
-        <div class="c3-photo" data-depth="8"><img class="ph" src="${ph}" alt=""><div class="scrim"></div></div>
+        <div class="c3-photo rphoto" data-depth="8"><img class="ph" src="${ph}" alt=""><div class="scrim"></div></div>
         <div class="flood"></div>
         <div class="c3-ovr chip" data-depth="12"><div class="n">${P.ovr}</div><div class="p">${P.pos}</div></div>
         <div class="c3-brand chip">${SVG.logo('var(--a)')}<span>FORZALİG</span></div>
@@ -491,7 +504,7 @@ const CONCEPTS={
   4:{n:'CONCEPT 4',d:'Netflix · Cinematic · Luxury · Black Gold',render:(P,R,ph,car)=>`
     <div class="c4"><div class="card"><div class="card__inner">
       <div class="face front">
-        <div class="c4-photo" data-depth="7"><img class="ph" src="${ph}" alt=""><div class="scrim"></div></div>
+        <div class="c4-photo rphoto" data-depth="7"><img class="ph" src="${ph}" alt=""><div class="scrim"></div></div>
         <div class="spot"></div><div class="bars t"></div><div class="bars b"></div>
         <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
         <div class="c4-top"><div class="lg">${SVG.logo('var(--a)')}FORZALİG</div><div class="sea">SEASON 2027</div></div>
@@ -512,7 +525,7 @@ const CONCEPTS={
     <div class="c5"><div class="card"><div class="card__inner">
       <div class="face front">
         <div class="grid5"></div>
-        <div class="c5-photo" data-depth="8"><img class="ph" src="${ph}" alt=""><img class="ph r" src="${ph}" alt=""><img class="ph b" src="${ph}" alt=""><div class="scrim"></div></div>
+        <div class="c5-photo rphoto" data-depth="8"><img class="ph" src="${ph}" alt=""><img class="ph r" src="${ph}" alt=""><img class="ph b" src="${ph}" alt=""><div class="scrim"></div></div>
         <div class="scanline"></div><div class="bracket tl"></div><div class="bracket br"></div>
         <div class="c5-top"><div class="lg">${SVG.logo('var(--a)')}FORZALIG</div><div class="sea">SEASON_2027</div></div>
         <div class="c5-flag flag">${FLAGS[P.nat]}</div>
@@ -540,8 +553,81 @@ function rand(p,s){ let x=(p.no*97+p.ovr*13+s*29)%17-8; return x; }
 function clamp(v){ return Math.max(38,Math.min(99,Math.round(v))); }
 
 /* ---- DURUM ---- */
-let state={ c:1, r:'gold', p:0 };
+let state={ c:1, r:'gold', p:0, photo:null, img:null, an:null };
 const stage=document.getElementById('stage'), mount=document.getElementById('mount');
+
+/* =====================================================================
+   GERÇEK FOTO MOTORU — analiz + otomatik yerleştirme + adaptif overlay
+   ===================================================================== */
+/* 1) Analiz: yüz bandı (ten tonu) + parlaklık (üst/alt) → crop & scrim kararı */
+function analyzePhoto(img){
+  const cw=72, ch=Math.max(1,Math.round(72*img.naturalHeight/img.naturalWidth));
+  const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+  const ctx=cv.getContext('2d'); ctx.drawImage(img,0,0,cw,ch);
+  let d; try{ d=ctx.getImageData(0,0,cw,ch).data; }catch(e){ return {fx:.5,fy:.24,fh:.32,topL:120,botL:120}; }
+  const rowSkin=new Array(ch).fill(0); let colW=new Array(cw).fill(0);
+  let topL=0,topN=0,botL=0,botN=0;
+  for(let y=0;y<ch;y++){ for(let x=0;x<cw;x++){ const i=(y*cw+x)*4, r=d[i],g=d[i+1],b=d[i+2];
+    const lum=.299*r+.587*g+.114*b;
+    if(y<ch*0.18){ topL+=lum; topN++; } if(y>ch*0.60){ botL+=lum; botN++; }
+    const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+    const skin = r>70&&g>40&&b>25 && r>=g&&g>=b*0.85 && (r-b)>12 && (mx-mn)>12 && (mx-mn)<160 && lum>45&&lum<235;
+    if(skin){ rowSkin[y]++; colW[x]++; } } }
+  // Yüz bandı: en yoğun ten kümesinin üst kısmı (yüz gövdeye göre yukarıda)
+  let best=0,by=Math.round(ch*0.22);
+  for(let y=0;y<ch;y++){ let sum=0; for(let k=-1;k<=1;k++){ const yy=y+k; if(yy>=0&&yy<ch) sum+=rowSkin[yy]; }
+    // üst bölgeye hafif ağırlık (yüz genelde üstte)
+    const w=sum*(1.0 - y/ch*0.35);
+    if(w>best){ best=w; by=y; } }
+  // yüz yüksekliği: yoğun ten satırlarının kapsamı
+  let top=by,bot=by, thr=Math.max(2,best*0.32/1.0);
+  for(let y=by;y>=0;y--){ if(rowSkin[y]>=thr) top=y; else if(by-y>2) break; }
+  for(let y=by;y<ch;y++){ if(rowSkin[y]>=thr) bot=y; else if(y-by>ch*0.28) break; }
+  let fh=(bot-top)/ch; if(!(fh>0.05)) fh=0.30;
+  const fy=(top + (bot-top)*0.42)/ch;               // yüz merkezini biraz yukarı al (alın+göz)
+  // yüz yatay merkezi
+  let cs=0,csum=0; for(let x=0;x<cw;x++){ cs+=colW[x]*x; csum+=colW[x]; }
+  let fx = csum>4 ? cs/csum/cw : 0.5; fx=Math.max(0.32,Math.min(0.68,fx));
+  return { fx, fy:Math.max(0.12,Math.min(0.5,fy)), fh:Math.max(0.12,Math.min(0.6,fh)),
+           topL: topN?topL/topN:120, botL: botN?botL/botN:120 };
+}
+
+/* 2) Yerleştirme: her foto container'ında yüzü güvenli üst bölgeye, baş+omuz kadrajı */
+function placeAll(card){
+  if(!state.img||!state.an) return; const im=state.img, an=state.an;
+  card.querySelectorAll('.rphoto').forEach(box=>{
+    const cw=box.clientWidth, chh=box.clientHeight; if(!cw||!chh) return;
+    const iw=im.naturalWidth, ih=im.naturalHeight;
+    const cover=Math.max(cw/iw, chh/ih);
+    const targetFace=0.30;                                  // yüz, kart foto yüksekliğinin ~%30'u
+    let zoom=targetFace*chh/(Math.max(an.fh,0.12)*ih*cover);
+    zoom=Math.max(1,Math.min(2.6,zoom));
+    const s=cover*zoom, dw=iw*s, dh=ih*s;
+    const faceTop=0.30;                                     // yüz merkezi kutunun ~%30'unda (üst güvenli bölge)
+    let left=cw*0.5 - an.fx*dw, top=chh*faceTop - an.fy*dh;
+    left=Math.min(0,Math.max(cw-dw,left)); top=Math.min(0,Math.max(chh-dh,top));
+    box.querySelectorAll('.ph').forEach(p=>{ p.classList.add('ph--fit');
+      p.style.width=dw+'px'; p.style.height=dh+'px'; p.style.left=left+'px'; p.style.top=top+'px'; });
+    // adaptif scrim: parlak fotoğrafta güçlü, koyu fotoğrafta yumuşak overlay → yazı hep okunur
+    const scr=box.querySelector('.scrim'); if(scr){
+      const strong=Math.max(.5,Math.min(.95,.5+(an.botL-70)/210));
+      const topA=Math.max(0,Math.min(.42,.05+(an.topL-95)/260));
+      const c1 = card.querySelector('.c1'); // glass: metin ayrı panelde → fotoyu az karart
+      const soft = box.closest('.c1')?0.55:1;
+      scr.style.background=`linear-gradient(180deg,rgba(0,0,0,${(topA*soft).toFixed(2)}) 0%,rgba(0,0,0,0) 24%,rgba(0,0,0,${(strong*0.5*soft).toFixed(2)}) 56%,rgba(0,0,0,${(strong*soft).toFixed(2)}) 84%,rgba(0,0,0,${Math.min(.97,strong+0.05).toFixed(2)*soft||strong*soft}) 100%)`;
+    }
+  });
+}
+
+/* 3) Foto yükle / temizle / sürükle-bırak */
+function loadPhotoFile(file){
+  if(!file||!/^image\//.test(file.type)) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ const img=new Image();
+    img.onload=()=>{ state.photo=rd.result; state.img=img; state.an=analyzePhoto(img); build(); };
+    img.src=rd.result; };
+  rd.readAsDataURL(file);
+}
 
 /* ---- QR ---- */
 function drawQR(cv){ const ctx=cv.getContext('2d'); const N=21,px=cv.width/N; ctx.clearRect(0,0,cv.width,cv.height);
@@ -586,12 +672,15 @@ function applyRarity(){ const R=RARITY[state.r]; const root=document.documentEle
 function build(){
   const R=RARITY[state.r]; const P=Object.assign({}, PLAYERS[state.p]);
   P.stats=statsFor(P);
-  const ph=portrait(P), car=careerFor(P,state.p);
+  const ph=state.photo || portrait(P), car=careerFor(P,state.p);
   mount.innerHTML=CONCEPTS[state.c].render(P,R,ph,car);
   document.getElementById('cN').textContent=CONCEPTS[state.c].n;
   document.getElementById('cD').textContent=CONCEPTS[state.c].d;
   bindCard();
-  // foto yüklenince + hemen: isimleri sığdır
+  const card=mount.querySelector('.card');
+  // gerçek foto: otomatik yerleştir + adaptif overlay (layout değişmez)
+  if(state.photo && card){ placeAll(card); requestAnimationFrame(()=>placeAll(card)); setTimeout(()=>placeAll(card),80); }
+  // isimleri tek satıra sığdır
   requestAnimationFrame(()=>fitText(mount));
   setTimeout(()=>fitText(mount),60);
 }
@@ -605,7 +694,17 @@ PLAYERS.forEach((p,i)=>{ const o=document.createElement('option'); o.value=i; o.
 plySel.addEventListener('change',e=>{ state.p=+e.target.value; build(); });
 document.getElementById('prev').addEventListener('click',()=>{ state.p=(state.p-1+PLAYERS.length)%PLAYERS.length; plySel.value=state.p; build(); });
 document.getElementById('next').addEventListener('click',()=>{ state.p=(state.p+1)%PLAYERS.length; plySel.value=state.p; build(); });
-window.addEventListener('resize',()=>fitText(mount));
+
+/* Foto: seç / temizle / sürükle-bırak */
+const fotoInp=document.getElementById('fotoInp');
+document.getElementById('fotoBtn').addEventListener('click',()=>fotoInp.click());
+fotoInp.addEventListener('change',e=>{ if(e.target.files&&e.target.files[0]) loadPhotoFile(e.target.files[0]); });
+document.getElementById('fotoClr').addEventListener('click',()=>{ state.photo=null; state.img=null; state.an=null; build(); });
+['dragenter','dragover'].forEach(ev=>stage.addEventListener(ev,e=>{ e.preventDefault(); stage.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev=>stage.addEventListener(ev,e=>{ e.preventDefault(); if(ev!=='dragover') stage.classList.remove('drag'); }));
+stage.addEventListener('drop',e=>{ const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) loadPhotoFile(f); });
+
+let rz; window.addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ fitText(mount); const c=mount.querySelector('.card'); if(state.photo&&c) placeAll(c); },120); });
 
 /* ---- BAŞLAT ---- */
 applyRarity(); build();
