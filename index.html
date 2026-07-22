@@ -2996,7 +2996,7 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   </div>;
 }
 
-function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
+function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur, yukleniyor}){
   const [tab,setTab]=useState("lig");
   const [ara,setAra]=useState("");
   const [sira,setSira]=useState("gol"); // takım/oyuncu sıralama
@@ -3105,7 +3105,12 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur}){
       )}
 
       {/* Kullanıcının ligleri — zengin kartlar */}
-      {turnuvalar.length===0 && acikLigler.length===0 && <div style={{fontSize:12.5,color:T.textMut,textAlign:"center",padding:"30px 20px",lineHeight:1.6}}>Henüz lig yok.<br/>{ligKurAc?"Yukarıdan kendi ligini kurabilirsin.":"Bir lige katıldığında burada görünür."}</div>}
+      {turnuvalar.length===0 && acikLigler.length===0 && (yukleniyor
+        ? <div style={{textAlign:"center",padding:"26px 20px"}}>
+            {[0,1].map(i=><div key={i} className="skel" style={{height:76,borderRadius:16,marginBottom:10}}/>)}
+            <div style={{fontSize:12,color:T.textMut,marginTop:4}}>⏳ Ligler yükleniyor…</div>
+          </div>
+        : <div style={{fontSize:12.5,color:T.textMut,textAlign:"center",padding:"30px 20px",lineHeight:1.6}}>Henüz lig yok.<br/>{ligKurAc?"Yukarıdan kendi ligini kurabilirsin.":"Bir lige katıldığında burada görünür."}</div>)}
       {turnuvalar.filter(t=>!q||((t.ad||"")+" "+(t.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(t=>{
         const oynanan=t.maclar.filter(m=>m.oynandi).length;
         const lider=[...t.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
@@ -12807,6 +12812,7 @@ function App(){
   // FAZ 8 — online oturum & bulut senkron
   const [oturum,setOturum]=useState(null);      // supabase kullanıcı (null=çıkış)
   const [bulutDurum,setBulutDurum]=useState(""); // kısa senkron göstergesi
+  const [liglerYuk,setLiglerYuk]=useState(true); // ligler ilk yükleniyor mu (boş ekran yerine gösterge)
   const bulutHazir=useRef(false);                // ilk bulut yüklemesi bitti mi
   const bulutZaman=useRef(null);                 // son bilinen bulut zamanı (çakışma tespiti)
   const [catisma,setCatisma]=useState(false);    // başka cihaz veriyi değiştirdi
@@ -13009,8 +13015,9 @@ function App(){
 
   // FAZ 3 — İLİŞKİSEL yükleme: girişli → kendi ligleri (yönetim), ziyaretçi → tüm public ligler
   useEffect(()=>{
-    if(!sb || saltOkunur || DAVET_TOKEN) return;
+    if(!sb || saltOkunur || DAVET_TOKEN){ setLiglerYuk(false); return; }
     let aktif=true;
+    setLiglerYuk(true);
     (async()=>{
       // Aktif demo evren varsa (Göster'e basılmış) → yenilemede de o evren kalsın (mod). Yoksa gerçek ligler.
       const aktEv = (()=>{ try{ return oturum ? localStorage.getItem('fz_aktif_evren') : null; }catch(e){ return null; } })();
@@ -13033,6 +13040,7 @@ function App(){
       ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
       setIliskiselModu(true);            // blob otomatik kaydı/yeniden yayını KAPALI
       setTurnuvalar(ligler);
+      setLiglerYuk(false);
       bulutHazir.current=true;
       setBulutDurum(ligler.length ? ("Yüklendi ✓ ("+ligler.length+" lig)") : "");
       setTimeout(()=>{ if(aktif) setBulutDurum(""); },2200);
@@ -13652,16 +13660,18 @@ function App(){
       <a href={(window.location.origin+window.location.pathname)} style={{display:"inline-block",marginTop:20,background:T.accent,color:T.bg0,borderRadius:11,padding:"12px 24px",fontSize:14,fontWeight:800,textDecoration:"none"}}>ForzaLig'e Git →</a>
     </div>;
   } else if(bosMu){
-    icerik=<BosDurum T={T} git={git} ligKurabilir={etkinLigKurYetkim}/>;
+    icerik = liglerYuk
+      ? <div className="fade-in" style={{padding:"18px 16px"}}>{[0,1,2].map(i=><div key={i} className="skel" style={{height:88,borderRadius:16,marginBottom:12}}/>)}<div style={{fontSize:12.5,color:T.textMut,textAlign:"center",marginTop:6}}>⏳ Liglerin yükleniyor…</div></div>
+      : <BosDurum T={T} git={git} ligKurabilir={etkinLigKurYetkim}/>;
   } else {
     // YETKİ: bu ligi yönetebilir miyim? (lig sahibi VEYA süper admin) — misafir/başka üye DÜZENLEYEMEZ
     const ligYetkim=(t)=> !saltOkunur && !!oturum && !!t && (((t.yonetici_id!=null) && t.yonetici_id===oturum.id) || adminMi || (t.id && yardimciLigler.has(t.id)));
     // Yetkisiz kişi düzenleme ekranına gelirse: kaydetmeyi engelle (sunucu RLS de engeller, bu arayüz kapısı)
     const kilitliKaydet=()=>{ alert("Bu maçı yalnızca ligin yöneticisi düzenleyebilir."); return Promise.resolve({hata:"yetki yok"}); };
     switch(nav.sayfa){
-      case "ana": icerik=<AnaSayfa turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git}/>; break;
+      case "ana": icerik=<AnaSayfa turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} yukleniyor={liglerYuk}/>; break;
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
-      case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} saltOkunur={saltOkunur}/>; break;
+      case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} saltOkunur={saltOkunur} yukleniyor={liglerYuk}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
       case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,kulupLigeEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,yeniSezon,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum} adminMi={etkinAdminMi}/>; break;
