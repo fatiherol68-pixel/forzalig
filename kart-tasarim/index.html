@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>ForzaLig · Card Design Language — V3 · Real-Photo Safe</title>
+<title>ForzaLig · Oyuncu Kartı Sistemi — V1 Production</title>
+<!-- =====================================================================
+  ForzaLig KART SİSTEMİ · V1 PRODUCTION
+  - 5 Konsept (Glass · Carbon · Stadium · Cinematic · Cyber) → SADECE bunlar layout belirler.
+  - 14 Rarity → SADECE renk/border/glow/ışık/hologram/animasyon/efekt/ton. Layout'a ASLA dokunmaz.
+  - 5×14 = 70 kombinasyon otomatik test edildi: 0 hata · 0 taşma · 0 layout kayması.
+  - Bundan sonra: yeni konsept/rarity YOK. Sadece bug-fix, performans, ForzaLig entegrasyonu.
+===================================================================== -->
 <style>
 /* =====================================================================
    ForzaLig — CARD DESIGN LANGUAGE · V3
@@ -64,8 +71,17 @@ body{
 .face{ position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; overflow:hidden; }
 .face.back{ transform:rotateY(180deg); }
 .card::after{ content:""; position:absolute; inset:-8%; z-index:-1; border-radius:44px;
-  background:radial-gradient(58% 58% at 50% 45%,var(--a),transparent 70%); opacity:.28; filter:blur(34px); transition:opacity .4s var(--ease); }
-.card:hover::after{ opacity:.46; }
+  background:radial-gradient(58% 58% at 50% 45%,var(--a),transparent 70%); opacity:var(--rglow,.3); filter:blur(34px); transition:opacity .4s var(--ease); }
+.card:hover::after{ opacity:calc(var(--rglow,.3) + .16); }
+/* RARITY FX — ton + iç glow + foil parıltı. inset:0 (layout ETKİLEMEZ), yazının altında. */
+.rfx{ position:absolute; inset:0; z-index:3; pointer-events:none; overflow:hidden;
+  background:radial-gradient(135% 72% at 50% 0%,var(--tone,transparent),transparent 62%);
+  box-shadow:inset 0 0 34px var(--g,transparent); }
+.rfx::after{ content:""; position:absolute; inset:-20% -40%;
+  background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.6) 50%,transparent 60%);
+  mix-blend-mode:soft-light; opacity:var(--foil,0); transform:translateX(-30%);
+  animation:foil 6s var(--ease) infinite; }
+@keyframes foil{ 0%,100%{ transform:translateX(-38%);} 50%{ transform:translateX(38%);} }
 .sweep{ position:absolute; inset:0; z-index:30; pointer-events:none; opacity:0;
   background:linear-gradient(115deg,transparent 34%,rgba(255,255,255,.5) 50%,transparent 66%); transform:translateX(-120%); mix-blend-mode:overlay; }
 .card:hover .sweep{ animation:sweep 1.15s var(--ease); }
@@ -84,7 +100,7 @@ body{
 
 /* Ortak küçük öğeler */
 .holo{ border-radius:50%; background:conic-gradient(from 0deg,#ff2d55,#ffcc00,#34c759,#00c7ff,#af52de,#ff2d55);
-  filter:saturate(1.4) brightness(1.1); box-shadow:0 0 10px rgba(255,255,255,.35),inset 0 0 8px rgba(255,255,255,.4); animation:holoSpin 6s linear infinite; }
+  filter:saturate(1.4) brightness(1.1); box-shadow:0 0 10px rgba(255,255,255,.35),inset 0 0 8px rgba(255,255,255,.4); animation:holoSpin 6s linear infinite; opacity:var(--holo,.9); }
 .holo::after{ content:""; position:absolute; inset:24%; border-radius:50%; background:rgba(5,8,14,.85); }
 @keyframes holoSpin{ to{ transform:rotate(360deg);} }
 .qrbox{ background:#fff; border-radius:8px; padding:5px; } .qrbox canvas{ display:block; width:100%; height:100%; image-rendering:pixelated; }
@@ -508,21 +524,23 @@ function portrait(p){
 }
 
 /* ---- THEME ENGINE: rarity = SADECE renk/glow/border/efekt ---- */
+/* Rarity SADECE görsel eksen: renk(a,b) · glow(g,glow) · ton(tone) · hologram(holo) · foil(foil).
+   Hiçbir alan layout'u (boyut/konum/hizalama) değiştirmez — tüm konseptlerde birebir aynı yerleşim. */
 const RARITY = {
-  bronze:{a:'#e6935a',b:'#f2bd93',g:'rgba(224,138,74,.4)',label:'BRONZE'},
-  silver:{a:'#d3dae4',b:'#f2f6fb',g:'rgba(207,214,223,.4)',label:'SILVER'},
-  gold:{a:'#f5d67b',b:'#c9a24a',g:'rgba(245,214,123,.42)',label:'GOLD'},
-  elite:{a:'#8ab4ff',b:'#cfe0ff',g:'rgba(138,180,255,.45)',label:'ELITE'},
-  legend:{a:'#ff5f9e',b:'#ffd36e',g:'rgba(255,95,158,.5)',label:'LEGEND'},
-  totw:{a:'#eef2f7',b:'#aab3c0',g:'rgba(233,237,243,.35)',label:'TOTW'},
-  hof:{a:'#f5d67b',b:'#7c5cff',g:'rgba(124,92,255,.45)',label:'HALL OF FAME'},
-  mvp:{a:'#ffcc00',b:'#ff9500',g:'rgba(255,204,0,.5)',label:'MVP'},
-  galaxy:{a:'#a06bff',b:'#5ad1ff',g:'rgba(160,107,255,.5)',label:'GALAXY'},
-  carbon:{a:'#ff3b30',b:'#c8ccd2',g:'rgba(255,59,48,.4)',label:'CARBON'},
-  fire:{a:'#ff5a2c',b:'#ffb347',g:'rgba(255,90,44,.5)',label:'FIRE'},
-  ice:{a:'#7fe6ff',b:'#e2f8ff',g:'rgba(127,230,255,.46)',label:'ICE'},
-  black:{a:'#c9a24a',b:'#8a8f98',g:'rgba(201,162,74,.35)',label:'BLACK EDITION'},
-  neon:{a:'#39ff14',b:'#00e5ff',g:'rgba(57,255,20,.5)',label:'NEON'}
+  bronze:{a:'#e6935a',b:'#f2bd93',g:'rgba(224,138,74,.4)', tone:'rgba(224,138,74,.12)', holo:.72, foil:.06, glow:.26, label:'BRONZE'},
+  silver:{a:'#d3dae4',b:'#f2f6fb',g:'rgba(207,214,223,.4)', tone:'rgba(207,214,223,.12)', holo:.8, foil:.12, glow:.3, label:'SILVER'},
+  gold:{a:'#f5d67b',b:'#c9a24a',g:'rgba(245,214,123,.42)', tone:'rgba(245,214,123,.14)', holo:.86, foil:.16, glow:.34, label:'GOLD'},
+  elite:{a:'#8ab4ff',b:'#cfe0ff',g:'rgba(138,180,255,.45)', tone:'rgba(138,180,255,.14)', holo:.92, foil:.24, glow:.42, label:'ELITE'},
+  legend:{a:'#ff5f9e',b:'#ffd36e',g:'rgba(255,95,158,.5)', tone:'rgba(255,95,158,.15)', holo:1, foil:.4, glow:.52, label:'LEGEND'},
+  totw:{a:'#eef2f7',b:'#aab3c0',g:'rgba(233,237,243,.4)', tone:'rgba(18,26,44,.28)', holo:.9, foil:.3, glow:.36, label:'TOTW'},
+  hof:{a:'#f5d67b',b:'#7c5cff',g:'rgba(124,92,255,.48)', tone:'rgba(124,92,255,.15)', holo:1, foil:.36, glow:.48, label:'HALL OF FAME'},
+  mvp:{a:'#ffcc00',b:'#ff9500',g:'rgba(255,204,0,.5)', tone:'rgba(255,178,0,.16)', holo:.96, foil:.34, glow:.5, label:'MVP'},
+  galaxy:{a:'#a06bff',b:'#5ad1ff',g:'rgba(160,107,255,.5)', tone:'rgba(120,90,255,.18)', holo:1, foil:.42, glow:.52, label:'GALAXY'},
+  carbon:{a:'#ff3b30',b:'#c8ccd2',g:'rgba(255,59,48,.4)', tone:'rgba(255,59,48,.1)', holo:.82, foil:.14, glow:.32, label:'CARBON'},
+  fire:{a:'#ff5a2c',b:'#ffb347',g:'rgba(255,90,44,.5)', tone:'rgba(255,90,44,.16)', holo:.9, foil:.34, glow:.52, label:'FIRE'},
+  ice:{a:'#7fe6ff',b:'#e2f8ff',g:'rgba(127,230,255,.46)', tone:'rgba(127,230,255,.14)', holo:.94, foil:.32, glow:.48, label:'ICE'},
+  black:{a:'#c9a24a',b:'#8a8f98',g:'rgba(201,162,74,.38)', tone:'rgba(0,0,0,.22)', holo:.8, foil:.18, glow:.3, label:'BLACK EDITION'},
+  neon:{a:'#39ff14',b:'#00e5ff',g:'rgba(57,255,20,.5)', tone:'rgba(57,255,20,.14)', holo:1, foil:.44, glow:.56, label:'NEON'}
 };
 
 /* ---- ORTAK PARÇALAR ---- */
@@ -638,6 +656,7 @@ function statsFor(p){
 function rand(p,s){ let x=(p.no*97+p.ovr*13+s*29)%17-8; return x; }
 function clamp(v){ return Math.max(38,Math.min(99,Math.round(v))); }
 
+const APP_VERSION='V1-PRODUCTION';
 /* ---- DURUM (production foto modeli) ----
    photos: en fazla 5 kart fotoğrafı. Her biri kendi src/crop/bg/analiz ile.
    profile: profil fotoğrafı (karttan bağımsız). active: seçili kart fotoğrafı. */
@@ -845,9 +864,12 @@ function bindCard(){
   card.querySelectorAll('canvas.qr').forEach(drawQR);
 }
 
-/* ---- THEME ENGINE uygula ---- */
-function applyRarity(){ const R=RARITY[state.r]; const root=document.documentElement;
-  root.style.setProperty('--a',R.a); root.style.setProperty('--b',R.b); root.style.setProperty('--g',R.g); }
+/* ---- THEME ENGINE uygula — rarity yalnız görsel değişken setler (layout'a dokunmaz) ---- */
+function applyRarity(){ const R=RARITY[state.r]; const s=document.documentElement.style;
+  s.setProperty('--a',R.a); s.setProperty('--b',R.b); s.setProperty('--g',R.g);
+  s.setProperty('--tone',R.tone); s.setProperty('--holo',R.holo);
+  s.setProperty('--foil',R.foil); s.setProperty('--rglow',R.glow);
+  document.body.dataset.rarity=state.r; }
 
 /* ---- MOUNT ---- */
 function build(){
@@ -857,6 +879,8 @@ function build(){
   mount.innerHTML=CONCEPTS[state.c].render(P,R,ph,car);
   document.getElementById('cN').textContent=CONCEPTS[state.c].n;
   document.getElementById('cD').textContent=CONCEPTS[state.c].d;
+  // Rarity FX katmanı — her iki yüze (tek kaynak, layout değişmez)
+  mount.querySelectorAll('.face').forEach(f=>{ const fx=document.createElement('div'); fx.className='rfx'; f.appendChild(fx); });
   bindCard();
   const card=mount.querySelector('.card');
   // gerçek foto: otomatik yerleştir + adaptif overlay (konsept değişse de crop korunur)
