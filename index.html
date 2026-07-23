@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "0e6cf43-1784813276"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "7eff4b7-1784815910"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -678,7 +678,9 @@
     // crop konsepte göre çözülür (her konseptin kendi kırpması)
     var effCrop=opts.crop; if(effCrop && typeof effCrop==='object' && effCrop.fx===undefined){ effCrop=effCrop[d.konsept]||effCrop[''+d.konsept]||null; }
     // foto yerleştir
-    var box=host.querySelector('.flk-win, .flk-photo'); if(box){ var img=new Image(); img.onload=function(){ var an=analyze(img); place(box,img,an,effCrop,opts.bg); requestAnimationFrame(function(){ place(box,img,an,effCrop,opts.bg); }); setTimeout(function(){ place(box,img,an,effCrop,opts.bg); if(opts.kirpMod&&opts.onKirp){ host.__flkKirp=attachKirp(card,box,img.naturalWidth,img.naturalHeight,opts.onKirp); if(opts.onReady) opts.onReady(host.__flkKirp); } },110); }; img.src=d.foto; }
+    // Kırpma modunda: kartı HEMEN sürüklenebilir yap (touch-action:none) → parmak ilk andan itibaren sayfayı kaydırmaz.
+    if(opts.kirpMod){ card.style.touchAction='none'; card.style.cursor='grab'; }
+    var box=host.querySelector('.flk-win, .flk-photo'); if(box){ var img=new Image(); img.onload=function(){ var an=analyze(img); place(box,img,an,effCrop,opts.bg); requestAnimationFrame(function(){ place(box,img,an,effCrop,opts.bg); if(opts.kirpMod&&opts.onKirp&&!host.__flkKirp){ host.__flkKirp=attachKirp(card,box,img.naturalWidth,img.naturalHeight,opts.onKirp); if(host.__flkKirp&&opts.onReady) opts.onReady(host.__flkKirp); } }); setTimeout(function(){ place(box,img,an,effCrop,opts.bg); if(opts.kirpMod&&opts.onKirp&&!host.__flkKirp){ host.__flkKirp=attachKirp(card,box,img.naturalWidth,img.naturalHeight,opts.onKirp); if(host.__flkKirp&&opts.onReady) opts.onReady(host.__flkKirp); } },110); }; img.src=d.foto; }
     return {rarity:rk, R:R};
   }
   // Canlı kart üzerinde kırpma. onChange(crop) CANLI çağrılır (önizleme).
