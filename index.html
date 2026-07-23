@@ -679,7 +679,9 @@
     // crop konsepte göre çözülür (her konseptin kendi kırpması)
     var effCrop=opts.crop; if(effCrop && typeof effCrop==='object' && effCrop.fx===undefined){ effCrop=effCrop[d.konsept]||effCrop[''+d.konsept]||null; }
     // foto yerleştir
-    var box=host.querySelector('.flk-win, .flk-photo'); if(box){ var img=new Image(); img.onload=function(){ var an=analyze(img); place(box,img,an,effCrop,opts.bg); requestAnimationFrame(function(){ place(box,img,an,effCrop,opts.bg); }); setTimeout(function(){ place(box,img,an,effCrop,opts.bg); if(opts.kirpMod&&opts.onKirp){ host.__flkKirp=attachKirp(card,box,img.naturalWidth,img.naturalHeight,opts.onKirp); if(opts.onReady) opts.onReady(host.__flkKirp); } },110); }; img.src=d.foto; }
+    // Kırpma modunda: kartı HEMEN sürüklenebilir yap (touch-action:none) → parmak ilk andan itibaren sayfayı kaydırmaz.
+    if(opts.kirpMod){ card.style.touchAction='none'; card.style.cursor='grab'; }
+    var box=host.querySelector('.flk-win, .flk-photo'); if(box){ var img=new Image(); img.onload=function(){ var an=analyze(img); place(box,img,an,effCrop,opts.bg); requestAnimationFrame(function(){ place(box,img,an,effCrop,opts.bg); if(opts.kirpMod&&opts.onKirp&&!host.__flkKirp){ host.__flkKirp=attachKirp(card,box,img.naturalWidth,img.naturalHeight,opts.onKirp); if(host.__flkKirp&&opts.onReady) opts.onReady(host.__flkKirp); } }); setTimeout(function(){ place(box,img,an,effCrop,opts.bg); if(opts.kirpMod&&opts.onKirp&&!host.__flkKirp){ host.__flkKirp=attachKirp(card,box,img.naturalWidth,img.naturalHeight,opts.onKirp); if(host.__flkKirp&&opts.onReady) opts.onReady(host.__flkKirp); } },110); }; img.src=d.foto; }
     return {rarity:rk, R:R};
   }
   // Canlı kart üzerinde kırpma. onChange(crop) CANLI çağrılır (önizleme).
