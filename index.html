@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "814d425-1784810862"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "867f8bb-1784811174"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -661,12 +661,14 @@
   function attachKirp(card,box,iw,ih,onChange){
     if(!iw||!ih) return null; var imgs=box.querySelectorAll('.flk-ph'); if(!imgs.length) return null;
     var cw=box.clientWidth, chh=box.clientHeight, cover=Math.max(cw/iw,chh/ih);
+    var minS=cover*1.14;  // her iki eksende de hareket alanı garanti (yoksa ↑↓ ya da ←→ çalışmaz)
     var s=(parseFloat(imgs[0].style.width)||iw*cover)/iw, left=parseFloat(imgs[0].style.left)||0, top=parseFloat(imgs[0].style.top)||0;
-    var s0=s,l0=left,t0=top;  // sıfırlama için başlangıç
     function apply(){ var dw=iw*s,dh=ih*s; left=Math.min(0,Math.max(cw-dw,left)); top=Math.min(0,Math.max(chh-dh,top)); [].forEach.call(imgs,function(p){ p.style.width=dw+'px'; p.style.height=dh+'px'; p.style.left=left+'px'; p.style.top=top+'px'; }); }
+    if(s<minS){ s=minS; } apply();   // başlangıçta alan aç
+    var s0=s,l0=left,t0=top;  // sıfırlama için başlangıç
     function crop(){ var dw=iw*s,dh=ih*s; return {fx:Math.max(0,Math.min(1,(cw*.5-left)/dw)),fy:Math.max(0,Math.min(1,(chh*.5-top)/dh)),zoom:s/cover}; }
     function emit(){ if(onChange) onChange(crop()); }
-    function zoomAt(ns,cx,cy){ cx=cx==null?cw/2:cx; cy=cy==null?chh/2:cy; var ix=(cx-left)/s,iy=(cy-top)/s; ns=Math.max(cover,Math.min(cover*4.5,ns)); left=cx-ix*ns; top=cy-iy*ns; s=ns; apply(); emit(); }
+    function zoomAt(ns,cx,cy){ cx=cx==null?cw/2:cx; cy=cy==null?chh/2:cy; var ix=(cx-left)/s,iy=(cy-top)/s; ns=Math.max(minS,Math.min(cover*4.5,ns)); left=cx-ix*ns; top=cy-iy*ns; s=ns; apply(); emit(); }
     card.style.cursor='grab'; card.style.touchAction='none';
     var dn=false,px=0,py=0;
     card.addEventListener('pointerdown',function(e){ dn=true; px=e.clientX; py=e.clientY; card.style.cursor='grabbing'; try{card.setPointerCapture(e.pointerId);}catch(_){} });
