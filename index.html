@@ -682,7 +682,10 @@
     card.addEventListener('touchmove',function(e){ if(e.touches.length!==2)return; e.preventDefault(); var dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY,dist=Math.hypot(dx,dy); if(pinch){ var r=box.getBoundingClientRect(); zoomAt(s*(dist/pinch),(e.touches[0].clientX+e.touches[1].clientX)/2-r.left,(e.touches[0].clientY+e.touches[1].clientY)/2-r.top); } pinch=dist; },{passive:false});
     card.addEventListener('touchend',function(){ pinch=0; });
     return { getCrop:crop, zoomTo:function(pct){ zoomAt(cover*(pct/100)); }, zoomPct:function(){ return Math.round(s/cover*100); },
-      nudge:function(dir){ var st=Math.max(cw,chh)*0.07; if(dir==='left')left-=st; else if(dir==='right')left+=st; else if(dir==='up')top-=st; else if(dir==='down')top+=st; apply(); emit(); },
+      nudge:function(dir){ var st=Math.max(cw,chh)*0.09; function mv(){ if(dir==='left')left-=st; else if(dir==='right')left+=st; else if(dir==='up')top-=st; else if(dir==='down')top+=st; }
+        var pl=left,pt=top; mv(); apply();
+        if(left===pl && top===pt){ s=Math.min(cover*4.5, s*1.2); apply(); mv(); apply(); }  // kenara dayandı → zoom aç, yine oynat
+        emit(); },
       reset:function(){ s=s0; left=l0; top=t0; apply(); emit(); } };
   }
   // aktif konseptin foto kutusu oranını (w/h) döndür — kırpma çerçevesi bununla eşleşir
@@ -6350,7 +6353,7 @@ function KartimEditor({oyuncu:o, T, git, adminMi, oturum, sahip}){
     pendingRef.current=null; kirpRef.current=null;
     window.FLKART.mount(ref.current,d,{konsept,rarity:rk,foto:foto?foto.url:null,crop:savedMap,bg:foto?foto.bg:null,kirpMod:!!fAktif,
       onKirp:(cr)=>{ pendingRef.current=cr; },
-      onReady:(h)=>{ kirpRef.current=h; setZoomPct(h.zoomPct()); }});
+      onReady:(h)=>{ kirpRef.current=h||null; if(h) setZoomPct(h.zoomPct()); }});
   },[d,konsept,rk,aktif,fotolar.length,remountKey,fAktif?fAktif.id:0,fAktif?fAktif.url:0,fAktif?fAktif.arka_plan:0]);
   const uygulaKirp=()=>{ const h=kirpRef.current; const cr=(h&&h.getCrop())||pendingRef.current; if(!cr){ setMesaj("Kartı sürükleyip yakınlaştırdıktan sonra Uygula'ya bas."); return; } saveRef.current(cr); const kad=((window.FLKART&&window.FLKART.KONSEPTLER)||[]).find(k=>k.k===konsept); setMesaj("✓ "+(kad?kad.ad:"")+" kırpması uygulandı — kart aynen böyle görünecek"); };
   const sifirlaKirp=async()=>{ if(!fAktif) return; const id=fAktif.id; const cur=Object.assign({}, (fAktif.crop&&fAktif.crop.fx===undefined)?fAktif.crop:{}, cropsRef.current[id]||{}); delete cur[konsept]; delete cur[""+konsept]; cropsRef.current[id]=cur; await Db.kartFotoGuncelle(id,{crop:cur}); setFotolar(fs=>fs.map(x=>x.id===id?{...x,crop:cur}:x)); setRemountKey(k=>k+1); setMesaj("✓ Otomatik kadraja döndü"); };
