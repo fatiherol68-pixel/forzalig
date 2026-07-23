@@ -3176,6 +3176,7 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
           </div>
           {benimOyuncum.ovr>0 && <div style={{flexShrink:0,textAlign:"center",background:T.gold,borderRadius:12,padding:"7px 11px"}}><div style={{fontSize:22,fontWeight:900,color:"#3a2600",lineHeight:1,fontFamily:T.fontDisplay}}>{benimOyuncum.ovr}</div><div style={{fontSize:8,fontWeight:800,color:"#5a3d00"}}>GENEL</div></div>}
         </div>
+        <button onClick={()=>git({sayfa:"kartim",oyuncu:benimOyuncum,sahip:true})} className="tap" style={{width:"100%",marginTop:9,background:T.accent2+"18",color:T.accent2,border:"1px solid "+T.accent2+"55",borderRadius:12,padding:11,fontSize:12.5,fontWeight:800,cursor:"pointer"}}>🎴 ForzaLig Kartımı Düzenle</button>
       </> : oturum && sahiplenme ? <>
         <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"16px 2px 9px"}}>KARİYERİM</div>
         <div onClick={kariyereGit} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:12,background:T.gold+"14",border:"0.5px solid "+T.gold+"55",borderRadius:16,padding:14,cursor:"pointer"}}>
@@ -6252,6 +6253,41 @@ function OyuncuKart({oyuncu:o, kariyer, T, git, adminMi, oturum, embedded, duzen
   </div>;
 }
 // ============ KARTIM EDİTÖRÜ (foto/arka plan/konsept/rarity) ============
+// ---- Manuel kırpma (sürükle + zoom) — WYSIWYG kart oranı ----
+function KartKirp({url, crop, T, onApply, onKapat}){
+  const fRef=React.useRef(null), iRef=React.useRef(null);
+  const cs=React.useRef({s:1,cover:1,tx:0,ty:0,iw:1,ih:1});
+  const [zoom,setZoom]=React.useState(120);
+  const draw=()=>{ const im=iRef.current; if(im) im.style.transform="translate3d("+cs.current.tx+"px,"+cs.current.ty+"px,0) scale("+cs.current.s+")"; };
+  const clamp=()=>{ const f=fRef.current; if(!f)return; const Fw=f.clientWidth,Fh=f.clientHeight,dw=cs.current.iw*cs.current.s,dh=cs.current.ih*cs.current.s; cs.current.tx=Math.min(0,Math.max(Fw-dw,cs.current.tx)); cs.current.ty=Math.min(0,Math.max(Fh-dh,cs.current.ty)); };
+  const setZ=(z,cx,cy)=>{ const f=fRef.current; if(!f)return; const Fw=f.clientWidth,Fh=f.clientHeight; cx=cx==null?Fw/2:cx; cy=cy==null?Fh/2:cy; const ix=(cx-cs.current.tx)/cs.current.s, iy=(cy-cs.current.ty)/cs.current.s; cs.current.s=Math.max(cs.current.cover, cs.current.cover*z); cs.current.tx=cx-ix*cs.current.s; cs.current.ty=cy-iy*cs.current.s; clamp(); draw(); };
+  React.useEffect(()=>{ const im=new Image(); im.onload=()=>{ const f=fRef.current; if(!f)return; const iw=im.naturalWidth,ih=im.naturalHeight; cs.current.iw=iw; cs.current.ih=ih; const Fw=f.clientWidth,Fh=f.clientHeight; cs.current.cover=Math.max(Fw/iw,Fh/ih); let z=1.2,fx=.5,fy=.42; if(crop){ z=crop.zoom||1.2; fx=crop.fx; fy=crop.fy; } cs.current.s=cs.current.cover*z; cs.current.tx=Fw/2-fx*iw*cs.current.s; cs.current.ty=Fh/2-fy*ih*cs.current.s; clamp(); draw(); setZoom(Math.round(z*100)); }; im.src=url; },[url]);
+  const dr=React.useRef({on:false,x:0,y:0});
+  const down=e=>{ dr.current={on:true,x:e.clientX,y:e.clientY}; try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){} };
+  const move=e=>{ if(!dr.current.on)return; cs.current.tx+=e.clientX-dr.current.x; cs.current.ty+=e.clientY-dr.current.y; dr.current.x=e.clientX; dr.current.y=e.clientY; clamp(); draw(); };
+  const up=()=>{ dr.current.on=false; };
+  const wheel=e=>{ e.preventDefault(); const r=fRef.current.getBoundingClientRect(); const zz=Math.max(1,Math.min(4,(zoom/100)*(e.deltaY<0?1.08:.926))); setZoom(Math.round(zz*100)); setZ(zz,e.clientX-r.left,e.clientY-r.top); };
+  const pinch=React.useRef(0);
+  const tmove=e=>{ if(e.touches.length!==2)return; e.preventDefault(); const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY,dist=Math.hypot(dx,dy); if(pinch.current){ const z=Math.max(1,Math.min(4,(zoom/100)*(dist/pinch.current))); setZoom(Math.round(z*100)); const r=fRef.current.getBoundingClientRect(); setZ(z,(e.touches[0].clientX+e.touches[1].clientX)/2-r.left,(e.touches[0].clientY+e.touches[1].clientY)/2-r.top); } pinch.current=dist; };
+  const uygula=()=>{ const f=fRef.current; const Fw=f.clientWidth,Fh=f.clientHeight; const fx=((Fw/2-cs.current.tx)/cs.current.s)/cs.current.iw, fy=((Fh/2-cs.current.ty)/cs.current.s)/cs.current.ih; onApply({ fx:Math.max(0,Math.min(1,fx)), fy:Math.max(0,Math.min(1,fy)), zoom:cs.current.s/cs.current.cover }); };
+  return <div onClick={e=>{ if(e.target===e.currentTarget) onKapat(); }} style={{position:"fixed",inset:0,zIndex:2000,background:"rgba(3,5,9,.85)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{width:"min(340px,92vw)",background:"#0c111e",border:"1px solid "+T.line,borderRadius:18,padding:16}}>
+      <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:2}}>✂ Fotoğrafı Kırp</div>
+      <div style={{fontSize:11,color:T.textMut,marginBottom:12}}>Sürükle · tekerlek/parmakla yakınlaştır · çerçevede görünen = kartta görünen</div>
+      <div ref={fRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={wheel} onTouchMove={tmove} onTouchEnd={()=>{pinch.current=0;}} style={{position:"relative",width:"100%",aspectRatio:"1 / 1.34",borderRadius:12,overflow:"hidden",background:"#05070c",border:"1px solid "+T.line,cursor:"grab",touchAction:"none"}}>
+        <img ref={iRef} src={url} alt="" draggable="false" style={{position:"absolute",top:0,left:0,transformOrigin:"0 0",userSelect:"none",pointerEvents:"none"}}/>
+        <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(0,0,0,.3),transparent 24%,transparent 58%,rgba(0,0,0,.75))"}}/>
+        <div style={{position:"absolute",inset:8,border:"1px dashed rgba(255,255,255,.28)",borderRadius:10,pointerEvents:"none"}}/>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0"}}><span>➖</span><input type="range" min="100" max="400" value={zoom} onChange={e=>{ setZoom(+e.target.value); setZ(+e.target.value/100); }} style={{flex:1,accentColor:T.accent,height:22}}/><span>➕</span></div>
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={onKapat} className="tap" style={{flex:"0 0 auto",padding:"11px 14px",borderRadius:11,background:T.bg2,color:T.textMut,border:"1px solid "+T.line,fontWeight:800,fontSize:12.5}}>İptal</button>
+        <button onClick={uygula} className="tap" style={{flex:1,padding:"11px",borderRadius:11,background:T.accent,color:T.bg0,border:0,fontWeight:800,fontSize:12.5}}>Uygula</button>
+      </div>
+    </div>
+  </div>;
+}
+
 function KartimEditor({oyuncu:o, T, git, adminMi, oturum, sahip}){
   const [kariyer,setKariyer]=React.useState(null);
   const [fotolar,setFotolar]=React.useState([]);
@@ -6259,6 +6295,7 @@ function KartimEditor({oyuncu:o, T, git, adminMi, oturum, sahip}){
   const [rarity,setRarity]=React.useState(null);
   const [aktif,setAktif]=React.useState(0);
   const [mesaj,setMesaj]=React.useState(""); const [bekle,setBekle]=React.useState(false);
+  const [kirp,setKirp]=React.useState(null); // kırpılan foto
   const ref=React.useRef(null);
   const yetkili=!!(oturum && (adminMi || sahip || (o.sahip_user_id && o.sahip_user_id===oturum.id)));
   const yukle=async()=>{ const v=await Db.kartVeri(o.id); setFotolar(v.fotolar||[]); if(v.konsept) setKonsept(v.konsept); setRarity(v.rarity||null); };
@@ -6273,6 +6310,7 @@ function KartimEditor({oyuncu:o, T, git, adminMi, oturum, sahip}){
   const varsayilanYap=async(f)=>{ // sira=0 yap, diğerlerini kaydır
     setBekle(true); await Db.kartFotoGuncelle(f.id,{sira:0}); let s=1; for(const x of fotolar){ if(x.id!==f.id){ await Db.kartFotoGuncelle(x.id,{sira:s++}); } } setBekle(false); setMesaj("✓ Varsayılan kart fotoğrafı ayarlandı"); setAktif(0); await yukle(); };
   const bgSec=async(bg)=>{ if(!fAktif){ setMesaj("Önce fotoğraf ekle"); return; } await Db.kartFotoGuncelle(fAktif.id,{arka_plan:bg}); setFotolar(fs=>fs.map(x=>x.id===fAktif.id?{...x,arka_plan:bg}:x)); };
+  const kirpUygula=async(cr)=>{ const f=kirp; setKirp(null); if(!f) return; await Db.kartFotoGuncelle(f.id,{crop:cr}); setFotolar(fs=>fs.map(x=>x.id===f.id?{...x,crop:cr}:x)); setMesaj("✓ Kırpma kaydedildi"); };
   const konseptKaydet=async(k)=>{ setKonsept(k); await Db.kartAyarKaydet(o.id,{kart_konsept:k}); };
   const rarityKaydet=async(rr)=>{ setRarity(rr); await Db.kartAyarKaydet(o.id,{kart_rarity:rr}); };
   const RAR=(window.FLKART&&window.FLKART.RARITY)||{}; const BGL=(window.FLKART&&window.FLKART.BG_LIST)||[]; const K=(window.FLKART&&window.FLKART.KONSEPTLER)||[];
@@ -6285,6 +6323,8 @@ function KartimEditor({oyuncu:o, T, git, adminMi, oturum, sahip}){
     </div>
     {mesaj && <div style={{fontSize:12.5,color:mesaj[0]==="✓"?T.accent:T.gold,marginBottom:10}}>{mesaj}</div>}
     <div ref={ref} className="flkart"></div>
+    {fAktif && <div style={{textAlign:"center",marginTop:10}}><button onClick={()=>setKirp(fAktif)} className="tap" style={{fontSize:12.5,fontWeight:800,padding:"10px 20px",borderRadius:11,background:T.bg1,border:"1px solid "+T.accent,color:T.accent,cursor:"pointer"}}>✂ Fotoğrafı Kırp</button></div>}
+    {kirp && <KartKirp url={kirp.url} crop={kirp.crop} T={T} onApply={kirpUygula} onKapat={()=>setKirp(null)}/>}
     <div style={sec}>Konsept</div>
     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{K.map(kc=><button key={kc.k} onClick={()=>konseptKaydet(kc.k)} className="tap" style={{fontSize:11.5,fontWeight:800,padding:"8px 13px",borderRadius:10,border:"1px solid "+(konsept===kc.k?T.accent:T.line),background:konsept===kc.k?T.accent+"22":T.bg1,color:konsept===kc.k?T.accent:T.textMut}}>{kc.ad}</button>)}</div>
     <div style={sec}>Kart Fotoğrafları · {fotolar.length}/5</div>
@@ -6292,7 +6332,7 @@ function KartimEditor({oyuncu:o, T, git, adminMi, oturum, sahip}){
       {fotolar.map((f,i)=><div key={f.id} onClick={()=>setAktif(i)} className="tap" style={{position:"relative",width:60,height:80,borderRadius:9,overflow:"hidden",border:(aktif===i?"2px solid "+T.accent:"1px solid "+T.line),cursor:"pointer",flexShrink:0}}>
         <img src={f.url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
         {i===0 && <span style={{position:"absolute",top:2,left:3,fontSize:11}}>⭐</span>}
-        <div style={{position:"absolute",left:0,right:0,bottom:0,display:"flex",background:"rgba(0,0,0,.6)"}}><span onClick={e=>{e.stopPropagation();varsayilanYap(f);}} style={{flex:1,textAlign:"center",fontSize:11,padding:"2px 0",color:"#fff"}}>⭐</span><span onClick={e=>{e.stopPropagation();fotoSil(f,i);}} style={{flex:1,textAlign:"center",fontSize:11,padding:"2px 0",color:"#fff"}}>🗑</span></div>
+        <div style={{position:"absolute",left:0,right:0,bottom:0,display:"flex",background:"rgba(0,0,0,.6)"}}><span onClick={e=>{e.stopPropagation();setAktif(i);setKirp(f);}} style={{flex:1,textAlign:"center",fontSize:11,padding:"2px 0",color:"#fff"}}>✂</span><span onClick={e=>{e.stopPropagation();varsayilanYap(f);}} style={{flex:1,textAlign:"center",fontSize:11,padding:"2px 0",color:"#fff"}}>⭐</span><span onClick={e=>{e.stopPropagation();fotoSil(f,i);}} style={{flex:1,textAlign:"center",fontSize:11,padding:"2px 0",color:"#fff"}}>🗑</span></div>
       </div>)}
       {fotolar.length<5 && <label className="tap" style={{width:60,height:80,borderRadius:9,border:"1px dashed "+T.line,display:"grid",placeItems:"center",color:T.textMut,fontSize:24,cursor:"pointer",flexShrink:0}}>＋<input type="file" accept="image/*" onChange={fotoYukleGiris} style={{display:"none"}}/></label>}
     </div>
