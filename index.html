@@ -181,31 +181,6 @@
     });
   })();
 </script>
-<script>
-  /* SÜRÜM ROZETİ — sağ altta küçük "v xxxxxxx". Tıklayınca güncelleme kontrolü + tazeleme.
-     Amaç: hangi derlemede olduğunu her zaman KESİN görmek (sessiz güncellemede kör kalmamak). */
-  window.addEventListener("load", function(){
-    try{
-      var rel = String(window.__FL_RELEASE||"").split("-")[0] || "?";
-      var b = document.createElement("div");
-      b.textContent = "v " + rel;
-      b.title = "Sürümü kontrol et / güncelle";
-      b.style.cssText = "position:fixed;right:5px;bottom:calc(env(safe-area-inset-bottom,0px) + 4px);z-index:2147483647;font:600 9.5px/1 system-ui,-apple-system,sans-serif;color:rgba(255,255,255,.45);background:rgba(0,0,0,.32);padding:3px 6px;border-radius:6px;letter-spacing:.3px;cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)";
-      b.addEventListener("click", function(){
-        b.textContent = "v " + rel + " · kontrol…";
-        try{ sessionStorage.removeItem("fl_sw_reload_ts"); }catch(e){}
-        function reload(){ try{ location.reload(); }catch(e){} }
-        if(navigator.serviceWorker && navigator.serviceWorker.getRegistration){
-          navigator.serviceWorker.getRegistration().then(function(reg){
-            if(reg){ if(reg.waiting) reg.waiting.postMessage("FL_SKIP_WAITING"); reg.update().catch(function(){}); }
-            setTimeout(reload, 700);
-          }).catch(function(){ setTimeout(reload, 300); });
-        } else setTimeout(reload, 200);
-      });
-      document.body.appendChild(b);
-    }catch(e){}
-  });
-</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap"></noscript>
 <style>
@@ -3237,7 +3212,6 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
           </div>
           {benimOyuncum.ovr>0 && <div style={{flexShrink:0,textAlign:"center",background:T.gold,borderRadius:12,padding:"7px 11px"}}><div style={{fontSize:22,fontWeight:900,color:"#3a2600",lineHeight:1,fontFamily:T.fontDisplay}}>{benimOyuncum.ovr}</div><div style={{fontSize:8,fontWeight:800,color:"#5a3d00"}}>GENEL</div></div>}
         </div>
-        <button onClick={()=>git({sayfa:"kartim",oyuncu:benimOyuncum,sahip:true})} className="tap" style={{width:"100%",marginTop:9,background:T.accent2+"18",color:T.accent2,border:"1px solid "+T.accent2+"55",borderRadius:12,padding:11,fontSize:12.5,fontWeight:800,cursor:"pointer"}}>🎴 ForzaLig Kartımı Düzenle</button>
       </> : oturum && sahiplenme ? <>
         <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"16px 2px 9px"}}>KARİYERİM</div>
         <div onClick={kariyereGit} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:12,background:T.gold+"14",border:"0.5px solid "+T.gold+"55",borderRadius:16,padding:14,cursor:"pointer"}}>
@@ -6638,13 +6612,6 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     <div style={{display:"flex",justifyContent:"flex-end",gap:7,padding:"10px 14px 0"}}>
       {adaylar.length>1 && git && <button onClick={()=>git({sayfa:"h2h",tip:"oyuncu",a:o,aday:adaylar,turnuva:o.turnuva})} className="tap" style={{background:"transparent",color:T.gold,border:"1px solid "+T.gold,borderRadius:20,padding:"0 14px",fontSize:12,fontWeight:700}}>⚔️ Karşılaştır</button>}
       {oyuncuTakip && <button onClick={()=>oyuncuTakip(o.id)} className="tap" style={{background:takipte?T.accent:"transparent",color:takipte?(renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,border:"1px solid "+T.accent,borderRadius:20,padding:"0 16px",fontSize:12,fontWeight:700}}>{takipte?"✓ Takipte":"+ Takip et"}</button>}
-    </div>
-    {/* ===== 🎴 PREMIUM OYUNCU KARTI ===== */}
-    <div style={{padding:"12px 14px 0"}}>
-      <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:16,padding:"14px 10px 12px"}}>
-        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:.5,textTransform:"uppercase",textAlign:"center",marginBottom:2}}>🎴 ForzaLig Kartı</div>
-        <OyuncuKart oyuncu={o} kariyer={kariyer} T={T} git={git} adminMi={adminMi} oturum={oturum} duzenlenebilir={!!(oturum && (benimMi||adminMi))}/>
-      </div>
     </div>
     {/* TRANSFER — kaptan/yönetici transfer isteği gönderir */}
     {transferYapilabilir && <div style={{padding:"10px 14px 0"}}>
@@ -14305,7 +14272,6 @@ function App(){
       case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,kulupLigeEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,yeniSezon,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum} adminMi={etkinAdminMi}/>; break;
       case "oyuncu": icerik=<OyuncuSayfa oyuncu={nav.oyuncu} T={T} takipOyuncu={takipOyuncu} oyuncuTakip={oyuncuTakip} adminMod={adminMod} git={git} turnuvalar={turnuvalar} oturum={oturum} sahiplenme={sahiplenme} onSahiplen={oyuncuSahiplen} onTransfer={transferEt} saltOkunur={saltOkunur} adminMi={etkinAdminMi}/>; break;
-      case "kartim": icerik=<KartimEditor oyuncu={nav.oyuncu} T={T} git={git} adminMi={etkinAdminMi} oturum={oturum} sahip={nav.sahip}/>; break;
       case "mac": icerik=<MacSayfa mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} oturum={oturum} sahiplenme={sahiplenme} yetkili={ligYetkim(nav.turnuva)}/>; break;
       case "skorgir": icerik=<SkorGir mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} skorKaydet={ligYetkim(nav.turnuva)?skorKaydet:kilitliKaydet}/>; break;
       case "gazete": icerik=<MacGazete mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} oturum={oturum} adminMi={etkinAdminMi} yetkili={ligYetkim(nav.turnuva)} gazeteAyar={gazeteAyar}/>; break;
