@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ForzaLig Kart Sistemi — UX Blueprint (Analiz + Wireframe)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,Arial,sans-serif;
+  background:radial-gradient(130% 120% at 50% -10%,#0c111e,#06080f 55%,#030509);color:#e7ecf6;line-height:1.55;
+  -webkit-font-smoothing:antialiased;padding-bottom:80px}
+.wrap{max-width:1120px;margin:0 auto;padding:22px 16px}
+h1{font-size:26px;font-weight:900;letter-spacing:.3px;margin-bottom:4px}
+h1 i{color:#f5d67b;font-style:normal}
+.lead{color:#9aa6bd;font-size:13.5px;margin-bottom:6px}
+.disc{display:inline-block;background:#f5d67b18;border:1px solid #f5d67b44;color:#f5d67b;font-size:11.5px;font-weight:700;
+  padding:6px 12px;border-radius:20px;margin:10px 0 24px}
+section{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:20px 18px;margin-bottom:20px}
+h2{font-size:17px;font-weight:800;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+h2 .no{width:28px;height:28px;border-radius:9px;background:linear-gradient(135deg,#f5d67b,#c9a24a);color:#0a0d14;
+  display:grid;place-items:center;font-size:14px;font-weight:900;flex-shrink:0}
+.sub{color:#8f9bb2;font-size:12.5px;margin-bottom:16px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+/* wireframe kutuları */
+.wf{background:#0a0e18;border:1px dashed rgba(255,255,255,.18);border-radius:12px;padding:10px;font-size:11px;color:#c3ccdd}
+.wf .cap{font-size:9.5px;letter-spacing:1px;color:#f5d67b;font-weight:800;margin-bottom:8px;text-transform:uppercase}
+.box{border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:8px;margin:5px 0;background:rgba(255,255,255,.02)}
+.box.acc{border-color:#f5d67b66;background:#f5d67b10}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.row.sb{justify-content:space-between}
+.pill{font-size:9.5px;border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:3px 8px;color:#cfd7e6;white-space:nowrap}
+.pill.on{background:#f5d67b;color:#0a0d14;border-color:transparent;font-weight:800}
+.btn{font-size:10px;font-weight:800;border-radius:7px;padding:6px 9px;text-align:center;color:#0a0d14;
+  background:linear-gradient(135deg,#f5d67b,#c9a24a)}
+.btn.g{background:rgba(255,255,255,.08);color:#cfd7e6;border:1px solid rgba(255,255,255,.16)}
+.ph{width:9px;height:9px;border-radius:50%;background:#3a4256}
+.imgbox{border:1px solid rgba(255,255,255,.16);border-radius:8px;background:
+  repeating-linear-gradient(45deg,#141a28 0 8px,#0e1420 8px 16px);display:grid;place-items:center;color:#5b667c;font-size:10px}
+.face{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#c9a486,#6a4a38);position:relative;margin:0 auto}
+.face::after{content:"";position:absolute;left:50%;top:56%;transform:translateX(-50%);width:22px;height:16px;border-radius:0 0 12px 12px;background:#2a3242}
+/* telefon çerçevesi */
+.phone{width:210px;background:#05070c;border:6px solid #1a2130;border-radius:26px;padding:8px 8px 12px;position:relative;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.phone::before{content:"";position:absolute;top:9px;left:50%;transform:translateX(-50%);width:52px;height:5px;border-radius:5px;background:#2a3242}
+.phone .scr{background:#0a0e18;border-radius:16px;padding:26px 9px 10px;min-height:360px}
+.steps{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px}
+.arrow{align-self:center;color:#f5d67b;font-size:18px;flex-shrink:0}
+.flowlabel{text-align:center;font-size:10px;color:#8f9bb2;margin-top:6px;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+th,td{border:1px solid rgba(255,255,255,.1);padding:8px 9px;text-align:left;vertical-align:top}
+th{background:rgba(245,214,123,.08);color:#f5d67b;font-weight:800;font-size:11px;letter-spacing:.3px}
+td b{color:#fff}
+.ok{color:#5fd08a;font-weight:800}
+.no{color:#ff7a7a;font-weight:800}
+.mid{color:#f5c451;font-weight:800}
+.rec{background:linear-gradient(135deg,#f5d67b12,#c9a24a08);border:1px solid #f5d67b40;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:13px}
+.rec b{color:#f5d67b}
+ul{margin:6px 0 0 18px}li{margin:3px 0;font-size:13px;color:#cbd4e4}
+.leg{font-size:11px;color:#8f9bb2;margin-top:10px}
+.tag{display:inline-block;font-size:9px;font-weight:800;padding:2px 7px;border-radius:6px;margin-left:6px}
+.tag.miss{background:#ff7a7a22;color:#ff9a9a;border:1px solid #ff7a7a44}
+.tag.have{background:#5fd08a22;color:#8fe3b0;border:1px solid #5fd08a44}
+.tag.extra{background:#8ab4ff22;color:#aecbff;border:1px solid #8ab4ff44}
+.mini{font-size:10px;color:#8f9bb2}
+.divi{height:1px;background:rgba(255,255,255,.08);margin:14px 0}
+.cardmini{width:74px;height:104px;border-radius:8px;border:1px solid #f5d67b55;background:linear-gradient(160deg,#141a28,#0a0e18);position:relative;flex-shrink:0}
+.cardmini.on{box-shadow:0 0 0 2px #f5d67b}
+.cardmini .st{position:absolute;top:3px;left:4px;font-size:10px}
+.cardmini .ac{position:absolute;left:0;right:0;bottom:0;display:flex;background:rgba(0,0,0,.55);font-size:8px;color:#fff}
+.cardmini .ac span{flex:1;text-align:center;padding:2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ForzaLig · Kart Sistemi <i>UX Blueprint</i></h1>
+  <div class="lead">Mevcut V4 sisteminin kullanıcı deneyimi analizi + wireframe taslakları. Üretime almadan önce onay için.</div>
+  <div class="disc">⚠ Bu bir tasarım/analiz dokümanıdır — üretim koduna dokunulmadı. Onaydan sonra geliştirmeye devam.</div>
+
+  <!-- 0. MEVCUT DURUM -->
+  <section>
+    <h2><span class="no">0</span> Mevcut sistemde ne VAR / ne YOK (özet)</h2>
+    <div class="sub">Analizin çıkış noktası. Aşağıdaki tüm öneriler bunun üstüne kurulu.</div>
+    <div class="grid g2">
+      <div class="wf"><div class="cap">✅ Şu an ÇALIŞAN</div>
+        <ul>
+          <li>5 konsept + 14 rarity + flip/tilt/parallax/shine</li>
+          <li>Foto yükle · otomatik yüz kadrajı (ten-tonu sezgisi)</li>
+          <li>Crop editörü: drag/wheel/pinch/çift-tık/zoom slider</li>
+          <li>1 profil + 5 kart fotoğrafı (her biri kendi crop/zoom/bg)</li>
+          <li>15 arka plan + otomatik maskeleme (flood-fill)</li>
+          <li>Süper Admin panel · localStorage kalıcılık</li>
+        </ul>
+      </div>
+      <div class="wf"><div class="cap">❌ Şu an EKSİK</div>
+        <ul>
+          <li>Export yok (PNG/MP4/PDF paylaşım/indirme)</li>
+          <li>Sosyal medya paylaşım akışı yok</li>
+          <li>Rol ayrımı yok (admin bayrağı hep açık)</li>
+          <li>Onboarding / adım adım sihirbaz yok</li>
+          <li>"Kaydet & önizleme" onay ekranı yok</li>
+          <li>Gerçek yüz tanıma yok (sezgisel; %90 iyi, %10 elle düzeltme)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. KULLANICI AKIŞI -->
+  <section>
+    <h2><span class="no">1</span> Kullanıcı Akışı — ilk kez kart fotoğrafı yükleme</h2>
+    <div class="sub">Önerilen sihirbaz (wizard) akışı. Şu an sistemde bu adımlar dağınık; üretimde tek akışta olmalı.</div>
+    <div class="steps">
+      <div><div class="phone"><div class="scr">
+        <div class="box"><div class="row sb"><span>👤 Profilim</span><span class="pill">Düzenle</span></div></div>
+        <div class="imgbox" style="height:70px;margin:8px 0">profil foto</div>
+        <div class="box acc" style="text-align:center">＋ Kart Fotoğrafı Ekle</div>
+        <div class="mini" style="margin-top:8px">Henüz kart fotoğrafın yok</div>
+      </div></div><div class="flowlabel">1 · Profil</div></div>
+      <div class="arrow">→</div>
+      <div><div class="phone"><div class="scr">
+        <div class="wf" style="border:none;padding:0"><div class="cap">Fotoğraf Yükle</div></div>
+        <div class="imgbox" style="height:150px">📷<br>Galeriden seç / Sürükle-bırak<br>Kamera</div>
+        <div class="row" style="margin-top:10px;justify-content:center"><span class="btn g">İptal</span><span class="btn">Seç</span></div>
+      </div></div><div class="flowlabel">2 · Yükle</div></div>
+      <div class="arrow">→</div>
+      <div><div class="phone"><div class="scr">
+        <div class="wf" style="border:none;padding:0"><div class="cap">Kırp (otomatik açılır)</div></div>
+        <div class="imgbox" style="height:150px;position:relative"><div class="face"></div>
+          <div style="position:absolute;inset:8px;border:1px dashed #f5d67b88;border-radius:6px"></div></div>
+        <div class="row" style="margin-top:8px"><span class="mini">Zoom</span><span style="flex:1;height:4px;background:#2a3242;border-radius:3px"></span></div>
+        <div class="mini" style="margin-top:4px">Sürükle · yakınlaştır · çift tık ortala</div>
+      </div></div><div class="flowlabel">3 · Crop</div></div>
+      <div class="arrow">→</div>
+      <div><div class="phone"><div class="scr">
+        <div class="wf" style="border:none;padding:0"><div class="cap">Arka Plan</div></div>
+        <div class="imgbox" style="height:120px"><div class="face"></div></div>
+        <div class="row" style="margin-top:8px;gap:4px"><span class="pill on">Orijinal</span><span class="pill">Stadyum</span><span class="pill">Gece</span><span class="pill">Neon</span><span class="pill">+11</span></div>
+      </div></div><div class="flowlabel">4 · Arka Plan</div></div>
+      <div class="arrow">→</div>
+      <div><div class="phone"><div class="scr">
+        <div class="wf" style="border:none;padding:0"><div class="cap">Önizleme + Kaydet</div></div>
+        <div class="imgbox" style="height:150px;border-color:#f5d67b66">canlı kart<br>önizleme</div>
+        <div class="row" style="margin-top:8px"><span class="pill">Konsept ‹ ›</span><span class="pill">Rarity</span></div>
+        <div class="btn" style="margin-top:8px">💾 Kaydet</div>
+      </div></div><div class="flowlabel">5 · Kaydet</div></div>
+      <div class="arrow">→</div>
+      <div><div class="phone"><div class="scr" style="text-align:center">
+        <div style="font-size:30px;margin:14px 0 6px">✨</div>
+        <div style="font-weight:800;font-size:13px">Kartın Hazır!</div>
+        <div class="imgbox" style="height:130px;margin:10px 0;border-color:#f5d67b">KART</div>
+        <div class="btn">📤 Paylaş</div>
+        <div class="btn g" style="margin-top:6px">⬇ İndir</div>
+      </div></div><div class="flowlabel">6 · Kart Oluştu</div></div>
+    </div>
+    <div class="rec"><b>Öneri:</b> Şu an "yükle → kırp → bg" adımları ayrı butonlarda. Üretimde bunları <b>tek "Kart Oluştur" sihirbazına</b> bağla (ilerle/geri). İlk kullanıcı 6 ekranı sırayla görür; deneyimli kullanıcı istediği adıma atlar. Son ekran mutlaka <b>Paylaş + İndir</b> içermeli (şu an ikisi de yok).</div>
+  </section>
+
+  <!-- 2. SÜPER ADMIN -->
+  <section>
+    <h2><span class="no">2</span> Süper Admin — sisteme girince ne göreceksin</h2>
+    <div class="sub">Tek panelde: oyuncu seç → o oyuncunun profil + kart fotoğraflarını yönet. Şu anki 🛠 panel bunun temeli, ama "oyuncu seçimi" ve "kullanıcı adına düzenleme" eksik.</div>
+    <div class="grid" style="grid-template-columns:1fr;gap:14px">
+      <div class="wf"><div class="cap">Süper Admin · Foto Yönetim Paneli</div>
+        <div class="box"><div class="row sb"><span>🔎 Oyuncu ara / seç</span><span class="pill on">FATİH EROL ▾</span></div>
+          <div class="mini" style="margin-top:4px">Herhangi bir üyeyi seçip onun adına düzenleyebilirsin</div></div>
+        <div class="row" style="gap:14px;align-items:flex-start;margin-top:10px">
+          <div style="flex:0 0 auto">
+            <div class="mini" style="margin-bottom:5px">PROFİL FOTOĞRAFI</div>
+            <div class="face" style="width:60px;height:60px"></div>
+            <div class="row" style="justify-content:center;margin-top:6px"><span class="pill">Yükle</span><span class="pill">Sil</span></div>
+          </div>
+          <div style="flex:1">
+            <div class="mini" style="margin-bottom:5px">KART FOTOĞRAFLARI (3/5)</div>
+            <div class="row" style="gap:8px">
+              <div class="cardmini on"><span class="st">⭐</span><div class="ac"><span>✂</span><span>⭐</span><span>🗑</span></div></div>
+              <div class="cardmini"><div class="ac"><span>✂</span><span>⭐</span><span>🗑</span></div></div>
+              <div class="cardmini"><div class="ac"><span>✂</span><span>⭐</span><span>🗑</span></div></div>
+              <div class="cardmini" style="border-style:dashed;display:grid;place-items:center;color:#5b667c">＋</div>
+            </div>
+          </div>
+        </div>
+        <div class="divi"></div>
+        <div class="row sb"><span class="mini">AKTİF KARTIN: crop · zoom · arka plan</span></div>
+        <div class="row" style="gap:5px;margin-top:6px"><span class="pill">✂ Crop</span><span class="pill">🔍 Zoom</span><span class="pill on">Arka Plan: Neon</span><span class="pill">Varsayılan yap</span></div>
+      </div>
+    </div>
+    <div class="leg">Konum: her satır tek ekranda. <b>⭐</b> = varsayılan kart (kartta ilk bu görünür). <b>✂/🗑</b> = kart başına crop/sil. Oyuncu seçimi üstte → alttaki her şey o oyuncuya yazılır.</div>
+    <div class="rec"><b>Eksik (üretim için):</b> ① Oyuncu arama/seçme kutusu (şu an yok — hep tek "sen"). ② "Kullanıcı adına kaydet" onayı + kim değiştirdi logu. ③ Değişiklik geçmişi / geri al. ④ Toplu işlem (birden çok oyuncuya aynı arka plan).</div>
+  </section>
+
+  <!-- 3. NORMAL KULLANICI -->
+  <section>
+    <h2><span class="no">3</span> Normal Kullanıcı — ne görecek, hangi yetkiler</h2>
+    <div class="sub">Kendi kartını yönetir, başkasınınkine dokunamaz. Admin araçlarını hiç görmez.</div>
+    <div class="grid g2">
+      <div><div class="phone" style="width:100%;max-width:230px"><div class="scr">
+        <div class="imgbox" style="height:150px;border-color:#f5d67b66">Benim Kartım</div>
+        <div class="row" style="margin-top:8px"><span class="pill">Konsept ‹ ›</span><span class="pill">Rarity</span></div>
+        <div class="btn" style="margin-top:8px">📷 Fotoğrafımı Değiştir</div>
+        <div class="btn g" style="margin-top:6px">✂ Kırp</div>
+        <div class="row" style="margin-top:8px"><span class="btn" style="flex:1">📤 Paylaş</span><span class="btn g" style="flex:1">⬇ İndir</span></div>
+      </div></div></div>
+      <div class="wf"><div class="cap">Yetki Karşılaştırması</div>
+        <table>
+          <tr><th>Yetki</th><th>Normal</th><th>Süper Admin</th></tr>
+          <tr><td>Kendi fotoğrafını yükle/kırp</td><td class="ok">✔</td><td class="ok">✔</td></tr>
+          <tr><td>Kendi 5 kart fotoğrafı</td><td class="ok">✔</td><td class="ok">✔</td></tr>
+          <tr><td>Arka plan seç</td><td class="ok">✔</td><td class="ok">✔</td></tr>
+          <tr><td>Paylaş / indir</td><td class="ok">✔</td><td class="ok">✔</td></tr>
+          <tr><td>Başkasının kartını düzenle</td><td class="no">✗</td><td class="ok">✔</td></tr>
+          <tr><td>Varsayılan rarity/konsept kilidi</td><td class="no">✗</td><td class="ok">✔</td></tr>
+          <tr><td>Oyuncu seçip adına işlem</td><td class="no">✗</td><td class="ok">✔</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="rec"><b>Öneri:</b> Normal kullanıcıda "🛠 Yönetim", "oyuncu seçici" ve "12 test oyuncusu" <b>gizlenir</b>. Sadece: fotoğraf değiştir · kırp · konsept/rarity gez · paylaş/indir. Rarity'i admin kilitleyebilmeli (kullanıcı OVR'ına göre otomatik rarity).</div>
+  </section>
+
+  <!-- 4. FOTO EDİTÖRÜ -->
+  <section>
+    <h2><span class="no">4</span> Fotoğraf Editörü — tam görünüm</h2>
+    <div class="sub">Şu an var olan editör + üretimde eklenmesi gereken kontroller (döndür, hizala kılavuzu, kaydet ayrı).</div>
+    <div class="grid g2">
+      <div class="wf"><div class="cap">Editör (mevcut + önerilen)</div>
+        <div class="box" style="position:relative;height:220px;display:grid;place-items:center">
+          <div class="face" style="width:56px;height:56px"></div>
+          <div style="position:absolute;inset:14px;border:1px dashed #f5d67b88;border-radius:8px"></div>
+          <div style="position:absolute;left:14px;right:14px;bottom:14px;height:44px;background:linear-gradient(transparent,#000a);border-radius:0 0 8px 8px"></div>
+          <div style="position:absolute;left:18px;bottom:44px;font-size:9px;color:#fff">İSİM örneği</div>
+          <div style="position:absolute;left:14px;top:16px;font-size:12px;font-weight:900;color:#fff">92</div>
+          <div style="position:absolute;top:6px;right:10px;font-size:8px;color:#f5d67b">safe-area kılavuzu</div>
+        </div>
+        <div class="row" style="margin-top:10px"><span>🔍</span><span style="flex:1;height:5px;background:#2a3242;border-radius:3px;position:relative"><span style="position:absolute;left:32%;top:-4px;width:13px;height:13px;border-radius:50%;background:#f5d67b"></span></span><span>➕</span></div>
+        <div class="row sb" style="margin-top:12px">
+          <span class="btn g">↺ Reset</span>
+          <span class="btn g">🔄 Döndür</span>
+          <span class="btn g">Otomatik</span>
+          <span class="btn">✔ Uygula</span>
+        </div>
+      </div>
+      <div class="wf"><div class="cap">Kontroller — açıklama</div>
+        <ul>
+          <li><b>Crop alanı:</b> kart oranında çerçeve; içinde canlı önizleme + safe-area kılavuzu + scrim + örnek isim/OVR (WYSIWYG = kartta görünen).</li>
+          <li><b>Zoom slider:</b> %100–400; wheel + pinch ile senkron.</li>
+          <li><b>Sürükle:</b> parmakla/mouse ile konumla; çift tık → ortala.</li>
+          <li><b>↺ Reset:</b> otomatik kadraja dön.</li>
+          <li><b>🔄 Döndür <span class="tag miss">EKSİK</span>:</b> yan yatmış fotoğraflar için 90°.</li>
+          <li><b>Otomatik:</b> yüz tespitiyle en iyi kadraj.</li>
+          <li><b>✔ Uygula / Kaydet:</b> crop'u o karta yazar (localStorage).</li>
+        </ul>
+        <div class="leg">Şu an "Uygula" var; <b>ayrı "Kaydet"</b> ve <b>döndür</b> eklenebilir. Arka plan editörün İÇİNDE değil, alt sekmede olmalı (crop'u kalabalıklaştırmasın).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. 5 KART FOTOĞRAFI -->
+  <section>
+    <h2><span class="no">5</span> 5 Kart Fotoğrafı — grid mi, liste mi, carousel mı?</h2>
+    <div class="sub">Üçünü de gösterip öneriyi işaretliyorum.</div>
+    <div class="grid g3">
+      <div class="wf"><div class="cap">A · Grid ✅ önerilen</div>
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <div class="cardmini on" style="width:52px;height:74px"><span class="st">⭐</span></div>
+          <div class="cardmini" style="width:52px;height:74px"></div>
+          <div class="cardmini" style="width:52px;height:74px"></div>
+          <div class="cardmini" style="width:52px;height:74px"></div>
+          <div class="cardmini" style="width:52px;height:74px;border-style:dashed;display:grid;place-items:center;color:#5b667c">＋</div>
+        </div>
+        <div class="leg">Hepsi tek bakışta · varsayılan ⭐ net · seç/sil kolay.</div>
+      </div>
+      <div class="wf"><div class="cap">B · Carousel</div>
+        <div class="row" style="justify-content:center;gap:6px">
+          <span style="color:#f5d67b">‹</span>
+          <div class="cardmini on" style="width:70px;height:98px"><span class="st">⭐</span></div>
+          <span style="color:#f5d67b">›</span>
+        </div>
+        <div class="row" style="justify-content:center;gap:4px;margin-top:6px"><span class="ph" style="background:#f5d67b"></span><span class="ph" style="background:#3a4256"></span><span class="ph" style="background:#3a4256"></span></div>
+        <div class="leg">Büyük önizleme güzel ama 5'i aynı anda gör/ karşılaştır zor.</div>
+      </div>
+      <div class="wf"><div class="cap">C · Liste</div>
+        <div class="box row sb"><span class="row"><span class="cardmini" style="width:22px;height:30px"></span> Kart 1 ⭐</span><span class="pill">⋯</span></div>
+        <div class="box row sb"><span class="row"><span class="cardmini" style="width:22px;height:30px"></span> Kart 2</span><span class="pill">⋯</span></div>
+        <div class="leg">Bilgi çok ama görsel seçim için zayıf.</div>
+      </div>
+    </div>
+    <div class="rec"><b>Öneri: Grid (A).</b> 5 küçük kart yan yana; her birinde ⭐ varsayılan rozeti + uzun basınca/hover ✂🗑 aksiyonları. Tek karta dokun → büyük önizleme + o kartın crop/bg'ına geç. Carousel'i sadece "büyük önizleme modunda" ikincil olarak kullan.</div>
+  </section>
+
+  <!-- 6. PROFİL vs KART FOTO -->
+  <section>
+    <h2><span class="no">6</span> Profil Fotoğrafı ve Kart Fotoğrafı — aynı ekran mı, ayrı mı?</h2>
+    <div class="grid g2">
+      <div class="wf"><div class="cap">Önerilen yerleşim</div>
+        <div class="box"><div class="row sb"><span>👤 Profil Fotoğrafı</span><span class="pill">yuvarlak · UI'da kullanılır</span></div>
+          <div class="face" style="width:44px;height:44px;margin:8px auto"></div></div>
+        <div class="box acc"><div class="row sb"><span>🎴 Kart Fotoğrafları (5)</span><span class="pill on">dikey · karta özel</span></div>
+          <div class="row" style="gap:5px;margin-top:6px"><span class="cardmini" style="width:30px;height:42px"></span><span class="cardmini" style="width:30px;height:42px"></span><span class="cardmini" style="width:30px;height:42px"></span></div></div>
+      </div>
+      <div>
+        <div class="rec" style="margin-top:0"><b>Öneri: AYNI ekranda ama AYRI bölümde.</b> Aynı "Fotoğraflarım" ekranında üstte profil (1 adet, yuvarlak), altta kart fotoğrafları (5 adet, dikey) — <b>ama veri ve amaç ayrı.</b></div>
+        <ul style="margin-top:10px">
+          <li><b>Neden ayrı veri:</b> Profil = uygulama arayüzünde avatar (liste, yorum, sohbet). Kart fotoğrafı = tam boy, dikey, spor kartı kadrajı. Farklı oran, farklı kırpma.</li>
+          <li><b>Neden aynı ekran:</b> Kullanıcı "fotoğraflarım" derken ikisini bir arada yönetmek ister; iki ayrı menü kafa karıştırır.</li>
+          <li><b>Kural:</b> profil değişince kart fotoğrafları <b>değişmez</b> (şu an sistemde de böyle — doğru).</li>
+          <li><b>Kısayol:</b> "Bu kart fotoğrafını profil de yap" tek-tık opsiyonu (bağ değil, kopya).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. SOSYAL MEDYA -->
+  <section>
+    <h2><span class="no">7</span> Sosyal Medya — kart paylaşımda nasıl görünür, hangi efektler korunur?</h2>
+    <div class="sub">Kritik gerçek: Canlı (interaktif) efektler paylaşımda ÇALIŞMAZ. Paylaşılan şey ya sabit görsel ya önceden pişirilmiş videodur.</div>
+    <div class="grid g2">
+      <div class="wf"><div class="cap">Efektler — paylaşımda ne olur</div>
+        <table>
+          <tr><th>Efekt</th><th>Sabit PNG</th><th>Video/GIF</th><th>Sadece App</th></tr>
+          <tr><td>Glow / ışıma</td><td class="ok">✔ pişer</td><td class="ok">✔</td><td>—</td></tr>
+          <tr><td>Hologram parıltısı</td><td class="mid">✔ tek kare</td><td class="ok">✔ animasyonlu</td><td>—</td></tr>
+          <tr><td>Shine (ışık süpürme)</td><td class="mid">✔ tek kare</td><td class="ok">✔ döngü</td><td>—</td></tr>
+          <tr><td>Gradient / scrim / çerçeve</td><td class="ok">✔</td><td class="ok">✔</td><td>—</td></tr>
+          <tr><td>3D Tilt (mouse)</td><td class="no">✗</td><td class="mid">✔ oto-döngü olur</td><td class="no">interaktif</td></tr>
+          <tr><td>Parallax (katman)</td><td class="no">✗</td><td class="mid">✔ oto-döngü</td><td class="no">interaktif</td></tr>
+          <tr><td>Flip (çevirme)</td><td class="no">✗ (2 ayrı görsel)</td><td class="ok">✔ ön→arka</td><td class="mid">interaktif</td></tr>
+          <tr><td>Blur / derinlik</td><td class="ok">✔</td><td class="ok">✔</td><td>—</td></tr>
+        </table>
+        <div class="leg">Kural: <b>mouse/dokunma ile çalışan her şey</b> (tilt, parallax, hover, drag-flip) paylaşımda <b>otomatik animasyon döngüsüne</b> çevrilir ya da tek kareye pişirilir.</div>
+      </div>
+      <div class="wf"><div class="cap">Platform bazında ideal çıktı</div>
+        <table>
+          <tr><th>Platform</th><th>İdeal</th><th>Oran</th></tr>
+          <tr><td>Instagram Feed</td><td>PNG/JPG veya MP4</td><td>4:5</td></tr>
+          <tr><td>IG Story/Reel · TikTok</td><td><b>MP4 (video)</b></td><td>9:16</td></tr>
+          <tr><td>WhatsApp</td><td>PNG veya kısa MP4</td><td>kare/dikey</td></tr>
+          <tr><td>X (Twitter)</td><td>PNG / GIF / MP4</td><td>16:9 / 4:5</td></tr>
+          <tr><td>Telegram</td><td>PNG / MP4 / GIF</td><td>serbest</td></tr>
+          <tr><td>Discord</td><td>PNG / MP4 (embed)</td><td>serbest</td></tr>
+          <tr><td>Facebook</td><td>PNG / MP4</td><td>4:5</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="rec"><b>Öneri — 2 çıktı üret:</b> ① <b>Statik hero PNG</b> (glow+hologram+shine tek karede pişmiş, arka plan + çerçeve dahil) → görsel paylaşan her yer. ② <b>3–5 sn MP4/WebM döngü</b> (shine süpürme + hologram titreşim + yavaş oto-tilt + glow nabız + isteğe bağlı ön→arka flip) → Story/Reel/TikTok/WhatsApp durum. Paylaş menüsünde platform seçilince doğru oran + format otomatik hazırlanır. Alt köşede küçük "forzalig.com" filigranı + QR (doğrulama) kalır.</div>
+  </section>
+
+  <!-- 8. EXPORT -->
+  <section>
+    <h2><span class="no">8</span> Export — hangi format, ne için?</h2>
+    <table>
+      <tr><th>Format</th><th>Sosyal medya</th><th>Baskı</th><th>Not</th></tr>
+      <tr><td><b>PNG</b></td><td class="ok">✔ En iyi (görsel)</td><td class="mid">✔ 300dpi ise</td><td>Şeffaflık (die-cut kart) + kayıpsız. Dosya büyük.</td></tr>
+      <tr><td><b>JPG</b></td><td class="ok">✔ (küçük dosya)</td><td class="no">✗</td><td>Şeffaflık yok; altın gradyanda hafif bozulma. Feed için yeter.</td></tr>
+      <tr><td><b>WEBP</b></td><td class="mid">△ app/web için</td><td class="no">✗</td><td>En küçük + kaliteli; bazı eski paylaşım hedefleri kabul etmez.</td></tr>
+      <tr><td><b>MP4 / WebM</b></td><td class="ok">✔ Video (Reel/TikTok)</td><td class="no">✗</td><td>Animasyonlu kart için tek doğru yol.</td></tr>
+      <tr><td><b>SVG</b></td><td class="no">✗</td><td class="no">✗</td><td>Kart raster foto + karmaşık filtre içerir; SVG uygun değil (sadece saf logo için).</td></tr>
+      <tr><td><b>PDF</b></td><td class="no">✗</td><td class="ok">✔ En iyi (baskı)</td><td>Tam ölçü + 300dpi gömülü + kesim payı. Matbaa için ideal.</td></tr>
+    </table>
+    <div class="rec"><b>Öneri:</b> Sosyal medya görsel → <b>PNG</b> (küçük istenirse JPG). Sosyal medya video → <b>MP4/WebM</b>. Baskı → <b>PDF 300dpi</b> (veya yüksek çöz. PNG). Uygulama içi gösterim → WEBP. SVG'yi hiç sunma. Export menüsü: "Paylaş (otomatik)" + "Gelişmiş: format/çözünürlük seç".</div>
+  </section>
+
+  <!-- 9. MOBİL -->
+  <section>
+    <h2><span class="no">9</span> Mobil / Tablet / Desktop</h2>
+    <div class="sub">Aynı sistem, ekrana göre yerleşim. Şu an responsive var ama üretim için cihaz-özel düzen gerekli.</div>
+    <div class="grid g3">
+      <div class="wf"><div class="cap">📱 Telefon (dikey)</div>
+        <div class="box" style="text-align:center">Kart tam ekran</div>
+        <div class="box">Alt bar: 📷 ✂ 📤 ⬇</div>
+        <div class="box">Editör = tam ekran sayfa</div>
+        <div class="leg">Tek elle · pinch zoom · büyük dokunma hedefleri (≥44px).</div>
+      </div>
+      <div class="wf"><div class="cap">📲 Tablet</div>
+        <div class="row" style="gap:6px"><div class="box" style="flex:1">Kart</div><div class="box" style="flex:1">Kontrol paneli</div></div>
+        <div class="leg">Yan yana: solda kart, sağda foto/konsept/rarity.</div>
+      </div>
+      <div class="wf"><div class="cap">💻 Desktop</div>
+        <div class="row" style="gap:6px"><div class="box" style="flex:0 0 30%">Foto listesi</div><div class="box" style="flex:1">Kart (büyük)</div><div class="box" style="flex:0 0 26%">Ayarlar</div></div>
+        <div class="leg">3 sütun · mouse tilt/parallax aktif · hover shine.</div>
+      </div>
+    </div>
+    <div class="rec"><b>Öneri:</b> Editör mobilde <b>tam ekran modal</b> (şu an ortada küçük kutu — parmakla zor). Tilt/parallax sadece mouse'ta; dokunmatikte devre dışı (şu an doğru). Alt sabit aksiyon barı telefonda şart.</div>
+  </section>
+
+  <!-- 10. ÜRETİM ONAYI -->
+  <section>
+    <h2><span class="no">10</span> Üretim Onayı — eksikler ve fazlalıklar</h2>
+    <div class="grid g2">
+      <div class="wf"><div class="cap">Eksik EKRANLAR</div>
+        <ul>
+          <li>Paylaş ekranı (platform + oran seçimi) <span class="tag miss">yok</span></li>
+          <li>Export/indir ekranı (format/çözünürlük) <span class="tag miss">yok</span></li>
+          <li>"Kartım hazır" onay/önizleme ekranı <span class="tag miss">yok</span></li>
+          <li>İlk kullanım sihirbazı (onboarding) <span class="tag miss">yok</span></li>
+          <li>Süper Admin: oyuncu seçme ekranı <span class="tag miss">yok</span></li>
+        </ul>
+      </div>
+      <div class="wf"><div class="cap">Eksik UX</div>
+        <ul>
+          <li>Kaydediliyor / yükleniyor göstergesi (maskeleme birkaç sn sürer)</li>
+          <li>Geri al / değişiklik iptal</li>
+          <li>Boş durum metinleri ("henüz kart fotoğrafın yok")</li>
+          <li>Hata durumu (çok büyük dosya, bozuk görsel)</li>
+          <li>Maskeleme başarısızsa "elle rötuş" (fırça) seçeneği</li>
+        </ul>
+      </div>
+      <div class="wf"><div class="cap">Eksik AYARLAR / BUTONLAR</div>
+        <ul>
+          <li>Export format & çözünürlük seçimi</li>
+          <li>Filigran / QR aç-kapa</li>
+          <li>Editörde: döndür, aynala, parlaklık/kontrast</li>
+          <li>Admin: rarity/konsept kilidi, varsayılan tema</li>
+          <li>Kart adı / notu (birden çok kart için)</li>
+        </ul>
+      </div>
+      <div class="wf"><div class="cap">GEREKSİZ olabilecekler</div>
+        <ul>
+          <li>12 test oyuncusu → üretimde <span class="tag extra">gizle</span> (sadece geliştirme)</li>
+          <li>14 rarity'nin tamamı kullanıcıya açık mı? → OVR'a göre otomatik ata <span class="tag extra">sadeleştir</span></li>
+          <li>5 konseptin hepsi V1'de mi? → 2-3 ile başla, gerisini sonra <span class="tag extra">aşamalı</span></li>
+          <li>15 arka plan → en iyi 6-8 ile başla, kalanı "premium" <span class="tag extra">kademeli</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="rec"><b>Üretim önceliği (önerilen sıra):</b> ① Paylaş + Export (PNG/MP4) — kartın değeri paylaşımda. ② Onboarding sihirbazı (bölüm 1). ③ Rol ayrımı (normal vs admin). ④ Yükleniyor/hata/boş durumları. ⑤ Admin oyuncu seçimi. Rarity/konsept/bg sayısını <b>sadeleştirerek</b> başla; hepsi teknik olarak hazır, kademeli aç.</div>
+  </section>
+
+  <div class="leg" style="text-align:center;margin-top:10px">Onayını bekliyorum — hangi bölümlerden başlayalım? · ForzaLig Kart Sistemi UX Blueprint</div>
+</div>
+</body>
+</html>
