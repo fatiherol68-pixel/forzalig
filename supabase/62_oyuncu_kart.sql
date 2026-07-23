@@ -10,9 +10,9 @@
 alter table public.oyuncular add column if not exists kart_rarity  text;
 alter table public.oyuncular add column if not exists kart_konsept int;
 
--- Açık görünüme kart alanlarını ekle (mevcut tanım BİREBİR korunur + kart_rarity/kart_konsept)
-drop view if exists public.oyuncular_acik;
-create view public.oyuncular_acik as
+-- Açık görünüme kart alanlarını ekle. NOT: oyuncu_kariyer bu view'e bağlı →
+-- drop EDİLEMEZ. create OR REPLACE ile mevcut kolonlar BİREBİR korunur, yenileri SONA eklenir.
+create or replace view public.oyuncular_acik as
   select
     player_id,
     coalesce(nullif(takma_ad,''), ad_soyad) as gorunen_ad,
