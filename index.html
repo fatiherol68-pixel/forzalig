@@ -678,7 +678,9 @@
     var pinch=0;
     card.addEventListener('touchmove',function(e){ if(e.touches.length!==2)return; e.preventDefault(); var dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY,dist=Math.hypot(dx,dy); if(pinch){ var r=box.getBoundingClientRect(); zoomAt(s*(dist/pinch),(e.touches[0].clientX+e.touches[1].clientX)/2-r.left,(e.touches[0].clientY+e.touches[1].clientY)/2-r.top); } pinch=dist; },{passive:false});
     card.addEventListener('touchend',function(){ pinch=0; });
-    return { getCrop:crop, zoomTo:function(pct){ zoomAt(cover*(pct/100)); }, zoomPct:function(){ return Math.round(s/cover*100); }, reset:function(){ s=s0; left=l0; top=t0; apply(); emit(); } };
+    return { getCrop:crop, zoomTo:function(pct){ zoomAt(cover*(pct/100)); }, zoomPct:function(){ return Math.round(s/cover*100); },
+      nudge:function(dir){ var st=Math.max(cw,chh)*0.07; if(dir==='left')left-=st; else if(dir==='right')left+=st; else if(dir==='up')top-=st; else if(dir==='down')top+=st; apply(); emit(); },
+      reset:function(){ s=s0; left=l0; top=t0; apply(); emit(); } };
   }
   // aktif konseptin foto kutusu oranını (w/h) döndür — kırpma çerçevesi bununla eşleşir
   function kutuOrani(host){ var b=host&&host.querySelector('.flk-win, .flk-photo'); if(b&&b.clientWidth&&b.clientHeight) return b.clientWidth/b.clientHeight; return 0.66; }
@@ -6373,7 +6375,17 @@ function KartimEditor({oyuncu:o, T, git, adminMi, oturum, sahip}){
         <input type="range" min="100" max="450" value={zoomPct} onChange={e=>{ const v=+e.target.value; setZoomPct(v); const h=kirpRef.current; if(h) h.zoomTo(v); }} style={{flex:1,accentColor:T.accent,height:24}}/>
         <span style={{fontSize:11,color:T.textMut,fontWeight:700,minWidth:34,textAlign:"right"}}>{zoomPct}%</span>
       </div>
-      <div style={{display:"flex",gap:8,marginTop:9}}>
+      {(()=>{ const nud=(dir)=>{ const h=kirpRef.current; if(h) h.nudge(dir); }; const AB={width:42,height:38,borderRadius:10,background:T.bg1,border:"1px solid "+T.line,color:T.text,fontSize:18,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"};
+        return <div style={{display:"flex",justifyContent:"center",marginTop:11}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,42px)",gridTemplateRows:"repeat(3,38px)",gap:6}}>
+            <span/><button className="tap" style={AB} onClick={()=>nud('up')}>↑</button><span/>
+            <button className="tap" style={AB} onClick={()=>nud('left')}>←</button>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:T.textMut}}>oynat</div>
+            <button className="tap" style={AB} onClick={()=>nud('right')}>→</button>
+            <span/><button className="tap" style={AB} onClick={()=>nud('down')}>↓</button><span/>
+          </div>
+        </div>; })()}
+      <div style={{display:"flex",gap:8,marginTop:11}}>
         <button onClick={sifirlaKirp} className="tap" style={{flex:"0 0 auto",padding:"11px 16px",borderRadius:11,background:T.bg2,color:T.textMut,border:"1px solid "+T.line,fontWeight:800,fontSize:12.5,cursor:"pointer"}}>↺ Sıfırla</button>
         <button onClick={uygulaKirp} className="tap" style={{flex:1,padding:"11px",borderRadius:11,background:T.accent,color:T.bg0,border:0,fontWeight:800,fontSize:13.5,cursor:"pointer"}}>✓ Uygula</button>
       </div>
