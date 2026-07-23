@@ -181,6 +181,31 @@
     });
   })();
 </script>
+<script>
+  /* SÜRÜM ROZETİ — sağ altta küçük "v xxxxxxx". Tıklayınca güncelleme kontrolü + tazeleme.
+     Amaç: hangi derlemede olduğunu her zaman KESİN görmek (sessiz güncellemede kör kalmamak). */
+  window.addEventListener("load", function(){
+    try{
+      var rel = String(window.__FL_RELEASE||"").split("-")[0] || "?";
+      var b = document.createElement("div");
+      b.textContent = "v " + rel;
+      b.title = "Sürümü kontrol et / güncelle";
+      b.style.cssText = "position:fixed;right:5px;bottom:calc(env(safe-area-inset-bottom,0px) + 4px);z-index:2147483647;font:600 9.5px/1 system-ui,-apple-system,sans-serif;color:rgba(255,255,255,.45);background:rgba(0,0,0,.32);padding:3px 6px;border-radius:6px;letter-spacing:.3px;cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)";
+      b.addEventListener("click", function(){
+        b.textContent = "v " + rel + " · kontrol…";
+        try{ sessionStorage.removeItem("fl_sw_reload_ts"); }catch(e){}
+        function reload(){ try{ location.reload(); }catch(e){} }
+        if(navigator.serviceWorker && navigator.serviceWorker.getRegistration){
+          navigator.serviceWorker.getRegistration().then(function(reg){
+            if(reg){ if(reg.waiting) reg.waiting.postMessage("FL_SKIP_WAITING"); reg.update().catch(function(){}); }
+            setTimeout(reload, 700);
+          }).catch(function(){ setTimeout(reload, 300); });
+        } else setTimeout(reload, 200);
+      });
+      document.body.appendChild(b);
+    }catch(e){}
+  });
+</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap"></noscript>
 <style>
@@ -662,32 +687,27 @@
   function attachKirp(card,box,iw,ih,onChange){
     if(!iw||!ih) return null; var imgs=box.querySelectorAll('.flk-ph'); if(!imgs.length) return null;
     var cw=box.clientWidth, chh=box.clientHeight, cover=Math.max(cw/iw,chh/ih);
-    var minS=cover*1.28;  // her iki eksende de RAHAT hareket alanı (tıkız eksende ~%28 boşluk → her yön birkaç adım oynar)
     var s=(parseFloat(imgs[0].style.width)||iw*cover)/iw, left=parseFloat(imgs[0].style.left)||0, top=parseFloat(imgs[0].style.top)||0;
     function apply(){ var dw=iw*s,dh=ih*s; left=Math.min(0,Math.max(cw-dw,left)); top=Math.min(0,Math.max(chh-dh,top)); [].forEach.call(imgs,function(p){ p.style.width=dw+'px'; p.style.height=dh+'px'; p.style.left=left+'px'; p.style.top=top+'px'; }); }
-    if(s<minS){ s=minS; var _dw=iw*s,_dh=ih*s; left=(cw-_dw)/2; top=(chh-_dh)/2; }  // alan aç + ORTALA (her yöne eşit hareket)
+    if(s<cover) s=cover;   // kutuyu her zaman doldur
     apply();
     var s0=s,l0=left,t0=top;  // sıfırlama için başlangıç
     function crop(){ var dw=iw*s,dh=ih*s; return {fx:Math.max(0,Math.min(1,(cw*.5-left)/dw)),fy:Math.max(0,Math.min(1,(chh*.5-top)/dh)),zoom:s/cover}; }
     function emit(){ if(onChange) onChange(crop()); }
-    function zoomAt(ns,cx,cy){ cx=cx==null?cw/2:cx; cy=cy==null?chh/2:cy; var ix=(cx-left)/s,iy=(cy-top)/s; ns=Math.max(minS,Math.min(cover*4.5,ns)); left=cx-ix*ns; top=cy-iy*ns; s=ns; apply(); emit(); }
+    function zoomAt(ns,cx,cy){ cx=cx==null?cw/2:cx; cy=cy==null?chh/2:cy; var ix=(cx-left)/s,iy=(cy-top)/s; ns=Math.max(cover,Math.min(cover*4.5,ns)); left=cx-ix*ns; top=cy-iy*ns; s=ns; apply(); emit(); }
+    // ---- TAMAMEN POINTER TABANLI: tek parmak/fare = sürükle, iki parmak = pinch zoom.
+    //      touch-action:none → sayfa kaydırma çalmaz. Ölü buton yok, per-konsept yok.
     card.style.cursor='grab'; card.style.touchAction='none';
-    var dn=false,px=0,py=0;
-    card.addEventListener('pointerdown',function(e){ dn=true; px=e.clientX; py=e.clientY; card.style.cursor='grabbing'; try{card.setPointerCapture(e.pointerId);}catch(_){} });
-    card.addEventListener('pointermove',function(e){ if(!dn)return; left+=e.clientX-px; top+=e.clientY-py; px=e.clientX; py=e.clientY; apply(); emit(); });
-    card.addEventListener('pointerup',function(e){ dn=false; card.style.cursor='grab'; try{card.releasePointerCapture(e.pointerId);}catch(_){} });
-    card.addEventListener('pointercancel',function(){ dn=false; });
+    var pts={}, dn=false, px=0, py=0, pdist=0;
+    function ids(){ return Object.keys(pts); }
+    function dist2(){ var k=ids(); if(k.length<2) return 0; var a=pts[k[0]],b=pts[k[1]]; return Math.hypot(a.x-b.x,a.y-b.y); }
+    function cen2(){ var k=ids(); var a=pts[k[0]],b=pts[k[1]]; return {x:(a.x+b.x)/2,y:(a.y+b.y)/2}; }
+    card.addEventListener('pointerdown',function(e){ pts[e.pointerId]={x:e.clientX,y:e.clientY}; try{card.setPointerCapture(e.pointerId);}catch(_){} var k=ids(); if(k.length===1){ dn=true; px=e.clientX; py=e.clientY; card.style.cursor='grabbing'; } else if(k.length>=2){ dn=false; pdist=dist2(); } });
+    card.addEventListener('pointermove',function(e){ if(!pts[e.pointerId]) return; pts[e.pointerId]={x:e.clientX,y:e.clientY}; var k=ids(); if(k.length>=2){ var nd=dist2(); if(pdist){ var r=box.getBoundingClientRect(), c=cen2(); zoomAt(s*(nd/pdist), c.x-r.left, c.y-r.top); } pdist=nd; } else if(dn){ left+=e.clientX-px; top+=e.clientY-py; px=e.clientX; py=e.clientY; apply(); emit(); } });
+    function up(e){ delete pts[e.pointerId]; try{card.releasePointerCapture(e.pointerId);}catch(_){} var k=ids(); if(k.length<2) pdist=0; if(k.length===0){ dn=false; card.style.cursor='grab'; } else if(k.length===1){ dn=true; px=pts[k[0]].x; py=pts[k[0]].y; } }
+    card.addEventListener('pointerup',up); card.addEventListener('pointercancel',up);
     card.addEventListener('wheel',function(e){ e.preventDefault(); var r=box.getBoundingClientRect(); zoomAt(s*(e.deltaY<0?1.08:.926), e.clientX-r.left, e.clientY-r.top); },{passive:false});
-    var pinch=0;
-    card.addEventListener('touchmove',function(e){ if(e.touches.length!==2)return; e.preventDefault(); var dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY,dist=Math.hypot(dx,dy); if(pinch){ var r=box.getBoundingClientRect(); zoomAt(s*(dist/pinch),(e.touches[0].clientX+e.touches[1].clientX)/2-r.left,(e.touches[0].clientY+e.touches[1].clientY)/2-r.top); } pinch=dist; },{passive:false});
-    card.addEventListener('touchend',function(){ pinch=0; });
     return { getCrop:crop, zoomTo:function(pct){ zoomAt(cover*(pct/100)); }, zoomPct:function(){ return Math.round(s/cover*100); },
-      // Yön butonu = fotoğrafı o yöne kaydır (sürüklemeyle birebir aynı mantık).
-      // Kenara dayanmışsa o yönde çok az zoom açıp yine oynatır → HER basış görünür.
-      nudge:function(dir){ var st=Math.max(cw,chh)*0.11; function mv(){ if(dir==='left')left-=st; else if(dir==='right')left+=st; else if(dir==='up')top-=st; else if(dir==='down')top+=st; }
-        var pl=left,pt=top; mv(); apply();
-        if(left===pl && top===pt){ s=Math.min(cover*4.5, s*1.10); apply(); mv(); apply(); }  // kenara dayandı → azıcık zoom + yine oynat
-        emit(); },
       reset:function(){ s=s0; left=l0; top=t0; apply(); emit(); } };
   }
   // aktif konseptin foto kutusu oranını (w/h) döndür — kırpma çerçevesi bununla eşleşir
@@ -6349,16 +6369,17 @@ function KartimEditor({oyuncu:o, T, git, adminMi, oturum, sahip}){
   const kirpRef=React.useRef(null);     // FLKART kırpma handle'ı (slider/uygula/sıfırla)
   const [zoomPct,setZoomPct]=React.useState(120);
   const [remountKey,setRemountKey]=React.useState(0);
-  saveRef.current=(cr)=>{ if(!fAktif) return; const id=fAktif.id; const cur=Object.assign({}, (fAktif.crop&&fAktif.crop.fx===undefined)?fAktif.crop:{}, cropsRef.current[id]||{}); cur[konsept]=cr; cur[""+konsept]=cr; cropsRef.current[id]=cur; Db.kartFotoGuncelle(id,{crop:cur}); setFotolar(fs=>fs.map(x=>x.id===id?{...x,crop:cur}:x)); };
+  saveRef.current=(cr)=>{ if(!fAktif) return; const id=fAktif.id; cropsRef.current[id]=cr; Db.kartFotoGuncelle(id,{crop:cr}); setFotolar(fs=>fs.map(x=>x.id===id?{...x,crop:cr}:x)); };
   React.useEffect(()=>{ if(!ref.current||!window.FLKART) return;
-    const savedMap = fAktif ? Object.assign({}, (fAktif.crop&&fAktif.crop.fx===undefined)?fAktif.crop:{}, cropsRef.current[fAktif.id]||{}) : null;
+    // TEK kırpma: bu fotoğrafın kırpması (varsa canlı-taslak, yoksa kayıtlı). Konsept başına ayrı yok.
+    const savedCrop = fAktif ? (cropsRef.current[fAktif.id] || ((fAktif.crop&&fAktif.crop.fx!==undefined)?fAktif.crop:null)) : null;
     pendingRef.current=null; kirpRef.current=null;
-    window.FLKART.mount(ref.current,d,{konsept,rarity:rk,foto:foto?foto.url:null,crop:savedMap,bg:foto?foto.bg:null,kirpMod:!!fAktif,
+    window.FLKART.mount(ref.current,d,{konsept,rarity:rk,foto:foto?foto.url:null,crop:savedCrop,bg:foto?foto.bg:null,kirpMod:!!fAktif,
       onKirp:(cr)=>{ pendingRef.current=cr; },
       onReady:(h)=>{ kirpRef.current=h||null; if(h) setZoomPct(h.zoomPct()); }});
   },[d,konsept,rk,aktif,fotolar.length,remountKey,fAktif?fAktif.id:0,fAktif?fAktif.url:0,fAktif?fAktif.arka_plan:0]);
   const uygulaKirp=()=>{ const h=kirpRef.current; const cr=(h&&h.getCrop())||pendingRef.current; if(!cr){ setMesaj("Kartı sürükleyip yakınlaştırdıktan sonra Uygula'ya bas."); return; } saveRef.current(cr); const kad=((window.FLKART&&window.FLKART.KONSEPTLER)||[]).find(k=>k.k===konsept); setMesaj("✓ "+(kad?kad.ad:"")+" kırpması uygulandı — kart aynen böyle görünecek"); };
-  const sifirlaKirp=async()=>{ if(!fAktif) return; const id=fAktif.id; const cur=Object.assign({}, (fAktif.crop&&fAktif.crop.fx===undefined)?fAktif.crop:{}, cropsRef.current[id]||{}); delete cur[konsept]; delete cur[""+konsept]; cropsRef.current[id]=cur; await Db.kartFotoGuncelle(id,{crop:cur}); setFotolar(fs=>fs.map(x=>x.id===id?{...x,crop:cur}:x)); setRemountKey(k=>k+1); setMesaj("✓ Otomatik kadraja döndü"); };
+  const sifirlaKirp=async()=>{ if(!fAktif) return; const id=fAktif.id; delete cropsRef.current[id]; await Db.kartFotoGuncelle(id,{crop:null}); setFotolar(fs=>fs.map(x=>x.id===id?{...x,crop:null}:x)); setRemountKey(k=>k+1); setMesaj("✓ Otomatik kadraja döndü"); };
   const fotoYukleGiris=async(e)=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f)return; if(fotolar.length>=5){ setMesaj("En fazla 5 kart fotoğrafı."); return; } setBekle(true); setMesaj("Yükleniyor…"); const r=await fotoYukle(f,"kart",null); if(!r||!r.url){ setBekle(false); setMesaj("Foto yüklenemedi"); return; } const ins=await Db.kartFotoEkle(o.id,{url:r.url,sira:fotolar.length===0?0:fotolar.length}); setBekle(false); if(ins&&ins.ok){ setMesaj("✓ Fotoğraf eklendi"); await yukle(); setAktif(fotolar.length); } else setMesaj("Olmadı: "+((ins&&ins.hata)||"")); };
   const fotoSil=async(f,i)=>{ if(!confirm("Bu kart fotoğrafı silinsin mi?")) return; const r=await Db.kartFotoSil(f.id); if(r&&r.ok){ setMesaj("✓ Silindi"); if(aktif>=fotolar.length-1) setAktif(0); await yukle(); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   const varsayilanYap=async(f)=>{ // sira=0 yap, diğerlerini kaydır
@@ -6377,22 +6398,12 @@ function KartimEditor({oyuncu:o, T, git, adminMi, oturum, sahip}){
     {mesaj && <div style={{fontSize:12.5,color:mesaj[0]==="✓"?T.accent:T.gold,marginBottom:10}}>{mesaj}</div>}
     <div ref={ref} className="flkart"></div>
     {fAktif && <>
-      <div style={{textAlign:"center",marginTop:8,fontSize:11.5,color:T.accent,fontWeight:700}}>✋ Fotoğrafı <b>kartın üstünde sürükle</b> — ne görürsen kart öyle olacak <span style={{color:T.textMut,fontWeight:600}}>({(K.find(k=>k.k===konsept)||{}).ad})</span></div>
+      <div style={{textAlign:"center",marginTop:8,fontSize:11.5,color:T.accent,fontWeight:700}}>✋ Fotoğrafı <b>parmakla kartın üstünde sürükle</b>, iki parmakla yakınlaştır — ne görürsen kart öyle olur <span style={{color:T.textMut,fontWeight:600}}>(tüm konseptlerde aynı)</span></div>
       <div style={{display:"flex",alignItems:"center",gap:10,margin:"11px 4px 0"}}>
         <span style={{fontSize:15}}>🔍</span>
         <input type="range" min="100" max="450" value={zoomPct} onChange={e=>{ const v=+e.target.value; setZoomPct(v); const h=kirpRef.current; if(h) h.zoomTo(v); }} style={{flex:1,accentColor:T.accent,height:24}}/>
         <span style={{fontSize:11,color:T.textMut,fontWeight:700,minWidth:34,textAlign:"right"}}>{zoomPct}%</span>
       </div>
-      {(()=>{ const nud=(dir)=>{ const h=kirpRef.current; if(h) h.nudge(dir); }; const AB={width:42,height:38,borderRadius:10,background:T.bg1,border:"1px solid "+T.line,color:T.text,fontSize:18,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"};
-        return <div style={{display:"flex",justifyContent:"center",marginTop:11}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,42px)",gridTemplateRows:"repeat(3,38px)",gap:6}}>
-            <span/><button className="tap" style={AB} onClick={()=>nud('up')}>↑</button><span/>
-            <button className="tap" style={AB} onClick={()=>nud('left')}>←</button>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:T.textMut}}>oynat</div>
-            <button className="tap" style={AB} onClick={()=>nud('right')}>→</button>
-            <span/><button className="tap" style={AB} onClick={()=>nud('down')}>↓</button><span/>
-          </div>
-        </div>; })()}
       <div style={{display:"flex",gap:8,marginTop:11}}>
         <button onClick={sifirlaKirp} className="tap" style={{flex:"0 0 auto",padding:"11px 16px",borderRadius:11,background:T.bg2,color:T.textMut,border:"1px solid "+T.line,fontWeight:800,fontSize:12.5,cursor:"pointer"}}>↺ Sıfırla</button>
         <button onClick={uygulaKirp} className="tap" style={{flex:1,padding:"11px",borderRadius:11,background:T.accent,color:T.bg0,border:0,fontWeight:800,fontSize:13.5,cursor:"pointer"}}>✓ Uygula</button>
