@@ -793,7 +793,7 @@ const Db = {
   },
   // Tüm takımlar (keşfet/vitrin) — herkese açık, üyeler sistemin takımlarını görsün
   async tumTakimlar(){ if(!sb) return []; try{ const {data}=await sb.from('kulupler').select('id,ad,logo,renk,renk2,td,olusturma,sahip_user_id').is('evren',null).order('olusturma',{ascending:false}).limit(300); return data||[]; }catch(e){ return []; } },
-  async kulupKur(userId, obj){ if(!sb||!userId) return {hata:"yok"}; try{ const {data,error}=await sb.from('kulupler').insert({ad:(obj.ad||'').trim(), renk:obj.renk||null, renk2:obj.renk2||null, logo:obj.logo||null, sahip_user_id:userId}).select('id,ad,logo,renk,renk2').single(); return error?{hata:error.message}:{ok:true,kulup:data}; }catch(e){ return {hata:String(e)}; } },
+  async kulupKur(userId, obj){ if(!sb||!userId) return {hata:"yok"}; try{ const {data,error}=await sb.from('kulupler').insert({ad:(obj.ad||'').trim(), renk:obj.renk||null, renk2:obj.renk2||null, logo:obj.logo||null, sahip_user_id:userId}).select('id,ad,logo,renk,renk2').single(); if(error){ const m=(error.message||'')+ (error.code||''); if(error.code==='42501'||/row-level security|policy|permission|denied/i.test(m)) return {hata:'Yetkiniz bulunmuyor.'}; return {hata:error.message}; } return {ok:true,kulup:data}; }catch(e){ return {hata:String(e)}; } },
   async kulupKadro(kulupId){ if(!sb||!kulupId) return []; try{ const {data}=await sb.from('kulup_oyuncu').select('player_id,forma_no,mevki,aktif, oyuncular(ad_soyad,foto,poz,ovr)').eq('kulup_id',kulupId).eq('aktif',true); return (data||[]).map(x=>({player_id:x.player_id, forma_no:x.forma_no, mevki:x.mevki||(x.oyuncular&&x.oyuncular.poz)||null, ad:(x.oyuncular&&x.oyuncular.ad_soyad)||'Oyuncu', foto:(x.oyuncular&&x.oyuncular.foto)||null, ovr:(x.oyuncular&&x.oyuncular.ovr)||null})); }catch(e){ return []; } },
   async kulupOyuncuEkle(kulupId, ad, mevki, forma){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('kulup_oyuncu_ekle',{p_kulup:kulupId, p_ad:ad, p_mevki:mevki||null, p_forma:forma?parseInt(forma)||null:null}); return error?{hata:error.message}:{ok:true,player_id:data}; }catch(e){ return {hata:String(e)}; } },
   async kulupOyuncuCikar(kulupId, playerId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('kulup_oyuncu').update({aktif:false}).eq('kulup_id',kulupId).eq('player_id',playerId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
@@ -3028,7 +3028,7 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   </div>;
 }
 
-function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur, yukleniyor, oturum, takimKurabilir, adminMi}){
+function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniyor, oturum, takimKurabilir, adminMi}){
   const [tab,setTab]=useState("lig");
   const [ara,setAra]=useState("");
   const [sira,setSira]=useState("gol"); // takım/oyuncu sıralama
@@ -3113,7 +3113,9 @@ function Kesfet({turnuvalar, T, git, ligKurAc, saltOkunur, yukleniyor, oturum, t
           <span style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>Lig Kataloğu</span>
           {(aktifTurnuvalar.length+acikLigler.length)>0 && <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accent+"1e",border:"0.5px solid "+T.accent+"44",padding:"3px 9px",borderRadius:20}}>{aktifTurnuvalar.length+acikLigler.length} Lig</span>}
         </div>
-        {ligKurAc && <button onClick={ligKurAc} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:11,padding:"9px 14px",fontSize:12.5,fontWeight:800}}>+ Lig Kur</button>}
+        {ligKurAc && (ligKurYetki
+          ? <button onClick={ligKurAc} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:11,padding:"9px 14px",fontSize:12.5,fontWeight:800}}>+ Lig Kur</button>
+          : <button title="Lig oluşturma yetkiniz bulunmuyor." aria-disabled="true" onClick={e=>{e.preventDefault();e.stopPropagation();}} style={{display:"flex",alignItems:"center",gap:6,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:11,padding:"9px 14px",fontSize:12.5,fontWeight:800,opacity:.4,cursor:"not-allowed"}}>+ Lig Kur</button>)}
       </div>
 
       {/* Herkese açık ligler */}
@@ -12676,7 +12678,7 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
   const [davetLink,setDavetLink]=React.useState(""); const [davetKopya,setDavetKopya]=React.useState(false);
   const [duz,setDuz]=React.useState(false); const [dAd,setDAd]=React.useState(""); const [dRenk,setDRenk]=React.useState("");
   const [tz,setTz]=React.useState(null); // tüm-zamanlar istatistik (lig seçmeden)
-  const yetkili = takimKurabilir!==false; // takım KURMA yetkisi (admin/lig yöneticisi)
+  const yetkili = takimKurabilir===true; // takım KURMA yetkisi (SADECE admin/lig yöneticisi) — varsayılan kapalı
   const benimKulup = !!(sec && oturum && (sec.benim || adminMi)); // bu takımı YÖNETME yetkisi (sahip/admin)
   const yenile=async()=>{ if(!oturum) return; const l=await Db.takimlarim(oturum.id); setListe(l); Db.tumTakimlar().then(setTumListe); };
   React.useEffect(()=>{ yenile(); },[oturum]);
@@ -12722,7 +12724,9 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
             <button onClick={kulupKur} disabled={bekle} style={{...BTN,flex:1}}>{bekle?"…":"Takımı oluştur"}</button>
             <button onClick={()=>{setKur(false);setMesaj("");}} style={{background:T.bg2,color:T.textSoft,border:"1px solid "+T.line,borderRadius:11,padding:"11px 15px",fontSize:13,fontWeight:700}}>İptal</button>
           </div>
-        </div> : (yetkili && <button onClick={()=>{setKur(true);setMesaj("");}} className="tap" style={{...BTN,width:"100%",marginTop:6}}>＋ Takım Kur</button>)}
+        </div> : (yetkili
+          ? <button onClick={()=>{setKur(true);setMesaj("");}} className="tap" style={{...BTN,width:"100%",marginTop:6}}>＋ Takım Kur</button>
+          : <button title="Takım oluşturma yetkiniz bulunmuyor." aria-disabled="true" onClick={e=>{e.preventDefault();e.stopPropagation();}} style={{...BTN,width:"100%",marginTop:6,opacity:.4,cursor:"not-allowed"}}>＋ Takım Kur</button>)}
         {/* TÜM TAKIMLAR — keşfet/vitrin (herkes görür, tıklayınca takım sayfası açılır) */}
         {(()=>{ const mineIds=new Set((liste||[]).map(c=>c.id)); const browse=(tumListe||[]).filter(c=>c&&!mineIds.has(c.id));
           if(!browse.length) return null;
@@ -13757,6 +13761,9 @@ function App(){
   // 👁 Destek modunda menüler/yetkiler HEDEF kullanıcının perspektifini yansıtır (yoksa kendi değerlerin)
   const etkinAdminMi = destek ? destekAdminMi : adminMi;
   const etkinLigKurYetkim = destek ? destekLigKur : ligKurYetkim;
+  // Takım (kulüp) kurma yetkisi — MERKEZÎ: Süper Admin VEYA Lig hakkı olan VEYA bir lig yöneticisi.
+  // Backend (RLS p_kulup_ins → takim_kurabilir()) ile birebir aynı kural. Normal kullanıcı kuramaz.
+  const etkinTakimKurYetkim = !saltOkunur && !!(etkinAdminMi || etkinLigKurYetkim || (oturum && (turnuvalar||[]).some(t=>t&&(t.yonetici_id===oturum.id||t.yoneticiId===oturum.id))));
   const etkinProfil = destek ? destekProfil : profil;
   // Oturuma bağlı ekranlar destek modunda yanlış bilgi göstermesin
   const destekKapali = <div style={{maxWidth:440,margin:"0 auto",padding:"60px 24px",textAlign:"center"}}>
@@ -13802,7 +13809,7 @@ function App(){
     switch(nav.sayfa){
       case "ana": icerik=<AnaSayfa turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} yukleniyor={liglerYuk}/>; break;
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
-      case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} saltOkunur={saltOkunur} yukleniyor={liglerYuk} oturum={oturum} adminMi={etkinAdminMi} takimKurabilir={!!(adminMi||ligKurYetkim||(oturum&&turnuvalar.some(t=>t&&t.yonetici_id===oturum.id)))}/>; break;
+      case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} ligKurYetki={etkinLigKurYetkim} saltOkunur={saltOkunur} yukleniyor={liglerYuk} oturum={oturum} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
       case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,kulupLigeEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,yeniSezon,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum} adminMi={etkinAdminMi}/>; break;
@@ -13823,7 +13830,7 @@ function App(){
       case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} kulup={nav.kulup} adminMi={etkinAdminMi} turnuvalar={turnuvalar}/>; break;
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
       case "profil": icerik = <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil} destekBilgi={destek?{uid:destek.uid, ad:destek.ad, profil:destekProfil, adminMi:destekAdminMi}:null}/>; break;
-      case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar} adminMi={etkinAdminMi} takimKurabilir={!!(adminMi||ligKurYetkim||(oturum&&turnuvalar.some(t=>t&&t.yonetici_id===oturum.id)))}/>; break;
+      case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
       case "sorun": icerik=<SorunBildir T={T} git={git} oturum={oturum} teshis={teshisUret()}/>; break;
       case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
