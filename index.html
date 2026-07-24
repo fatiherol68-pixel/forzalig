@@ -12848,7 +12848,8 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar, kulup
   const [unread,setUnread]=useState({});          // {kanal:adet}
   const kaydirRef=useRef(null), aboneRef=useRef(null), taslaklar=useRef({}), dipteRef=useRef(true);
   const aktifTakimId = kanal.startsWith("t:") ? kanal.slice(2) : null;
-  const ad=(oturum&&((oturum.user_metadata&&oturum.user_metadata.ad)||oturum.email))||"Ben";
+  // Gönderen adı: önce bağlı oyuncunun ad-soyadı, sonra profil adı, sonra e-postanın @ öncesi
+  const ad=(oturum&&((benimOyuncu&&benimOyuncu.ad)||(oturum.user_metadata&&oturum.user_metadata.ad)||(oturum.email&&oturum.email.split("@")[0])))||"Oyuncu";
   const dibeKaydir=()=>{ setTimeout(()=>{ try{ if(kaydirRef.current) kaydirRef.current.scrollTop=kaydirRef.current.scrollHeight; }catch(e){} },40); };
   const dipteMi=()=>{ const el=kaydirRef.current; if(!el) return true; return (el.scrollHeight-el.scrollTop-el.clientHeight)<80; };
 
@@ -13023,9 +13024,9 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar, kulup
           const tepk=tepkiMap[m.id]||[]; const grup={}; tepk.forEach(x=>{ grup[x.emoji]=grup[x.emoji]||{n:0,mine:false}; grup[x.emoji].n++; if(oturum&&x.user_id===oturum.id) grup[x.emoji].mine=true; });
           const oncekiAyni = i>0 && mesajlar[i-1] && !mesajlar[i-1].sistem && mesajlar[i-1].user_id===m.user_id;
           return <div key={m.id} style={{alignSelf:benim?"flex-end":"flex-start",maxWidth:"82%",marginTop:oncekiAyni?1:8,display:"flex",gap:8,flexDirection:benim?"row-reverse":"row"}}>
-            {!benim && <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0,alignSelf:"flex-end",visibility:oncekiAyni?"hidden":"visible"}} dangerouslySetInnerHTML={{__html:svgAvatar(m.ad,30,m.foto)}}/>}
+            <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0,alignSelf:"flex-end",visibility:oncekiAyni?"hidden":"visible"}} dangerouslySetInnerHTML={{__html:svgAvatar(m.ad,30,m.foto)}}/>
             <div style={{minWidth:0}}>
-              {!benim && !oncekiAyni && <div style={{fontSize:10,color:T.textMut,marginBottom:3,marginLeft:4,display:"flex",alignItems:"center",gap:5}}>
+              {!oncekiAyni && <div style={{fontSize:10,color:T.textMut,marginBottom:3,margin:benim?"0 4px 3px 0":"0 0 3px 4px",display:"flex",alignItems:"center",gap:5,justifyContent:benim?"flex-end":"flex-start",flexDirection:benim?"row-reverse":"row"}}>
                 <b style={{color:T.textSoft}}>{m.ad}</b>{m.takim_ad && <span style={{display:"inline-flex",alignItems:"center",gap:4,color:T.accent2}}><span style={{width:14,height:14,display:"inline-block"}} dangerouslySetInnerHTML={{__html:svgAmblem(m.takim_ad,T.accent2,14,m.takim_logo)}}/>{m.takim_ad}</span>}
               </div>}
               <div onClick={(e)=>{ e.stopPropagation(); setSecili(secili===m.id?null:m.id); }} className="tap" style={{background:benim?T.accent:T.bg1,color:benim?T.bg0:T.text,border:benim?0:"0.5px solid "+T.line,borderRadius:16,borderBottomRightRadius:benim?5:16,borderBottomLeftRadius:benim?16:5,padding:"9px 13px",fontSize:13.5,lineHeight:1.4,wordBreak:"break-word",cursor:"pointer"}}>
