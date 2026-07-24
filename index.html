@@ -12249,6 +12249,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
                 <span style={{fontSize:11,color:durRenk(s.durum),fontWeight:600,fontFamily:T.fontDisplay}}>{s.not}</span>
               </div>)}
             </div>}
+            {ozTest && ozTest.some(s=>s.durum==="uyari"&&/sürüm/i.test(s.ad)) && <button onClick={()=>{ try{sessionStorage.removeItem("fl_sw_reload_ts");}catch(e){} if(navigator.serviceWorker&&navigator.serviceWorker.getRegistration){ navigator.serviceWorker.getRegistration().then(function(reg){ if(reg){ if(reg.waiting)reg.waiting.postMessage("FL_SKIP_WAITING"); reg.update().catch(function(){}); } setTimeout(function(){location.reload();},700); }).catch(function(){ setTimeout(function(){location.reload();},300); }); } else setTimeout(function(){location.reload();},250); }} className="tap" style={{width:"100%",padding:"11px",borderRadius:11,background:T.gold,color:"#1A1505",fontSize:13,fontWeight:800,border:"none",marginBottom:8}}>⬆️ Yeni sürüme güncelle & yenile</button>}
             <button onClick={ozTestCalistir} disabled={ozTestYuk} className="tap" style={{width:"100%",padding:"11px",borderRadius:11,background:ozTestYuk?T.bg2:T.accent,color:ozTestYuk?T.textMut:(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0),fontSize:13,fontWeight:800,border:"none"}}>{ozTestYuk?"Kontrol ediliyor…":ozTest?"↻ Yeniden Test Et":"▶ Öz-Test Başlat"}</button>
           </div>;
         })()}
