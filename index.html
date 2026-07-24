@@ -2656,6 +2656,97 @@ const Motor = {
     }
     return [...sec(k,1,0),...sec(d,3,0),...sec(o,3,0),...sec(f,1,0)].filter(Boolean);
   },
+
+  // ============ KADRO — performans reytingi (otomatik taban + manuel ödül bonusu) ============
+  // Diziliş formata (kişi sayısı 5–11) göre otomatik. Toplam slot = kişi sayısı.
+  kadroDizilim(kisi){
+    kisi=Math.max(5,Math.min(11,parseInt(kisi)||8));
+    var t={5:[["Kaleci",1],["Defans",2],["OrtaSaha",1],["Forvet",1]],
+      6:[["Kaleci",1],["Defans",2],["OrtaSaha",2],["Forvet",1]],
+      7:[["Kaleci",1],["Defans",3],["OrtaSaha",2],["Forvet",1]],
+      8:[["Kaleci",1],["Defans",3],["OrtaSaha",3],["Forvet",1]],
+      9:[["Kaleci",1],["Defans",3],["OrtaSaha",3],["Forvet",2]],
+      10:[["Kaleci",1],["Defans",4],["OrtaSaha",3],["Forvet",2]],
+      11:[["Kaleci",1],["Defans",4],["OrtaSaha",3],["Forvet",3]]};
+    return t[kisi];
+  },
+  // Zaman pencereleri: haftalar + aylar (tarih varsa takvim ayı, yoksa 4-haftalık blok)
+  kadroPencereler(turnuva){
+    var oyn=(turnuva.maclar||[]).filter(m=>m.oynandi && m.skorA!=null);
+    var haftalar=[...new Set(oyn.map(m=>m.hafta).filter(h=>h!=null))].sort((a,b)=>a-b);
+    var AY=["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+    var tarihli=oyn.filter(m=>m.tarih&&(""+m.tarih).length>=7);
+    var aylar;
+    if(tarihli.length>=Math.max(1,oyn.length*0.5)){
+      var mp={};
+      oyn.forEach(m=>{ var d=m.tarih?(""+m.tarih).slice(0,7):null; if(d){ (mp[d]=mp[d]||[]).push(m); } });
+      aylar=Object.keys(mp).sort().map(function(k){ var pr=k.split("-"); return {key:k,label:(AY[(parseInt(pr[1])||1)-1]||"")+" "+pr[0],maclar:mp[k]}; });
+    } else {
+      var bl={};
+      oyn.forEach(m=>{ var b=Math.ceil((m.hafta||1)/4); (bl[b]=bl[b]||[]).push(m); });
+      aylar=Object.keys(bl).sort((a,b)=>a-b).map(function(b){ return {key:"b"+b,label:b+". Ay",alt:((b-1)*4+1)+"–"+(b*4)+". hafta",maclar:bl[b]}; });
+    }
+    return {haftalar:haftalar,aylar:aylar,tum:oyn};
+  },
+  // Verilen maç kümesinde her oyuncunun performans puanını + kırılımını hesapla → {oyuncuId: rec}
+  kadroPuan(turnuva, maclar){
+    var W={golF:5,golO:6,golD:8,golK:12,asist:4,temiz:6,kurtaris:1,galip:2,berabere:1,sari:-2,kirmizi:-5};
+    var B={mvp:6,altin:6,gumus:3,forvet:3,ortasaha:3,defans:3,kaleci:3,macinGolu:2,centilmen:2,enerjik:2};
+    var BAD={mvp:"MVP",altin:"Altın Oyuncu",gumus:"Gümüş Oyuncu",forvet:"En İyi Forvet",ortasaha:"En İyi Orta Saha",defans:"En İyi Defans",kaleci:"En İyi Kaleci",macinGolu:"Maçın Golü",centilmen:"Centilmen",enerjik:"Enerjik"};
+    var byId={}, byAd={}, idx={};
+    (turnuva.takimlar||[]).forEach(function(tk){ tk.oyuncular.forEach(function(o){
+      var rec={oy:o,poz:o.poz,tkId:tk.id,takimAd:tk.ad,takimRenk:tk.renk,puan:0,k:{},mac:0,gol:0,asist:0,kurtaris:0,temiz:0};
+      idx[o.id]=rec; byId[String(o.player_id||o.id)]=rec; byId[String(o.id)]=rec; if(!byAd[o.ad])byAd[o.ad]=rec;
+    }); });
+    var coz=function(id,ad){ return (id!=null&&byId[String(id)]) || (ad?byAd[ad]:null); };
+    function add(rec,et,p){ if(!rec)return; rec.puan+=p; rec.k[et]=(rec.k[et]||0)+p; }
+    (maclar||[]).forEach(function(mc){
+      if(!mc.oynandi||mc.skorA==null) return;
+      var A=turnuva.takimlar.find(t=>t.id===mc.takimAId)||turnuva.takimlar.find(t=>t.ad===mc.takimA);
+      var Bt=turnuva.takimlar.find(t=>t.id===mc.takimBId)||turnuva.takimlar.find(t=>t.ad===mc.takimB);
+      var sA=mc.skorA, sB=mc.skorB;
+      // Bireysel objektif: gol / asist / kart
+      (mc.olaylar||[]).forEach(function(ol){
+        if(ol.tip==="gol"){ var o=coz(ol.oyuncuId,ol.oyuncu); if(o){ var wp=o.poz==="Forvet"?W.golF:o.poz==="OrtaSaha"?W.golO:o.poz==="Defans"?W.golD:o.poz==="Kaleci"?W.golK:W.golF; add(o,"Gol",wp); o.gol++; }
+          if(ol.asist||ol.asistId){ var a=coz(ol.asistId,ol.asist); if(a){ add(a,"Asist",W.asist); a.asist++; } } }
+        else if(ol.tip==="sari"){ var s=coz(ol.oyuncuId,ol.oyuncu); if(s) add(s,"Sarı kart",W.sari); }
+        else if(ol.tip==="kirmizi"){ var kr=coz(ol.oyuncuId,ol.oyuncu); if(kr) add(kr,"Kırmızı kart",W.kirmizi); }
+      });
+      // Kurtarış
+      (mc.kaleciler||[]).forEach(function(kl){ var n=parseInt(kl.kurtaris)||0; if(n){ var k=coz(kl.id,kl.ad); if(k){ add(k,"Kurtarış",n*W.kurtaris); k.kurtaris+=n; } } });
+      // Manuel ödül bonusları (maç yöneticisinin seçtiği)
+      var od=mc.oduller||{}, odId=mc.odullerId||{};
+      Object.keys(B).forEach(function(kk){ var nm=(kk==="mvp")?mc.mvp:od[kk]; var nid=(kk==="mvp")?mc.mvpId:odId[kk]; if(nm||nid){ var r=coz(nid,nm); if(r) add(r,BAD[kk],B[kk]); } });
+      // Katılım (galibiyet + gol yememe) — sahada oynadığı belli olanlara
+      var part={};
+      function P(rec){ if(rec) part[rec.oy.id]=rec; }
+      if(mc.kadroA&&Array.isArray(mc.kadroA.yerlesim)) mc.kadroA.yerlesim.forEach(function(id){ if(id!=null)P(byId[String(id)]); });
+      if(mc.kadroB&&Array.isArray(mc.kadroB.yerlesim)) mc.kadroB.yerlesim.forEach(function(id){ if(id!=null)P(byId[String(id)]); });
+      (mc.olaylar||[]).forEach(function(ol){ P(coz(ol.oyuncuId,ol.oyuncu)); if(ol.asist||ol.asistId)P(coz(ol.asistId,ol.asist)); if(ol.tip==="degisik"){ P(coz(ol.girenId,ol.giren)); P(coz(ol.cikanId,ol.cikan)); } });
+      (mc.kaleciler||[]).forEach(function(kl){ P(coz(kl.id,kl.ad)); });
+      Object.keys(B).forEach(function(kk){ var nm=(kk==="mvp")?mc.mvp:od[kk]; var nid=(kk==="mvp")?mc.mvpId:odId[kk]; if(nm||nid) P(coz(nid,nm)); });
+      Object.keys(part).forEach(function(id){
+        var rec=part[id]; rec.mac++;
+        var biz,rak;
+        if(A&&rec.tkId===A.id){ biz=sA; rak=sB; } else if(Bt&&rec.tkId===Bt.id){ biz=sB; rak=sA; } else return;
+        if(biz>rak) add(rec,"Galibiyet",W.galip); else if(biz===rak) add(rec,"Beraberlik",W.berabere);
+        if(rak===0 && (rec.poz==="Kaleci"||rec.poz==="Defans")){ add(rec,"Gol yememe",W.temiz); rec.temiz++; }
+      });
+    });
+    return idx;
+  },
+  // Puan haritasından kademeye (altın=1., gümüş=2.) göre kadroyu diz
+  kadroSec(turnuva, puanMap, kademe){
+    var diz=this.kadroDizilim(turnuva.kisi);
+    var recs=Object.keys(puanMap).map(function(k){ return puanMap[k]; }).filter(function(r){ return r.mac>0 || r.puan>0; });
+    return diz.map(function(l){
+      var poz=l[0],adet=l[1];
+      var grup=recs.filter(function(r){ return r.poz===poz; }).sort(function(a,b){ return b.puan-a.puan || ((b.oy.ovr||0)-(a.oy.ovr||0)) || (b.gol-a.gol); });
+      var bas=kademe==="gumus"?adet:0;
+      return {poz:poz,adet:adet,list:grup.slice(bas,bas+adet)};
+    });
+  },
+
   // Lig geneli istatistikler
   ligIstatistik(turnuva){
     const oynanan=turnuva.maclar.filter(m=>m.oynandi);
@@ -4408,8 +4499,8 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
 
   const kupaMi = turnuva.format==="kupa";
   const sekmeler = kupaMi
-    ? [["kupa","🏆 Kupa"],["genel","Genel"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]]
-    : [["genel","Genel"],["akis","Akış"],["puan","Puan Durumu"],["takimlar","🛡️ Takımlar"],["fikstur","Fikstür"],["kurallar","📋 Kurallar"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]];
+    ? [["kupa","🏆 Kupa"],["genel","Genel"],["kadro","🏅 Kadro"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]]
+    : [["genel","Genel"],["akis","Akış"],["kadro","🏅 Kadro"],["puan","Puan Durumu"],["takimlar","🛡️ Takımlar"],["fikstur","Fikstür"],["kurallar","📋 Kurallar"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]];
   if(yonetim) sekmeler.push(["yonet","⚙️ Yönet"]);
   useEffect(()=>{ if(kupaMi) setTab("kupa"); },[]);
 
@@ -4490,25 +4581,19 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
 
     {tab==="genel" && (turnuva.takimlar.length>0 ? <LigGenel turnuva={turnuva} T={T} git={git}/> : <BosUyari T={T} metin="Henüz takım yok. Yönet sekmesinden takım ekle." />)}
 
+    {tab==="kadro" && (turnuva.takimlar.length>0 ? <KadroEkrani turnuva={turnuva} T={T} git={git}/> : <BosUyari T={T} metin="Henüz takım yok. Yönet sekmesinden takım ekle." />)}
+
     {/* ===== AKIŞ ===== */}
     {tab==="akis" && <div className="fade-in" style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:9}}>
-      {/* Altın/Gümüş 11 */}
-      <div style={{background:"linear-gradient(135deg,"+T.accent+"20,"+T.bg1+")",borderRadius:12,padding:13,border:"0.5px solid "+T.accent+"44"}}>
-        <div style={{display:"flex",gap:6,marginBottom:10}}>
-          <button onClick={()=>setOnbirTip("altin")} className="tap" style={{flex:1,padding:"6px",borderRadius:8,fontSize:11,fontWeight:700,background:onbirTip==="altin"?T.gold:T.bg2,color:onbirTip==="altin"?"#1A1505":T.textMut,border:0}}>🥇 Altın 11</button>
-          <button onClick={()=>setOnbirTip("gumus")} className="tap" style={{flex:1,padding:"6px",borderRadius:8,fontSize:11,fontWeight:700,background:onbirTip==="gumus"?"#C0C0C0":T.bg2,color:onbirTip==="gumus"?"#1A1505":T.textMut,border:0}}>🥈 Gümüş 11</button>
+      {/* Haftanın Kadrosu — teaser (tam ekran Kadro sekmesinde) */}
+      <div onClick={()=>setTab("kadro")} className="tap" style={{cursor:"pointer",background:"linear-gradient(135deg,"+T.gold+"22,"+T.bg1+")",borderRadius:12,padding:13,border:"0.5px solid "+T.gold+"55",display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:40,height:40,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,background:"radial-gradient(circle at 35% 30%,#F0CB6E,"+T.gold+" 60%,#6f531b)",boxShadow:"0 0 0 3px "+T.gold+"33"}}>🥇</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:9,fontWeight:800,letterSpacing:1.2,color:T.gold,textTransform:"uppercase"}}>{sonHafta?sonHafta+". HAFTA":"HAFTANIN"}</div>
+          <div style={{fontSize:15,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>Altın & Gümüş Kadro</div>
+          <div style={{fontSize:10.5,color:T.textMut,marginTop:1}}>Performans reytingine göre haftanın 11'i · dokun →</div>
         </div>
-        <div style={{fontSize:9,color:T.textSoft,fontWeight:700,marginBottom:8}}>{sonHafta||"-"}. HAFTANIN {onbirTip==="altin"?"ALTIN":"GÜMÜŞ"} 11'İ</div>
-        {onbir.length===0 ? <div style={{fontSize:11,color:T.textMut}}>Yeterli oyuncu yok</div> :
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
-            {onbir.map(o=>
-              <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:{...o,turnuva:turnuva.ad}})} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.bg0,borderRadius:7,padding:"5px 7px"}}>
-                <span style={{width:18,height:18,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,18,o.foto)}}/>
-                <span style={{fontSize:10,color:T.text,flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad.split(" ")[0]}</span>
-                <span style={{fontSize:8,color:T.accent,fontWeight:700}}>{pozKisa(o.poz)}</span>
-              </div>
-            )}
-          </div>}
+        <span style={{fontSize:20,color:T.gold,flexShrink:0}}>›</span>
       </div>
       {akisOlaylar.map((e,i)=>
         <div key={i} onClick={()=>e.mac&&git({sayfa:"gazete",mac:e.mac,turnuva})} className={e.mac?"tap":""} style={{background:T.bg1,borderRadius:11,padding:11,border:"0.5px solid "+T.line,borderLeft:"3px solid "+e.renk,cursor:e.mac?"pointer":"default"}}>
@@ -4622,9 +4707,156 @@ function KralListe({liste, alan, birim, T, git, turnuva}){
 }
 
 /* LİG İSTATİSTİK */
+// ============ KADRO EKRANI — Haftanın/Ayın/Sezonun Altın & Gümüş Kadrosu ============
+function KadroEkrani({turnuva, T, git}){
+  const pen=React.useMemo(()=>Motor.kadroPencereler(turnuva),[turnuva.id, turnuva.maclar.length]);
+  const [pencere,setPencere]=React.useState("hafta");
+  const [kademe,setKademe]=React.useState("altin");
+  const [hi,setHi]=React.useState(Math.max(0,pen.haftalar.length-1));
+  const [ai,setAi]=React.useState(Math.max(0,pen.aylar.length-1));
+  const [sec,setSec]=React.useState(null);
+  const [ipucu,setIpucu]=React.useState("");
+  React.useEffect(()=>{ setHi(Math.max(0,pen.haftalar.length-1)); setAi(Math.max(0,pen.aylar.length-1)); },[pen.haftalar.length, pen.aylar.length]);
+
+  const maclar = pencere==="sezon" ? pen.tum
+    : pencere==="hafta" ? pen.tum.filter(m=>m.hafta===pen.haftalar[hi])
+    : (pen.aylar[ai]?pen.aylar[ai].maclar:[]);
+  const puanMap=React.useMemo(()=>Motor.kadroPuan(turnuva, maclar),[turnuva.id, pencere, hi, ai, maclar.length]);
+  const slots=React.useMemo(()=>Motor.kadroSec(turnuva, puanMap, kademe),[puanMap, kademe, turnuva.kisi]);
+  const hepsi=[]; slots.forEach(s=>s.list.forEach(r=>hepsi.push(r)));
+  const kaptan=hepsi.slice().sort((a,b)=>b.puan-a.puan)[0]||null;
+  const seciliRec = hepsi.find(r=>r.oy.id===sec) || kaptan;
+
+  // tema
+  const altin=kademe==="altin";
+  const AC=altin?T.gold:"#C6D0DB", AC2=altin?"#F0CB6E":"#EAF0F6", INK="#1A1505";
+  const pk={Kaleci:"KL",Defans:"DEF",OrtaSaha:"OS",Forvet:"FW"};
+  const wWord = pencere==="hafta"?"HAFTANIN":pencere==="ay"?"AYIN":"SEZONUN";
+  const eyebrow = pencere==="hafta" ? (pen.haftalar[hi]?pen.haftalar[hi]+". HAFTA":"HAFTA")
+    : pencere==="ay" ? (pen.aylar[ai]?pen.aylar[ai].label.toUpperCase():"AY")
+    : "TÜM SEZON";
+  const dizAd={5:"1-2-1-1",6:"1-2-2-1",7:"1-3-2-1",8:"1-3-3-1",9:"1-3-3-2",10:"1-4-3-2",11:"1-4-3-3"}[Math.max(5,Math.min(11,turnuva.kisi||8))];
+
+  const stat=(rec)=>{ if(rec.poz==="Kaleci") return rec.kurtaris+" krt"+(rec.temiz?" · "+rec.temiz+" temiz":""); const p=[]; if(rec.gol)p.push(rec.gol+"G"); if(rec.asist)p.push(rec.asist+"A"); if(rec.temiz)p.push(rec.temiz+"T"); return p.join(" ")||("+"+rec.puan); };
+  const neden=(rec)=>{ const ks=Object.keys(rec.k).filter(e=>rec.k[e]>0).sort((a,b)=>rec.k[b]-rec.k[a]); const t=ks[0]||""; const W=pencere==="hafta"?"hafta":pencere==="ay"?"ay":"sezon"; const m={"Gol":"Bu "+W+" attığı gollerle hücumun en keskin ucu oldu.","Asist":"Bu "+W+" yaptığı asistlerle oyunu adeta o kurdu.","Gol yememe":"Arkada duvar gibiydi; kalesini defalarca temiz tuttu.","Kurtarış":"Kritik kurtarışlarıyla takımını ayakta tuttu.","MVP":"Çıktığı maçlara damga vurup MVP seçildi.","Altın Oyuncu":"Maç yöneticisi tarafından sahanın en iyisi seçildi.","Galibiyet":"Takımının galibiyet serisinin motoru oldu."}; return m[t]||"İstikrarlı performansıyla kadroya adını yazdırdı."; };
+  const paylas=()=>{ const metin=wWord+" "+(altin?"ALTIN":"GÜMÜŞ")+" KADROSU · "+turnuva.ad+" · "+eyebrow; if(navigator.share){ navigator.share({title:"ForzaLig Kadro",text:metin}).catch(()=>{}); } else { try{ navigator.clipboard.writeText(metin); }catch(e){} } setIpucu("Ekran görüntüsü alıp paylaşabilirsin 📸"); setTimeout(()=>setIpucu(""),2600); };
+
+  const seg=(aktifMi,renkli)=>({flex:1,padding:"7px 4px",borderRadius:9,fontSize:11.5,fontWeight:800,border:0,cursor:"pointer",whiteSpace:"nowrap",
+    background:aktifMi?(renkli?AC:T.bg2):"transparent",color:aktifMi?(renkli?INK:T.text):T.textMut,boxShadow:aktifMi&&!renkli?("inset 0 0 0 1px "+T.line):"none"});
+  const nav=(dir,tur)=>{ if(tur==="hafta"){ setHi(v=>Math.max(0,Math.min(pen.haftalar.length-1,v+dir))); } else { setAi(v=>Math.max(0,Math.min(pen.aylar.length-1,v+dir))); } setSec(null); };
+
+  // token
+  const Token=(rec)=>{ const isCap=kaptan&&rec.oy.id===kaptan.oy.id, seciliMi=seciliRec&&rec.oy.id===seciliRec.oy.id;
+    return <button key={rec.oy.id} onClick={()=>setSec(rec.oy.id)} className="tap" style={{background:"transparent",border:0,padding:0,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1,width:"clamp(52px,20vw,72px)"}}>
+      <div style={{position:"relative"}}>
+        {isCap && <div style={{position:"absolute",top:-15,left:"50%",transform:"translateX(-50%)",zIndex:5,whiteSpace:"nowrap",fontSize:7.5,fontWeight:800,letterSpacing:.4,color:INK,background:"linear-gradient(90deg,"+AC+","+AC2+")",padding:"2px 5px",borderRadius:4}}>{wWord} OYUNCUSU</div>}
+        <div style={{position:"absolute",top:-6,left:"50%",transform:"translateX(-50%)",zIndex:4,fontSize:11.5,fontWeight:800,color:INK,background:"linear-gradient(180deg,"+AC2+","+AC+")",borderRadius:6,padding:"1px 5px",fontFamily:T.fontDisplay}}>{rec.puan}</div>
+        <div style={{width:46,height:46,borderRadius:"50%",overflow:"hidden",margin:"7px auto 0",boxShadow:seciliMi?("0 0 0 2.5px "+T.text+",0 0 0 4.5px "+AC):("0 0 0 2.5px "+AC)}} dangerouslySetInnerHTML={{__html:svgAvatar(rec.oy.ad,46,rec.oy.foto)}}/>
+        {isCap && <div style={{position:"absolute",bottom:-2,right:2,width:16,height:16,borderRadius:"50%",background:AC,color:INK,fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",zIndex:5}}>C</div>}
+      </div>
+      <div style={{fontSize:10.5,fontWeight:700,color:T.text,marginTop:2,maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{rec.oy.ad.split(" ")[0]}</div>
+      <div style={{fontSize:8.5,fontWeight:600,color:T.textMut,display:"flex",gap:3,alignItems:"center"}}><b style={{color:AC,fontWeight:800}}>{pk[rec.poz]}</b> {stat(rec)}</div>
+    </button>;
+  };
+
+  const bosVeri = hepsi.length===0;
+
+  return <div className="fade-in" style={{padding:"12px 12px 30px",maxWidth:560,margin:"0 auto"}}>
+    {/* board */}
+    <div style={{borderRadius:18,overflow:"hidden",background:"linear-gradient(180deg,"+T.bg1+","+T.bg0+")",border:"1px solid "+AC+"55",boxShadow:"0 20px 50px -24px "+AC+"66, inset 0 30px 60px -50px "+AC+"88"}}>
+      {/* crest */}
+      <div style={{display:"flex",alignItems:"center",gap:11,padding:"15px 15px 8px"}}>
+        <div style={{width:42,height:42,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,background:"radial-gradient(circle at 35% 30%,"+AC2+","+AC+" 60%,"+(altin?"#6f531b":"#54626c")+")",boxShadow:"0 0 0 3px "+AC+"40"}}>{altin?"🥇":"🥈"}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:9.5,fontWeight:800,letterSpacing:1.6,color:AC,textTransform:"uppercase"}}>{wWord} · {eyebrow}</div>
+          <div style={{fontSize:21,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,letterSpacing:.3,lineHeight:1.05}}>{altin?"ALTIN":"GÜMÜŞ"} KADRO</div>
+        </div>
+        <div style={{textAlign:"right",flexShrink:0}}>
+          <div style={{fontSize:14,fontWeight:800,color:AC,fontFamily:T.fontDisplay}}>EN İYİ {turnuva.kisi||8}</div>
+          <div style={{fontSize:9,fontWeight:600,color:T.textMut,letterSpacing:.5}}>{dizAd}</div>
+        </div>
+      </div>
+      {/* meta */}
+      <div style={{display:"flex",flexWrap:"wrap",gap:"4px 12px",padding:"0 15px 12px",borderBottom:"1px solid "+T.line,fontSize:11,color:T.textMut,fontWeight:600}}>
+        <span>🏆 {turnuva.ad}</span><span>⚔️ <b style={{color:T.text}}>{maclar.length}</b> maç</span><span>👥 {turnuva.takimlar.reduce((s,t)=>s+t.oyuncular.length,0)} oyuncu</span>
+      </div>
+      {/* kontroller */}
+      <div style={{display:"flex",flexDirection:"column",gap:8,padding:"12px 15px"}}>
+        <div style={{display:"flex",gap:6}}>
+          {[["hafta","Hafta"],["ay","Ay"],["sezon","Sezon"]].map(([k,l])=>
+            <button key={k} onClick={()=>{setPencere(k);setSec(null);}} className="tap" style={seg(pencere===k,false)}>{l}</button>)}
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>{setKademe("altin");setSec(null);}} className="tap" style={seg(altin,true)}>🥇 Altın Kadro</button>
+          <button onClick={()=>{setKademe("gumus");setSec(null);}} className="tap" style={seg(!altin,true)}>🥈 Gümüş Kadro</button>
+        </div>
+        {pencere!=="sezon" && (pencere==="hafta"?pen.haftalar.length:pen.aylar.length)>1 &&
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,marginTop:2}}>
+            <button onClick={()=>nav(-1,pencere)} className="tap" style={{background:T.bg2,border:"1px solid "+T.line,color:T.text,width:34,height:30,borderRadius:8,fontSize:16,fontWeight:800,cursor:"pointer"}}>‹</button>
+            <span style={{fontSize:12,fontWeight:700,color:T.text,minWidth:120,textAlign:"center"}}>{pencere==="hafta"?(pen.haftalar[hi]+". Hafta"):(pen.aylar[ai]?pen.aylar[ai].label:"")}</span>
+            <button onClick={()=>nav(1,pencere)} className="tap" style={{background:T.bg2,border:"1px solid "+T.line,color:T.text,width:34,height:30,borderRadius:8,fontSize:16,fontWeight:800,cursor:"pointer"}}>›</button>
+          </div>}
+      </div>
+      {/* saha */}
+      {bosVeri
+        ? <div style={{padding:"40px 20px",textAlign:"center",color:T.textMut,fontSize:12.5}}>Bu {pencere==="hafta"?"hafta":pencere==="ay"?"ay":"sezon"} için yeterli maç/veri yok.<br/>Maçlar oynanıp skor + ödüller girildikçe kadro burada oluşur.</div>
+        : <div style={{margin:"0 12px 12px",borderRadius:14,overflow:"hidden",position:"relative",aspectRatio:"74/96",
+            background:"repeating-linear-gradient(0deg,#0f3d25 0 9%,#0b2f1d 9% 18%)",boxShadow:"inset 0 0 0 2px rgba(233,240,235,.14),inset 0 -50px 100px rgba(0,0,0,.45)"}}>
+            <div style={{position:"absolute",inset:0,background:"radial-gradient(70% 40% at 50% 6%,"+AC+"22,transparent 60%)"}}/>
+            <div style={{position:"absolute",left:"29%",top:0,width:"42%",height:"11%",border:"2px solid rgba(233,240,235,.14)",borderTop:0}}/>
+            <div style={{position:"absolute",left:"29%",bottom:0,width:"42%",height:"11%",border:"2px solid rgba(233,240,235,.14)",borderBottom:0}}/>
+            <div style={{position:"absolute",left:"34%",top:"42%",width:"32%",aspectRatio:"1",borderRadius:"50%",border:"2px solid rgba(233,240,235,.12)"}}/>
+            <div style={{position:"absolute",left:"6%",right:"6%",top:"50%",borderTop:"2px solid rgba(233,240,235,.12)"}}/>
+            <div style={{position:"relative",zIndex:2,height:"100%",display:"flex",flexDirection:"column",justifyContent:"space-between",padding:"5% 3% 4%"}}>
+              {slots.slice().reverse().map((s,i)=>
+                <div key={i} style={{display:"flex",justifyContent:"center",gap:"3%"}}>{s.list.map(Token)}</div>)}
+            </div>
+          </div>}
+      {/* detay */}
+      {!bosVeri && seciliRec && (()=>{ const r=seciliRec, mx=Math.max(1,...Object.values(r.k).map(v=>Math.abs(v)));
+        const oy=r.oy, sezonOdul=[]; if(oy.mvp)sezonOdul.push("⭐ "+oy.mvp+" MVP"); if(oy.altin)sezonOdul.push("🥇 "+oy.altin+" Altın"); if(oy.gumus)sezonOdul.push("🥈 "+oy.gumus+" Gümüş");
+        return <div style={{margin:"0 12px 14px",background:T.bg2,border:"1px solid "+T.line,borderRadius:14,padding:14}}>
+          <div style={{display:"flex",gap:11,alignItems:"center"}}>
+            <div style={{width:50,height:50,borderRadius:"50%",overflow:"hidden",flexShrink:0,boxShadow:"0 0 0 2.5px "+AC}} dangerouslySetInnerHTML={{__html:svgAvatar(oy.ad,50,oy.foto)}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div onClick={()=>git({sayfa:"oyuncu",oyuncu:{...oy,turnuva:turnuva.ad}})} className="tap" style={{fontSize:16,fontWeight:800,color:T.text,cursor:"pointer",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{oy.ad}</div>
+              <div style={{fontSize:11.5,fontWeight:600,color:T.textMut,marginTop:1}}><b style={{color:AC,fontWeight:800}}>{pk[r.poz]}</b> · {r.takimAd} · {r.mac} maç</div>
+            </div>
+            <div style={{textAlign:"center",flexShrink:0}}><div style={{fontSize:25,fontWeight:800,color:AC,fontFamily:T.fontDisplay,lineHeight:1}}>{r.puan}</div><div style={{fontSize:7.5,fontWeight:700,letterSpacing:.6,color:T.textMut,textTransform:"uppercase"}}>{pencere==="hafta"?"HAFTA":pencere==="ay"?"AY":"SEZON"} PUANI</div></div>
+          </div>
+          <div style={{fontStyle:"italic",fontSize:13,color:T.textSoft,borderLeft:"2px solid "+AC,padding:"2px 0 2px 11px",margin:"11px 0"}}>“{neden(r)}”</div>
+          <div style={{fontSize:9,fontWeight:800,letterSpacing:1,color:T.textMut,textTransform:"uppercase",marginBottom:6}}>Seçilme nedeni · puan kırılımı</div>
+          {Object.keys(r.k).sort((a,b)=>r.k[b]-r.k[a]).map(et=>{ const v=r.k[et], neg=v<0;
+            return <div key={et} style={{display:"grid",gridTemplateColumns:"104px 1fr 30px",alignItems:"center",gap:8,marginBottom:6}}>
+              <span style={{fontSize:10.5,color:T.textMut,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{et}</span>
+              <span style={{height:7,borderRadius:4,background:T.bg0,overflow:"hidden"}}><span style={{display:"block",height:"100%",width:Math.max(6,Math.round(Math.abs(v)/mx*100))+"%",borderRadius:4,background:neg?"linear-gradient(90deg,#5a2b25,"+T.danger+")":"linear-gradient(90deg,"+AC+"88,"+AC+")"}}/></span>
+              <span style={{fontSize:11,fontWeight:800,textAlign:"right",color:neg?T.danger:T.text,fontFamily:T.fontDisplay}}>{v>0?"+":""}{v}</span>
+            </div>; })}
+          {sezonOdul.length>0 && <div style={{display:"flex",alignItems:"center",gap:8,background:AC+"14",border:"1px solid "+AC+"44",borderRadius:10,padding:"8px 10px",marginTop:10}}>
+            <span style={{fontSize:15}}>🏅</span><span style={{fontSize:11.5,fontWeight:700,color:T.text}}>Sezon boyunca: {sezonOdul.join(" · ")}</span></div>}
+          {/* tüm kadro */}
+          <div style={{borderTop:"1px solid "+T.line,marginTop:12,paddingTop:10}}>
+            <div style={{fontSize:9,fontWeight:800,letterSpacing:1,color:T.textMut,textTransform:"uppercase",marginBottom:5}}>Tüm kadro · dokunarak incele</div>
+            {hepsi.map(x=><div key={x.oy.id} onClick={()=>setSec(x.oy.id)} className="tap" style={{display:"flex",alignItems:"center",gap:9,padding:"6px 7px",borderRadius:9,cursor:"pointer",background:x.oy.id===seciliRec.oy.id?AC+"18":"transparent"}}>
+              <span style={{width:28,fontSize:9.5,fontWeight:800,color:AC,textAlign:"center",flexShrink:0}}>{pk[x.poz]}</span>
+              <span style={{flex:1,fontSize:12,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{x.oy.ad} <span style={{color:T.textMut,fontWeight:500,fontSize:10.5}}>· {x.takimAd}</span></span>
+              <span style={{fontSize:12.5,fontWeight:800,color:AC,fontFamily:T.fontDisplay}}>{x.puan}</span>
+            </div>)}
+          </div>
+        </div>; })()}
+      {/* paylaş */}
+      {!bosVeri && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"12px 15px",borderTop:"1px solid "+T.line}}>
+        <button onClick={paylas} className="tap" style={{background:"linear-gradient(180deg,"+AC2+","+AC+")",color:INK,border:0,borderRadius:10,padding:"10px 15px",fontSize:12.5,fontWeight:800,cursor:"pointer"}}>📸 Görsel Olarak Paylaş</button>
+        <span style={{fontSize:10,fontWeight:700,color:T.textMut}}>{ipucu||"forzalig.com"}</span>
+      </div>}
+    </div>
+    <div style={{fontSize:10.5,color:T.textMut,textAlign:"center",marginTop:12,lineHeight:1.6,padding:"0 10px"}}>
+      Kadro; <b style={{color:T.textSoft}}>otomatik istatistik</b> (gol, asist, gol yememe, kurtarış, sonuç, kart) + <b style={{color:T.textSoft}}>maç yöneticisinin ödülleri</b> (MVP, Altın/Gümüş Oyuncu, en iyi mevki vb.) birleşerek hesaplanan performans puanına göre otomatik oluşur.
+    </div>
+  </div>;
+}
+
 function LigIstatistik({turnuva, ist, T, git, onbirAltin, pozKisa}){
-  const [sezonTip,setSezonTip]=useState("altin");
-  const sezonOnbir=Motor.ideal11(turnuva, sezonTip);
   const haftaArr=Object.entries(ist.haftaGol).sort((a,b)=>a[0]-b[0]);
   const maxGol=Math.max(1,...haftaArr.map(h=>h[1]));
   return <div className="fade-in" style={{padding:"12px 14px"}}>
@@ -4648,23 +4880,7 @@ function LigIstatistik({turnuva, ist, T, git, onbirAltin, pozKisa}){
         )}
       </div>
     </div>}
-    {/* sezonun altın/gümüş 11 */}
-    {sezonOnbir.length>0 && <div style={{background:"linear-gradient(135deg,"+(sezonTip==="altin"?T.gold:"#C0C0C0")+"18,"+T.bg1+")",borderRadius:11,padding:12,border:"0.5px solid "+(sezonTip==="altin"?T.gold:"#C0C0C0")+"44",marginBottom:12}}>
-      <div style={{display:"flex",gap:6,marginBottom:10}}>
-        <button onClick={()=>setSezonTip("altin")} className="tap" style={{flex:1,padding:"6px",borderRadius:8,fontSize:11,fontWeight:700,background:sezonTip==="altin"?T.gold:T.bg2,color:sezonTip==="altin"?"#1A1505":T.textMut,border:0}}>🥇 Altın 11</button>
-        <button onClick={()=>setSezonTip("gumus")} className="tap" style={{flex:1,padding:"6px",borderRadius:8,fontSize:11,fontWeight:700,background:sezonTip==="gumus"?"#C0C0C0":T.bg2,color:sezonTip==="gumus"?"#1A1505":T.textMut,border:0}}>🥈 Gümüş 11</button>
-      </div>
-      <div style={{fontSize:10,color:sezonTip==="altin"?T.gold:"#C0C0C0",fontWeight:800,marginBottom:8}}>🏆 SEZONUN {sezonTip==="altin"?"ALTIN":"GÜMÜŞ"} 11'İ</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
-        {sezonOnbir.map(o=>
-          <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:{...o,turnuva:turnuva.ad}})} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.bg0,borderRadius:7,padding:"5px 7px"}}>
-            <span style={{width:18,height:18,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,18,o.foto)}}/>
-            <span style={{fontSize:10,color:T.text,flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad.split(" ")[0]}</span>
-            <span style={{fontSize:8,color:sezonTip==="altin"?T.gold:"#C0C0C0",fontWeight:700}}>{pozKisa(o.poz)}</span>
-          </div>
-        )}
-      </div>
-    </div>}
+    {/* Sezon kadrosu artık 🏅 Kadro sekmesinde (performans reytingi) */}
     {/* ev/deplasman + seri */}
     <div style={{background:T.bg1,borderRadius:11,padding:12,border:"0.5px solid "+T.line,marginBottom:12}}>
       <div style={{fontSize:10,color:T.textMut,marginBottom:8}}>TAKIM KARŞILAŞTIRMA — HÜCUM / SAVUNMA</div>
