@@ -12825,7 +12825,7 @@ function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
 
 // ==================== SOHBET v2 (Apple tarzı: tepki/yanıt/sistem/okunmamış) ====================
 const FL_EMOJILER=["👍","❤️","😂","⚽","🔥"];
-function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar, kulup}){
+function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar, kulup, saltOkunur}){
   const kulupMod=!!(kulup && !turnuva); // takım (kulüp) sohbeti — lige bağlı değil
   const ligYon=!!(oturum&&turnuva&&(((turnuva.yonetici_id!=null)&&turnuva.yonetici_id===oturum.id)||adminMi));
   const benimTakimlar=(turnuva&&oturum)?(turnuva.takimlar||[]).filter(tk=> ligYon || tk.yonetici_id===oturum.id || (tk.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id) ):[];
@@ -13069,6 +13069,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar, kulup
     </div>}
     {/* MESAJ KUTUSU */}
     {!oturum ? <div style={{flexShrink:0,padding:"14px 14px calc(14px + env(safe-area-inset-bottom))",textAlign:"center",fontSize:12,color:T.textMut,borderTop:"0.5px solid "+T.line,background:T.bg0}}>Yazmak için giriş yap.</div>
+     : saltOkunur ? <div style={{flexShrink:0,padding:"14px 14px calc(14px + env(safe-area-inset-bottom))",textAlign:"center",fontSize:12,color:T.gold,fontWeight:700,borderTop:"0.5px solid "+T.line,background:T.bg0}}>👁 Salt-okunur görünüm — bu modda mesaj gönderilemez. Test için kendi hesabınla sohbete gir.</div>
      : <div style={{flexShrink:0,display:"flex",gap:8,padding:"10px 12px max(10px, calc(env(safe-area-inset-bottom) - var(--kb, 0px)))",borderTop:yonetimMod?"none":"0.5px solid "+T.line,background:T.bg0}}>
         <input value={metin} onChange={e=>setMetin(e.target.value)} onFocus={()=>{ dipteRef.current=dipteMi(); setTimeout(dibeKaydir,300); }} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder={yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…"} style={{flex:1,minWidth:0,width:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,outline:"none",fontFamily:"inherit",boxSizing:"border-box",fontSize:16}}/>
         <button onClick={gonder} disabled={gonderiliyor||!metin.trim()} className="tap" style={{background:yonetimMod?T.gold:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim())?.5:1}}>➤</button>
@@ -14512,7 +14513,7 @@ function App(){
       case "istatistik": icerik=<MacIstatistik mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} onKaydet={ligYetkim(nav.turnuva)?(mac,ist)=>{ mac.istatistik=ist; }:kilitliKaydet}/>; break;
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
       case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
-      case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} kulup={nav.kulup} adminMi={etkinAdminMi} turnuvalar={turnuvalar}/>; break;
+      case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} kulup={nav.kulup} adminMi={etkinAdminMi} turnuvalar={turnuvalar} saltOkunur={saltOkunur}/>; break;
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
       case "profil": icerik = <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil} destekBilgi={destek?{uid:destek.uid, ad:destek.ad, profil:destekProfil, adminMi:destekAdminMi}:null}/>; break;
       case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
@@ -14734,8 +14735,8 @@ function App(){
       </div>
     </div>}
 
-    {/* mobil alt menü */}
-    {!saltOkunur && !(nav.sayfa==="sohbet"&&nav.turnuva) && !["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa) && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
+    {/* mobil alt menü — giriş yapmış kullanıcıda salt-okunur (demo evren/destek) modda da görünür ki mahsur kalmasın */}
+    {(oturum || !saltOkunur) && !(nav.sayfa==="sohbet"&&nav.turnuva) && !["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa) && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
       {menuItems.map(([k,ik,l])=>
         <button key={k} onClick={()=>menuGit(k)} style={{flex:1,textAlign:"center",position:"relative"}}>
           <div className="nav-ic" style={{fontSize:19,display:"inline-block",padding:"3px 16px",borderRadius:14,filter:aktifTab===k?"none":"grayscale(1) opacity(.5)",background:aktifTab===k?T.accent+"22":"transparent"}}>{ik}</div>
