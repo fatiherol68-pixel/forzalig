@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with: { node-version: '22' }
       - name: Bağımlılıklar
         working-directory: vite-app
         run: npm install --no-audit --no-fund --legacy-peer-deps vite@5.4.10 react@18.3.1 react-dom@18.3.1 @supabase/supabase-js@2 playwright@1.48.0
@@ -63,7 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4                    # kaynak dal (babel bloklu index.html)
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with: { node-version: '22' }
       - name: Vite production build
         working-directory: vite-app
         run: |
