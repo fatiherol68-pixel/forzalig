@@ -1,9 +1,11 @@
-/* Faz 5 — Vite/ESM entry ÜRETİCİ (paralel; mevcut sisteme DOKUNMAZ).
- * Kaynak gerçeği hâlâ ../index.html + ../src/. Bu betik ondan türetir:
- *   src/main.jsx      → minik giriş: splash + dinamik import (lazy)
- *   src/app-body.jsx  → React ESM + rarity + tüm uygulama kodu (ayrı chunk)
- *   src/styles.css    → core.css + flkart.css
- * Kullanım: node uret.mjs   (sonra: npm i && npm run build)
+/* Faz 5 — Vite/ESM entry ÜRETİCİ (production-faithful).
+ * Kaynak gerçeği ../index.html. Bu betik ondan türetir:
+ *   index.html        → GERÇEK kabuk (head/SEO/PWA/SW-kayıt/stiller/flkart-js) korunur;
+ *                       global React + babel script'leri kaldırılır (React bundle'dan gelir),
+ *                       babel bloğu yerine module entry konur.
+ *   src/main.jsx       → app-body'yi dinamik import eder (lazy chunk).
+ *   src/app-body.jsx   → React ESM + window.React + tüm uygulama kodu (babel bloğu, createRoot dahil).
+ * Kullanım: node uret.mjs
  */
 import fs from 'fs';
 import path from 'path';
@@ -11,39 +13,38 @@ import { fileURLToPath } from 'url';
 
 const VITE = path.dirname(fileURLToPath(import.meta.url));
 const KOK = path.join(VITE, '..');
-const h = fs.readFileSync(path.join(KOK, 'index.html'), 'utf8');
+const src = fs.readFileSync(path.join(KOK, 'index.html'), 'utf8');
 
+// 1) babel bloğunu çıkar
 const startTag = '<script type="text/babel">';
-const i = h.indexOf(startTag);
+const i = src.indexOf(startTag);
 const codeStart = i + startTag.length;
-const j = h.indexOf('</script>', codeStart);
-const appKod = h.slice(codeStart, j);
+const j = src.indexOf('</script>', codeStart);
+const appKod = src.slice(codeStart, j);
 
-const core = fs.readFileSync(path.join(KOK, 'src/styles/core.css'), 'utf8');
-const flk  = fs.readFileSync(path.join(KOK, 'src/styles/flkart.css'), 'utf8');
-const rarity = fs.readFileSync(path.join(KOK, 'src/lib/rarity.js'), 'utf8');
+// 2) production-faithful kabuk: global React + babel kaldır, babel bloğunu module entry ile değiştir
+let shell = src.slice(0, i) + '<script type="module" src="/src/main.jsx"></script>' + src.slice(j + '</script>'.length);
+shell = shell
+  .replace('<script defer src="/react.production.min.js"></script>\n', '')
+  .replace('<script defer src="/react-dom.production.min.js"></script>\n', '')
+  .replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>\n', '');
+fs.writeFileSync(path.join(VITE, 'index.html'), shell);
 
+// 3) entry: minik (kabukta zaten #fz-onsplash splash var) → sadece lazy import
 fs.mkdirSync(path.join(VITE, 'src'), { recursive: true });
-fs.writeFileSync(path.join(VITE, 'src/styles.css'), core + '\n' + flk);
-
 fs.writeFileSync(path.join(VITE, 'src/main.jsx'),
-`import './styles.css';
-const _el = document.getElementById('root');
-if (_el) _el.innerHTML = '<div style="position:fixed;inset:0;display:grid;place-items:center;background:#070B12;color:#00E5FF;font-family:system-ui;font-weight:800">ForzaLig yükleniyor…</div>';
-import('./app-body.jsx');   // dinamik import → ayrı async chunk (lazy)
-`);
+`import('./app-body.jsx');   // dinamik import → ayrı async chunk (lazy)\n`);
 
+// 4) app gövdesi: React ESM (bundle) + global uyum + uygulama kodu (rarity/stiller kabukta)
 fs.writeFileSync(path.join(VITE, 'src/app-body.jsx'),
 `import React from 'react';
 import * as ReactDOMClient from 'react-dom/client';
-const ReactDOM = ReactDOMClient;
+const ReactDOM = ReactDOMClient;                       // kod ReactDOM.createRoot kullanıyor
 if (typeof window !== 'undefined') { window.React = React; window.ReactDOM = ReactDOM; }
-
-// ---- flkart-js (rarity) global yardımcıları ----
-${rarity}
 
 // ==================== ForzaLig uygulama kodu (index.html babel bloğu) ====================
 ${appKod}
 `);
 
-console.log('vite-app/src üretildi · appKod:', appKod.length, '· css:', (core + flk).length);
+console.log('vite-app faithful üretildi · appKod:', appKod.length, '· shell:', shell.length,
+  '· react/babel script kaldırıldı:', !shell.includes('react.production.min.js') && !shell.includes('babel-standalone'));

@@ -1,0 +1,89 @@
+name: ForzaLig Vite CI (gerçek backend testi + gated deploy)
+
+# Amaç: Vite/ESM ForzaLig'i networklü runner'da GERÇEK Supabase'e karşı test et.
+#  - backend-test: her push'ta otomatik (build + gerçek public-read + dist boot;
+#    FL_TEST_EMAIL/FL_TEST_PASSWORD secret'ı varsa gerçek login + RLS yaz/oku/sil).
+#  - deploy: SADECE elle (workflow_dispatch, deploy=true) VE testler yeşil VE auth
+#    testi gerçekten çalıştıysa → dist'i main'e (forzalig.com) bindirir.
+#    Rollback: backup/pre-vite-main dalı (canlının önceki hâli).
+
+on:
+  push:
+    branches: [claude/forzalig-modularization]
+    paths: ['vite-app/**', 'index.html', 'src/**', '.github/workflows/vite-ci.yml']
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Testler yeşilse production (main / forzalig.com) deploy et'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    outputs:
+      auth_tested: ${{ steps.res.outputs.auth_tested }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Bağımlılıklar
+        working-directory: vite-app
+        run: npm install --no-audit --no-fund --legacy-peer-deps vite@5.4.10 react@18.3.1 react-dom@18.3.1 @supabase/supabase-js@2 playwright@1.48.0
+      - name: ESM entry üret
+        working-directory: vite-app
+        run: node uret.mjs
+      - name: Vite build
+        working-directory: vite-app
+        run: npx vite build
+      - name: Playwright chromium
+        working-directory: vite-app
+        run: npx playwright install --with-deps chromium
+      - name: Backend testi (GERÇEK Supabase — public read + auth/RLS-write)
+        working-directory: vite-app
+        env:
+          FL_TEST_EMAIL: ${{ secrets.FL_TEST_EMAIL }}
+          FL_TEST_PASSWORD: ${{ secrets.FL_TEST_PASSWORD }}
+        run: node ci/backend-test.mjs
+      - name: Dist boot testi (GERÇEK backend)
+        working-directory: vite-app
+        run: node ci/dist-boot.mjs
+      - id: res
+        working-directory: vite-app
+        run: echo "auth_tested=$(node -e "process.stdout.write(String(require('./ci/backend-result.json').authTested))")" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: backend-test
+    # SADECE elle tetikleme + deploy=true + auth gerçekten test edildiyse
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy && needs.backend-test.outputs.auth_tested == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4                    # kaynak dal (babel bloklu index.html)
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Vite production build
+        working-directory: vite-app
+        run: |
+          npm install --no-audit --no-fund --legacy-peer-deps vite@5.4.10 react@18.3.1 react-dom@18.3.1
+          node uret.mjs
+          npx vite build
+      - name: main'e bindir (CNAME/PWA/SEO korunur — sadece index.html + assets değişir)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git worktree add _main origin/main
+          rm -rf _main/assets
+          cp -r vite-app/dist/assets _main/assets
+          cp vite-app/dist/index.html _main/index.html
+          cd _main
+          git add -A
+          git commit -m "deploy(vite): ESM build → forzalig.com (CNAME/PWA/SEO korundu)" || echo "değişiklik yok"
+          git push origin HEAD:main
+      - name: Deploy sonrası canlı boot kontrolü
+        run: |
+          sleep 45
+          curl -sS -o /dev/null -w "forzalig.com HTTP=%{http_code}\n" https://forzalig.com/ || true
