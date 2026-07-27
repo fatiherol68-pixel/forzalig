@@ -1,5 +1,5 @@
 {
-  "faz": 2,
+  "faz": 3,
   "beklenenSha": "9f8b3f2bf6056f6a21061dd24d4f11d73a3836a5a5db3f51d7593cf1e208d727",
   "parcalar": [
     "src/_bulk/000.part",
@@ -20,6 +20,7 @@
     "src/motor/kart-canvas.js",
     "src/motor/fikstur.js",
     "src/motor/motor.js",
+    "src/components/viz.js",
     "src/_bulk/004.part"
   ]
 }
