@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite';
+// ForzaLig — production Vite/ESM build. base '/' (forzalig.com kök).
 export default defineConfig({
+  base: '/',
   esbuild: { jsx: 'transform', jsxFactory: 'React.createElement', jsxFragment: 'React.Fragment' },
   build: {
     target: 'es2020',
