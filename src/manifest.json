@@ -1,5 +1,5 @@
 {
-  "faz": 1,
+  "faz": 2,
   "beklenenSha": "9f8b3f2bf6056f6a21061dd24d4f11d73a3836a5a5db3f51d7593cf1e208d727",
   "parcalar": [
     "src/_bulk/000.part",
@@ -9,9 +9,17 @@
     "src/_bulk/002.part",
     "src/lib/rarity.js",
     "src/_bulk/003.part",
+    "src/services/bulut.js",
+    "src/services/paylas.js",
+    "src/services/oy.js",
+    "src/services/admin.js",
+    "src/services/db.js",
     "src/lib/tema.js",
     "src/lib/seed.js",
     "src/components/primitives.js",
+    "src/motor/kart-canvas.js",
+    "src/motor/fikstur.js",
+    "src/motor/motor.js",
     "src/_bulk/004.part"
   ]
 }
