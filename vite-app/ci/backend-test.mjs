@@ -41,7 +41,7 @@ try {
 
 // 3) AUTH + RLS WRITE
 let email = process.env.FL_TEST_EMAIL, pass = process.env.FL_TEST_PASSWORD, ephemeral = false;
-if (!email || !pass) { email = `flci-${randomUUID()}@example.com`; pass = 'Fl!' + randomUUID(); ephemeral = true; }
+if (!email || !pass) { email = `flci-${randomUUID()}@forzalig.com`; pass = 'Fl!' + randomUUID(); ephemeral = true; }
 R.authTested = true;
 try {
   let uid;
