@@ -39,23 +39,30 @@ try {
   else { no('KVKK deny', 'anon hassas alan OKUDU! (beklenmiyor)'); }
 } catch (e) { R.kvkkDeny = true; ok('KVKK deny OK (exception)'); }
 
-// 3) AUTH + RLS WRITE
-let email = process.env.FL_TEST_EMAIL, pass = process.env.FL_TEST_PASSWORD, ephemeral = false;
-if (!email || !pass) { email = `flci-${randomUUID()}@forzalig.com`; pass = 'Fl!' + randomUUID(); ephemeral = true; }
+// 3) AUTH + RLS WRITE — ayar değiştirmeden oturum elde et:
+//    (a) secret varsa signIn  (b) Anonymous Sign-In (onaysız, açıksa)  (c) signUp (onay gerekebilir)
+let email = process.env.FL_TEST_EMAIL, pass = process.env.FL_TEST_PASSWORD;
 R.authTested = true;
 try {
-  let uid;
-  if (ephemeral) {
-    const up = await sb.auth.signUp({ email, password: pass });
-    if (up.error) throw new Error('signUp: ' + up.error.message);
-    if (!up.data.session) { R.auth = 'needs_confirmation'; R.authTested = false; throw new Error('CONFIRM_REQUIRED'); }
-    uid = up.data.user.id;
-  } else {
+  let uid, yol;
+  if (email && pass) {
     const si = await sb.auth.signInWithPassword({ email, password: pass });
     if (si.error) throw new Error('signIn: ' + si.error.message);
-    uid = si.data.user.id;
+    uid = si.data.user.id; yol = 'secret';
+  } else {
+    // (b) Anonymous — e-posta onayı GEREKTİRMEZ, ayar değişmez, gerçek auth.uid() verir
+    const anon = await sb.auth.signInAnonymously();
+    if (!anon.error && anon.data?.session) { uid = anon.data.user.id; yol = 'anonymous'; }
+    else {
+      // (c) ephemeral signUp (onay açıksa oturum gelmez → CONFIRM_REQUIRED)
+      const em = `flci-${randomUUID()}@forzalig.com`, pw = 'Fl!' + randomUUID();
+      const up = await sb.auth.signUp({ email: em, password: pw });
+      if (up.error) throw new Error('signUp: ' + up.error.message + (anon.error ? ' | anon: ' + anon.error.message : ''));
+      if (!up.data.session) { R.auth = 'needs_confirmation'; R.authTested = false; throw new Error('CONFIRM_REQUIRED|anon:' + (anon.error?.message || 'session yok')); }
+      uid = up.data.user.id; yol = 'signup';
+    }
   }
-  R.auth = 'ok'; R.authOk = true; ok(`auth OK (${ephemeral ? 'ephemeral' : 'secret'}, uid ${uid.slice(0, 8)}…)`);
+  R.auth = 'ok:' + yol; R.authOk = true; ok(`auth OK (${yol}, uid ${uid.slice(0, 8)}…)`);
   // RLS write: kendi user_id'siyle ilan → insert/select/delete (kendini temizler)
   const ins = await sb.from('pazar_ilanlari').insert({ tip: 'eksik', user_id: uid, aciklama: 'CI-TEST', durum: 'aktif', pozisyon: 'Kaleci', adet: 1 }).select('id').single();
   if (ins.error) throw new Error('RLS insert: ' + ins.error.message);
@@ -69,8 +76,7 @@ try {
   R.rlsWrite = 'ok';
 } catch (e) {
   if (String(e.message).includes('CONFIRM_REQUIRED')) {
-    console.log('  ⚠ AUTH: e-posta onayı GEREKLİ — otomatik test hesabıyla oturum açılamıyor.');
-    console.log('     (Deploy bloklanacak; tek gereken: Supabase Auth\'ta "Confirm email" kapatmak veya onaylı bir test hesabı.)');
+    console.log('  ⚠ AUTH: Anonymous kapalı VE signUp e-posta onayı istiyor → otomatik oturum yok.', e.message);
   } else { no('auth/RLS-write', e.message); }
 }
 
