@@ -74,7 +74,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
+          git fetch origin main backup/pre-vite-main
           git worktree add _main origin/main
           rm -rf _main/assets
           cp -r vite-app/dist/assets _main/assets
@@ -83,7 +83,19 @@ jobs:
           git add -A
           git commit -m "deploy(vite): ESM build → forzalig.com (CNAME/PWA/SEO korundu)" || echo "değişiklik yok"
           git push origin HEAD:main
-      - name: Deploy sonrası canlı boot kontrolü
+          echo "DEPLOY_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Playwright chromium (canlı kontrol için)
+        working-directory: vite-app
+        run: npm install --no-audit --no-fund playwright@1.48.0 && npx playwright install --with-deps chromium
+      - name: Deploy sonrası CANLI forzalig.com kontrolü
+        working-directory: vite-app
         run: |
-          sleep 45
-          curl -sS -o /dev/null -w "forzalig.com HTTP=%{http_code}\n" https://forzalig.com/ || true
+          echo "GitHub Pages yayılması için bekleniyor..."; sleep 90
+          node ci/live-check.mjs
+      - name: 🔴 CANLI SORUN → otomatik rollback (önceki main'e dön)
+        if: failure()
+        run: |
+          cd _main
+          git revert --no-edit "$DEPLOY_SHA" || git reset --hard origin/backup/pre-vite-main
+          git push origin HEAD:main || git push --force-with-lease origin HEAD:main
+          echo "::error::Canlı kontrol başarısız — main önceki çalışan sürüme geri alındı."
