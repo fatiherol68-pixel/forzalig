@@ -1,0 +1,6 @@
+# üretilen / türetilen — git'te tutulmaz (index.html + src/ ten üretilir)
+node_modules/
+dist/
+src/main.jsx
+src/app-body.jsx
+src/styles.css
