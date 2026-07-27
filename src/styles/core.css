@@ -1,0 +1,203 @@
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  /* iOS Safari otomatik yazı büyütmesini KAPAT — sabitlenmiş sohbette her şeyi "kocaman"
+     gösteren, PC emülasyonunda GÖRÜNMEYEN davranış. En kritik iOS düzeltmesi. */
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  /* Yatay kayma/esneme tamamen kapalı; dikey overscroll zinciri kırık (iOS/Android/PWA).
+     overflow-x:clip (hidden değil) → sticky header'ı bozacak scroll-container yan etkisi yok. */
+  html, body { overscroll-behavior:none; overscroll-behavior-x:none; max-width:100%; overflow-x:clip; }
+  body { font-family: var(--font-body, 'Inter', sans-serif); background: var(--bg0, #070B12); color: var(--text, #F1F5F9); transition: background .3s, color .3s; }
+  @keyframes flPulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  #root { min-height: 100vh; background: var(--bg0, #070B12); position: relative; overflow-x: clip; }
+  /* Statik açılış ekranı (React yüklenmeden anında görünür → FCP/LCP hızlanır) */
+  #fz-onsplash { position:fixed; inset:0; background:#070B12; display:flex; align-items:center; justify-content:center; overflow:hidden; z-index:1; }
+  @keyframes fzPreBar { 0%{transform:translateX(-100%);} 100%{transform:translateX(250%);} }
+  .wrap { max-width: 480px; margin: 0 auto; position: relative; }
+  @media (min-width: 820px) {
+    .wrap { max-width: 1080px; }
+    .desktop-side { display: block !important; }
+    .mobile-bottom { display: none !important; }
+    .main-area { padding-bottom: 30px !important; }
+  }
+  .desktop-side { display: none; }
+  /* SOHBET: akıştan çıkarılmış, görünür viewport'a sabitlenmiş kap → iOS klavyesi layout'u itemez.
+     Yükseklik görünür viewport'a göre; klavye açılınca composer klavyenin üstünde kalır. */
+  .fz-sohbet {
+    position: fixed; top: var(--fz-hdr, 52px); left: 0; right: 0; margin: 0 auto; max-width: 480px;
+    height: calc(var(--vvh, 100dvh) - var(--fz-hdr, 52px));
+    transform: translateY(var(--vvtop, 0px));
+    display: flex; flex-direction: column; overflow: hidden; z-index: 20;
+  }
+  @media (min-width: 600px) and (max-width: 819px) { .fz-sohbet { max-width: 640px; } }
+  @media (min-width: 820px) {
+    /* Masaüstü: normal akışta kalsın (kenar çubuğu düzeni bozulmasın) */
+    .fz-sohbet { position: static; transform: none; max-width: none; height: calc(100dvh - var(--fz-hdr, 60px)); }
+  }
+  /* Güvenli alan (çentik/status bar) artık sabit header'ın kendi padding'inde ele alınır
+     (.fz-topbar → env(safe-area-inset-top)). Böylece hem Safari hem PWA/standalone'da
+     header background çentiği doldurur, içerik çakışmaz. */
+  /* Tablet / büyük telefon (600–819px): içerik kenarlara yapışmasın */
+  @media (min-width: 600px) and (max-width: 819px) {
+    .wrap { max-width: 640px; }
+    .mobile-bottom { max-width: 640px !important; }
+  }
+  /* Dokunma: çift-dokun yakınlaştırma gecikmesini kaldır + alt menü hedefleri ≥48px */
+  button, .tap, a { touch-action: manipulation; }
+  .mobile-bottom button { min-height: 48px; }
+  /* İskelet yükleyici (içerik gelmeden biçimli parıltı) */
+  @keyframes flSkel { 0%{background-position:-200px 0;} 100%{background-position:200px 0;} }
+  .fl-skel { border-radius:10px; background:linear-gradient(90deg, rgba(255,255,255,.05) 25%, rgba(255,255,255,.12) 50%, rgba(255,255,255,.05) 75%); background-size:400px 100%; animation:flSkel 1.3s infinite linear; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+  .fade-in { animation: fadeIn .4s ease both; }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform:none; } }
+  .pop { animation: pop .35s cubic-bezier(.2,.9,.3,1.4) both; }
+  @keyframes pop { from { opacity:0; transform: scale(.9); } to { opacity:1; transform: scale(1); } }
+  .bar-grow { animation: barGrow .7s cubic-bezier(.2,.8,.3,1) both; transform-origin: left; }
+  @keyframes barGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  .tap { transition: transform .1s; cursor: pointer; }
+  .tap:active { transform: scale(.96); }
+  /* Menü item: yumuşak geçiş + hover zemin */
+  .menu-item { transition: background .25s ease, color .25s ease; }
+  .menu-item:hover { background: rgba(255,255,255,.05) !important; }
+  /* Mobil alt menü ikon hap geçişi */
+  .nav-ic { transition: background .25s ease, transform .25s ease; }
+  /* Sekme: alt çizgi + renk yumuşak */
+  .sekme { transition: color .2s ease, border-color .25s ease, background .2s ease; }
+  .sekme:hover { background: rgba(255,255,255,.04); }
+  /* Kart: hover yükselme */
+  .kart-hover { transition: transform .15s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease; box-shadow: 0 6px 20px rgba(0,0,0,.28), 0 1px 4px rgba(0,0,0,.2); }
+  .kart-hover:hover { transform: translateY(-2px); }
+  .kart-hover:active { transform: scale(.98); }
+  /* Liste satırı: hover kayma */
+  .satir-hover { transition: background .2s ease, padding-left .2s ease, transform .12s ease; border-radius: 9px; }
+  .satir-hover:hover { background: rgba(255,255,255,.05); padding-left: 16px; }
+  .satir-hover:active { transform: scale(.985); }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+  .live-dot { animation: pulse 1.6s infinite; }
+  /* Premium diziliş animasyonları */
+  @keyframes sahaGel { from{opacity:0;transform:translate(-50%,calc(-50% + 20px));} to{opacity:1;transform:translate(-50%,-50%);} }
+  .saha-oyuncu { animation: sahaGel .5s ease both; }
+  @keyframes sahaDalga { 0%{opacity:.8;width:14px;height:14px;} 100%{opacity:0;width:58px;height:58px;} }
+  .saha-dalga-go { animation: sahaDalga .6s ease-out; }
+  @keyframes sahaHolo { 0%{background-position:150% 150%;} 100%{background-position:-50% -50%;} }
+  .saha-holo { background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.18) 48%,transparent 62%); background-size:250% 250%; animation: sahaHolo 3s linear infinite; }
+  @keyframes pasIz { 0%{opacity:0;} 20%{opacity:.7;} 100%{opacity:0;} }
+  /* Premium his: yumuşak buton/kart basış + cam parlaması */
+  .tap, .kart-hover, .satir-hover { -webkit-tap-highlight-color: transparent; }
+  .kart-hover:active { transform: translateY(0) scale(.985); }
+  /* Erişilebilirlik: hareketi azalt tercihi (premium standardı) — animasyonları sakinleştir */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; scroll-behavior:auto !important; }
+  }
+  /* Ana Sayfa: telefonda tek kolon, masaüstünde sol içerik + sağ özet */
+  .ana-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 820px) {
+    .ana-grid { grid-template-columns: 1.55fr 1fr; align-items: start; }
+  }
+  .kpi-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* ============ PREMIUM KATMAN ============ */
+  /* Gradyan atmosfer — sayfa arkası seçilen stil+renge göre renklenir */
+  #root::before {
+    content:""; position:fixed; top:-18%; right:-22%; width:88vw; height:72vh;
+    background: radial-gradient(circle, var(--glowA, rgba(80,140,255,.16)), transparent 68%);
+    pointer-events:none; z-index:0;
+  }
+  #root::after {
+    content:""; position:fixed; bottom:-20%; left:-24%; width:82vw; height:68vh;
+    background: radial-gradient(circle, var(--glowB, rgba(124,92,255,.12)), transparent 68%);
+    pointer-events:none; z-index:0;
+  }
+  /* Üst şerit — accent'ten ince bir renk yıkaması (tema bağı belirgin) */
+  #root { background-image: linear-gradient(180deg, var(--glowA, transparent) 0%, transparent 34%); background-repeat:no-repeat; }
+  .wrap { z-index:1; }
+  /* Premium gölge — kartlar havada dursun */
+  .prem-shadow { box-shadow: 0 8px 26px rgba(0,0,0,.38), 0 2px 6px rgba(0,0,0,.25); }
+  .prem-shadow-lg { box-shadow: 0 14px 40px rgba(0,0,0,.45), 0 3px 10px rgba(0,0,0,.3); }
+  /* Cam efekti — önemli kartlarda (ölçülü blur) */
+  .prem-glass { background: rgba(255,255,255,.045); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border:1px solid rgba(255,255,255,.09); }
+  /* Tap — dokunma geri bildirimi (mobil) */
+  .prem-tap { transition: transform .12s cubic-bezier(.2,.8,.3,1.2); cursor:pointer; }
+  .prem-tap:active { transform: scale(.965); }
+  /* Stagger — liste açılış dalgası */
+  @keyframes staggerIn { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:none;} }
+  .stagger > * { animation: staggerIn .4s cubic-bezier(.2,.8,.2,1) both; }
+  .stagger > *:nth-child(1){animation-delay:.02s;} .stagger > *:nth-child(2){animation-delay:.06s;}
+  .stagger > *:nth-child(3){animation-delay:.10s;} .stagger > *:nth-child(4){animation-delay:.14s;}
+  .stagger > *:nth-child(5){animation-delay:.18s;} .stagger > *:nth-child(6){animation-delay:.22s;}
+  .stagger > *:nth-child(7){animation-delay:.26s;} .stagger > *:nth-child(8){animation-delay:.30s;}
+  .stagger > *:nth-child(n+9){animation-delay:.34s;}
+  /* Skeleton — yüklenirken iskelet parıltısı */
+  @keyframes shimmer { 0%{background-position:-300px 0;} 100%{background-position:300px 0;} }
+  .skel { background:linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.10) 50%, rgba(255,255,255,.04) 75%); background-size:600px 100%; animation:shimmer 1.4s infinite; border-radius:6px; }
+  /* Kart hover yükselmeyi premium gölgeyle güçlendir */
+  .kart-hover:hover { box-shadow: 0 14px 36px rgba(0,0,0,.42); }
+  /* ===== VAV — hero alan animasyonları (sadece hero'larda kullanılır) ===== */
+  @keyframes vavAkis { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
+  .vav-hero { background-size:280% 280% !important; animation: vavAkis 9s ease-in-out infinite; }
+  @keyframes vavSuzul { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-5px);} }
+  .vav-suzul { animation: vavSuzul 4.5s ease-in-out infinite; will-change: transform; }
+  @keyframes vavParla { 0%,100%{text-shadow:0 0 6px currentColor;} 50%{text-shadow:0 0 15px currentColor, 0 0 28px currentColor;} }
+  .vav-parla { animation: vavParla 3s ease-in-out infinite; }
+  @keyframes vavIsilti { 0%{left:-45%;} 55%,100%{left:110%;} }
+  .vav-bar { position:relative; overflow:hidden; }
+  .vav-bar::after { content:""; position:absolute; top:0; bottom:0; width:38%; left:-45%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.85),transparent); animation:vavIsilti 2.6s ease-in-out infinite; }
+  .vav-supurme { position:absolute; top:0; bottom:0; width:42%; left:-45%; background:linear-gradient(105deg,transparent,rgba(255,255,255,.055),transparent); animation:vavIsilti 5.5s ease-in-out infinite; pointer-events:none; }
+  @keyframes vavAltin { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
+  /* Progress bar (stat çubuğu) */
+  .prem-bar-track { height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; }
+  .prem-bar-fill { height:100%; border-radius:3px; }
+  /* ===== FAZ 7 — Açılış (splash) animasyonları ===== */
+  @keyframes fzCizil { from{stroke-dashoffset:900;} to{stroke-dashoffset:0;} }
+  .fz-saha line, .fz-saha rect, .fz-saha circle { stroke-dasharray:900; stroke-dashoffset:900; animation:fzCizil 1.3s ease-out .3s forwards; }
+  @keyframes fzTopGel { 0%{opacity:0;transform:translateY(-90px) rotate(-50deg);} 60%{opacity:1;} 100%{opacity:1;transform:translateY(0) rotate(0);} }
+  .fz-top { animation:fzTopGel 1s cubic-bezier(.3,1.4,.5,1) 1.15s both; }
+  @keyframes fzMarka { 0%{opacity:0;letter-spacing:16px;filter:blur(7px);} 100%{opacity:1;letter-spacing:1px;filter:blur(0);} }
+  .fz-marka { animation:fzMarka .8s ease-out 1.9s both; }
+  @keyframes fzDoldur { from{width:0;} to{width:100%;} }
+  .fz-fill { animation:fzDoldur 1.5s ease-in-out 2.4s both; }
+  @keyframes fzYukGor { from{opacity:0;} to{opacity:1;} }
+  .fz-yuk { animation:fzYukGor .5s ease 2.3s both; }
+  @keyframes fzSplashKapan { from{opacity:1;transform:scale(1);} to{opacity:0;transform:scale(1.18);visibility:hidden;} }
+  .fz-splash-kapan { animation:fzSplashKapan .7s ease-in .1s forwards; }
+  @keyframes fzGiris { from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:none;} }
+  .fz-giris { animation:fzGiris .5s ease both; }
+  /* PREMIUM MOTOR — canlı nabız noktası + stil imzaları */
+  @keyframes fzNabiz { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.5;transform:scale(.82);} }
+  .fz-nabiz { animation:fzNabiz 2s ease-in-out infinite; }
+  /* Gece Neon: vurgu rengi metinlerde hafif ışıma */
+  body.stil-neon .fz-nabiz { box-shadow:0 0 10px var(--accent, #00E5FF); }
+  /* Cam: kartlarda ince cam parlaması (üst kenar highlight) */
+  body.stil-cam #root { --cam:1; }
+  /* Açık mod: kaydırma çubuğu tonu */
+  body.stil-acik ::-webkit-scrollbar-thumb { background:#c4d0c8; }
+  /* ==== TEMA KARAKTERLERİ — her tema kendi gölge/atmosfer diliyle (global, inline'ı bozmaz) ==== */
+  /* Karbon: saf siyah, düz — neredeyse gölgesiz */
+  body[data-stil="karbon"] .kart-hover{ box-shadow:0 1px 2px rgba(0,0,0,.7); }
+  body[data-stil="karbon"] .kart-hover:hover{ box-shadow:0 3px 10px rgba(0,0,0,.85); transform:translateY(-1px); }
+  /* Sinyal: rafine, keskin, sığ gölge */
+  body[data-stil="sinyal"] .kart-hover{ box-shadow:0 4px 14px -7px rgba(0,0,0,.6); }
+  /* Prizma: renkli yumuşak derin gölge + cam doygunluğu */
+  body[data-stil="prizma"] .kart-hover{ box-shadow:0 16px 38px -18px rgba(120,60,200,.55); }
+  /* Şampiyonlar: sinematik lacivert derinlik */
+  body[data-stil="sampiyon"] .kart-hover{ box-shadow:0 14px 40px -16px rgba(0,28,90,.75); }
+  /* Oyun: ışıyan elektrik mavisi kenar */
+  body[data-stil="oyun"] .kart-hover{ box-shadow:0 16px 42px -16px rgba(8,60,160,.6), 0 0 20px -8px rgba(0,224,255,.45); }
+  body[data-stil="oyun"] .kart-hover:hover{ box-shadow:0 20px 48px -14px rgba(8,60,160,.7), 0 0 26px -6px rgba(0,224,255,.6); }
+  /* Cam temalar: kartlarda hafif doygunluk/parlama */
+  body.stil-cam .kart-hover{ backdrop-filter:saturate(1.12); -webkit-backdrop-filter:saturate(1.12); }
+  /* #1 — Input odak halkası: yazdığın kutu seçili renkte ışık alsın (a11y + premium) */
+  input:focus, textarea:focus, select:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #20E07A) 30%, transparent);
+    transition: box-shadow .15s ease;
+  }
+  /* #4 — Metin seçim rengi temaya uysun */
+  ::selection { background: color-mix(in srgb, var(--accent, #20E07A) 32%, transparent); }
+  /* Erişilebilirlik: klavye ile gezerken görünür odak halkası (fare tıklamasında çıkmaz) */
+  :focus-visible { outline: 2px solid var(--accent, #20E07A); outline-offset: 2px; border-radius: 6px; }
+  /* Operasyon Merkezi — premium mikro animasyonlar */
+  @keyframes fzCanliPulse { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:.4; transform:scale(.82); } }
+  .fz-canli-dot { animation: fzCanliPulse 1.5s ease-in-out infinite; }
+  @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
+  .fz-akis-satir { animation: fzAkisIn .3s ease both; }
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }

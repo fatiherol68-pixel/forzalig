@@ -1,7 +1,17 @@
 {
-  "faz": 0,
+  "faz": 1,
   "beklenenSha": "9f8b3f2bf6056f6a21061dd24d4f11d73a3836a5a5db3f51d7593cf1e208d727",
   "parcalar": [
-    "src/_bulk/000.part"
+    "src/_bulk/000.part",
+    "src/styles/core.css",
+    "src/_bulk/001.part",
+    "src/styles/flkart.css",
+    "src/_bulk/002.part",
+    "src/lib/rarity.js",
+    "src/_bulk/003.part",
+    "src/lib/tema.js",
+    "src/lib/seed.js",
+    "src/components/primitives.js",
+    "src/_bulk/004.part"
   ]
 }
