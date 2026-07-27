@@ -51,6 +51,9 @@ jobs:
       - name: Dist boot testi (GERÇEK backend)
         working-directory: vite-app
         run: node ci/dist-boot.mjs
+      - name: Giriş-sonrası ekran testi (anon oturum enjekte, GERÇEK backend)
+        working-directory: vite-app
+        run: node ci/auth-screen.mjs
       - id: res
         working-directory: vite-app
         run: echo "auth_tested=$(node -e "process.stdout.write(String(require('./ci/backend-result.json').authTested))")" >> "$GITHUB_OUTPUT"
