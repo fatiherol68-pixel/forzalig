@@ -74,6 +74,13 @@ try {
   if (del.error) throw new Error('RLS delete: ' + del.error.message);
   ok('RLS delete/cleanup OK (test verisi silindi)');
   R.rlsWrite = 'ok';
+  // Chat lig-izolasyon düzeltmesi (63_sohbet_lig_uyelik.sql) uygulandı mı? — SOFT, bloklamaz
+  try {
+    const lg = (await sb.from('ligler').select('id').limit(1)).data?.[0]?.id;
+    const chk = await sb.rpc('lig_uyesi', { l: lg });
+    if (chk.error) console.log('  ⚠ chat lig-izolasyonu: 63_sohbet_lig_uyelik.sql HENÜZ çalıştırılmadı');
+    else console.log('  ✔ chat lig-izolasyonu AKTİF (lig_uyesi uygulandı → dönüş: ' + chk.data + ')');
+  } catch (e) { console.log('  ⚠ chat izolasyon kontrolü atlandı:', e.message); }
 } catch (e) {
   if (String(e.message).includes('CONFIRM_REQUIRED')) {
     console.log('  ⚠ AUTH: Anonymous kapalı VE signUp e-posta onayı istiyor → otomatik oturum yok.', e.message);
