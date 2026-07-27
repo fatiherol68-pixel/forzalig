@@ -19,4 +19,4 @@ Yani derleyicinin gördüğü girdi hiç değişmez → runtime davranışı bir
    davranış değiştiren düzenleme kasıtlıysa bu normaldir).
 3. `node build/derle.js` + duman testi.
 
-FAZ: 3 · Adlandırılmış modül: 15 · Glue: 5 · Toplam parça: 20
+FAZ: 4 · Adlandırılmış modül: 27 · Glue: 5 · Toplam parça: 32

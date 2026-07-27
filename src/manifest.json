@@ -1,5 +1,5 @@
 {
-  "faz": 3,
+  "faz": 4,
   "beklenenSha": "9f8b3f2bf6056f6a21061dd24d4f11d73a3836a5a5db3f51d7593cf1e208d727",
   "parcalar": [
     "src/_bulk/000.part",
@@ -21,6 +21,18 @@
     "src/motor/fikstur.js",
     "src/motor/motor.js",
     "src/components/viz.js",
+    "src/pages/profil-kesfet.js",
+    "src/pages/ana.js",
+    "src/pages/lig.js",
+    "src/pages/oyuncu.js",
+    "src/pages/mac.js",
+    "src/pages/takip-ayar.js",
+    "src/pages/medya-gazete.js",
+    "src/pages/mac-sihirbaz.js",
+    "src/pages/onboarding.js",
+    "src/pages/admin.js",
+    "src/pages/sosyal.js",
+    "src/app.js",
     "src/_bulk/004.part"
   ]
 }
