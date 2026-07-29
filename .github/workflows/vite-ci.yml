@@ -88,6 +88,12 @@ jobs:
           cp -r vite-app/dist/assets _main/assets
           cp vite-app/dist/index.html _main/index.html
           cp vite-app/404.html _main/404.html   # SPA fallback: temiz lig URL'i (forzalig.com/slug → ?lig=slug)
+          cp sw.js _main/sw.js                   # güncel service worker (kaynaktan)
+          # SÜRÜM DAMGASI — her deploy BENZERSİZ. sw.js SURUM değişir → tarayıcı yeni SW'yi fark eder
+          # → kullanıcılar deploy'u OTOMATİK alır (sert-yenile gerekmez); __FL_RELEASE eşleşir → "eski sürüm" uyarısı biter.
+          FLV="$(date -u +%Y%m%d%H%M%S)"
+          sed -i "s/FL_SW_SURUM/$FLV/g" _main/sw.js _main/index.html
+          echo "Sürüm damgası: $FLV"
           cd _main
           git add -A
           git commit -m "deploy(vite): ESM build → forzalig.com (CNAME/PWA/SEO korundu)" || echo "değişiklik yok"
