@@ -2310,7 +2310,7 @@ function yeniMac(id, A, B, hafta){
 
 // Bir turnuvanın tüm puan/istatistiklerini maçlardan SIFIRDAN hesapla
 function turnuvaHesapla(turnuva){
-  if(!turnuva || turnuva._ozet || !turnuva.takimlar) return;   // özet (tembel) lig — tam veri yok, hesaplama atlanır
+  if(!turnuva || turnuva._ozet || turnuva._cache || !turnuva.takimlar) return;   // özet/önbellek — istatistik zaten hazır (önbellekte pişmiş), sıfırlama/yeniden-hesaplama YAPMA
   // takım istatistik sıfırla
   turnuva.takimlar.forEach(tk=>{ tk.o=0;tk.g=0;tk.b=0;tk.m=0;tk.ag=0;tk.yg=0;tk.puan=0;tk.form=[]; });
   // oyuncu istatistik sıfırla (ödül + dakika sayaçları dahil)
@@ -13056,7 +13056,7 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar, kulup
     </div>
 
     {/* MESAJLAR */}
-    <div ref={kaydirRef} onScroll={scrollDinle} onClick={()=>secili&&setSecili(null)} style={{flex:1,minHeight:0,overflowY:"auto",overflowX:"hidden",overscrollBehavior:"contain",WebkitOverflowScrolling:"touch",padding:"14px 12px",display:"flex",flexDirection:"column",gap:3}}>
+    <div ref={kaydirRef} onScroll={scrollDinle} onClick={()=>secili&&setSecili(null)} style={{flex:1,minHeight:0,overflowY:"auto",overflowX:"hidden",overscrollBehavior:"contain",WebkitOverflowScrolling:"touch",touchAction:"pan-y",padding:"14px 12px",display:"flex",flexDirection:"column",gap:3}}>
       {eskiYuk && <div style={{textAlign:"center",color:T.textMut,fontSize:11,padding:6}}>Eski mesajlar yükleniyor…</div>}
       {yuk ? <div style={{textAlign:"center",color:T.textMut,fontSize:12,padding:30}}>Yükleniyor…</div>
        : mesajlar.length===0 ? <div style={{textAlign:"center",color:T.textMut,fontSize:12.5,padding:40}}>İlk mesajı sen yaz 👋</div>
@@ -13618,6 +13618,28 @@ function SorunBildir({T, git, oturum, teshis}){
   </div>;
 }
 
+// ===== KOKPİT ÖNBELLEĞİ (anında açılış) =====
+// Ağır faz-2 (276 maçın olayları) tamamlanınca, HESAPLANMIŞ kokpit anlık görüntüsünü
+// localStorage'a yaz. Sonraki açılışta bu anlık görüntü ANINDA render edilir (istatistikler
+// takımlarda pişmiş → gol kralı/enler hemen görünür), arkada taze veri gelince değişir.
+// Her şey try/catch: önbellek bozuk/yoksa uygulama normal akışına düşer → asla kırılmaz.
+const KOK_KEY = (uid)=> "fl_kok_"+(uid||"anon");
+function kokpitStripla(t){
+  if(!t || !t.takimlar || !t.takimlar.length) return null;
+  const kucukFoto=(f)=> (f && f.length>400) ? null : f;   // base64/dev foto → önbelleğe koyma (boyut)
+  const takimlar = t.takimlar.map(tk=>({ ...tk, logo:kucukFoto(tk.logo),
+    oyuncular:(tk.oyuncular||[]).map(o=>({ ...o, foto:kucukFoto(o.foto) })) }));
+  const maclar = (t.maclar||[]).map(m=>({ id:m.id, hafta:m.hafta, tur:m.tur, grup:m.grup, bye:m.bye, penGalip:m.penGalip,
+    takimA:m.takimA, takimB:m.takimB, takimAId:m.takimAId, takimBId:m.takimBId, renkA:m.renkA, renkB:m.renkB,
+    skorA:m.skorA, skorB:m.skorB, oynandi:m.oynandi, sure:m.sure, mvp:m.mvp, mvpTakim:m.mvpTakim, tarih:m.tarih||'',
+    olaylar:[], kaleciler:[], oduller:{}, kadroA:null, kadroB:null, dizilisA:null, dizilisB:null,
+    istatistik:null, ratingler:null, medya:null, _tamDegil:true }));
+  return { ...t, takimlar, maclar, _cache:true, _hafif:true };
+}
+function kokpitKaydet(uid, t){ try{ const s=kokpitStripla(t); if(!s) return; localStorage.setItem(KOK_KEY(uid), JSON.stringify({v:1, id:t.id, ts:Date.now(), t:s})); }catch(e){} }
+function kokpitOku(uid){ try{ const s=localStorage.getItem(KOK_KEY(uid)); if(!s) return null; const o=JSON.parse(s); if(!o||o.v!==1||!o.t||!o.t.takimlar||!o.t.takimlar.length) return null; return o.t; }catch(e){ return null; } }
+function kokpitTemizle(uid){ try{ localStorage.removeItem(KOK_KEY(uid)); }catch(e){} }
+
 // ⏱️ Geçici açılış-ölçüm katmanı (sadece admin görür). Teşhis bitince kaldırılacak.
 function BootOlcum(){
   const [b,setB]=React.useState({});
@@ -13630,6 +13652,7 @@ function BootOlcum(){
     <div style={{color:"#fff",fontWeight:800,marginBottom:3}}>⏱️ AÇILIŞ (ms, 0=aç)</div>
     {sat("TTFB (html)",b.ttfb)}
     {sat("React başladı",r,b.ttfb)}
+    {b.onbellek!=null && <div style={{display:"flex",justifyContent:"space-between",gap:14,color:"#7CFFB2"}}><span>⚡ Önbellek çizdi</span><b>{b.onbellek}ms</b></div>}
     {sat("Oturum (auth)",a,r)}
     {sat("Lig listesi",o,a)}
     {sat("KOKPİT hazır",k,o)}
@@ -13946,11 +13969,17 @@ function App(){
         return;
       }
 
+      // ÖNBELLEK: son hesaplanmış kokpiti ANINDA göster (gol kralı/enler dahil) → taze veri arkada gelir.
+      let onbellek=null;
+      try{ if(oturum) onbellek = kokpitOku(oturum.id); }catch(e){}
+      if(onbellek && aktif){ setTurnuvalar([onbellek]); setLiglerYuk(false); try{ if(window.__FLB && !window.__FLB.onbellek) window.__FLB.onbellek=Math.round(performance.now()); }catch(e){} }
+
       // ===== NORMAL AKIŞ (performans): TEK sorgu özet → anında render → aktif ligi TAM yükle
       const ozet = await Db.liglerOzet(oturum ? oturum.id : null);
       try{ if(window.__FLB && !window.__FLB.ozet) window.__FLB.ozet=Math.round(performance.now()); }catch(e){}   // ⏱️ lig listesi geldi
       if(!aktif) return;
-      setTurnuvalar(ozet);
+      // Özeti uygula ama önbellekteki zengin aktif ligi (varsa) yerinde koru → "Hoş geldin" flaşı olmaz
+      setTurnuvalar((onbellek && ozet.some(o=>o.id===onbellek.id)) ? ozet.map(o=> o.id===onbellek.id ? onbellek : o) : ozet);
       setLiglerYuk(false);
       setBulutDurum(ozet.length ? ("Yüklendi ✓ ("+ozet.length+" lig)") : "");
       setTimeout(()=>{ if(aktif) setBulutDurum(""); },2200);
@@ -13961,11 +13990,18 @@ function App(){
       // Açılış hızı lig büyüklüğünden BAĞIMSIZ kalır (faz-1 sadece skor sorgusu).
       const aktif0 = ozet.find(l=>l.benim) || (oturum && ozet.find(l=>l.yonetici_id===oturum.id)) || ozet[0];
       if(aktif0){
-        try{ const hf=await Db.ligYukle(aktif0.id, true); if(hf && aktif){ hf.takimSay=aktif0.takimSay; hf.macSay=aktif0.macSay; hf.oyuncuSay=aktif0.oyuncuSay; turnuvaHesapla(hf); setTurnuvalar(p=>p.map(t=>t.id===hf.id?hf:t)); } }catch(e){}
+        // Önbellek bu ligi zaten (puan durumu + istatistiklerle) gösteriyorsa faz-1'i ATLA (yoksa
+        // önbellek stats-siz hafif'le ezilir, krallar boşalır). Doğrudan faz-2 taze veriyi getirir.
+        const cacheVar = !!(onbellek && onbellek.id===aktif0.id);
+        if(!cacheVar){
+          try{ const hf=await Db.ligYukle(aktif0.id, true); if(hf && aktif){ hf.takimSay=aktif0.takimSay; hf.macSay=aktif0.macSay; hf.oyuncuSay=aktif0.oyuncuSay; turnuvaHesapla(hf); setTurnuvalar(p=>p.map(t=>t.id===hf.id?hf:t)); } }catch(e){}
+        }
         try{ if(window.__FLB && !window.__FLB.kokpit) window.__FLB.kokpit=Math.round(performance.now()); }catch(e){}   // ⏱️ kokpit (puan durumu) hazır
-        try{ const full=await Db.ligYukle(aktif0.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); } }catch(e){}
+        try{ const full=await Db.ligYukle(aktif0.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); if(oturum) kokpitKaydet(oturum.id, full); } }catch(e){}
         try{ if(window.__FLB && !window.__FLB.tam) window.__FLB.tam=Math.round(performance.now()); }catch(e){}   // ⏱️ tam veri (krallar) hazır
       }
+      // Aktif lig özette yoksa ama önbellek varsa yine de tazele (kullanıcı ligi başka yerdeyse)
+      else if(onbellek && onbellek.id){ try{ const full=await Db.ligYukle(onbellek.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); if(oturum) kokpitKaydet(oturum.id, full); } }catch(e){} }
     })();
     return ()=>{ aktif=false; };
   },[oturum]);
@@ -14219,14 +14255,18 @@ function App(){
       standalone = !!(window.navigator.standalone) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
     }catch(e){}
     if(!(iOS && standalone)) return;
-    let sx=0, sy=0, st=0, aktif=false;
-    const bas=(e)=>{ if(e.touches && e.touches.length===1){ const t=e.touches[0]; if(t.clientX<=28){ sx=t.clientX; sy=t.clientY; st=Date.now(); aktif=true; } else aktif=false; } else aktif=false; };
-    const bit=(e)=>{ if(!aktif) return; aktif=false; const t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
-      const dx=t.clientX-sx, dy=t.clientY-sy, dt=Date.now()-st;
-      if(dx>60 && Math.abs(dy)<45 && dt<800){ try{ titret(6); }catch(e){} try{ geriRef.current(); }catch(e){} } };
+    let sx=0, sy=0, st=0, aktif=false, maxDx=0, sonY=0;
+    const bas=(e)=>{ if(e.touches && e.touches.length===1){ const t=e.touches[0]; if(t.clientX<=30){ sx=t.clientX; sy=t.clientY; sonY=t.clientY; st=Date.now(); maxDx=0; aktif=true; } else aktif=false; } else aktif=false; };
+    // touchmove ile en büyük yatay ilerlemeyi izle (kaydırılabilir kap touchend koordinatını bozsa da yakala)
+    const oynat=(e)=>{ if(!aktif) return; const t=e.touches&&e.touches[0]; if(!t) return; const dx=t.clientX-sx; if(dx>maxDx) maxDx=dx; sonY=t.clientY; };
+    const bit=(e)=>{ if(!aktif) return; aktif=false; const t=e.changedTouches&&e.changedTouches[0];
+      const bitX=t?t.clientX:sx+maxDx, bitY=t?t.clientY:sonY;
+      const dx=Math.max(maxDx, bitX-sx), dy=bitY-sy, dt=Date.now()-st;
+      if(dx>55 && Math.abs(dy)<55 && dt<900){ try{ titret(6); }catch(e){} try{ geriRef.current(); }catch(e){} } };
     document.addEventListener("touchstart", bas, {passive:true});
+    document.addEventListener("touchmove", oynat, {passive:true});
     document.addEventListener("touchend", bit, {passive:true});
-    return ()=>{ document.removeEventListener("touchstart",bas); document.removeEventListener("touchend",bit); };
+    return ()=>{ document.removeEventListener("touchstart",bas); document.removeEventListener("touchmove",oynat); document.removeEventListener("touchend",bit); };
   },[]);
   // DERİN LİNK GERİ-YÜKLEME: ?mac= / ?takim= / ?oyuncu= → veri yüklenince o sayfaya dön (tek sefer)
   const derinRestoreRef=useRef(false);
