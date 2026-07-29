@@ -4974,8 +4974,16 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
   const [lKisi,setLKisi]=useState(turnuva.kisi||7);
   const [lSponsor,setLSponsor]=useState(turnuva.sponsorAd||"");
   const [lSponsorE,setLSponsorE]=useState(turnuva.sponsorEmoji||"🏟️");
+  const [lSlug,setLSlug]=useState(turnuva.paylasimSlug||"");
   const ligKaydet=()=>{
     if(!lAd.trim())return;
+    // Özel bağlantı adı (URL slug): Türkçe→ascii, rezerve/çakışma koruması. Paylaşınca forzalig.com/<slug> çalışır.
+    if(lSlug.trim()){
+      const s=slugUret(lSlug);
+      const rez=[...SEO_TOP,"gizlilik","icons","assets","davet","ankara-veteran-ligi","izmir-veteran-ligi"];
+      if(s.length<3 || rez.includes(s)){ alert("Bu bağlantı adı kullanılamaz (en az 3 karakter; rezerve kelime olamaz). Başka bir ad dene."); return; }
+      turnuva.paylasimSlug=s; setLSlug(s);
+    }
     yonetim.ligGuncelle(turnuva, {ad:lAd.trim(), sehir:lSehir.trim(), ilce:lIlce.trim(), renk:lRenk, baslangic:lBaslangic, hedefTakim:lHedef, kisi:lKisi, sponsorAd:lSponsor.trim(), sponsorEmoji:lSponsorE});
     setLigAcik(false);
   };
@@ -5114,6 +5122,12 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
       {ligAcik && <div className="fade-in" style={{padding:"0 13px 14px"}}>
         <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:6}}>LİG ADI</div>
         <input value={lAd} onChange={e=>setLAd(e.target.value)} style={{width:"100%",background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px",color:T.text,fontSize:14,fontWeight:600,fontFamily:"inherit",outline:"none",marginBottom:12,boxSizing:"border-box"}}/>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:6}}>🔗 BAĞLANTI ADI (URL) <span style={{color:T.textMut,fontWeight:400}}>— paylaşınca</span></div>
+        <div style={{display:"flex",alignItems:"center",marginBottom:4,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,overflow:"hidden"}}>
+          <span style={{fontSize:12,color:T.textMut,padding:"11px 0 11px 11px",whiteSpace:"nowrap"}}>forzalig.com/</span>
+          <input value={lSlug} onChange={e=>setLSlug(e.target.value)} placeholder="istanbul-veteran-ligi" autoCapitalize="none" autoCorrect="off" style={{flex:1,minWidth:0,background:"transparent",border:0,padding:"11px 11px 11px 2px",color:T.accent,fontSize:13,fontWeight:700,fontFamily:"inherit",outline:"none"}}/>
+        </div>
+        <div style={{fontSize:9,color:T.textMut,marginBottom:12}}>Türkçe karakterler otomatik dönüşür (İstanbul → istanbul). Ligi paylaştığında bu adres çalışır.</div>
         <div style={{display:"flex",gap:10,marginBottom:12}}>
           <div style={{flex:1}}>
             <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:6}}>ŞEHİR</div>

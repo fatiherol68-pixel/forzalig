@@ -87,6 +87,7 @@ jobs:
           rm -rf _main/assets
           cp -r vite-app/dist/assets _main/assets
           cp vite-app/dist/index.html _main/index.html
+          cp vite-app/404.html _main/404.html   # SPA fallback: temiz lig URL'i (forzalig.com/slug → ?lig=slug)
           cd _main
           git add -A
           git commit -m "deploy(vite): ESM build → forzalig.com (CNAME/PWA/SEO korundu)" || echo "değişiklik yok"
