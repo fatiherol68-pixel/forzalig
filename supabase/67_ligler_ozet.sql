@@ -38,7 +38,7 @@ returns table(
   )
   select
     k.id, k.ad::text, k.yonetici_id, k.evren::text, k.durum::text,
-    k.sehir::text, k.ilce::text, k.logo::text, k.renk::text, k.renk2::text,
+    k.sehir::text, k.ilce::text, k.logo::text, k.renk::text, null::text,   -- ligler'de renk2 yok
     k.format::text, k.grup_sayi::int, k.kisi::int, k.sponsor_ad::text, k.sponsor_emoji::text, k.kurallar::text,
     (select count(*) from public.takimlar t where t.lig_id = k.id and t.durum is distinct from 'arsiv')::bigint,
     (select count(*) from public.maclar m where m.lig_id = k.id)::bigint,

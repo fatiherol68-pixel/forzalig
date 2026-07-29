@@ -1545,7 +1545,7 @@ const Db = {
     }catch(e){
       // Fallback: RPC yoksa hafif tek sorgu (sayısız) — yine N+1 YOK
       try{
-        const kol='id,ad,yonetici_id,evren,durum,sehir,ilce,logo,renk,renk2,format,grup_sayi,kisi,sponsor_ad,sponsor_emoji,kurallar,silindi,olusturma';
+        const kol='id,ad,yonetici_id,evren,durum,sehir,ilce,logo,renk,format,grup_sayi,kisi,sponsor_ad,sponsor_emoji,kurallar,silindi,olusturma';
         let q=await sb.from('ligler').select(kol).or('evren.not.is.null,durum.eq.aktif').order('olusturma',{ascending:false}).limit(500);
         let rows=(q.data||[]).filter(L=>!L.silindi);
         if(userId){ try{ const have=new Set(rows.map(r=>r.id)); let q2=await sb.from('ligler').select(kol).eq('yonetici_id',userId).limit(300); (q2.data||[]).forEach(L=>{ if(!L.silindi && !have.has(L.id)){ L._benim=true; rows.push(L); have.add(L.id); } }); }catch(e2){} }
