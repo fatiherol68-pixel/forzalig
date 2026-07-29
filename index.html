@@ -1527,6 +1527,32 @@ const Db = {
       return sonuc;
     }catch(e){ return []; }
   },
+  // ===== HAFİF ÖZET (performans) — TEK sorgu ile tüm ligler. Takım/oyuncu/maç YÜKLENMEZ.
+  //   N+1 yok → 30 lig de 1500 lig de aynı hızda açılır. Tam veri lig AÇILINCA gelir (tembel).
+  //   RPC ligler_ozet(p_user) sayıları da getirir; RPC yoksa hafif tek sorguya düşer (sayısız).
+  _ozetMap(L){ return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', renk2:L.renk2||null, logo:L.logo||null,
+    yonetici_id:L.yonetici_id, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8, format:L.format||'tek',
+    grupSayi:L.grup_sayi||0, sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
+    evren:L.evren||null, kurallar:L.kurallar||"", takimlar:[], maclar:[], iliskisel:true, _ozet:true,
+    takimSay:Number(L.takim_say||0)||0, macSay:Number(L.mac_say||0)||0, oyuncuSay:Number(L.oyuncu_say||0)||0,
+    benim:L.sahiplik==='benim' }; },
+  async liglerOzet(userId){
+    if(!sb) return [];
+    try{
+      const {data,error}=await sb.rpc('ligler_ozet',{p_user:userId||null});
+      if(error) throw error;
+      return (data||[]).map(L=>this._ozetMap(L));
+    }catch(e){
+      // Fallback: RPC yoksa hafif tek sorgu (sayısız) — yine N+1 YOK
+      try{
+        const kol='id,ad,yonetici_id,evren,durum,sehir,ilce,logo,renk,renk2,format,grup_sayi,kisi,sponsor_ad,sponsor_emoji,kurallar,silindi,olusturma';
+        let q=await sb.from('ligler').select(kol).or('evren.not.is.null,durum.eq.aktif').order('olusturma',{ascending:false}).limit(500);
+        let rows=(q.data||[]).filter(L=>!L.silindi);
+        if(userId){ try{ const have=new Set(rows.map(r=>r.id)); let q2=await sb.from('ligler').select(kol).eq('yonetici_id',userId).limit(300); (q2.data||[]).forEach(L=>{ if(!L.silindi && !have.has(L.id)){ L._benim=true; rows.push(L); have.add(L.id); } }); }catch(e2){} }
+        return rows.map(L=>{ const o=this._ozetMap(L); if(L._benim||(userId&&L.yonetici_id===userId)) o.benim=true; return o; });
+      }catch(e3){ return []; }
+    }
+  },
   // VERİ SAĞLIK TARAMASI (Süper Admin) — salt-okunur anomali sayımı. Yeni tablo/RPC yok.
   async veriSaglik(){
     if(!sb) return {hata:"bağlantı yok"};
@@ -2265,6 +2291,7 @@ function yeniMac(id, A, B, hafta){
 
 // Bir turnuvanın tüm puan/istatistiklerini maçlardan SIFIRDAN hesapla
 function turnuvaHesapla(turnuva){
+  if(!turnuva || turnuva._ozet || !turnuva.takimlar) return;   // özet (tembel) lig — tam veri yok, hesaplama atlanır
   // takım istatistik sıfırla
   turnuva.takimlar.forEach(tk=>{ tk.o=0;tk.g=0;tk.b=0;tk.m=0;tk.ag=0;tk.yg=0;tk.puan=0;tk.form=[]; });
   // oyuncu istatistik sıfırla (ödül + dakika sayaçları dahil)
@@ -3795,8 +3822,10 @@ function AnaSayfa({turnuvalar, T, git}){
   },[aktifTurnuva]);
 
   const tumO = Motor.tumOyuncular(turnuvalar);
-  const topTakim = turnuvalar.reduce((s,t)=>s+t.takimlar.length,0);
-  const topMac = turnuvalar.reduce((s,t)=>s+t.maclar.length,0);
+  // Özet (tembel) liglerde takimlar/maclar boş → özet sayıları (takimSay/macSay/oyuncuSay) kullan
+  const topTakim = turnuvalar.reduce((s,t)=>s+(t.takimSay!=null?t.takimSay:(t.takimlar?t.takimlar.length:0)),0);
+  const topMac = turnuvalar.reduce((s,t)=>s+(t.macSay!=null?t.macSay:(t.maclar?t.maclar.length:0)),0);
+  const topOyuncu = turnuvalar.reduce((s,t)=>s+(t.oyuncuSay!=null?t.oyuncuSay:0),0) || tumO.length;
 
   // saate göre selamlama
   const saat = new Date().getHours();
@@ -3869,7 +3898,7 @@ function AnaSayfa({turnuvalar, T, git}){
         <div style={{position:"relative",fontSize:12,color:T.textSoft,marginTop:7}}>{bugun}</div>
         <div style={{position:"relative",display:"flex",gap:16,marginTop:14}}>
           <div><span style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{topTakim}</span><span style={{fontSize:10,color:T.textMut,marginLeft:4}}>takım</span></div>
-          <div><span style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{tumO.length}</span><span style={{fontSize:10,color:T.textMut,marginLeft:4}}>oyuncu</span></div>
+          <div><span style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{topOyuncu}</span><span style={{fontSize:10,color:T.textMut,marginLeft:4}}>oyuncu</span></div>
           <div><span style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{topMac}</span><span style={{fontSize:10,color:T.textMut,marginLeft:4}}>maç</span></div>
         </div>
       </div>
@@ -4067,7 +4096,7 @@ function AnaSayfa({turnuvalar, T, git}){
           <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={40}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:14,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
-            <div style={{fontSize:11,color:T.textMut}}>{t.sehir} · {t.takimlar.length} takım · {t.maclar.length} maç</div>
+            <div style={{fontSize:11,color:T.textMut}}>{t.sehir} · {(t.takimSay!=null?t.takimSay:t.takimlar.length)} takım · {(t.macSay!=null?t.macSay:t.maclar.length)} maç</div>
           </div>
           <span style={{color:T.textMut,fontSize:18}}>›</span>
         </div>
@@ -4441,6 +4470,7 @@ function LigKurallar({turnuva, T, yonetim}){
   </div>;
 }
 function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, saltOkunur, onPaylas, onPaylasKaldir, ilkTab}){
+  if(turnuva && turnuva._ozet) return <div className="fade-in" style={{padding:"80px 24px",textAlign:"center",color:T.textMut,fontSize:13.5}}>⏳ Lig yükleniyor…</div>;
   const [tab,setTab]=useState((ilkTab&&yonetim)?ilkTab:"genel");
   const [paylasAcik,setPaylasAcik]=useState(false);
   const [paylasUrl,setPaylasUrl]=useState(turnuva.paylasimSlug?PAYLASIM_URL(turnuva.paylasimSlug):"");
@@ -13855,32 +13885,33 @@ function App(){
     let aktif=true;
     setLiglerYuk(true);
     (async()=>{
-      // Aktif demo evren varsa (Göster'e basılmış) → yenilemede de o evren kalsın (mod). Yoksa gerçek ligler.
       const aktEv = (()=>{ try{ return oturum ? localStorage.getItem('fz_aktif_evren') : null; }catch(e){ return null; } })();
-      // Yayınlanan herkese-açık evren içeriği HERKESE görünür (kendi liglerine ek olarak)
-      const evrenBirlestir=(kendi)=>{ const varOlan=new Set((kendi||[]).map(l=>l.id)); return (kendi||[]).concat((evrenHepsi||[]).filter(l=>!varOlan.has(l.id))); };
-      let ligler, evrenHepsi=[];
-      if(!oturum){
-        const [acik, evren] = await Promise.all([Db.liglerYukleAcik(), Db.liglerEvrenHepsi(60)]);
-        evrenHepsi=evren; ligler = evrenBirlestir(acik);
-      } else if(aktEv){
-        ligler = await Db.liglerEvrenYukle(aktEv);
-        // Evren silinmiş/boşsa modda takılı kalma → gerçek liglere otomatik dön
-        if(!ligler.length){ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const [benim,evren]=await Promise.all([Db.liglerYukle(oturum.id, false),Db.liglerEvrenHepsi(60)]); evrenHepsi=evren; ligler=evrenBirlestir(benim); }
-      } else {
-        const [benim, evren] = await Promise.all([Db.liglerYukle(oturum.id, false), Db.liglerEvrenHepsi(60)]);
-        evrenHepsi=evren; ligler = evrenBirlestir(benim);
-      }
-      if(!aktif) return;
-      setEvrenAktif(!!(oturum && (()=>{ try{ return localStorage.getItem('fz_aktif_evren'); }catch(e){ return null; } })()));
+      // Yan yüklemeler (admin/hak/profil) — akıştan bağımsız
       if(oturum){ window.__FL_UID=oturum.id; Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); Db.yasakliMi(oturum.id).then(y=>{ if(aktif && y) setYasakli(true); }); Db.yardimciLiglerim(oturum.id).then(ids=>{ if(aktif) setYardimciLigler(new Set(ids)); }); Db.profilGetir(oturum.id).then(p=>{ if(!aktif) return; setProfil(p||{}); }); } else { window.__FL_UID=null; setAdminMi(false); setLigKurYetkim(false); setYasakli(null); setYardimciLigler(new Set()); setProfil(null); setRolSor(false); }
-      ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
+      setEvrenAktif(!!(oturum && aktEv));
       setIliskiselModu(true);            // blob otomatik kaydı/yeniden yayını KAPALI
-      setTurnuvalar(ligler);
-      setLiglerYuk(false);
       bulutHazir.current=true;
-      setBulutDurum(ligler.length ? ("Yüklendi ✓ ("+ligler.length+" lig)") : "");
+
+      if(oturum && aktEv){
+        // Süper admin "evren görüntüleme" modu — kasıtlı TAM yük (stres testi). Boşsa özete dön.
+        let ligler = await Db.liglerEvrenYukle(aktEv);
+        if(!ligler.length){ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} if(aktif) setEvrenAktif(false); ligler = await Db.liglerOzet(oturum.id); }
+        if(!aktif) return;
+        ligler.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} });
+        setTurnuvalar(ligler); setLiglerYuk(false);
+        return;
+      }
+
+      // ===== NORMAL AKIŞ (performans): TEK sorgu özet → anında render → aktif ligi TAM yükle
+      const ozet = await Db.liglerOzet(oturum ? oturum.id : null);
+      if(!aktif) return;
+      setTurnuvalar(ozet);
+      setLiglerYuk(false);
+      setBulutDurum(ozet.length ? ("Yüklendi ✓ ("+ozet.length+" lig)") : "");
       setTimeout(()=>{ if(aktif) setBulutDurum(""); },2200);
+      // Aktif lig = kendi (yönetici) ligin ya da ilk lig → yalnız ONU tam yükle (tembel)
+      const aktif0 = ozet.find(l=>l.benim) || (oturum && ozet.find(l=>l.yonetici_id===oturum.id)) || ozet[0];
+      if(aktif0){ try{ const full=await Db.ligYukle(aktif0.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); } }catch(e){} }
     })();
     return ()=>{ aktif=false; };
   },[oturum]);
@@ -14080,7 +14111,13 @@ function App(){
   // GEZİNME + TARAYICI GEÇMİŞİ — telefonun geri tuşu uygulamadan atmasın:
   // git() her sayfa geçişinde history'ye kayıt ekler; geri tuşu (popstate) iç yığından döner.
   const titret=(ms)=>{ try{ if(navigator.vibrate) navigator.vibrate(ms||8); }catch(e){} }; // haptik: kısa dokunuş hissi (destekleyen cihazlarda)
-  const git=(n)=>{ titret(); setNavGecmis(p=>[...p, nav]); setNav(n); try{ window.history.replaceState({...(window.history.state||{}), sy:window.scrollY}, ""); window.history.pushState({fz:1},"",URL_FOR(n)); }catch(e){} window.scrollTo(0,0); try{ if(n&&n.sayfa) Db.olayYaz(oturum,'sayfa',n.sayfa); }catch(e){} };
+  // Özet (tembel) ligin tam verisini getir → turnuvalar'ı güncelle → tam nesneyi döndür
+  const ligTamYukle=async(id)=>{ if(!id) return null; try{ const full=await Db.ligYukle(id); if(full){ try{ turnuvaHesapla(full); }catch(e){} setTurnuvalar(p=>p.map(t=>t.id===id?full:t)); } return full; }catch(e){ return null; } };
+  const git=(n)=>{
+    // Tembel yükleme: özet lig açılıyorsa tam veriyi arkada getir, gelince nav'ı güncelle
+    if(n && n.turnuva && n.turnuva._ozet && n.turnuva.id){ ligTamYukle(n.turnuva.id).then(full=>{ if(full) setNav(cur=> (cur&&cur.turnuva&&cur.turnuva.id===full.id)?{...cur,turnuva:full}:cur); }); }
+    titret(); setNavGecmis(p=>[...p, nav]); setNav(n); try{ window.history.replaceState({...(window.history.state||{}), sy:window.scrollY}, ""); window.history.pushState({fz:1},"",URL_FOR(n)); }catch(e){} window.scrollTo(0,0); try{ if(n&&n.sayfa) Db.olayYaz(oturum,'sayfa',n.sayfa); }catch(e){}
+  };
   const geriIc=()=>{ setNavGecmis(p=>{ if(p.length===0){ setNav({sayfa:"ana"}); return p; } const son=p[p.length-1]; setNav(son); return p.slice(0,-1); }); window.scrollTo(0,0); };
   const geriIcRef=useRef(geriIc); geriIcRef.current=geriIc;
   // Uygulamanın kendi "←" butonu: bizim eklediğimiz kayıt varsa tarayıcıdan geri git
