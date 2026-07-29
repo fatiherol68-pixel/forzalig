@@ -1087,6 +1087,8 @@ const Db = {
   async ligGeriAl(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_geri_al',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ligPurge(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('lig_purge_eskiler'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   async ligKaliciSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('lig_kalici_sil',{p_lig:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  // Paylaşılan lig (paylasilan_ligler) kalıcı sil — admin RPC (varsa) yoksa doğrudan (RLS: sahip/admin). Fantom temizliği için.
+  async paylasilanSilAdmin(slug){ if(!sb||!slug) return {hata:"yok"}; try{ let {error}=await sb.rpc('paylasilan_sil_admin',{p_slug:slug}); if(error){ const d=await sb.from('paylasilan_ligler').delete().eq('slug',slug); error=d.error; } return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ligCopListe(){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('id,ad,silinme_t').eq('silindi',true).order('silinme_t',{ascending:false}); return data||[]; }catch(e){ return []; } },
   // HAM lig listesi (admin): TÜM ligler — gizli/demo/yönetici farketmez. Fantom temizliği için.
   async tumLiglerHam(){ if(!sb) return []; try{ let q=await sb.from('ligler').select('id,ad,yonetici_id,evren,silindi,olusturma').order('olusturma',{ascending:false}).limit(500); if(q.error){ q=await sb.from('ligler').select('id,ad,yonetici_id,olusturma').order('olusturma',{ascending:false}).limit(500); } return q.data||[]; }catch(e){ return []; } },
@@ -11728,8 +11730,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const [cfgGoster,setCfgGoster]=useState(true);
   const [stresPct,setStresPct]=useState(0);   // ilerleme çubuğu %
   const [hamLigler,setHamLigler]=useState(null);   // ham lig listesi (fantom temizliği)
-  const hamLiglerYukle=async()=>{ setHamLigler("yuk"); const d=await Db.tumLiglerHam(); setHamLigler(d||[]); };
-  const hamLigSil=async(l)=>{ if(!confirm("\""+(l.ad||"Lig")+"\" ligini VE tüm bağlı verisini KALICI sil? Geri alınamaz.")) return; const r=await Db.ligKaliciSil(l.id); if(r&&r.ok){ setHamLigler(p=>Array.isArray(p)?p.filter(x=>x.id!==l.id):p); try{localStorage.removeItem('fz_aktif_evren');}catch(e){} Db.panelMetrikler&&Db.panelMetrikler().then(m=>setMetrik(m)); Db.logla(oturum,"Ham lig kalıcı silindi",l.ad||l.id); } else alert((r&&r.hata)||"silinemedi"); };
+  const hamLiglerYukle=async()=>{ setHamLigler("yuk"); const [g,p]=await Promise.all([Db.tumLiglerHam(), Admin.ligler()]); const gerc=(g||[]).map(l=>({...l, kaynak:'lig', anahtar:'lig:'+l.id})); const pay=(p||[]).map(l=>({id:l.slug, slug:l.slug, ad:l.ad, sehir:l.sehir, yonetici_id:l.sahip_id, kaynak:'paylasim', anahtar:'pay:'+l.slug})); setHamLigler([...gerc, ...pay]); };
+  const hamLigSil=async(l)=>{ if(!confirm("\""+(l.ad||"Lig")+"\" "+(l.kaynak==='paylasim'?"paylaşımını (URL kopyası)":"ligini VE tüm bağlı verisini")+" KALICI sil? Geri alınamaz.")) return; const r = l.kaynak==='paylasim' ? await Db.paylasilanSilAdmin(l.slug) : await Db.ligKaliciSil(l.id); if(r&&r.ok){ setHamLigler(p=>Array.isArray(p)?p.filter(x=>(x.anahtar||x.id)!==(l.anahtar||l.id)):p); try{localStorage.removeItem('fz_aktif_evren');}catch(e){} Db.panelMetrikler&&Db.panelMetrikler().then(m=>setMetrik(m)); Db.logla(oturum, l.kaynak==='paylasim'?"Paylaşılan lig silindi":"Ham lig kalıcı silindi", l.ad||l.id); } else alert((r&&r.hata)||"silinemedi"); };
   // maç sayısı önizleme (tek devre: n*(n-1)/2, çift: iki katı; gruplu: yaklaşık)
   const macOnizle=useMemo(()=>{
     const n=Math.max(2,parseInt(cfgTakim)||0);
@@ -12582,14 +12584,14 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           <button onClick={()=>{ try{localStorage.removeItem('fz_aktif_evren');}catch(e){} if(onGercegeDon){ setStresLog("🏠 Gerçek liglerine dönüldü."); onGercegeDon(); } }} disabled={stresYuk} className="tap" style={{width:"100%",marginTop:6,background:"none",color:T.textMut,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px",fontSize:11.5,fontWeight:700}}>🏠 Gerçek liglerime dön (evren modundan çık)</button>
           {/* 🔧 HAM LİG LİSTESİ — fantom/gizli lig temizliği (mod/yönetici/evren farketmez) */}
           <div style={{marginTop:10,borderTop:"0.5px solid "+T.line,paddingTop:10}}>
-            <button onClick={hamLiglerYukle} className="tap" style={{width:"100%",background:T.bg2,color:T.textSoft,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px",fontSize:11.5,fontWeight:700}}>🔧 Tüm ligleri listele (fantom temizliği)</button>
+            <button onClick={hamLiglerYukle} className="tap" style={{width:"100%",background:T.bg2,color:T.textSoft,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px",fontSize:11.5,fontWeight:700}}>🔧 Tüm ligleri listele (gerçek + paylaşım + demo)</button>
             {hamLigler==="yuk" && <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:8}}>Yükleniyor…</div>}
             {Array.isArray(hamLigler) && hamLigler.length===0 && <div style={{fontSize:11,color:T.accent,textAlign:"center",padding:8}}>✅ Veritabanında hiç lig yok — tertemiz.</div>}
             {Array.isArray(hamLigler) && hamLigler.map(l=>
-              <div key={l.id} style={{display:"flex",alignItems:"center",gap:8,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"8px 10px",marginTop:6}}>
+              <div key={l.anahtar||l.id} style={{display:"flex",alignItems:"center",gap:8,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"8px 10px",marginTop:6}}>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:12,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad||"(isimsiz)"}</div>
-                  <div style={{fontSize:9,color:T.textMut}}>{l.evren?("🌌 demo: "+l.evren):"gerçek"}{l.silindi?" · 🗑️ çöpte":""}{(l.yonetici_id&&oturum&&l.yonetici_id!==oturum.id)?" · başka sahip":""}</div>
+                  <div style={{fontSize:9,color:T.textMut}}>{l.kaynak==='paylasim'?("🔗 paylaşım · /"+l.slug):(l.evren?("🌌 demo: "+l.evren):"gerçek")}{l.silindi?" · 🗑️ çöpte":""}{(l.yonetici_id&&oturum&&l.yonetici_id!==oturum.id)?" · başka sahip":""}</div>
                 </div>
                 <button onClick={()=>hamLigSil(l)} className="tap" style={{fontSize:10.5,color:T.danger,background:T.danger+"18",border:"0.5px solid "+T.danger+"55",borderRadius:8,padding:"5px 10px",fontWeight:700,flexShrink:0}}>🗑️ Kalıcı sil</button>
               </div>
