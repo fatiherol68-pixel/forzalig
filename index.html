@@ -13618,7 +13618,29 @@ function SorunBildir({T, git, oturum, teshis}){
   </div>;
 }
 
+// ⏱️ Geçici açılış-ölçüm katmanı (sadece admin görür). Teşhis bitince kaldırılacak.
+function BootOlcum(){
+  const [b,setB]=React.useState({});
+  React.useEffect(()=>{ let n=0; const id=setInterval(()=>{ try{ setB({...(window.__FLB||{})}); }catch(e){} if(++n>60) clearInterval(id); },500); return ()=>clearInterval(id); },[]);
+  const sat=(ad,v,onceki)=> v==null ? null : <div key={ad} style={{display:"flex",justifyContent:"space-between",gap:14}}><span>{ad}</span><b>{v}ms{onceki!=null&&v!=null?` (+${v-onceki})`:""}</b></div>;
+  const r=b.react, a=b.auth, o=b.ozet, k=b.kokpit, t=b.tam;
+  return <div style={{position:"fixed",left:8,bottom:8,zIndex:99999,background:"rgba(0,0,0,.86)",color:"#7CFFB2",
+    font:"11px/1.5 ui-monospace,monospace",padding:"9px 11px",borderRadius:10,border:"1px solid #1c5",maxWidth:230,pointerEvents:"auto"}}
+    onClick={()=>{ try{ navigator.clipboard.writeText(JSON.stringify(b)); }catch(e){} }}>
+    <div style={{color:"#fff",fontWeight:800,marginBottom:3}}>⏱️ AÇILIŞ (ms, 0=aç)</div>
+    {sat("TTFB (html)",b.ttfb)}
+    {sat("React başladı",r,b.ttfb)}
+    {sat("Oturum (auth)",a,r)}
+    {sat("Lig listesi",o,a)}
+    {sat("KOKPİT hazır",k,o)}
+    {sat("Tam veri",t,k)}
+    <div style={{color:"#888",marginTop:4,fontSize:9.5}}>dokun→kopyala · geçici</div>
+  </div>;
+}
 function App(){
+  // ⏱️ AÇILIŞ ÖLÇÜMÜ (geçici teşhis — sadece admin görür): boot fazlarını damgala
+  try{ if(!window.__FLB){ const n=(performance.getEntriesByType&&performance.getEntriesByType('navigation')[0])||{};
+    window.__FLB={ react:Math.round(performance.now()), ttfb:Math.round(n.responseStart||0), domInt:Math.round(n.domInteractive||0) }; } }catch(e){}
   // localStorage yardımcıları
   const KAYIT="fatihpro_veri_v1";
   const yukle=()=>{ try{ const s=localStorage.getItem(KAYIT); return s?JSON.parse(s):null; }catch(e){ return null; } };
@@ -13874,6 +13896,7 @@ function App(){
       return u;
     };
     sb.auth.getSession().then(({data})=>{
+      try{ if(window.__FLB && !window.__FLB.auth) window.__FLB.auth=Math.round(performance.now()); }catch(e){}   // ⏱️ oturum hazır
       if(!aktif) return;
       const u=kapiKontrol(data.session?data.session.user:null);
       setOturum(u);
@@ -13925,6 +13948,7 @@ function App(){
 
       // ===== NORMAL AKIŞ (performans): TEK sorgu özet → anında render → aktif ligi TAM yükle
       const ozet = await Db.liglerOzet(oturum ? oturum.id : null);
+      try{ if(window.__FLB && !window.__FLB.ozet) window.__FLB.ozet=Math.round(performance.now()); }catch(e){}   // ⏱️ lig listesi geldi
       if(!aktif) return;
       setTurnuvalar(ozet);
       setLiglerYuk(false);
@@ -13938,7 +13962,9 @@ function App(){
       const aktif0 = ozet.find(l=>l.benim) || (oturum && ozet.find(l=>l.yonetici_id===oturum.id)) || ozet[0];
       if(aktif0){
         try{ const hf=await Db.ligYukle(aktif0.id, true); if(hf && aktif){ hf.takimSay=aktif0.takimSay; hf.macSay=aktif0.macSay; hf.oyuncuSay=aktif0.oyuncuSay; turnuvaHesapla(hf); setTurnuvalar(p=>p.map(t=>t.id===hf.id?hf:t)); } }catch(e){}
+        try{ if(window.__FLB && !window.__FLB.kokpit) window.__FLB.kokpit=Math.round(performance.now()); }catch(e){}   // ⏱️ kokpit (puan durumu) hazır
         try{ const full=await Db.ligYukle(aktif0.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); } }catch(e){}
+        try{ if(window.__FLB && !window.__FLB.tam) window.__FLB.tam=Math.round(performance.now()); }catch(e){}   // ⏱️ tam veri (krallar) hazır
       }
     })();
     return ()=>{ aktif=false; };
@@ -14671,6 +14697,7 @@ function App(){
     {DAVET_TOKEN && kapi!=="giris" && kapi!=="uyeol" && kapi!=="splash" && kapi!=="tanitim" &&
       <DavetKatil T={T} token={DAVET_TOKEN} oturum={oturum} girisYap={()=>setKapi("uyeol")}/>}
     {/* FAZ 7 — Açılış / Tanıtım / Giriş kapısı (uygulamanın üstünde overlay) */}
+    {adminMi && <BootOlcum/>}
     {kapi==="splash" && <AcilisSplash T={T} onBitti={()=>setKapi("tanitim")}/>}
     {kapi==="tanitim" && <Tanitim T={T} kapiGit={setKapi} tamamla={kapiTamamla}/>}
     {(kapi==="giris"||kapi==="uyeol") && <GirisAuth T={T} mod={kapi} kapiGit={setKapi} tamamla={kapiTamamla}/>}
