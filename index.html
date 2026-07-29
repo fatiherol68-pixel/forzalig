@@ -1415,7 +1415,7 @@ const Db = {
       const [tkR,otR,mcR]=await Promise.all([
         sb.from('takimlar').select('*').eq('lig_id',ligId).neq('durum','arsiv'),
         sb.from('oyuncu_takim').select('*').eq('lig_id',ligId).eq('aktif',true),
-        sb.from('maclar').select('*').eq('lig_id',ligId)
+        sb.from('maclar').select('id,hafta,tur,grup,bye,pen_galip,ev_takim_id,dep_takim_id,ev_skor,dep_skor,oynandi,sure,olaylar,kaleciler,oduller,mvp,mvp_takim,dizilis_ev,dizilis_dep,kadro_ev,kadro_dep,stad,hakem,tarih,bildirildi').eq('lig_id',ligId)   // AĞIR alanlar (istatistik/ratingler/medya) LİSTE'de çekilmez → maç açılınca tembel (Db.macDetay)
       ]);
       const tk=tkR.data||[], ot=otR.data||[], mc=mcR.data||[];
       const pidler=[...new Set(ot.map(x=>x.player_id))];
@@ -1447,9 +1447,9 @@ const Db = {
           oynandi:m.oynandi, sure:m.sure, olaylar:m.olaylar||[], kaleciler:m.kaleciler||[],
           oduller:(()=>{ const o={...(m.oduller||{})}; delete o._mvpId; delete o._odullerId; return o; })(),
           mvpId:(m.oduller&&m.oduller._mvpId)||null, odullerId:(m.oduller&&m.oduller._odullerId)||null,
-          mvp:m.mvp, mvpTakim:m.mvp_takim, istatistik:m.istatistik, ratingler:m.ratingler,
+          mvp:m.mvp, mvpTakim:m.mvp_takim, istatistik:null, ratingler:null, _tamDegil:true,   // ağır detay tembel (Db.macDetay, maç açılınca)
           dizilisA:m.dizilis_ev, dizilisB:m.dizilis_dep, kadroA:m.kadro_ev, kadroB:m.kadro_dep,
-          stad:m.stad, hakem:m.hakem, tarih:m.tarih||'', medya:m.medya||null, bildirildi:!!m.bildirildi };
+          stad:m.stad, hakem:m.hakem, tarih:m.tarih||'', medya:null, bildirildi:!!m.bildirildi };
       });
       return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', yonetici_id:L.yonetici_id, takimlar, maclar, format:L.format||'tek',
         grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
@@ -1457,6 +1457,8 @@ const Db = {
         kurallarKilit:!!L.kurallar_kilit, kurallar:L.kurallar||"", iliskisel:true };
     }catch(e){ console.warn('ligYukle',e); return null; }
   },
+  // Ağır maç detayı (istatistik/ratingler/medya) — SADECE maç açılınca tembel yüklenir. Liste yükünü hafifletir.
+  async macDetay(id){ if(!sb||!id) return null; try{ const {data}=await sb.from('maclar').select('istatistik,ratingler,medya').eq('id',id).maybeSingle(); if(!data) return null; return { istatistik:data.istatistik||null, ratingler:data.ratingler||null, medya:data.medya||null }; }catch(e){ return null; } },
   // Test verisini temizle: kullanıcının tüm ligleri + öksüz oyuncular (admin)
   async testVerisiSil(yoneticiId){
     if(!sb) return {hata:"bağlantı yok"};
@@ -14115,9 +14117,13 @@ function App(){
   const titret=(ms)=>{ try{ if(navigator.vibrate) navigator.vibrate(ms||8); }catch(e){} }; // haptik: kısa dokunuş hissi (destekleyen cihazlarda)
   // Özet (tembel) ligin tam verisini getir → turnuvalar'ı güncelle → tam nesneyi döndür
   const ligTamYukle=async(id)=>{ if(!id) return null; try{ const full=await Db.ligYukle(id); if(full){ try{ turnuvaHesapla(full); }catch(e){} setTurnuvalar(p=>p.map(t=>t.id===id?full:t)); } return full; }catch(e){ return null; } };
+  // Maçın ağır detayını (istatistik/ratingler/medya) tembel yükle → maç nesnesine işle
+  const macTamYukle=async(mac)=>{ if(!mac || !mac._tamDegil || !mac.id) return null; try{ const d=await Db.macDetay(mac.id); if(d){ mac.istatistik=d.istatistik; mac.ratingler=d.ratingler; mac.medya=d.medya; } delete mac._tamDegil; setTurnuvalar(p=>[...p]); return mac; }catch(e){ return null; } };
   const git=(n)=>{
     // Tembel yükleme: özet lig açılıyorsa tam veriyi arkada getir, gelince nav'ı güncelle
     if(n && n.turnuva && n.turnuva._ozet && n.turnuva.id){ ligTamYukle(n.turnuva.id).then(full=>{ if(full) setNav(cur=> (cur&&cur.turnuva&&cur.turnuva.id===full.id)?{...cur,turnuva:full}:cur); }); }
+    // Maç açılıyorsa ağır detayı tembel getir (istatistik/ratingler/medya)
+    if(n && n.mac && n.mac._tamDegil && n.mac.id){ macTamYukle(n.mac).then(m=>{ if(m) setNav(cur=> (cur&&cur.mac&&cur.mac.id===m.id)?{...cur,mac:{...m}}:cur); }); }
     titret(); setNavGecmis(p=>[...p, nav]); setNav(n); try{ window.history.replaceState({...(window.history.state||{}), sy:window.scrollY}, ""); window.history.pushState({fz:1},"",URL_FOR(n)); }catch(e){} window.scrollTo(0,0); try{ if(n&&n.sayfa) Db.olayYaz(oturum,'sayfa',n.sayfa); }catch(e){}
   };
   const geriIc=()=>{ setNavGecmis(p=>{ if(p.length===0){ setNav({sayfa:"ana"}); return p; } const son=p[p.length-1]; setNav(son); return p.slice(0,-1); }); window.scrollTo(0,0); };
