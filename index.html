@@ -1407,15 +1407,20 @@ const Db = {
     }catch(e){ return {hata:String(e&&e.message||e)}; }
   },
   // ================= YÜKLEYİCİ: ilişkisel tablolar -> turnuva nesnesi =================
-  async ligYukle(ligId){
+  async ligYukle(ligId, hafif){
     if(!sb) return null;
     try{
       const {data:L}=await sb.from('ligler').select('*').eq('id',ligId).maybeSingle();
       if(!L || L.silindi) return null;   // çöpe atılmış (soft-delete) lig ana görünümde yüklenmesin
+      // AŞAMALI YÜKLEME: hafif=true → SADECE skorlar (puan durumu anında gelsin); oyuncular + olaylar/kadro YÜKLENMEZ.
+      // Ağır alanlar (istatistik/ratingler/medya) her iki modda da liste-dışı → maç açılınca tembel (Db.macDetay).
+      const macKol = hafif
+        ? 'id,hafta,tur,grup,bye,pen_galip,ev_takim_id,dep_takim_id,ev_skor,dep_skor,oynandi,sure,mvp,mvp_takim,stad,hakem,tarih,bildirildi'
+        : 'id,hafta,tur,grup,bye,pen_galip,ev_takim_id,dep_takim_id,ev_skor,dep_skor,oynandi,sure,olaylar,kaleciler,oduller,mvp,mvp_takim,dizilis_ev,dizilis_dep,kadro_ev,kadro_dep,stad,hakem,tarih,bildirildi';
       const [tkR,otR,mcR]=await Promise.all([
         sb.from('takimlar').select('*').eq('lig_id',ligId).neq('durum','arsiv'),
-        sb.from('oyuncu_takim').select('*').eq('lig_id',ligId).eq('aktif',true),
-        sb.from('maclar').select('id,hafta,tur,grup,bye,pen_galip,ev_takim_id,dep_takim_id,ev_skor,dep_skor,oynandi,sure,olaylar,kaleciler,oduller,mvp,mvp_takim,dizilis_ev,dizilis_dep,kadro_ev,kadro_dep,stad,hakem,tarih,bildirildi').eq('lig_id',ligId)   // AĞIR alanlar (istatistik/ratingler/medya) LİSTE'de çekilmez → maç açılınca tembel (Db.macDetay)
+        hafif ? Promise.resolve({data:[]}) : sb.from('oyuncu_takim').select('*').eq('lig_id',ligId).eq('aktif',true),
+        sb.from('maclar').select(macKol).eq('lig_id',ligId)
       ]);
       const tk=tkR.data||[], ot=otR.data||[], mc=mcR.data||[];
       const pidler=[...new Set(ot.map(x=>x.player_id))];
@@ -1454,11 +1459,23 @@ const Db = {
       return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', yonetici_id:L.yonetici_id, takimlar, maclar, format:L.format||'tek',
         grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
         sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
-        kurallarKilit:!!L.kurallar_kilit, kurallar:L.kurallar||"", iliskisel:true };
+        kurallarKilit:!!L.kurallar_kilit, kurallar:L.kurallar||"", iliskisel:true, _hafif:!!hafif };
     }catch(e){ console.warn('ligYukle',e); return null; }
   },
-  // Ağır maç detayı (istatistik/ratingler/medya) — SADECE maç açılınca tembel yüklenir. Liste yükünü hafifletir.
-  async macDetay(id){ if(!sb||!id) return null; try{ const {data}=await sb.from('maclar').select('istatistik,ratingler,medya').eq('id',id).maybeSingle(); if(!data) return null; return { istatistik:data.istatistik||null, ratingler:data.ratingler||null, medya:data.medya||null }; }catch(e){ return null; } },
+  // Ağır maç detayı — maç açılınca VEYA aşamalı yüklemede 2. fazda tembel gelir.
+  // İki iş görür: (1) skor-modunda atlanan olaylar/kadro/kaleciler/oduller, (2) her modda liste-dışı istatistik/ratingler/medya.
+  async macDetay(id){
+    if(!sb||!id) return null;
+    try{
+      const {data}=await sb.from('maclar').select('olaylar,kaleciler,oduller,dizilis_ev,dizilis_dep,kadro_ev,kadro_dep,istatistik,ratingler,medya').eq('id',id).maybeSingle();
+      if(!data) return null;
+      const od={...(data.oduller||{})}; delete od._mvpId; delete od._odullerId;
+      return { olaylar:data.olaylar||[], kaleciler:data.kaleciler||[], oduller:od,
+        mvpId:(data.oduller&&data.oduller._mvpId)||null, odullerId:(data.oduller&&data.oduller._odullerId)||null,
+        dizilisA:data.dizilis_ev, dizilisB:data.dizilis_dep, kadroA:data.kadro_ev, kadroB:data.kadro_dep,
+        istatistik:data.istatistik||null, ratingler:data.ratingler||null, medya:data.medya||null };
+    }catch(e){ return null; }
+  },
   // Test verisini temizle: kullanıcının tüm ligleri + öksüz oyuncular (admin)
   async testVerisiSil(yoneticiId){
     if(!sb) return {hata:"bağlantı yok"};
@@ -3827,7 +3844,7 @@ function AnaSayfa({turnuvalar, T, git}){
   // Özet (tembel) liglerde takimlar/maclar boş → özet sayıları (takimSay/macSay/oyuncuSay) kullan
   const topTakim = turnuvalar.reduce((s,t)=>s+(t.takimSay!=null?t.takimSay:(t.takimlar?t.takimlar.length:0)),0);
   const topMac = turnuvalar.reduce((s,t)=>s+(t.macSay!=null?t.macSay:(t.maclar?t.maclar.length:0)),0);
-  const topOyuncu = turnuvalar.reduce((s,t)=>s+(t.oyuncuSay!=null?t.oyuncuSay:0),0) || tumO.length;
+  const topOyuncu = turnuvalar.reduce((s,t)=>s+(t.oyuncuSay!=null?t.oyuncuSay:(t.takimlar?t.takimlar.reduce((a,tk)=>a+((tk.oyuncular&&tk.oyuncular.length)||0),0):0)),0) || tumO.length;
 
   // saate göre selamlama
   const saat = new Date().getHours();
@@ -13913,9 +13930,16 @@ function App(){
       setLiglerYuk(false);
       setBulutDurum(ozet.length ? ("Yüklendi ✓ ("+ozet.length+" lig)") : "");
       setTimeout(()=>{ if(aktif) setBulutDurum(""); },2200);
-      // Aktif lig = kendi (yönetici) ligin ya da ilk lig → yalnız ONU tam yükle (tembel)
+      // Aktif lig = kendi (yönetici) ligin ya da ilk lig → yalnız ONU AŞAMALI yükle:
+      //  FAZ-1 (hafif, sadece skorlar): kokpit ANINDA açılır — takimlar dolunca aktifTurnuva null
+      //   kalmaz (yoksa "Hoş geldin" ekranı görünür, açılış geç sanılır). Sayılar özetten taşınır.
+      //  FAZ-2 (tam: oyuncular + olaylar): gol kralı / haftanın oyuncusu dolar; lig açılınca da anında hazır.
+      // Açılış hızı lig büyüklüğünden BAĞIMSIZ kalır (faz-1 sadece skor sorgusu).
       const aktif0 = ozet.find(l=>l.benim) || (oturum && ozet.find(l=>l.yonetici_id===oturum.id)) || ozet[0];
-      if(aktif0){ try{ const full=await Db.ligYukle(aktif0.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); } }catch(e){} }
+      if(aktif0){
+        try{ const hf=await Db.ligYukle(aktif0.id, true); if(hf && aktif){ hf.takimSay=aktif0.takimSay; hf.macSay=aktif0.macSay; hf.oyuncuSay=aktif0.oyuncuSay; turnuvaHesapla(hf); setTurnuvalar(p=>p.map(t=>t.id===hf.id?hf:t)); } }catch(e){}
+        try{ const full=await Db.ligYukle(aktif0.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); } }catch(e){}
+      }
     })();
     return ()=>{ aktif=false; };
   },[oturum]);
@@ -14115,13 +14139,34 @@ function App(){
   // GEZİNME + TARAYICI GEÇMİŞİ — telefonun geri tuşu uygulamadan atmasın:
   // git() her sayfa geçişinde history'ye kayıt ekler; geri tuşu (popstate) iç yığından döner.
   const titret=(ms)=>{ try{ if(navigator.vibrate) navigator.vibrate(ms||8); }catch(e){} }; // haptik: kısa dokunuş hissi (destekleyen cihazlarda)
-  // Özet (tembel) ligin tam verisini getir → turnuvalar'ı güncelle → tam nesneyi döndür
-  const ligTamYukle=async(id)=>{ if(!id) return null; try{ const full=await Db.ligYukle(id); if(full){ try{ turnuvaHesapla(full); }catch(e){} setTurnuvalar(p=>p.map(t=>t.id===id?full:t)); } return full; }catch(e){ return null; } };
+  // Özet (tembel) ligin verisini AŞAMALI getir:
+  //  FAZ 1 (hafif) = sadece skorlar → puan durumu ANINDA (oyuncular/olaylar yüklenmez).
+  //  FAZ 2 (tam)   = oyuncular + olaylar/kadro → krallar/istatistik dolar.
+  // onHafif: faz-1 bitince çağrılır (nav'ı hemen puan durumuyla güncellemek için).
+  // atlaHafif: lig zaten hafif yüklüyse (açılışta ön-ısıtıldı) faz-1'i tekrarlama, doğrudan faz-2'ye geç.
+  // Dönüş = tam (yoksa hafif).
+  const ligTamYukle=async(id, onHafif, atlaHafif)=>{ if(!id) return null;
+    try{
+      let hf=null;
+      if(!atlaHafif){
+        hf=await Db.ligYukle(id, true);
+        if(hf){ try{ turnuvaHesapla(hf); }catch(e){} setTurnuvalar(p=>p.map(t=>t.id===id?hf:t)); if(onHafif){ try{ onHafif(hf); }catch(e){} } }
+      }
+      const full=await Db.ligYukle(id);
+      if(full){ try{ turnuvaHesapla(full); }catch(e){} setTurnuvalar(p=>p.map(t=>t.id===id?full:t)); }
+      return full||hf;
+    }catch(e){ return null; }
+  };
   // Maçın ağır detayını (istatistik/ratingler/medya) tembel yükle → maç nesnesine işle
-  const macTamYukle=async(mac)=>{ if(!mac || !mac._tamDegil || !mac.id) return null; try{ const d=await Db.macDetay(mac.id); if(d){ mac.istatistik=d.istatistik; mac.ratingler=d.ratingler; mac.medya=d.medya; } delete mac._tamDegil; setTurnuvalar(p=>[...p]); return mac; }catch(e){ return null; } };
+  const macTamYukle=async(mac)=>{ if(!mac || !mac._tamDegil || !mac.id) return null; try{ const d=await Db.macDetay(mac.id); if(d){ Object.assign(mac, d); } delete mac._tamDegil; setTurnuvalar(p=>[...p]); return mac; }catch(e){ return null; } };
   const git=(n)=>{
-    // Tembel yükleme: özet lig açılıyorsa tam veriyi arkada getir, gelince nav'ı güncelle
-    if(n && n.turnuva && n.turnuva._ozet && n.turnuva.id){ ligTamYukle(n.turnuva.id).then(full=>{ if(full) setNav(cur=> (cur&&cur.turnuva&&cur.turnuva.id===full.id)?{...cur,turnuva:full}:cur); }); }
+    // Tembel + aşamalı yükleme: özet(_ozet) VEYA sadece-skor(_hafif) lig açılıyorsa
+    // önce puan durumu (faz-1) anında, sonra tam veri (faz-2, krallar/istatistik) arkada gelir.
+    if(n && n.turnuva && (n.turnuva._ozet || n.turnuva._hafif) && n.turnuva.id){
+      const _id=n.turnuva.id, _atla=!!n.turnuva._hafif;   // zaten hafif yüklüyse faz-1 tekrar edilmez
+      ligTamYukle(_id, (hf)=>{ setNav(cur=> (cur&&cur.turnuva&&cur.turnuva.id===_id)?{...cur,turnuva:hf}:cur); }, _atla)
+        .then(full=>{ if(full) setNav(cur=> (cur&&cur.turnuva&&cur.turnuva.id===full.id)?{...cur,turnuva:full}:cur); });
+    }
     // Maç açılıyorsa ağır detayı tembel getir (istatistik/ratingler/medya)
     if(n && n.mac && n.mac._tamDegil && n.mac.id){ macTamYukle(n.mac).then(m=>{ if(m) setNav(cur=> (cur&&cur.mac&&cur.mac.id===m.id)?{...cur,mac:{...m}}:cur); }); }
     titret(); setNavGecmis(p=>[...p, nav]); setNav(n); try{ window.history.replaceState({...(window.history.state||{}), sy:window.scrollY}, ""); window.history.pushState({fz:1},"",URL_FOR(n)); }catch(e){} window.scrollTo(0,0); try{ if(n&&n.sayfa) Db.olayYaz(oturum,'sayfa',n.sayfa); }catch(e){}
