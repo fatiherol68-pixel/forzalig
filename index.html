@@ -995,6 +995,10 @@ const Db = {
   async siteGorunumKaydet(stil, renk, userId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('site_ayar').update({stil_key:stil, renk_key:renk||"", guncelleyen:userId||null, guncelleme:new Date().toISOString()}).eq('id',1); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   // FAZ 3 — Kullanıcı yasaklama
   async yasakla(userId, sebep, byId){ if(!sb||!userId) return {hata:"yok"}; try{ const {error}=await sb.from('yasaklilar').upsert({user_id:userId, sebep:sebep||null, yasaklayan:byId||null, tarih:new Date().toISOString()},{onConflict:'user_id'}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  // Süper admin: üyeyi KALICI sil. auth.users silinince tüm tablolar ON DELETE CASCADE ile temizlenir. RPC gerektirir (admin_mi).
+  async uyeSil(userId){ if(!sb||!userId) return {hata:"yok"}; try{ const {error}=await sb.rpc('uye_sil_admin',{p_user:userId}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  // Süper admin: tüm anonim + @forzalig.com test üyelerini toplu sil (adminler ve çağıran korunur). Silinen sayısını döner.
+  async uyelerTemizle(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('uyeler_temizle_admin'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   async yasakKaldir(userId){ if(!sb||!userId) return {hata:"yok"}; try{ const {error}=await sb.from('yasaklilar').delete().eq('user_id',userId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async yasakliListe(){ if(!sb) return []; try{ const {data}=await sb.from('yasaklilar').select('user_id,sebep,tarih'); return data||[]; }catch(e){ return []; } },
   async yasakliMi(userId){ if(!sb||!userId) return false; try{ const {data}=await sb.from('yasaklilar').select('user_id').eq('user_id',userId).maybeSingle(); return !!data; }catch(e){ return false; } },
@@ -11630,6 +11634,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   };
   // FAZ 3 — kullanıcıyı yasakla / kaldır
   const yasakla=async(u)=>{ const sebep=prompt("Yasaklama sebebi (kullanıcıya gösterilmez, log için):",""); if(sebep===null) return; if(!confirm((u.ad||u.email)+" askıya alınsın mı? Giriş yapamaz.")) return; const r=await Db.yasakla(u.user_id, sebep, oturum&&oturum.id); if(r.ok){ setYasaklilar(p=>[...p,{user_id:u.user_id,sebep}]); Db.logla(oturum,"Kullanıcı askıya alındı",(u.email||"")+(sebep?" · "+sebep:"")); setMesaj("🚫 Askıya alındı"); } else setMesaj("Olmadı: "+(r.hata||"")); };
+  const uyeSil=async(u)=>{ if(!confirm((u.ad||u.email||"Bu üye")+" KALICI silinsin mi?\n\nHesabı ve TÜM verisi (profil, oyuncu kartı, sohbet, bildirim, ligleri…) geri alınamaz şekilde silinir.")) return; const r=await Db.uyeSil(u.user_id); if(r&&r.ok){ setUyeler(p=>p.filter(x=>x.user_id!==u.user_id)); Db.logla(oturum,"Üye kalıcı silindi",u.email||u.user_id); setMesaj("🗑 Üye silindi"); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
+  const uyeleriTemizle=async()=>{ if(!confirm("Tüm ANONİM ve @forzalig.com TEST üyeleri KALICI silinsin mi?\n\nAdminler ve sen korunur. Gerçek (Google/e-posta) üyeler etkilenmez. Geri alınamaz.")) return; const r=await Db.uyelerTemizle(); if(r&&r.ok){ Db.logla(oturum,"Test/anonim üyeler temizlendi",String(r.adet||0)); setMesaj("🧹 "+(r.adet||0)+" test/anonim üye silindi"); yenile(); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   const yasakKaldir=async(u)=>{ const r=await Db.yasakKaldir(u.user_id); if(r.ok){ setYasaklilar(p=>p.filter(x=>x.user_id!==u.user_id)); Db.logla(oturum,"Yasak kaldırıldı",u.email||""); setMesaj("✓ Yasak kaldırıldı"); } else setMesaj("Olmadı: "+(r.hata||"")); };
   const yasakliMi=(uid)=> yasaklilar.some(x=>x.user_id===uid);
   // Süper admin: bir kullanıcının rollerini değiştir (futbolcu/hakem/td)
@@ -12077,6 +12083,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             )}
           </div>
           <input value={uyeAra} onChange={e=>setUyeAra(e.target.value)} placeholder="🔍 İsim / e-posta ara…" style={{width:"100%",boxSizing:"border-box",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:12.5,outline:"none",fontFamily:"inherit",marginBottom:10}}/>
+          {oturum && uyeler.length>1 && <button onClick={uyeleriTemizle} className="tap" style={{width:"100%",boxSizing:"border-box",background:T.danger+"14",color:T.danger,border:"0.5px solid "+T.danger+"44",borderRadius:10,padding:"9px",fontSize:11.5,fontWeight:800,marginBottom:10}}>🧹 Test/anonim üyeleri toplu temizle (adminler korunur)</button>}
           {uyeler.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Henüz üye yok. İnsanlar üye oldukça burada görünür.</div>}
           {uyeler.length>0 && gosterilen.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Bu filtreye uyan üye yok.</div>}
           {gosterilen.map(u=>{ const yetki=u.hak&&u.hak.toplam>0; const kalan=yetki?Math.max(0,(u.hak.toplam||0)-(u.hak.kullanilan||0)):0; const ikon=u.admin?"👑":yetki?"🎟️":"👤"; const kenar=u.admin?T.danger+"55":yetki?T.gold+"44":T.line; return (
@@ -12095,6 +12102,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
               {oturum && u.user_id!==oturum.id && !u.admin && (yasakliMi(u.user_id)
                 ? <button onClick={()=>yasakKaldir(u)} className="tap" title="Yasağı kaldır" style={{fontSize:12,background:T.danger+"22",border:"0.5px solid "+T.danger+"66",borderRadius:7,padding:"4px 7px",color:T.danger}}>🚫</button>
                 : <button onClick={()=>yasakla(u)} className="tap" title="Askıya al (yasakla)" style={{fontSize:12,background:"none",border:"0.5px solid "+T.line,borderRadius:7,padding:"4px 7px",color:T.textMut}}>🚫</button>)}
+              {oturum && u.user_id!==oturum.id && !u.admin && <button onClick={()=>uyeSil(u)} className="tap" title="Üyeyi KALICI sil (hesabı + tüm verisi)" style={{fontSize:12,background:T.danger+"18",border:"0.5px solid "+T.danger+"55",borderRadius:7,padding:"4px 7px",color:T.danger}}>🗑</button>}
               {/* SÜPER ADMIN — rol ata: futbolcu / hakem / teknik direktör */}
               <div style={{flexBasis:"100%",display:"flex",alignItems:"center",gap:6,paddingTop:2}}>
                 <span style={{fontSize:9.5,color:T.textMut,fontWeight:700,marginRight:2}}>ROL:</span>
