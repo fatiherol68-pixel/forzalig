@@ -14202,10 +14202,31 @@ function App(){
   // Uygulamanın kendi "←" butonu: bizim eklediğimiz kayıt varsa tarayıcıdan geri git
   // (popstate → geriIc); yoksa doğrudan iç yığından dön. İkisi hep senkron kalır.
   const geri=()=>{ try{ if(window.history.state&&window.history.state.fz){ window.history.back(); return; } }catch(e){} geriIc(); };
+  const geriRef=useRef(geri); geriRef.current=geri;
   useEffect(()=>{
     const din=()=>{ geriIcRef.current(); setTimeout(()=>{ try{ window.scrollTo(0,(window.history.state&&window.history.state.sy)||0); }catch(e){} },60); };
     window.addEventListener("popstate",din);
     return ()=>window.removeEventListener("popstate",din);
+  },[]);
+  // KENAR-KAYDIRMA İLE GERİ — yalnız iOS ana-ekran (standalone) PWA'da: iOS'ta yüklü uygulamada
+  // tarayıcının geri-kaydırması YOKTUR, bu yüzden sohbet vb. ekranlardan geri kaydırılamıyordu.
+  // Sol kenardan (≤28px) sağa kaydırınca önceki ekrana dön. Android/masaüstü zaten sistem
+  // geri hareketini/butonunu kullanır → oralarda EKLENMEZ (çift-geri olmaz).
+  useEffect(()=>{
+    let iOS=false, standalone=false;
+    try{
+      iOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints>1 && /Macintosh/i.test(navigator.userAgent));
+      standalone = !!(window.navigator.standalone) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    }catch(e){}
+    if(!(iOS && standalone)) return;
+    let sx=0, sy=0, st=0, aktif=false;
+    const bas=(e)=>{ if(e.touches && e.touches.length===1){ const t=e.touches[0]; if(t.clientX<=28){ sx=t.clientX; sy=t.clientY; st=Date.now(); aktif=true; } else aktif=false; } else aktif=false; };
+    const bit=(e)=>{ if(!aktif) return; aktif=false; const t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
+      const dx=t.clientX-sx, dy=t.clientY-sy, dt=Date.now()-st;
+      if(dx>60 && Math.abs(dy)<45 && dt<800){ try{ titret(6); }catch(e){} try{ geriRef.current(); }catch(e){} } };
+    document.addEventListener("touchstart", bas, {passive:true});
+    document.addEventListener("touchend", bit, {passive:true});
+    return ()=>{ document.removeEventListener("touchstart",bas); document.removeEventListener("touchend",bit); };
   },[]);
   // DERİN LİNK GERİ-YÜKLEME: ?mac= / ?takim= / ?oyuncu= → veri yüklenince o sayfaya dön (tek sefer)
   const derinRestoreRef=useRef(false);
