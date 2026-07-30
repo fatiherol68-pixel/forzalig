@@ -1414,9 +1414,12 @@ const Db = {
       if(!L || L.silindi) return null;   // çöpe atılmış (soft-delete) lig ana görünümde yüklenmesin
       // AŞAMALI YÜKLEME: hafif=true → SADECE skorlar (puan durumu anında gelsin); oyuncular + olaylar/kadro YÜKLENMEZ.
       // Ağır alanlar (istatistik/ratingler/medya) her iki modda da liste-dışı → maç açılınca tembel (Db.macDetay).
+      // hafif = sadece skorlar (puan durumu). tam = + olaylar/kaleciler/oduller (gol kralı/enler için).
+      // AĞIR kadro_ev/dep + dizilis_ev/dep TAM'da da YÜKLENMEZ → maç açılınca tembel (Db.macDetay). Bunlar
+      // yalnız maç detayında + oynama-dakikasında gerekir; dk yoksa toplamDk zaten mac*60'a düşer. Payload küçülür.
       const macKol = hafif
         ? 'id,hafta,tur,grup,bye,pen_galip,ev_takim_id,dep_takim_id,ev_skor,dep_skor,oynandi,sure,mvp,mvp_takim,stad,hakem,tarih,bildirildi'
-        : 'id,hafta,tur,grup,bye,pen_galip,ev_takim_id,dep_takim_id,ev_skor,dep_skor,oynandi,sure,olaylar,kaleciler,oduller,mvp,mvp_takim,dizilis_ev,dizilis_dep,kadro_ev,kadro_dep,stad,hakem,tarih,bildirildi';
+        : 'id,hafta,tur,grup,bye,pen_galip,ev_takim_id,dep_takim_id,ev_skor,dep_skor,oynandi,sure,olaylar,kaleciler,oduller,mvp,mvp_takim,stad,hakem,tarih,bildirildi';
       const [tkR,otR,mcR]=await Promise.all([
         sb.from('takimlar').select('*').eq('lig_id',ligId).neq('durum','arsiv'),
         hafif ? Promise.resolve({data:[]}) : sb.from('oyuncu_takim').select('*').eq('lig_id',ligId).eq('aktif',true),
@@ -14244,30 +14247,20 @@ function App(){
     window.addEventListener("popstate",din);
     return ()=>window.removeEventListener("popstate",din);
   },[]);
-  // KENAR-KAYDIRMA İLE GERİ — yalnız iOS ana-ekran (standalone) PWA'da: iOS'ta yüklü uygulamada
-  // tarayıcının geri-kaydırması YOKTUR, bu yüzden sohbet vb. ekranlardan geri kaydırılamıyordu.
-  // Sol kenardan (≤28px) sağa kaydırınca önceki ekrana dön. Android/masaüstü zaten sistem
-  // geri hareketini/butonunu kullanır → oralarda EKLENMEZ (çift-geri olmaz).
-  useEffect(()=>{
-    let iOS=false, standalone=false;
-    try{
-      iOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints>1 && /Macintosh/i.test(navigator.userAgent));
-      standalone = !!(window.navigator.standalone) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-    }catch(e){}
-    if(!(iOS && standalone)) return;
-    let sx=0, sy=0, st=0, aktif=false, maxDx=0, sonY=0;
-    const bas=(e)=>{ if(e.touches && e.touches.length===1){ const t=e.touches[0]; if(t.clientX<=30){ sx=t.clientX; sy=t.clientY; sonY=t.clientY; st=Date.now(); maxDx=0; aktif=true; } else aktif=false; } else aktif=false; };
-    // touchmove ile en büyük yatay ilerlemeyi izle (kaydırılabilir kap touchend koordinatını bozsa da yakala)
-    const oynat=(e)=>{ if(!aktif) return; const t=e.touches&&e.touches[0]; if(!t) return; const dx=t.clientX-sx; if(dx>maxDx) maxDx=dx; sonY=t.clientY; };
-    const bit=(e)=>{ if(!aktif) return; aktif=false; const t=e.changedTouches&&e.changedTouches[0];
-      const bitX=t?t.clientX:sx+maxDx, bitY=t?t.clientY:sonY;
-      const dx=Math.max(maxDx, bitX-sx), dy=bitY-sy, dt=Date.now()-st;
-      if(dx>55 && Math.abs(dy)<55 && dt<900){ try{ titret(6); }catch(e){} try{ geriRef.current(); }catch(e){} } };
-    document.addEventListener("touchstart", bas, {passive:true});
-    document.addEventListener("touchmove", oynat, {passive:true});
-    document.addEventListener("touchend", bit, {passive:true});
-    return ()=>{ document.removeEventListener("touchstart",bas); document.removeEventListener("touchmove",oynat); document.removeEventListener("touchend",bit); };
-  },[]);
+  // KENAR-KAYDIRMA İLE GERİ — yalnız iOS ana-ekran (standalone) PWA'da (iOS'ta tarayıcı geri-kaydırması YOK).
+  // Pointer-capture'lı ince sol-kenar şeridi: sohbet gibi momentum-kaydırmalı ekranlarda BİLE güvenilir
+  // (belge dinleyicisi iOS'ta kaydırıcıya takılıp yatayı dikeye kilitliyordu — o yüzden sohbette çalışmıyordu).
+  // Android/masaüstü sistem geri hareketini/butonunu kullanır → şerit orada render EDİLMEZ (çift-geri olmaz).
+  const [iosPwa] = useState(()=>{ try{
+    const iOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints>1 && /Macintosh/i.test(navigator.userAgent));
+    const standalone = !!(window.navigator.standalone) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    return !!(iOS && standalone);
+  }catch(e){ return false; } });
+  const kenarRef = useRef({});
+  const kenarDown = (e)=>{ try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){} kenarRef.current={sx:e.clientX, sy:e.clientY, t:Date.now(), on:true}; };
+  const kenarUp = (e)=>{ const k=kenarRef.current; kenarRef.current={}; if(!k||!k.on) return;
+    const dx=e.clientX-k.sx, dy=e.clientY-k.sy, dt=Date.now()-k.t;
+    if(dx>46 && Math.abs(dy)<70 && dt<1000){ try{ titret(6); }catch(_){} try{ geriRef.current(); }catch(_){} } };
   // DERİN LİNK GERİ-YÜKLEME: ?mac= / ?takim= / ?oyuncu= → veri yüklenince o sayfaya dön (tek sefer)
   const derinRestoreRef=useRef(false);
   useEffect(()=>{
@@ -14759,6 +14752,9 @@ function App(){
       <DavetKatil T={T} token={DAVET_TOKEN} oturum={oturum} girisYap={()=>setKapi("uyeol")}/>}
     {/* FAZ 7 — Açılış / Tanıtım / Giriş kapısı (uygulamanın üstünde overlay) */}
     {adminMi && <BootOlcum/>}
+    {/* iOS PWA: sol-kenar geri-kaydırma şeridi (sohbet dahil her ekranda güvenilir) */}
+    {iosPwa && kapi===null && <div onPointerDown={kenarDown} onPointerUp={kenarUp} onPointerCancel={()=>{kenarRef.current={};}}
+      style={{position:"fixed", left:0, top:"calc(env(safe-area-inset-top,0px) + 56px)", bottom:0, width:20, zIndex:9995, touchAction:"none", background:"transparent"}}/>}
     {kapi==="splash" && <AcilisSplash T={T} onBitti={()=>setKapi("tanitim")}/>}
     {kapi==="tanitim" && <Tanitim T={T} kapiGit={setKapi} tamamla={kapiTamamla}/>}
     {(kapi==="giris"||kapi==="uyeol") && <GirisAuth T={T} mod={kapi} kapiGit={setKapi} tamamla={kapiTamamla}/>}
