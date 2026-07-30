@@ -1479,6 +1479,10 @@ const Db = {
         istatistik:data.istatistik||null, ratingler:data.ratingler||null, medya:data.medya||null };
     }catch(e){ return null; }
   },
+  // SUNUCU KOKPİT ÖZETİ (stat_ozet) — hesaplanmış anlık görüntüyü OKU/YAZ.
+  // Kokpit bunu okur → 276 maçı indirmeden ~0.5sn'de dolu açılır (her cihazda, ilk açılışta).
+  async statOzetGetir(ligId){ if(!sb||!ligId) return null; try{ const {data}=await sb.from('ligler').select('stat_ozet').eq('id',ligId).maybeSingle(); return (data&&data.stat_ozet)||null; }catch(e){ return null; } },
+  async statOzetYaz(ligId, veri){ if(!sb||!ligId||!veri) return; try{ await sb.rpc('stat_ozet_yaz',{p_lig:ligId, p_data:veri}); }catch(e){} },
   // Test verisini temizle: kullanıcının tüm ligleri + öksüz oyuncular (admin)
   async testVerisiSil(yoneticiId){
     if(!sb) return {hata:"bağlantı yok"};
@@ -13655,7 +13659,8 @@ function BootOlcum(){
     <div style={{color:"#fff",fontWeight:800,marginBottom:3}}>⏱️ AÇILIŞ (ms, 0=aç)</div>
     {sat("TTFB (html)",b.ttfb)}
     {sat("React başladı",r,b.ttfb)}
-    {b.onbellek!=null && <div style={{display:"flex",justifyContent:"space-between",gap:14,color:"#7CFFB2"}}><span>⚡ Önbellek çizdi</span><b>{b.onbellek}ms</b></div>}
+    {b.onbellek!=null && <div style={{display:"flex",justifyContent:"space-between",gap:14,color:"#7CFFB2"}}><span>⚡ Önbellek (yerel)</span><b>{b.onbellek}ms</b></div>}
+    {b.sunucu!=null && <div style={{display:"flex",justifyContent:"space-between",gap:14,color:"#7CFFB2"}}><span>☁️ Sunucu özeti</span><b>{b.sunucu}ms</b></div>}
     {sat("Oturum (auth)",a,r)}
     {sat("Lig listesi",o,a)}
     {sat("KOKPİT hazır",k,o)}
@@ -13993,18 +13998,26 @@ function App(){
       // Açılış hızı lig büyüklüğünden BAĞIMSIZ kalır (faz-1 sadece skor sorgusu).
       const aktif0 = ozet.find(l=>l.benim) || (oturum && ozet.find(l=>l.yonetici_id===oturum.id)) || ozet[0];
       if(aktif0){
-        // Önbellek bu ligi zaten (puan durumu + istatistiklerle) gösteriyorsa faz-1'i ATLA (yoksa
-        // önbellek stats-siz hafif'le ezilir, krallar boşalır). Doğrudan faz-2 taze veriyi getirir.
+        // Kokpit'i EN HIZLI dolduran hazır kaynağı bul:
+        //  L1 = localStorage önbelleği (aynı cihaz, anında)
+        //  L2 = SUNUCU özeti stat_ozet (her cihaz, ilk açılışta bile ~0.5sn — 276 maç indirilmeden)
+        //  L3 = faz-1 (sadece skorlar → en azından puan durumu)
         const cacheVar = !!(onbellek && onbellek.id===aktif0.id);
         if(!cacheVar){
-          try{ const hf=await Db.ligYukle(aktif0.id, true); if(hf && aktif){ hf.takimSay=aktif0.takimSay; hf.macSay=aktif0.macSay; hf.oyuncuSay=aktif0.oyuncuSay; turnuvaHesapla(hf); setTurnuvalar(p=>p.map(t=>t.id===hf.id?hf:t)); } }catch(e){}
+          let hazir=false;
+          try{ const so=await Db.statOzetGetir(aktif0.id);
+            if(so && so.takimlar && so.takimlar.length && aktif){ so._cache=true; so._hafif=true; so.id=aktif0.id;
+              setTurnuvalar(p=>p.map(t=>t.id===aktif0.id?so:t)); hazir=true;
+              try{ if(window.__FLB && !window.__FLB.sunucu) window.__FLB.sunucu=Math.round(performance.now()); }catch(e){} } }catch(e){}
+          if(!hazir){ try{ const hf=await Db.ligYukle(aktif0.id, true); if(hf && aktif){ hf.takimSay=aktif0.takimSay; hf.macSay=aktif0.macSay; hf.oyuncuSay=aktif0.oyuncuSay; turnuvaHesapla(hf); setTurnuvalar(p=>p.map(t=>t.id===hf.id?hf:t)); } }catch(e){} }
         }
         try{ if(window.__FLB && !window.__FLB.kokpit) window.__FLB.kokpit=Math.round(performance.now()); }catch(e){}   // ⏱️ kokpit (puan durumu) hazır
-        try{ const full=await Db.ligYukle(aktif0.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); if(oturum) kokpitKaydet(oturum.id, full); } }catch(e){}
+        // FAZ-2: taze tam veri → hesapla → göster → İKİ önbelleği de yaz (localStorage L1 + sunucu L2)
+        try{ const full=await Db.ligYukle(aktif0.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); if(oturum) kokpitKaydet(oturum.id, full); try{ const snap=kokpitStripla(full); if(snap) Db.statOzetYaz(full.id, snap); }catch(e){} } }catch(e){}
         try{ if(window.__FLB && !window.__FLB.tam) window.__FLB.tam=Math.round(performance.now()); }catch(e){}   // ⏱️ tam veri (krallar) hazır
       }
       // Aktif lig özette yoksa ama önbellek varsa yine de tazele (kullanıcı ligi başka yerdeyse)
-      else if(onbellek && onbellek.id){ try{ const full=await Db.ligYukle(onbellek.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); if(oturum) kokpitKaydet(oturum.id, full); } }catch(e){} }
+      else if(onbellek && onbellek.id){ try{ const full=await Db.ligYukle(onbellek.id); if(full && aktif){ turnuvaHesapla(full); setTurnuvalar(p=>p.map(t=>t.id===full.id?full:t)); if(oturum) kokpitKaydet(oturum.id, full); try{ const snap=kokpitStripla(full); if(snap) Db.statOzetYaz(full.id, snap); }catch(e){} } }catch(e){} }
     })();
     return ()=>{ aktif=false; };
   },[oturum]);
@@ -14604,6 +14617,10 @@ function App(){
     guncelle();
   };
   // Skor + olaylar kaydet
+  // Maç/istatistik değişince kokpit özetini tazele: localStorage (L1) + sunucu stat_ozet (L2).
+  // Böylece sonraki açılışlarda 276 maç indirilmeden hazır özet okunur. Yalnız TAM (hesaplanmış) turnuvada.
+  const ozetTazele=(turnuva)=>{ try{ if(!turnuva || turnuva._cache || turnuva._hafif || !turnuva.takimlar || !turnuva.takimlar.length) return;
+    if(oturum) kokpitKaydet(oturum.id, turnuva); const snap=kokpitStripla(turnuva); if(snap) Db.statOzetYaz(turnuva.id, snap); }catch(e){} };
   const skorKaydet=async(turnuva, mac, skorA, skorB, olaylar, mvp, mvpTakim, oduller, ekstra)=>{
     mac.skorA=skorA; mac.skorB=skorB; mac.olaylar=olaylar||[]; mac.mvp=mvp||null; mac.mvpTakim=mvpTakim||null; mac.oynandi=true;
     mac.mvpId=(ekstra&&ekstra.mvpId)||null;
@@ -14615,7 +14632,7 @@ function App(){
     const B=turnuva.takimlar.find(t=>t.id===mac.takimBId)||turnuva.takimlar.find(t=>t.ad===mac.takimB);
     mac.ratingler = ratingHesapla(mac, A, B);
     if(iliskiselMi(turnuva)){ const r=await Db.macKaydet(turnuva.id, mac, adPidHarita(turnuva)); if(r.ok && r.id) mac.id=r.id; }
-    turnuvaHesapla(turnuva); guncelle();
+    turnuvaHesapla(turnuva); guncelle(); ozetTazele(turnuva);
     // TEK BİLDİRİM MERKEZİ — maç sonu fan-out (bir kez, idempotent). İlişkisel lig + skor girildiyse.
     if(iliskiselMi(turnuva) && typeof mac.id==="string" && !mac.bildirildi && (skorA!=null||skorB!=null)){
       mac.bildirildi=true;
