@@ -12908,7 +12908,7 @@ function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
 
 // ==================== SOHBET v2 (Apple tarzı: tepki/yanıt/sistem/okunmamış) ====================
 const FL_EMOJILER=["👍","❤️","😂","⚽","🔥"];
-function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar, kulup, saltOkunur}){
+function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar, kulup, saltOkunur}){
   const kulupMod=!!(kulup && !turnuva); // takım (kulüp) sohbeti — lige bağlı değil
   const ligYon=!!(oturum&&turnuva&&(((turnuva.yonetici_id!=null)&&turnuva.yonetici_id===oturum.id)||adminMi));
   const benimTakimlar=(turnuva&&oturum)?(turnuva.takimlar||[]).filter(tk=> ligYon || tk.yonetici_id===oturum.id || (tk.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id) ):[];
@@ -13038,6 +13038,10 @@ function SohbetSayfa({T, git, oturum, turnuva, takim, adminMi, turnuvalar, kulup
   return <div className="fz-sohbet" style={{background:T.bg0}}>
     {/* BAŞLIK + SEKMELER */}
     <div style={{flexShrink:0,padding:"12px 14px 10px",borderBottom:"0.5px solid "+T.line,background:T.bg0}}>
+      {/* GERİ — her zaman görünür (iOS PWA'da kaydırma güvenilmez; buton %100 çalışır) */}
+      <div onClick={()=>{ if(geri) geri(); else if(git) git({sayfa:"ana"}); }} className="tap" style={{display:"inline-flex",alignItems:"center",gap:3,color:T.textSoft,fontSize:13,fontWeight:700,marginBottom:9,cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>
+        <span style={{fontSize:22,lineHeight:1,marginTop:-1}}>‹</span> Geri
+      </div>
       {kulupMod
         ? <div style={{display:"flex",alignItems:"center",gap:10}}>
             <Logo renk={kulup.renk} ad={kulup.ad} logo={kulup.logo} renk2={kulup.renk2} boy={34}/>
@@ -14728,7 +14732,7 @@ function App(){
       case "istatistik": icerik=<MacIstatistik mac={nav.mac} turnuva={nav.turnuva} T={T} git={git} onKaydet={ligYetkim(nav.turnuva)?(mac,ist)=>{ mac.istatistik=ist; }:kilitliKaydet}/>; break;
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
       case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
-      case "sohbet": icerik=<SohbetSayfa T={T} git={git} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} kulup={nav.kulup} adminMi={etkinAdminMi} turnuvalar={turnuvalar} saltOkunur={saltOkunur}/>; break;
+      case "sohbet": icerik=<SohbetSayfa T={T} git={git} geri={geri} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} kulup={nav.kulup} adminMi={etkinAdminMi} turnuvalar={turnuvalar} saltOkunur={saltOkunur}/>; break;
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
       case "profil": icerik = <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil} destekBilgi={destek?{uid:destek.uid, ad:destek.ad, profil:destekProfil, adminMi:destekAdminMi}:null}/>; break;
       case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
@@ -14768,7 +14772,6 @@ function App(){
     {DAVET_TOKEN && kapi!=="giris" && kapi!=="uyeol" && kapi!=="splash" && kapi!=="tanitim" &&
       <DavetKatil T={T} token={DAVET_TOKEN} oturum={oturum} girisYap={()=>setKapi("uyeol")}/>}
     {/* FAZ 7 — Açılış / Tanıtım / Giriş kapısı (uygulamanın üstünde overlay) */}
-    {adminMi && <BootOlcum/>}
     {/* iOS PWA: sol-kenar geri-kaydırma şeridi (sohbet dahil her ekranda güvenilir) */}
     {iosPwa && kapi===null && <div onPointerDown={kenarDown} onPointerUp={kenarUp} onPointerCancel={()=>{kenarRef.current={};}}
       style={{position:"fixed", left:0, top:"calc(env(safe-area-inset-top,0px) + 56px)", bottom:0, width:20, zIndex:9995, touchAction:"none", background:"transparent"}}/>}
