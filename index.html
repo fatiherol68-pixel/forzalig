@@ -14748,11 +14748,19 @@ function App(){
   const aktifTab = nav.sayfa==="ana"?"ana":nav.sayfa==="ligler"?"lig":nav.sayfa==="sohbet"?"sohbet":nav.sayfa==="profil"?"profil":"";
 
   const menuItems=[["ana","🏠","Ana"],["lig","🔍","Keşfet"],["sohbet","💬","Sohbet"],["profil","👤","Profil"]];
-  const menuGit=(k)=>{ titret(); setNavGecmis([]); const s = k==="lig"?"ligler":k;
+  const menuGit=(k)=>{ titret(); const s = k==="lig"?"ligler":k;
     let hedef={sayfa:s};
     // "Sohbet"e basınca tek aktif ligi olan kullanıcı doğrudan o ligin sohbetine girsin (hub'ı atla → geri tuzağı yok)
     if(k==="sohbet" && oturum){ const ls=(turnuvalar||[]).filter(t=>t.iliskisel && (t.durum||'aktif')!=='arsiv'); if(ls.length===1) hedef={sayfa:"sohbet",turnuva:ls[0]}; }
-    setNav(hedef); try{ window.history.replaceState({fz:1},"",URL_FOR(hedef)); }catch(e){} window.scrollTo(0,0); };
+    if(s==="ana"){
+      // Ana = kök: iç yığını temizle, geçmişi değiştir (büyütme)
+      setNavGecmis([]); setNav(hedef); try{ window.history.replaceState({fz:1},"",URL_FOR(hedef)); }catch(e){}
+    } else {
+      // Sekmeler (Keşfet/Sohbet/Profil) Ana'nın KARDEŞİ: geri → Ana olsun diye tarayıcı geçmişine
+      // gerçek kayıt EKLE + iç yığına Ana koy. Böylece geri tuşu/kaydırma boşa gitmez, Ana'ya döner.
+      setNavGecmis([{sayfa:"ana"}]); setNav(hedef); try{ window.history.pushState({fz:1},"",URL_FOR(hedef)); }catch(e){}
+    }
+    window.scrollTo(0,0); };
 
   return <div style={{minHeight:"100vh",background:T.bg0,fontFamily:T.fontBody}}>
     {/* 👁 DESTEK MODU ŞERİDİ — her zaman üstte, tek tık çıkış (sticky, içeriği iter) */}
