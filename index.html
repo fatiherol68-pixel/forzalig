@@ -11858,6 +11858,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const [hakemSel,setHakemSel]=useState(()=>new Set());  // HAKEM sekmesi — çoklu seçim
   const [hakemAra,setHakemAra]=useState("");             // HAKEM sekmesi — arama
   const [hakemFiltre,setHakemFiltre]=useState("hepsi");  // hepsi | hakem | aktif | pasif
+  const [hakemLigListe,setHakemLigListe]=useState([]);   // lig atama için GERÇEK ligler (evren=null)
   const [metrik,setMetrik]=useState(null);         // FAZ 4 — gerçek metrikler (panel_metrikler)
   const [opEk,setOpEk]=useState(null);             // Operasyon Merkezi ek: canlı akış + trafik + trend
   const [opTek,setOpTek]=useState({deploy:null, api:null, cf:null});  // deploy sürüm · API gecikme · Cloudflare
@@ -11956,6 +11957,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const hakemSelToggle=(id)=>setHakemSel(s=>{ const n=new Set(s); if(n.has(id)) n.delete(id); else n.add(id); return n; });
   // HAKEM — lig atama/çıkarma (roller.hakem_ligler = [ligId,...]; boş = tüm ligler)
   const hakemLigToggle=async(u,ligId)=>{ const roller={...(u.roller||{})}; let lg=Array.isArray(roller.hakem_ligler)?[...roller.hakem_ligler]:[]; if(lg.indexOf(ligId)>-1) lg=lg.filter(x=>x!==ligId); else lg.push(ligId); if(lg.length) roller.hakem_ligler=lg; else delete roller.hakem_ligler; const r=await Db.profilRollerYaz(u.user_id,roller); if(r&&r.ok){ setUyeler(p=>p.map(x=>x.user_id===u.user_id?{...x,roller}:x)); Db.logla(oturum,"Hakem lig",(u.email||"")+" · "+lg.length+" lig"); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
+  // Hakemler sekmesi açılınca GERÇEK ligleri yükle (demo evren HARİÇ) — lig atama çipleri için
+  useEffect(()=>{ if(sekme!=="hakemler") return; let a=true; Db.tumLiglerHam().then(ls=>{ if(!a) return; setHakemLigListe((ls||[]).filter(l=>!l.evren && !l.silindi)); }).catch(()=>{}); return ()=>{a=false;}; },[sekme]);
   // Lig başvurusu işlemleri
   const basvuruYetki=async(b)=>{ if(!b.user_id){ setMesaj("⚠️ Bu başvuruda hesap yok — kişi önce üye olmalı."); return; } const mevcut=(haklar.find(h=>h.user_id===b.user_id)||{}).toplam||0; if(!confirm((b.ad_soyad||b.email)+" için lig hakkı "+mevcut+" → "+(mevcut+1)+" yapılsın mı?")) return; const r=await Db.hakVer(b.user_id, mevcut+1, "Başvuru: "+(b.lig_ad||b.ad_soyad||"")); if(r&&r.ok){ await Db.basvuruDurum(b.id,'onaylandi'); setBasvurular(p=>p.map(x=>x.id===b.id?{...x,durum:'onaylandi'}:x)); Db.logla(oturum,"Lig başvurusu onaylandı",(b.email||"")+" · "+(b.lig_ad||"")); setMesaj("✓ Yetki verildi"); Db.haklariListe().then(h=>{ const em={}; (uyeler||[]).forEach(u=>em[u.user_id]=u.email); setHaklar((h||[]).map(x=>({...x,email:em[x.user_id]||x.user_id}))); }); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   const basvuruArandi=async(b)=>{ await Db.basvuruDurum(b.id,'arandi'); setBasvurular(p=>p.map(x=>x.id===b.id?{...x,durum:'arandi'}:x)); };
@@ -12491,12 +12494,12 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
                   : <span style={{fontSize:9.5,fontWeight:700,color:T.textMut,background:T.bg2,borderRadius:6,padding:"4px 8px"}}>üye</span>}
                 {isHak && <div style={{flexBasis:"100%",display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,paddingTop:8,marginTop:2,borderTop:"0.5px solid "+T.line}}>
                   <span style={{fontSize:9.5,color:T.textMut,fontWeight:800,marginRight:2}}>🏆 LİG:</span>
-                  {(turnuvalar||[]).length===0
-                    ? <span style={{fontSize:10,color:T.textMut}}>Bu oturumda lig yüklü değil</span>
-                    : (turnuvalar||[]).map(t=>{ const on=ligDizi.indexOf(t.id)>-1; return (
+                  {hakemLigListe.length===0
+                    ? <span style={{fontSize:10,color:T.textMut}}>Gerçek lig yok — önce bir lig kur (demo/örnek ligler sayılmaz)</span>
+                    : hakemLigListe.map(t=>{ const on=ligDizi.indexOf(t.id)>-1; return (
                         <button key={t.id} onClick={e=>{ e.stopPropagation(); hakemLigToggle(u,t.id); }} className="tap" style={{fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:14,border:"0.5px solid "+(on?T.accent:T.line),background:on?T.accent+"22":"none",color:on?T.accent:T.textMut,whiteSpace:"nowrap"}}>{on?"✓ ":""}{t.ad}</button>
                       ); })}
-                  {ligDizi.length===0 && (turnuvalar||[]).length>0 && <span style={{fontSize:9.5,color:T.textSoft,fontStyle:"italic"}}>seçim yok = tüm ligler</span>}
+                  {ligDizi.length===0 && hakemLigListe.length>0 && <span style={{fontSize:9.5,color:T.textSoft,fontStyle:"italic"}}>seçim yok = tüm ligler</span>}
                 </div>}
               </div>; })}
           </div>;
