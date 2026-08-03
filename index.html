@@ -2940,36 +2940,38 @@ function Grafik({tip, data, options, yukseklik=180}){
 }
 
 /* FIFA kart parçası */
+function posAd(p){ var r=(p==null?"":(""+p)).trim(); var M={FOR:"Forvet",FRV:"Forvet",ST:"Forvet",FW:"Forvet",OS:"Orta Saha",ORT:"Orta Saha",MID:"Orta Saha",DEF:"Defans",STP:"Stoper",KL:"Kaleci",GK:"Kaleci",KAN:"Kanat",BEK:"Bek",FORVET:"Forvet",DEFANS:"Defans",ORTASAHA:"Orta Saha",KALECI:"Kaleci"}; return M[r]||M[r.toUpperCase()]||r||"Oyuncu"; }
+/* MONOLIT kartı — foto kahraman + cam güverte (tek profil kartı) */
 function FifaKart({o, T}){
-  const yildiz = o.ovr>=85?5:o.ovr>=78?4:o.ovr>=68?3:o.ovr>=58?2:1;
-  // kart tipi
-  let kartBg, anaRenk, altRenk;
-  if(o.ovr>=90){ kartBg="linear-gradient(160deg,#9B5DE5,#6930C3 55%,#3C096C)"; anaRenk="#F0E6FF"; altRenk="#E0CCFF"; } // elmas/icon
-  else if(o.ovr>=85){ kartBg="linear-gradient(160deg,#F5D77E,#E5B84B 50%,#B8902E)"; anaRenk="#3A2E08"; altRenk="#5A4810"; } // altın
-  else if(o.ovr>=72){ kartBg="linear-gradient(160deg,#D8DDE3,#AEB6BF 55%,#7E8896)"; anaRenk="#2A2E33"; altRenk="#444A52"; } // gümüş
-  else { kartBg="linear-gradient(160deg,#C9885A,#A66B3C 55%,#7A4E29)"; anaRenk="#3A2410"; altRenk="#5A3A1A"; } // bronz
-
-  return <div className="pop" style={{width:210,borderRadius:"50% 50% 16px 16px/14% 14% 4% 4%",padding:"18px 16px 16px",background:kartBg,position:"relative",overflow:"hidden",boxShadow:"0 10px 30px rgba(0,0,0,.35)"}}>
-    {/* parlama */}
-    <div style={{position:"absolute",top:0,left:"-60%",width:"60%",height:"100%",background:"linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent)",transform:"skewX(-20deg)",animation:"sweep 3.5s ease-in-out infinite"}}/>
-    <style>{`@keyframes sweep{0%{left:-60%}55%,100%{left:130%}}`}</style>
-
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"relative",zIndex:1}}>
-      <div style={{textAlign:"center"}}>
-        <div style={{fontSize:38,fontWeight:800,lineHeight:.9,color:anaRenk,fontFamily:T.fontDisplay}}>{o.ovr}</div>
-        <div style={{fontSize:13,fontWeight:700,color:altRenk}}>{o.poz.slice(0,3).toUpperCase()}</div>
-        <div style={{fontSize:11,color:altRenk,marginTop:3}}>{"★".repeat(yildiz)}</div>
-        <div style={{fontSize:10,color:altRenk,marginTop:3,fontWeight:600}}>🇹🇷</div>
-      </div>
-      <div style={{filter:"drop-shadow(0 6px 10px rgba(0,0,0,.35))",marginTop:4}}><Avatar o={o} boy={104} T={T}/></div>
+  const sp = o.ovr||0;
+  const acc = sp>=90 ? "#F2C24E" : sp>=82 ? "#8AB4FF" : sp>=74 ? (T.accent||"#FF7A1A") : "#C9885A";
+  const foto = o.foto;
+  const no = (o.no!=null ? o.no : (o.forma_no!=null ? o.forma_no : null));
+  const stats = [["HIZ",o.pac],["ŞUT",o.sho],["PAS",o.pas],["DRİ",o.dri],["SAV",o.def],["FİZ",o.phy]];
+  return <div className="pop" style={{width:272,maxWidth:"86vw",aspectRatio:"100 / 140",borderRadius:20,position:"relative",overflow:"hidden",background:"#0a0d12",boxShadow:"0 22px 50px rgba(0,0,0,.5), 0 0 40px -14px "+acc}}>
+    {foto
+      ? <img src={foto} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 18%"}}/>
+      : <div style={{position:"absolute",inset:0,background:"linear-gradient(160deg,#232b36,#0b0f14 72%)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:130,color:"rgba(255,255,255,.06)"}}>{no!=null?no:(o.ad||"?").charAt(0).toUpperCase()}</span></div>}
+    <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(8,10,14,.42),transparent 22%,transparent 40%,rgba(6,8,11,.92) 88%)"}}/>
+    <div style={{position:"absolute",inset:0,borderRadius:20,pointerEvents:"none",boxShadow:"inset 0 0 0 1px rgba(255,255,255,.14), inset 0 0 0 4px rgba(8,10,14,.55)"}}/>
+    <div style={{position:"absolute",top:14,left:14,right:14,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+      <span style={{fontSize:11,fontWeight:800,letterSpacing:.4,color:"#fff",textTransform:"uppercase",background:"rgba(6,10,18,.5)",border:"1px solid rgba(255,255,255,.2)",borderRadius:8,padding:"5px 11px"}}>{posAd(o.poz)}</span>
+      <span style={{fontSize:19,lineHeight:1,filter:"drop-shadow(0 2px 4px rgba(0,0,0,.5))"}}>🇹🇷</span>
     </div>
-
-    <div style={{textAlign:"center",fontSize:17,fontWeight:800,color:anaRenk,letterSpacing:.5,margin:"10px 0 8px",textTransform:"uppercase",fontFamily:T.fontDisplay,position:"relative",zIndex:1,borderTop:"1px solid "+altRenk+"55",paddingTop:8}}>{o.ad}</div>
-
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"4px 16px",fontSize:13,position:"relative",zIndex:1,padding:"0 8px"}}>
-      {[["HIZ",o.pac],["DRİ",o.dri],["ŞUT",o.sho],["SAV",o.def],["PAS",o.pas],["FİZ",o.phy]].map(([k,v])=>
-        <div key={k} style={{display:"flex",justifyContent:"space-between",color:anaRenk}}><b style={{fontWeight:800}}>{v}</b><span style={{opacity:.65,fontWeight:600}}>{k}</span></div>
-      )}
+    <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"16px 18px 18px"}}>
+      <div style={{display:"flex",alignItems:"flex-end",gap:9}}>
+        <span style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:60,lineHeight:.78,color:"#fff",letterSpacing:-2,textShadow:"0 4px 20px rgba(0,0,0,.6)"}}>{sp}</span>
+        <span style={{fontSize:9,letterSpacing:1.2,textTransform:"uppercase",color:acc,fontWeight:800,paddingBottom:8,lineHeight:1.1}}>Sezon<br/>Gücü</span>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:9,marginTop:7}}>
+        <span style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:22,color:"#fff",maxWidth:172,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{o.ad}</span>
+        {no!=null && <span style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:14,color:"#0a0d12",background:acc,borderRadius:6,padding:"1px 8px"}}>#{no}</span>}
+      </div>
+      <div style={{display:"flex",marginTop:12,borderTop:"1px solid rgba(255,255,255,.16)",paddingTop:9}}>
+        {stats.map(([k,v],i)=>
+          <div key={k} style={{flex:1,textAlign:"center",borderRight:i<5?"1px solid rgba(255,255,255,.08)":"none"}}><div style={{fontFamily:T.fontDisplay,fontWeight:800,fontSize:15,color:"#fff"}}>{v}</div><div style={{fontSize:7.5,letterSpacing:.4,color:"#aab3c0"}}>{k}</div></div>
+        )}
+      </div>
     </div>
   </div>;
 }
