@@ -2966,25 +2966,31 @@ function FifaKart({o, T}){
   return <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:11}}>
     <style>{"@keyframes fkmFlood{0%{opacity:0}12%{opacity:1}22%{opacity:.7}45%{opacity:.5}100%{opacity:0}}@keyframes fkmDraw{to{stroke-dashoffset:0}}@keyframes fkmLogo{0%,8%{opacity:0;transform:scale(.9)}18%{opacity:1;transform:scale(1)}34%{opacity:1}46%{opacity:0;transform:scale(1.15)}100%{opacity:0}}@keyframes fkmNum{0%,44%{opacity:0}58%{opacity:1}88%{opacity:1}100%{opacity:0}}.fkm-op .fl{position:absolute;inset:0;background:radial-gradient(50% 40% at 30% 0%,rgba(255,244,222,.5),transparent 55%),radial-gradient(50% 40% at 72% 0%,rgba(255,244,222,.4),transparent 55%);animation:fkmFlood 2.4s ease forwards}.fkm-op svg rect{fill:none;stroke:rgba(236,234,228,.85);stroke-width:2.5;stroke-dasharray:1300;stroke-dashoffset:1300;animation:fkmDraw 1.1s .2s ease forwards}.fkm-op .lg{position:absolute;font-weight:900;font-style:italic;font-size:26px;color:#fff;opacity:0;animation:fkmLogo 2.4s ease forwards}.fkm-op .nm{position:absolute;font-weight:900;font-size:70px;color:#fff;opacity:0;animation:fkmNum 2.4s ease forwards}"}</style>
     <div style={{perspective:1400,width:272,maxWidth:"86vw"}}>
-      <div onClick={()=>{ if(ac){setAc(false);return;} setFlip(f=>!f); }} className="pop" style={{position:"relative",width:"100%",aspectRatio:"100 / 140",transformStyle:"preserve-3d",transition:"transform .8s cubic-bezier(.2,.85,.25,1)",transform:flip?"rotateY(180deg)":"none",cursor:"pointer",borderRadius:20,boxShadow:"0 22px 50px rgba(0,0,0,.5), 0 0 40px -14px "+acc}}>
+      <div onClick={()=>{ if(ac){setAc(false);return;} setFlip(f=>!f); }} style={{position:"relative",width:"100%",aspectRatio:"100 / 140",transformStyle:"preserve-3d",transition:"transform .8s cubic-bezier(.2,.85,.25,1)",transform:flip?"rotateY(180deg)":"none",cursor:"pointer",borderRadius:20,boxShadow:"0 22px 50px rgba(0,0,0,.5), 0 0 40px -14px "+acc}}>
         <div style={faceBase}>
           {fotoEl}
           <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(8,10,14,.42),transparent 22%,transparent 40%,rgba(6,8,11,.92) 88%)"}}/>
           <div style={{position:"absolute",inset:0,borderRadius:20,pointerEvents:"none",boxShadow:"inset 0 0 0 1px rgba(255,255,255,.14), inset 0 0 0 4px rgba(8,10,14,.55)"}}/>
           <div style={{position:"absolute",top:14,left:14,right:14,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <span style={{fontSize:11,fontWeight:800,letterSpacing:.4,color:"#fff",textTransform:"uppercase",background:"rgba(6,10,18,.5)",border:"1px solid rgba(255,255,255,.2)",borderRadius:8,padding:"5px 11px"}}>{posAd(o.poz)}</span>
-            <span style={{fontSize:19,lineHeight:1,filter:"drop-shadow(0 2px 4px rgba(0,0,0,.5))"}}>🇹🇷</span>
+            <div style={{textShadow:"0 2px 10px rgba(0,0,0,.6)"}}>
+              <div style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:32,lineHeight:.86,color:"#fff"}}>{sp}</div>
+              <span style={{display:"inline-block",marginTop:5,fontSize:10,fontWeight:800,letterSpacing:.4,color:"#fff",textTransform:"uppercase",background:"rgba(6,10,18,.55)",border:"1px solid rgba(255,255,255,.2)",borderRadius:7,padding:"3px 9px"}}>{posAd(o.poz)}</span>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <svg viewBox="0 0 30 20" style={{width:28,height:19,borderRadius:3,display:"inline-block",boxShadow:"0 2px 6px rgba(0,0,0,.5)"}}><rect width="30" height="20" fill="#e30a17"/><circle cx="11" cy="10" r="5" fill="#fff"/><circle cx="12.5" cy="10" r="4" fill="#e30a17"/><path d="M17 10l4.7-1.5-2.9 4 0-5 2.9 4Z" fill="#fff"/></svg>
+              <div style={{fontSize:8,letterSpacing:.5,color:"#fff",fontWeight:700,marginTop:2}}>TÜRKİYE</div>
+            </div>
           </div>
-          <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"16px 18px 18px"}}>
-            <div style={{display:"flex",alignItems:"flex-end",gap:9}}>
-              <span style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:60,lineHeight:.78,color:"#fff",letterSpacing:-2,textShadow:"0 4px 20px rgba(0,0,0,.6)"}}>{sp}</span>
-              <span style={{fontSize:9,letterSpacing:1.2,textTransform:"uppercase",color:acc,fontWeight:800,paddingBottom:8,lineHeight:1.1}}>Sezon<br/>Gücü</span>
+          <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"14px 18px 16px"}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:21,lineHeight:1.05,color:"#fff",textShadow:"0 3px 12px rgba(0,0,0,.75)"}}>{o.ad}</span>
+              {no!=null && <span style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:13,color:"#0a0d12",background:acc,borderRadius:6,padding:"1px 8px"}}>#{no}</span>}
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:9,marginTop:7}}>
-              <span style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:22,color:"#fff",maxWidth:172,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{o.ad}</span>
-              {no!=null && <span style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:14,color:"#0a0d12",background:acc,borderRadius:6,padding:"1px 8px"}}>#{no}</span>}
-            </div>
-            <div style={{display:"flex",marginTop:12,borderTop:"1px solid rgba(255,255,255,.16)",paddingTop:9}}>
+            {o.takimAd && <div style={{display:"flex",alignItems:"center",gap:7,marginTop:6}}>
+              <Logo renk={o.renk||"#888"} ad={o.takimAd} logo={o.logo} renk2={o.renk2} boy={20}/>
+              <span style={{fontSize:11,fontWeight:600,letterSpacing:.2,color:"#cfd6df",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.takimAd}</span>
+            </div>}
+            <div style={{display:"flex",marginTop:11,borderTop:"1px solid rgba(255,255,255,.16)",paddingTop:9}}>
               {stats.map(([k,v],i)=>
                 <div key={k} style={{flex:1,textAlign:"center",borderRight:i<5?"1px solid rgba(255,255,255,.08)":"none"}}><div style={{fontFamily:T.fontDisplay,fontWeight:800,fontSize:15,color:"#fff"}}>{v}</div><div style={{fontSize:7.5,letterSpacing:.4,color:"#aab3c0"}}>{k}</div></div>
               )}
