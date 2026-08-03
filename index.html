@@ -55,7 +55,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260730083728"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260803085021"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -550,6 +550,41 @@
 .flk-back .vt b{ font-size:11px; color:#fff; } .flk-back .vt span{ font-size:8px; color:#8f9bb2; display:block; }
 .flk-back .ok{ margin-left:auto; text-align:right; font-size:9px; font-weight:800; color:var(--flk-a); }
 .flk-tip{ text-align:center; font-size:10px; color:#8f9bb2; opacity:.7; margin-top:6px; }
+/* ===== C6 MONOLIT — foto kahraman + cam guverte (yeni konsept, eklemeli) ===== */
+.flk-c6 .flk-face{ padding:0; border-radius:20px; background:#0a0d12; }
+.flk-c6 .flk-photo{ position:absolute; inset:0; }
+.flk-c6 .flk-scrim{ background:linear-gradient(180deg,rgba(8,10,14,.42),transparent 22%,transparent 40%,rgba(6,8,11,.92) 88%); }
+.flk-c6 .mono-edge{ position:absolute; inset:0; z-index:6; pointer-events:none; border-radius:20px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),inset 0 0 0 4px rgba(8,10,14,.55); }
+.flk-c6 .top{ position:absolute; top:16px; left:16px; right:16px; z-index:7; display:flex; align-items:flex-start; justify-content:space-between; }
+.flk-c6 .top .pos{ font-size:12px; font-weight:800; letter-spacing:.4px; color:#fff; text-transform:uppercase; background:rgba(6,10,18,.5); border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:5px 12px; }
+.flk-c6 .flk-flag{ width:30px; height:20px; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.2); }
+.flk-c6 .low{ position:absolute; left:0; right:0; bottom:0; z-index:7; padding:18px 20px 20px; }
+.flk-c6 .low .sp{ display:flex; align-items:flex-end; gap:9px; }
+.flk-c6 .low .sp .n{ font-size:70px; line-height:.78; font-weight:800; color:#fff; letter-spacing:-2px; text-shadow:0 4px 20px rgba(0,0,0,.6); }
+.flk-c6 .low .sp .l{ font-size:9px; line-height:1.05; letter-spacing:1.4px; text-transform:uppercase; color:var(--flk-a); font-weight:800; padding-bottom:9px; }
+.flk-c6 .low .nmrow{ display:flex; align-items:center; gap:10px; margin-top:8px; }
+.flk-c6 .low .nmrow .nm{ font-size:25px; font-weight:800; color:#fff; max-width:180px; }
+.flk-c6 .low .nmrow .no{ font-size:15px; font-weight:800; color:#fff; background:var(--flk-a); border-radius:6px; padding:1px 8px; }
+.flk-c6 .low .brand{ display:flex; align-items:center; gap:7px; margin-top:8px; opacity:.85; }
+.flk-c6 .low .brand svg{ width:17px; height:19px; }
+.flk-c6 .low .brand span{ font-size:10px; letter-spacing:1.5px; color:#cfd6df; font-weight:700; }
+.flk-c6 .low .st{ display:flex; margin-top:13px; border-top:1px solid rgba(255,255,255,.16); padding-top:10px; }
+.flk-c6 .low .st .s{ flex:1; text-align:center; border-right:1px solid rgba(255,255,255,.08); }
+.flk-c6 .low .st .s:last-child{ border-right:0; }
+.flk-c6 .low .st .s .v{ font-size:16px; font-weight:800; color:#fff; }
+.flk-c6 .low .st .s .k{ font-size:8px; letter-spacing:.4px; color:#aab3c0; margin-top:1px; }
+.flk-c6 .flk-back{ padding:0; display:block; background:#0a0d12; }
+.flk-c6 .mb-veil{ position:absolute; inset:0; z-index:2; background:linear-gradient(180deg,rgba(6,8,11,.74),rgba(6,8,11,.5) 30%,rgba(6,8,11,.9)); }
+.flk-c6 .mb-top{ position:absolute; top:16px; left:18px; right:18px; z-index:3; display:flex; align-items:center; justify-content:space-between; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:#cfe0ef; font-weight:800; }
+.flk-c6 .mb-top b{ font-size:24px; color:var(--flk-a); }
+.flk-c6 .mb-name{ position:absolute; top:46px; left:18px; right:18px; z-index:3; font-size:18px; font-weight:800; color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.7); white-space:nowrap; overflow:hidden; }
+.flk-c6 .mb-panel{ position:absolute; left:16px; right:16px; bottom:16px; z-index:3; background:rgba(10,14,20,.62); border:1px solid rgba(255,255,255,.14); border-radius:14px; padding:14px; }
+.flk-c6 .mb-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.flk-c6 .mb-grid .s{ text-align:center; }
+.flk-c6 .mb-grid .s b{ display:block; font-size:22px; font-weight:800; color:#fff; }
+.flk-c6 .mb-grid .s.hi b{ color:var(--flk-a); }
+.flk-c6 .mb-grid .s span{ font-size:8px; letter-spacing:.4px; text-transform:uppercase; color:#aab3c0; }
+.flk-c6 .mb-note{ text-align:center; font-size:8px; letter-spacing:.4px; color:#7d8794; margin-top:9px; }
 </style>
 <script id="flkart-js">
 (function(){
@@ -569,12 +604,13 @@
     black:{a:'#c9a24a',b:'#8a8f98',g:'rgba(201,162,74,.38)',tone:'rgba(0,0,0,.22)',holo:.8,foil:.18,glow:.3,label:'BLACK EDITION'},
     neon:{a:'#39ff14',b:'#00e5ff',g:'rgba(57,255,20,.5)',tone:'rgba(57,255,20,.14)',holo:1,foil:.44,glow:.56,label:'NEON'}
   };
-  var KONSEPTLER=[{k:1,ad:'Glass'},{k:2,ad:'Carbon'},{k:3,ad:'Stadium'},{k:4,ad:'Cinematic'},{k:5,ad:'Cyber'}];
+  var KONSEPTLER=[{k:1,ad:'Glass'},{k:2,ad:'Carbon'},{k:3,ad:'Stadium'},{k:4,ad:'Cinematic'},{k:5,ad:'Cyber'},{k:6,ad:'Monolit'}];
   var BG={orijinal:null,seffaf:'transparent',siyah:'#05070c',stadyum:'linear-gradient(180deg,#8fb6ff44,#12233f 42%,#0e5a2a 100%)',gece:'radial-gradient(120% 80% at 50% -10%,#20315a,#060a14 62%),linear-gradient(0deg,#0a3a1e,transparent 42%)',duman:'radial-gradient(65% 60% at 50% 42%,#41474f,#0a0b0e)',altin:'radial-gradient(62% 52% at 50% 30%,#f5d67b66,#1a1408 72%)',neon:'radial-gradient(60% 60% at 28% 20%,#00e5ff55,transparent),radial-gradient(60% 60% at 82% 82%,#c766ff55,#05030f)',gradient:'linear-gradient(160deg,#2c3f74,#0a0e1a)',bokeh:'radial-gradient(circle at 22% 28%,#ffffff2a 0 7px,transparent 8px),radial-gradient(circle at 72% 62%,#ffffff1c 0 12px,transparent 13px),linear-gradient(#13233f,#060a14)',carbon:'repeating-linear-gradient(45deg,#15171b 0 3px,#0c0d10 3px 6px)',flarena:'radial-gradient(120% 70% at 50% -8%,#153a55,transparent 55%),linear-gradient(180deg,#0c2718,#0a3a1e)',flpremium:'radial-gradient(80% 55% at 50% 25%,#f5d67b22,transparent),linear-gradient(160deg,#141210,#08070a 55%,#000)',fldark:'radial-gradient(90% 60% at 50% 20%,#12203a,#04060c 70%)',flelite:'radial-gradient(80% 60% at 50% 25%,#7c5cff2e,transparent),linear-gradient(160deg,#120a2e,#05030f)'};
   var BG_LIST=[['orijinal','Orijinal'],['seffaf','Şeffaf'],['siyah','Siyah'],['stadyum','Stadyum'],['gece','Gece'],['duman','Duman'],['altin','Altın'],['neon','Neon'],['gradient','Gradient'],['bokeh','Bokeh'],['carbon','Carbon'],['flarena','FL Arena'],['flpremium','FL Premium'],['fldark','FL Dark'],['flelite','FL Elite']];
   var FLAGS={TR:"<svg viewBox='0 0 30 20'><rect width='30' height='20' fill='#e30a17'/><circle cx='11' cy='10' r='5' fill='#fff'/><circle cx='12.5' cy='10' r='4' fill='#e30a17'/><path d='M17 10l4.7-1.5-2.9 4 0-5 2.9 4Z' fill='#fff'/></svg>"};
   function flag(nat){ return FLAGS[nat]||FLAGS.TR; }
   function logo(c){ c=c||'var(--flk-b)'; return "<svg viewBox='0 0 40 40'><path d='M20 2 36 8V20c0 10-7 16-16 19C11 36 4 30 4 20V8Z' fill='none' stroke='"+c+"' stroke-width='2.4'/><path d='M20 12l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8Z' fill='"+c+"'/></svg>"; }
+  function posFull(p){ var raw=(p==null?'':''+p).trim(); var M={FOR:'Forvet',FRV:'Forvet',ST:'Forvet',FW:'Forvet',OS:'Orta Saha',ORT:'Orta Saha',MID:'Orta Saha',DEF:'Defans',STP:'Stoper',KL:'Kaleci',GK:'Kaleci',KAN:'Kanat',BEK:'Bek'}; var u=raw.toUpperCase(); return M[u]||raw||'Oyuncu'; }
   function rarityFromOvr(ovr){ ovr=+ovr||0; if(ovr>=90)return 'legend'; if(ovr>=86)return 'gold'; if(ovr>=82)return 'elite'; if(ovr>=78)return 'silver'; return 'bronze'; }
   function esc(s){ return String(s==null?'':s).replace(/[<>&"]/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); }
   // ---- portre fallback (foto yoksa) ----
@@ -608,12 +644,20 @@
       "<div class='top'><div class='lg'>"+logo('var(--flk-a)')+"FORZALİG</div><div class='sea'>SEASON "+d.season+"</div></div><div class='flag flk-flag'>"+flag(d.nat)+"</div>"+
       "<div class='seal' data-depth='11'><div class='n'>"+d.ovr+"</div><div class='p'>"+esc(d.pos)+"</div></div>"+
       "<div class='low' data-depth='4'><div class='nm flk-fit'>"+esc(d.ad)+"</div><div class='sub'>FORZALİG ORIGINALS</div><div class='st'>"+s.map(function(x){return "<div class='s'><div class='v'>"+x[1]+"</div><div class='k'>"+x[0]+"</div></div>";}).join('')+"</div><div class='cr'><span>RARITY · "+d.rarityLabel+"</span><div class='flk-holo'></div><span>ID #"+d.id+"</span></div></div>";
+    if(k===6) return "<div class='flk-photo' data-depth='7'>"+bg+ph+scrim+"</div><div class='mono-edge'></div>"+
+      "<div class='top'><div class='pos'>"+esc(posFull(d.pos))+"</div><div class='flag flk-flag'>"+flag(d.nat)+"</div></div>"+
+      "<div class='low' data-depth='4'><div class='sp'><span class='n'>"+d.ovr+"</span><span class='l'>SEZON<br>GÜCÜ</span></div><div class='nmrow'><span class='nm flk-fit'>"+esc(d.ad)+"</span><span class='no'>#"+d.id+"</span></div><div class='brand'>"+logo('var(--flk-a)')+"<span>FORZALİG</span></div><div class='st'>"+s.map(function(x){return "<div class='s'><div class='v'>"+x[1]+"</div><div class='k'>"+x[0]+"</div></div>";}).join('')+"</div></div>";
     return "<div class='gr'></div><div class='flk-photo' data-depth='8'>"+bg+ph+scrim+"</div><div class='brk tl'></div><div class='brk brr'></div>"+
       "<div class='top'><div class='lg'>"+logo('var(--flk-a)')+"FORZALIG</div><div class='sea'>SEASON_"+d.season+"</div></div><div class='flag flk-flag'>"+flag(d.nat)+"</div>"+
       "<div class='ovr' data-depth='12'><div class='n'>"+d.ovr+"</div><div class='p'>"+esc(d.pos)+"</div></div>"+
       "<div class='low' data-depth='4'><div class='nm flk-fit'>"+esc(d.ad)+"</div><div class='tg'>// ID #"+d.id+" · RARITY_"+d.rarityLabel+"</div><div class='st'>"+s.map(function(x){return "<div class='s'><div class='lab'><span>"+x[0]+"</span><b>"+x[1]+"</b></div><div class='bar'><i style='width:"+Math.min(100,x[1])+"%'></i></div></div>";}).join('')+"</div><div class='ft'><div class='m'>SERIAL<b>"+d.serial+"</b></div><div class='flk-holo'></div></div></div>";
   }
   function BACK(d){
+    if((d.konsept||1)===6){ var kv=d.kariyer||[]; var vG=(kv[1]&&kv[1][1])||0,vA=(kv[2]&&kv[2][1])||0,vM=(kv[0]&&kv[0][1])||0,vS=(kv[5]&&kv[5][1])||0;
+      return "<img class='flk-ph' src='"+d.foto+"' alt=''><div class='mb-veil'></div>"+
+        "<div class='mb-top'><span>SEZON "+d.season+"</span><b>"+d.ovr+"</b></div>"+
+        "<div class='mb-name flk-fit'>"+esc(d.ad)+" · #"+d.id+"</div>"+
+        "<div class='mb-panel'><div class='mb-grid'><div class='s hi'><b>"+vG+"</b><span>Gol</span></div><div class='s'><b>"+vA+"</b><span>Asist</span></div><div class='s'><b>"+vM+"</b><span>Maç</span></div><div class='s hi'><b>"+vS+"</b><span>Sezon</span></div></div><div class='mb-note'>Kurtarış &amp; maç puanı ortalaması yakında</div></div>"; }
     var rows=d.kariyer.map(function(c){return "<div class='row'><span>"+c[0]+"</span><b class='"+(c[2]?'hot':'')+"'>"+c[1]+"</b></div>";}).join('');
     return "<div class='flk-rfx'></div><div class='h'>KARİYER</div><div class='nm flk-fit'>"+esc(d.ad)+"</div><div class='gr2'>"+rows+"</div><div class='vf'><div class='qrbox'><canvas class='flk-qr' width='42' height='42'></canvas></div><div class='vt'><b>"+esc(d.ad)+"</b><span>"+d.serial+"</span></div><div class='ok'>DOĞRULAMA<br>AKTİF ✓</div></div>";
   }
