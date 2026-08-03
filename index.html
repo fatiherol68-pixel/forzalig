@@ -1155,7 +1155,10 @@ const Db = {
   async profilGetir(userId){ if(!sb||!userId) return null; try{ const {data}=await sb.from('profiller').select('user_id,email,ad,rol,roller,sehir,foto,dogum,boy,kilo,mevki,ayak').eq('user_id',userId).maybeSingle(); return data||null; }catch(e){ return null; } },
   async profilKaydet(userId, obj){ if(!sb||!userId) return {hata:"yok"}; try{ const {error}=await sb.from('profiller').upsert({user_id:userId, ...obj},{onConflict:'user_id'}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async profilRollerYaz(userId, roller){ if(!sb||!userId) return {hata:"yok"}; try{ const {error}=await sb.from('profiller').update({roller}).eq('user_id',userId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
-  async hakemHavuzu(){ if(!sb) return []; try{ const {data}=await sb.from('hakem_havuzu').select('user_id,ad,sehir,foto').limit(300); return data||[]; }catch(e){ return []; } },
+  async hakemHavuzu(){ if(!sb) return [];
+    // Önce lig bilgisiyle dene (view'da 'ligler' varsa); yoksa eski şemaya düş (kırılmasın)
+    try{ const {data,error}=await sb.from('hakem_havuzu').select('user_id,ad,sehir,foto,ligler').limit(300); if(!error) return data||[]; }catch(e){}
+    try{ const {data}=await sb.from('hakem_havuzu').select('user_id,ad,sehir,foto').limit(300); return data||[]; }catch(e){ return []; } },
   // ---- Lig kurma başvurusu (para/onay kapısı → süper admin paneline düşer) ----
   async basvuruEkle(obj){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('lig_basvurulari').insert(obj); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async basvurumVar(userId){ if(!sb||!userId) return false; try{ const {data}=await sb.from('lig_basvurulari').select('id').eq('user_id',userId).in('durum',['bekliyor','arandi']).maybeSingle(); return !!data; }catch(e){ return false; } },
@@ -10870,13 +10873,13 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
   // HAKEMLER (0–4 + görev) — mevcut maclar.hakem kolonuna yazılır
   const [hakemler,setHakemler]=useState(()=>hakemParse(m.hakemler!=null?m.hakemler:m.hakem));
   const [hakemHavuz,setHakemHavuz]=useState([]);
-  const [hakemModal,setHakemModal]=useState(false);
   const [hakemManuel,setHakemManuel]=useState("");
-  const [hakemAra2,setHakemAra2]=useState("");
   useEffect(()=>{ let a=true; Db.hakemHavuzu().then(h=>{ if(a) setHakemHavuz(h||[]); }); return ()=>{a=false;}; },[]);
-  const hakemEkle=(ad,uid)=>{ ad=(ad||"").trim(); if(!ad) return; if(hakemler.length>=4){ return; } if(uid&&hakemler.some(h=>h.uid===uid)){ setHakemModal(false); return; } setHakemler(l=>[...l,{ad,gorev:hakemGorevSonraki(l),...(uid?{uid}:{})}]); };
+  const hakemEkle=(ad,uid)=>{ ad=(ad||"").trim(); if(!ad) return; if(hakemler.length>=4) return; if(uid&&hakemler.some(h=>h.uid===uid)) return; setHakemler(l=>[...l,{ad,gorev:hakemGorevSonraki(l),...(uid?{uid}:{})}]); };
   const hakemGorevDegis=(i,g)=>setHakemler(l=>l.map((h,x)=>x===i?{...h,gorev:g}:h));
   const hakemCikar=(i)=>setHakemler(l=>l.filter((_,x)=>x!==i));
+  // Havuzdan seçilebilecekler: bu lige atanmış (ligi yoksa=tüm ligler) + henüz eklenmemiş
+  const hakemHavuzFiltre=(hakemHavuz||[]).filter(h=>{ const lg=h.ligler; const uygun=!lg||!lg.length||(turnuva&&lg.indexOf(turnuva.id)>-1); return uygun && !hakemler.some(x=>x.uid&&x.uid===h.user_id); });
   // çoklu kaleci kurtarışları: [{ad, kurtaris}] — elle eklenir
   const [kaleciList,setKaleciList]=useState(()=> Array.isArray(m.kaleciler)?m.kaleciler.map(k=>({...k})):[]);
 
@@ -11175,46 +11178,32 @@ function MacSihirbaz({mac:m, turnuva, T, git, sihirbazKaydet}){
         </div>
         {/* HAKEMLER — 0–4 hakem + görev */}
         <div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid "+T.line}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:hakemler.length?8:6}}>
-            <span style={{fontSize:11,fontWeight:700,color:T.text}}>🧑‍⚖️ Hakemler <span style={{color:T.textMut,fontWeight:400,fontSize:9.5}}>· {hakemler.length}/4</span></span>
-            {hakemler.length<4 && <button onClick={()=>{setHakemManuel("");setHakemAra2("");setHakemModal(true);}} className="tap" style={{fontSize:11,fontWeight:800,color:T.bg0,background:T.accent,border:0,borderRadius:8,padding:"6px 12px"}}>+ Hakem Ekle</button>}
-          </div>
-          {hakemler.length===0
-            ? <div style={{fontSize:10.5,color:T.textMut,padding:"2px 2px 4px"}}>Hakem henüz atanmadı. “+ Hakem Ekle” ile 4’e kadar hakem atayabilirsin (zorunlu değil).</div>
-            : hakemler.map((h,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderTop:i>0?"0.5px solid "+T.line:"none"}}>
-                <div style={{width:24,height:24,borderRadius:"50%",background:T.accent+"22",color:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10.5,fontWeight:800,flexShrink:0}}>{i+1}</div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{h.ad}</div>
-                  <select value={h.gorev||"Orta Hakem"} onChange={e=>hakemGorevDegis(i,e.target.value)} style={{marginTop:2,fontSize:10,color:T.accent2||T.accent,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:6,padding:"2px 4px",fontFamily:"inherit",outline:"none",maxWidth:"100%"}}>
-                    {HAKEM_GOREVLER.map(g=><option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
-                <button onClick={()=>hakemCikar(i)} className="tap" title="Kaldır" style={{fontSize:12,background:T.danger+"14",border:"0.5px solid "+T.danger+"40",borderRadius:7,padding:"5px 8px",color:T.danger,flexShrink:0}}>✕</button>
-              </div>)}
+          <div style={{fontSize:11,fontWeight:700,color:T.text,marginBottom:hakemler.length?8:6}}>🧑‍⚖️ Hakemler <span style={{color:T.textMut,fontWeight:400,fontSize:9.5}}>· {hakemler.length}/4</span></div>
+          {hakemler.map((h,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderTop:i>0?"0.5px solid "+T.line:"none"}}>
+              <div style={{width:24,height:24,borderRadius:"50%",background:T.accent+"22",color:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10.5,fontWeight:800,flexShrink:0}}>{i+1}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{h.ad}</div>
+                <select value={h.gorev||"Orta Hakem"} onChange={e=>hakemGorevDegis(i,e.target.value)} style={{marginTop:2,fontSize:10,color:T.accent2||T.accent,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:6,padding:"2px 4px",fontFamily:"inherit",outline:"none",maxWidth:"100%"}}>
+                  {HAKEM_GOREVLER.map(g=><option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <button onClick={()=>hakemCikar(i)} className="tap" title="Kaldır" style={{fontSize:12,background:T.danger+"14",border:"0.5px solid "+T.danger+"40",borderRadius:7,padding:"5px 8px",color:T.danger,flexShrink:0}}>✕</button>
+            </div>)}
+          {hakemler.length<4 && <div style={{marginTop:hakemler.length?10:2}}>
+            {/* AÇILIR LİSTE — havuzdan seç (isim yazmadan) */}
+            <select value="" onChange={e=>{ const v=e.target.value; if(!v) return; const h=hakemHavuzFiltre.find(x=>x.user_id===v); if(h) hakemEkle(h.ad||h.email||"Hakem", h.user_id); e.target.value=""; }} style={{width:"100%",boxSizing:"border-box",background:T.bg2,border:"0.5px solid "+(hakemHavuzFiltre.length?T.accent+"55":T.line),borderRadius:8,padding:"10px 8px",color:hakemHavuzFiltre.length?T.text:T.textMut,fontSize:11.5,fontWeight:600,outline:"none",fontFamily:"inherit"}}>
+              <option value="">{hakemHavuzFiltre.length?"🧑‍⚖️ Havuzdan hakem seç…":"Havuzda uygun kayıtlı hakem yok"}</option>
+              {hakemHavuzFiltre.map(h=><option key={h.user_id} value={h.user_id}>{(h.ad||h.email||"Hakem")+(h.sehir?" · "+h.sehir:"")}</option>)}
+            </select>
+            {/* ELLE isim ekle (kayıtsız hakem) */}
+            <div style={{display:"flex",gap:6,marginTop:6}}>
+              <input value={hakemManuel} onChange={e=>setHakemManuel(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&hakemManuel.trim()){ hakemEkle(hakemManuel); setHakemManuel(""); } }} placeholder="…veya elle isim yaz" style={{flex:1,boxSizing:"border-box",background:T.bg2,border:"0.5px solid "+T.line,borderRadius:8,padding:"9px 10px",color:T.text,fontSize:11.5,outline:"none",fontFamily:"inherit"}}/>
+              <button onClick={()=>{ if(hakemManuel.trim()){ hakemEkle(hakemManuel); setHakemManuel(""); } }} className="tap" style={{fontSize:11.5,fontWeight:800,color:T.bg0,background:T.accent,border:0,borderRadius:8,padding:"0 14px"}}>+ Ekle</button>
+            </div>
+            <div style={{fontSize:9,color:T.textMut,marginTop:5,lineHeight:1.5}}>Listedeki hakemler <b>Admin → 🧑‍⚖️ Hakemler</b>'den eklenir. Oradan hakeme <b>lig atarsan</b> yalnızca o ligin maçlarında listede çıkar.</div>
+          </div>}
         </div>
       </div>
-      {hakemModal && <div onClick={()=>setHakemModal(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:1600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-        <div onClick={e=>e.stopPropagation()} className="fade-in" style={{width:"100%",maxWidth:460,maxHeight:"78vh",overflowY:"auto",background:T.bg1,borderRadius:"18px 18px 0 0",padding:"16px 16px calc(20px + env(safe-area-inset-bottom))",border:"0.5px solid "+T.line}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:15,fontWeight:800,color:T.text}}>🧑‍⚖️ Hakem Ekle <span style={{fontSize:11,color:T.textMut,fontWeight:600}}>· {hakemler.length}/4</span></span><span onClick={()=>setHakemModal(false)} className="tap" style={{fontSize:13,color:T.textMut,cursor:"pointer"}}>Kapat</span></div>
-          <div style={{display:"flex",gap:7,marginBottom:12}}>
-            <input value={hakemManuel} onChange={e=>setHakemManuel(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&hakemManuel.trim()){ const son=hakemler.length+1>=4; hakemEkle(hakemManuel); setHakemManuel(""); if(son) setHakemModal(false); } }} placeholder="İsimle ekle (kayıtsız hakem)…" style={{flex:1,boxSizing:"border-box",background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"9px 11px",color:T.text,fontSize:12.5,outline:"none",fontFamily:"inherit"}}/>
-            <button onClick={()=>{ if(hakemManuel.trim()){ const son=hakemler.length+1>=4; hakemEkle(hakemManuel); setHakemManuel(""); if(son) setHakemModal(false); } }} className="tap" style={{fontSize:12,fontWeight:800,color:T.bg0,background:T.accent,border:0,borderRadius:9,padding:"0 14px"}}>Ekle</button>
-          </div>
-          <div style={{fontSize:10,color:T.textMut,fontWeight:700,letterSpacing:.4,marginBottom:6}}>KAYITLI HAKEM HAVUZU{hakemHavuz.length>0?" · "+hakemHavuz.length:""}</div>
-          {hakemHavuz.length===0
-            ? <div style={{fontSize:11.5,color:T.textMut,textAlign:"center",padding:"12px 8px"}}>Kayıtlı hakem yok. Admin panelinde <b style={{color:T.textSoft}}>🧑‍⚖️ Hakemler</b> sekmesinden üyelere hakem yetkisi verebilirsin. (İstersen yukarıdan elle isim de yazabilirsin.)</div>
-            : <>
-              <input value={hakemAra2} onChange={e=>setHakemAra2(e.target.value)} placeholder="🔍 Hakem ara…" style={{width:"100%",boxSizing:"border-box",background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"8px 11px",color:T.text,fontSize:12,outline:"none",fontFamily:"inherit",marginBottom:8}}/>
-              {hakemHavuz.filter(h=>{ const q=hakemAra2.trim().toLowerCase(); return !q||((h.ad||h.email||"").toLowerCase().indexOf(q)>-1)||((h.sehir||"").toLowerCase().indexOf(q)>-1); }).map(h=>{ const ekli=hakemler.some(x=>x.uid&&x.uid===h.user_id); const dolu=hakemler.length>=4; return (
-                <div key={h.user_id} onClick={()=>{ if(ekli||dolu) return; const son=hakemler.length+1>=4; hakemEkle(h.ad||h.email||"Hakem",h.user_id); if(son) setHakemModal(false); }} className={(ekli||dolu)?"":"tap"} style={{display:"flex",alignItems:"center",gap:11,padding:"9px 6px",borderRadius:10,borderBottom:"0.5px solid "+T.line,opacity:(ekli||dolu)?.45:1}}>
-                  <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden",flexShrink:0,background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(h.ad||"Hakem",34,h.foto)}}/>
-                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{h.ad||h.email}</div><div style={{fontSize:11,color:T.textMut}}>{h.sehir||"—"}</div></div>
-                  <span style={{fontSize:12,color:ekli?T.textMut:T.accent,fontWeight:700}}>{ekli?"✓ ekli":"Ekle ›"}</span>
-                </div>);
-              })}
-            </>}
-        </div>
-      </div>}
       {/* dakika toggle (isteğe bağlı) */}
       <div style={{padding:"0 14px 10px"}}>
         <button onClick={()=>setDakikaAcik(v=>!v)} className="tap" style={{width:"100%",height:44,borderRadius:12,background:dakikaAcik?T.accent+"18":T.bg1,color:dakikaAcik?T.accent:T.textMut,fontSize:13,fontWeight:700,border:"1px solid "+(dakikaAcik?T.accent+"55":T.line),display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{dakikaAcik?"⏱ Dakika alanı açık — kapat":"⏱ Dakikaları gir (isteğe bağlı)"}</button>
@@ -11965,6 +11954,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
       const r=await Db.profilRollerYaz(id,roller); if(r&&r.ok){ ok++; setUyeler(p=>p.map(x=>x.user_id===id?{...x,roller}:x)); } }
     Db.logla(oturum,"Hakem toplu · "+islem, ok+" üye"); setMesaj(ok+" üye güncellendi."); setHakemSel(new Set()); };
   const hakemSelToggle=(id)=>setHakemSel(s=>{ const n=new Set(s); if(n.has(id)) n.delete(id); else n.add(id); return n; });
+  // HAKEM — lig atama/çıkarma (roller.hakem_ligler = [ligId,...]; boş = tüm ligler)
+  const hakemLigToggle=async(u,ligId)=>{ const roller={...(u.roller||{})}; let lg=Array.isArray(roller.hakem_ligler)?[...roller.hakem_ligler]:[]; if(lg.indexOf(ligId)>-1) lg=lg.filter(x=>x!==ligId); else lg.push(ligId); if(lg.length) roller.hakem_ligler=lg; else delete roller.hakem_ligler; const r=await Db.profilRollerYaz(u.user_id,roller); if(r&&r.ok){ setUyeler(p=>p.map(x=>x.user_id===u.user_id?{...x,roller}:x)); Db.logla(oturum,"Hakem lig",(u.email||"")+" · "+lg.length+" lig"); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   // Lig başvurusu işlemleri
   const basvuruYetki=async(b)=>{ if(!b.user_id){ setMesaj("⚠️ Bu başvuruda hesap yok — kişi önce üye olmalı."); return; } const mevcut=(haklar.find(h=>h.user_id===b.user_id)||{}).toplam||0; if(!confirm((b.ad_soyad||b.email)+" için lig hakkı "+mevcut+" → "+(mevcut+1)+" yapılsın mı?")) return; const r=await Db.hakVer(b.user_id, mevcut+1, "Başvuru: "+(b.lig_ad||b.ad_soyad||"")); if(r&&r.ok){ await Db.basvuruDurum(b.id,'onaylandi'); setBasvurular(p=>p.map(x=>x.id===b.id?{...x,durum:'onaylandi'}:x)); Db.logla(oturum,"Lig başvurusu onaylandı",(b.email||"")+" · "+(b.lig_ad||"")); setMesaj("✓ Yetki verildi"); Db.haklariListe().then(h=>{ const em={}; (uyeler||[]).forEach(u=>em[u.user_id]=u.email); setHaklar((h||[]).map(x=>({...x,email:em[x.user_id]||x.user_id}))); }); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   const basvuruArandi=async(b)=>{ await Db.basvuruDurum(b.id,'arandi'); setBasvurular(p=>p.map(x=>x.id===b.id?{...x,durum:'arandi'}:x)); };
@@ -12485,17 +12476,28 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
               <button onClick={()=>{ if(confirm(secLen+" üyeden hakem yetkisi kaldırılsın mı?")) hakemToplu("kaldir"); }} className="tap" style={{fontSize:11.5,fontWeight:800,color:T.danger,background:T.danger+"14",border:"0.5px solid "+T.danger+"44",borderRadius:8,padding:"7px 12px"}}>Yetkiyi Kaldır</button>
             </div>}
             {gosterilen.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Bu filtreye uyan üye yok.</div>}
-            {gosterilen.map(u=>{ const isHak=!!(u.roller&&u.roller.hakem), isPas=isHak&&!!u.roller.hakem_pasif, sec=hakemSel.has(u.user_id);
-              return <div key={u.user_id} onClick={()=>hakemSelToggle(u.user_id)} className="tap" style={{display:"flex",alignItems:"center",gap:10,background:sec?T.accent+"14":T.bg1,border:"0.5px solid "+(sec?T.accent+"66":isHak?T.accent+"33":T.line),borderRadius:11,padding:"10px 12px",marginBottom:6}}>
-                <div style={{width:20,height:20,borderRadius:6,flexShrink:0,border:"1.5px solid "+(sec?T.accent:T.line),background:sec?T.accent:"transparent",color:T.bg0,fontSize:12,fontWeight:900,display:"grid",placeItems:"center"}}>{sec?"✓":""}</div>
-                <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0,background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(u.ad||u.email||"Üye",32,u.foto)}}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.ad||u.email}</div>
-                  <div style={{fontSize:9.5,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
+            {gosterilen.map(u=>{ const isHak=!!(u.roller&&u.roller.hakem), isPas=isHak&&!!u.roller.hakem_pasif, sec=hakemSel.has(u.user_id); const ligDizi=(isHak&&Array.isArray(u.roller.hakem_ligler))?u.roller.hakem_ligler:[];
+              return <div key={u.user_id} style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:10,background:sec?T.accent+"14":T.bg1,border:"0.5px solid "+(sec?T.accent+"66":isHak?T.accent+"33":T.line),borderRadius:11,padding:"10px 12px",marginBottom:6}}>
+                <div onClick={()=>hakemSelToggle(u.user_id)} className="tap" style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+                  <div style={{width:20,height:20,borderRadius:6,flexShrink:0,border:"1.5px solid "+(sec?T.accent:T.line),background:sec?T.accent:"transparent",color:T.bg0,fontSize:12,fontWeight:900,display:"grid",placeItems:"center"}}>{sec?"✓":""}</div>
+                  <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0,background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(u.ad||u.email||"Üye",32,u.foto)}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.ad||u.email}</div>
+                    <div style={{fontSize:9.5,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
+                  </div>
                 </div>
                 {isHak
                   ? <span onClick={e=>{ e.stopPropagation(); hakemAktifToggle(u); }} className="tap" title={isPas?"Aktifleştir":"Pasife al"} style={{fontSize:9.5,fontWeight:800,color:isPas?T.gold:yesil,background:(isPas?T.gold:yesil)+"1f",border:"0.5px solid "+(isPas?T.gold:yesil)+"55",borderRadius:6,padding:"4px 9px",whiteSpace:"nowrap"}}>{isPas?"⏸ Pasif":"● Aktif"}</span>
                   : <span style={{fontSize:9.5,fontWeight:700,color:T.textMut,background:T.bg2,borderRadius:6,padding:"4px 8px"}}>üye</span>}
+                {isHak && <div style={{flexBasis:"100%",display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,paddingTop:8,marginTop:2,borderTop:"0.5px solid "+T.line}}>
+                  <span style={{fontSize:9.5,color:T.textMut,fontWeight:800,marginRight:2}}>🏆 LİG:</span>
+                  {(turnuvalar||[]).length===0
+                    ? <span style={{fontSize:10,color:T.textMut}}>Bu oturumda lig yüklü değil</span>
+                    : (turnuvalar||[]).map(t=>{ const on=ligDizi.indexOf(t.id)>-1; return (
+                        <button key={t.id} onClick={e=>{ e.stopPropagation(); hakemLigToggle(u,t.id); }} className="tap" style={{fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:14,border:"0.5px solid "+(on?T.accent:T.line),background:on?T.accent+"22":"none",color:on?T.accent:T.textMut,whiteSpace:"nowrap"}}>{on?"✓ ":""}{t.ad}</button>
+                      ); })}
+                  {ligDizi.length===0 && (turnuvalar||[]).length>0 && <span style={{fontSize:9.5,color:T.textSoft,fontStyle:"italic"}}>seçim yok = tüm ligler</span>}
+                </div>}
               </div>; })}
           </div>;
         })()}
