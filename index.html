@@ -11859,6 +11859,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const [hakemAra,setHakemAra]=useState("");             // HAKEM sekmesi — arama
   const [hakemFiltre,setHakemFiltre]=useState("hepsi");  // hepsi | hakem | aktif | pasif
   const [hakemLigListe,setHakemLigListe]=useState([]);   // lig atama için GERÇEK ligler (evren=null)
+  const [hakemLigModal,setHakemLigModal]=useState(null); // lig-atama modalı açık olan hakemin user_id'si
+  const [hakemLigAra,setHakemLigAra]=useState("");       // lig modalı arama
   const [metrik,setMetrik]=useState(null);         // FAZ 4 — gerçek metrikler (panel_metrikler)
   const [opEk,setOpEk]=useState(null);             // Operasyon Merkezi ek: canlı akış + trafik + trend
   const [opTek,setOpTek]=useState({deploy:null, api:null, cf:null});  // deploy sürüm · API gecikme · Cloudflare
@@ -12492,16 +12494,37 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
                 {isHak
                   ? <span onClick={e=>{ e.stopPropagation(); hakemAktifToggle(u); }} className="tap" title={isPas?"Aktifleştir":"Pasife al"} style={{fontSize:9.5,fontWeight:800,color:isPas?T.gold:yesil,background:(isPas?T.gold:yesil)+"1f",border:"0.5px solid "+(isPas?T.gold:yesil)+"55",borderRadius:6,padding:"4px 9px",whiteSpace:"nowrap"}}>{isPas?"⏸ Pasif":"● Aktif"}</span>
                   : <span style={{fontSize:9.5,fontWeight:700,color:T.textMut,background:T.bg2,borderRadius:6,padding:"4px 8px"}}>üye</span>}
+                {oturum && u.user_id!==oturum.id && !u.admin && <button onClick={e=>{ e.stopPropagation(); uyeSil(u); }} className="tap" title="Üyeyi KALICI sil (hesabı + tüm verisi)" style={{fontSize:12,background:T.danger+"18",border:"0.5px solid "+T.danger+"55",borderRadius:7,padding:"5px 8px",color:T.danger,flexShrink:0}}>🗑</button>}
                 {isHak && <div style={{flexBasis:"100%",display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,paddingTop:8,marginTop:2,borderTop:"0.5px solid "+T.line}}>
                   <span style={{fontSize:9.5,color:T.textMut,fontWeight:800,marginRight:2}}>🏆 LİG:</span>
-                  {hakemLigListe.length===0
-                    ? <span style={{fontSize:10,color:T.textMut}}>Gerçek lig yok — önce bir lig kur (demo/örnek ligler sayılmaz)</span>
-                    : hakemLigListe.map(t=>{ const on=ligDizi.indexOf(t.id)>-1; return (
-                        <button key={t.id} onClick={e=>{ e.stopPropagation(); hakemLigToggle(u,t.id); }} className="tap" style={{fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:14,border:"0.5px solid "+(on?T.accent:T.line),background:on?T.accent+"22":"none",color:on?T.accent:T.textMut,whiteSpace:"nowrap"}}>{on?"✓ ":""}{t.ad}</button>
+                  {ligDizi.length===0
+                    ? <span style={{fontSize:9.5,color:T.textSoft,fontStyle:"italic"}}>Tüm ligler</span>
+                    : ligDizi.map(id=>{ const l=hakemLigListe.find(x=>x.id===id); return (
+                        <button key={id} onClick={e=>{ e.stopPropagation(); hakemLigToggle(u,id); }} className="tap" title="Kaldır" style={{fontSize:10,fontWeight:700,padding:"4px 9px",borderRadius:14,border:"0.5px solid "+T.accent,background:T.accent+"22",color:T.accent,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>{l?l.ad:"?"}<span style={{opacity:.6}}>✕</span></button>
                       ); })}
-                  {ligDizi.length===0 && hakemLigListe.length>0 && <span style={{fontSize:9.5,color:T.textSoft,fontStyle:"italic"}}>seçim yok = tüm ligler</span>}
+                  <button onClick={e=>{ e.stopPropagation(); setHakemLigAra(""); setHakemLigModal(u.user_id); }} className="tap" style={{fontSize:10,fontWeight:800,padding:"4px 11px",borderRadius:14,border:"0.5px dashed "+T.line,background:"none",color:T.textMut,whiteSpace:"nowrap"}}>+ Lig ata</button>
                 </div>}
               </div>; })}
+            {/* LİG ATAMA MODALI — aranabilir, çok lig olsa da pratik (mobil/masaüstü/PWA) */}
+            {hakemLigModal && (()=>{ const u=uyeler.find(x=>x.user_id===hakemLigModal); if(!u) return null; const sel=(u.roller&&Array.isArray(u.roller.hakem_ligler))?u.roller.hakem_ligler:[]; const q=hakemLigAra.trim().toLowerCase(); const liste=hakemLigListe.filter(l=>!q||((l.ad||"").toLowerCase().indexOf(q)>-1));
+              return <div onClick={()=>setHakemLigModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:1600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+                <div onClick={e=>e.stopPropagation()} className="fade-in" style={{width:"100%",maxWidth:460,maxHeight:"80vh",overflowY:"auto",background:T.bg1,borderRadius:"18px 18px 0 0",padding:"16px 16px calc(20px + env(safe-area-inset-bottom))",border:"0.5px solid "+T.line}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:15,fontWeight:800,color:T.text}}>🏆 Lig Ata</span><span onClick={()=>setHakemLigModal(null)} className="tap" style={{fontSize:13,color:T.textMut,cursor:"pointer"}}>Kapat</span></div>
+                  <div style={{fontSize:11.5,color:T.textMut,marginBottom:10}}>{u.ad||u.email} · <b style={{color:sel.length?T.accent:T.textSoft}}>{sel.length?sel.length+" lig seçili":"tüm ligler"}</b></div>
+                  <input value={hakemLigAra} onChange={e=>setHakemLigAra(e.target.value)} placeholder="🔍 Lig ara…" style={{width:"100%",boxSizing:"border-box",background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"9px 11px",color:T.text,fontSize:12.5,outline:"none",fontFamily:"inherit",marginBottom:10}}/>
+                  {hakemLigListe.length===0 && <div style={{fontSize:11.5,color:T.textMut,textAlign:"center",padding:"14px 8px"}}>Gerçek lig bulunamadı. Önce bir lig kurmalısın.</div>}
+                  {hakemLigListe.length>0 && liste.length===0 && <div style={{fontSize:11.5,color:T.textMut,textAlign:"center",padding:"12px 8px"}}>Aramaya uyan lig yok.</div>}
+                  {liste.map(l=>{ const on=sel.indexOf(l.id)>-1; return (
+                    <div key={l.id} onClick={()=>hakemLigToggle(u,l.id)} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 8px",borderRadius:10,borderBottom:"0.5px solid "+T.line}}>
+                      <div style={{width:20,height:20,borderRadius:6,flexShrink:0,border:"1.5px solid "+(on?T.accent:T.line),background:on?T.accent:"transparent",color:T.bg0,fontSize:12,fontWeight:900,display:"grid",placeItems:"center"}}>{on?"✓":""}</div>
+                      <span style={{flex:1,fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad}</span>
+                      {on && <span style={{fontSize:10,color:T.accent,fontWeight:700}}>atandı</span>}
+                    </div>); })}
+                  <div style={{fontSize:10,color:T.textMut,marginTop:12,lineHeight:1.5}}>Hiç lig seçmezsen hakem <b>tüm liglerde</b> görev yapar. Seçtiklerinin maçlarında havuzda çıkar.</div>
+                  <button onClick={()=>setHakemLigModal(null)} className="tap" style={{width:"100%",marginTop:12,background:T.accent,color:T.bg0,border:0,borderRadius:10,padding:"11px",fontSize:13,fontWeight:800}}>Tamam</button>
+                </div>
+              </div>;
+            })()}
           </div>;
         })()}
       </div>}
