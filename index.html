@@ -1285,6 +1285,8 @@ const Db = {
   },
   async oyuncuGuncelle(pid, alanlar){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('oyuncular').update(alanlar).eq('player_id',pid); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async oyuncuSahiplen(pid, userId){ return this.oyuncuGuncelle(pid, {sahip_user_id:userId}); },
+  // Değer geçmişi — best-effort (tablo yoksa sessizce atlar). Faz 1.
+  async degerLog(pid, v){ if(!sb||!pid) return; try{ await sb.from('deger_gecmisi').insert({player_id:pid, onceki:(v.onceki??null), yeni:(v.yeni??null), fark:((v.yeni||0)-(v.onceki||0)), temel:(v.temel??null), kaynak:v.kaynak||'manuel', aciklama:v.aciklama||null}); }catch(e){} },
   async oyunculariAcik(pidler){ // KVKK açık görünüm (yaş, ad, forma, boy, ayak) — ziyaretçi de görür
     if(!sb) return []; try{ let q=sb.from('oyuncular_acik').select('*'); if(pidler&&pidler.length) q=q.in('player_id',pidler); const {data}=await q; return data||[]; }catch(e){ return []; }
   },
@@ -2340,7 +2342,7 @@ function yeniOyuncu(id, ad, poz, no, renk){
     pac:55+rnd(40), sho:55+rnd(40), pas:55+rnd(40), dri:55+rnd(40), def:55+rnd(40), phy:55+rnd(40),
     renk, yas:18+rnd(22), boy:170+rnd(25), kilo:65+rnd(25), ayak: pick(["Sağ","Sağ","Sağ","Sol","Çift"]),
     dogum:`01.01.${2026-(18+rnd(22))}`, bolge:"Merkez", uyruk:"Türkiye", saglik:"Sağlam",
-    deger: Math.round((ovr*ovr*ovr/180))/10,
+    deger: 750000,   /* Faz 0: varsayılan temel değer = 750.000 € (eski OVR³ formülü kaldırıldı) */
     gol:0,asist:0,mac:0,kurtaris:0,sari:0,kirmizi:0,mvp:0,dk:0,
     altin:0,gumus:0,forvet:0,ortasaha:0,defans:0,kaleci:0,centilmen:0,enerjik:0,macinGolu:0,
     formaRenk:renk
@@ -2363,6 +2365,31 @@ function yeniMac(id, A, B, hafta){
 }
 
 // Bir turnuvanın tüm puan/istatistiklerini maçlardan SIFIRDAN hesapla
+/* ================= PİYASA DEĞERİ MOTORU (Faz 2/3) =================
+   Güncel = Temel + pozisyona duyarlı performans. Temel = oyuncular.deger (€, varsayılan 750.000).
+   Değer sıfırdan hesaplanır (idempotent) — çift sayım olmaz; maç düzenlenince kendiliğinden düzelir. */
+function fmtEuro(n){ n=Math.round(n||0); var neg=n<0; n=Math.abs(n); var s;
+  if(n<1000) s=n+" €"; else if(n<1000000) s=Math.round(n/1000)+" Bin €";
+  else { var m=Math.round(n/100000)/10; s=(""+m).replace(".",",")+" Milyon €"; } return (neg?"−":"")+s; }
+function degerPozKat(poz){ var r=(posAd(poz)||"").toLocaleLowerCase("tr");
+  if(r.indexOf("kale")>-1) return "KAL";
+  if(r.indexOf("defans")>-1||r.indexOf("stoper")>-1||r.indexOf("bek")>-1) return "DEF";
+  if(r.indexOf("orta")>-1) return "OS"; return "FOR"; }
+var DEGER_KAT={ KAL:{mac:6000,gol:30000,asist:35000,kurt:5000,mvp:50000},
+  DEF:{mac:6000,gol:70000,asist:40000,kurt:2000,mvp:50000},
+  OS:{mac:6000,gol:45000,asist:45000,kurt:1000,mvp:50000},
+  FOR:{mac:6000,gol:35000,asist:30000,kurt:500,mvp:50000} };
+function degerDim(n,unit){ var f=[1,.7,.5,.35], s=0; for(var i=0;i<(n||0);i++) s+=unit*(f[i]!==undefined?f[i]:.2); return s; }
+function degerTemelNorm(o){ return (o.degerTemel!=null)?o.degerTemel:((o.deger!=null&&o.deger>=50000)?o.deger:750000); }
+function degerPerformans(o, temel){
+  var k=DEGER_KAT[degerPozKat(o.poz)]||DEGER_KAT.FOR; var p=0;
+  p+=(o.mac||0)*k.mac + (o.gol||0)*k.gol + (o.asist||0)*k.asist + (o.kurtaris||0)*k.kurt + (o.mvp||0)*k.mvp;
+  p+=degerDim(o.altin||0,80000) + degerDim(o.gumus||0,40000) + (o.macinGolu||0)*20000; // ödül bonusları (azalan getiri)
+  p-=(o.kirmizi||0)*25000 + (o.sari||0)*8000; if(p<0)p=0;                               // kart cezası
+  var tavan=Math.round((temel||750000)*1.5); if(p>tavan)p=tavan;                          // sezon tavanı %150
+  return Math.round(p);
+}
+function degerHesapla(o){ var t=degerTemelNorm(o); o.degerTemel=t; o.degerP=(o.degerKilit?0:degerPerformans(o,t)); o.degerG=t+o.degerP; return o.degerG; }
 function turnuvaHesapla(turnuva){
   if(!turnuva || turnuva._ozet || turnuva._cache || !turnuva.takimlar) return;   // özet/önbellek — istatistik zaten hazır (önbellekte pişmiş), sıfırlama/yeniden-hesaplama YAPMA
   // takım istatistik sıfırla
@@ -2439,6 +2466,8 @@ function turnuvaHesapla(turnuva){
       grup.forEach((tk,i)=>tk.grupSira=i+1);
     }
   }
+  // —— PİYASA DEĞERİ —— her oyuncu için güncel = temel + performans (idempotent)
+  turnuva.takimlar.forEach(function(tk){ (tk.oyuncular||[]).forEach(function(o){ degerHesapla(o); }); });
 }
 
 // Otomatik fikstür üret (round-robin). cift=true → ev-deplasman (çift devre)
@@ -3031,6 +3060,10 @@ function FifaKart({o, T}){
             {o.takimAd && <div style={{display:"flex",alignItems:"center",gap:7,marginTop:6}}>
               <Logo renk={o.renk||"#888"} ad={o.takimAd} logo={o.logo} renk2={o.renk2} boy={20}/>
               <span style={{fontSize:11,fontWeight:600,letterSpacing:.2,color:"#cfd6df",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.takimAd}</span>
+            </div>}
+            {(o.degerG!=null||o.deger!=null) && <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginTop:9,paddingTop:8,borderTop:"1px solid rgba(255,255,255,.1)"}}>
+              <span style={{fontSize:8.5,letterSpacing:1.2,color:acc,fontWeight:800}}>PİYASA DEĞERİ</span>
+              <span style={{fontFamily:T.fontDisplay,fontWeight:900,fontSize:16,color:"#fff",letterSpacing:.3}}>{fmtEuro(o.degerG!=null?o.degerG:(o.deger>=50000?o.deger:750000))}</span>
             </div>}
             <div style={{display:"flex",marginTop:11,borderTop:"1px solid rgba(255,255,255,.16)",paddingTop:9}}>
               {stats.map(([k,v],i)=>
@@ -6289,7 +6322,8 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
   const golKrali=[...takim.oyuncular].filter(o=>o.gol>0).sort((a,b)=>b.gol-a.gol);
   const ortGuc=Math.round(takim.oyuncular.reduce((s,o)=>s+o.ovr,0)/takim.oyuncular.length);
   const ortStat=(k)=>Math.round(takim.oyuncular.reduce((s,o)=>s+o[k],0)/takim.oyuncular.length);
-  const kadroDeger=takim.oyuncular.reduce((s,o)=>s+o.deger,0).toFixed(1);
+  const kadroDeger=takim.oyuncular.reduce((s,o)=>s+(o.degerG!=null?o.degerG:(o.deger||0)),0);
+  const enDegerli=[...takim.oyuncular].sort((a,b)=>((b.degerG!=null?b.degerG:b.deger)||0)-((a.degerG!=null?a.degerG:a.deger)||0))[0]||{};
   const guvNotu = ortGuc>=85?"A+":ortGuc>=78?"A":ortGuc>=70?"B+":ortGuc>=62?"B":"C";
 
   const pozSay={Kaleci:0,Defans:0,OrtaSaha:0,Forvet:0};
@@ -6605,7 +6639,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
       <div style={{padding:"6px 14px"}}>
         <div style={{fontSize:11,color:T.accent,fontWeight:700,margin:"4px 2px 10px"}}>🏅 TAKIM LİDERLERİ</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[["👑","Gol Kralı",enGolcu,enGolcu.gol,"gol",T.gold],["🎯","Asist Kralı",enAsist,enAsist.asist,"asist",T.accent2],["⭐","En MVP",enMvp,enMvp.mvp,"mvp",T.gold],["🧤","En Kaleci",enKurtaris,enKurtaris.kurtaris,"kurtarış",T.accent2],["🏃","En Çok Maç",enMac,enMac.mac,"maç",T.text],["💎","En Değerli",sirali[0],"€"+(sirali[0]?.deger||0)+"M","",T.gold]].map(([ik,ad,o,v,birim,c],i)=>
+          {[["👑","Gol Kralı",enGolcu,enGolcu.gol,"gol",T.gold],["🎯","Asist Kralı",enAsist,enAsist.asist,"asist",T.accent2],["⭐","En MVP",enMvp,enMvp.mvp,"mvp",T.gold],["🧤","En Kaleci",enKurtaris,enKurtaris.kurtaris,"kurtarış",T.accent2],["🏃","En Çok Maç",enMac,enMac.mac,"maç",T.text],["💎","En Değerli",enDegerli,fmtEuro(enDegerli.degerG!=null?enDegerli.degerG:(enDegerli.deger||0)),"",T.gold]].map(([ik,ad,o,v,birim,c],i)=>
             <div key={i} className="pop" style={{background:c+"12",borderRadius:11,padding:"11px 12px",border:"0.5px solid "+c+"33"}}>
               <div style={{fontSize:9,color:c,fontWeight:700,marginBottom:3}}>{ik} {ad}</div>
               <div style={{fontSize:12,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o?.ad||"-"}</div>
@@ -6616,9 +6650,9 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
       </div>
       <div style={{padding:"6px 14px"}}>
         <div style={{background:T.gold+"12",borderRadius:14,padding:14,border:"0.5px solid "+T.gold+"33"}}>
-          <div style={{fontSize:10,color:T.gold,fontWeight:600,marginBottom:6}}>💰 KADRO DEĞERİ</div>
-          <div style={{fontSize:24,fontWeight:800,color:T.gold,fontFamily:T.fontDisplay}}>€{kadroDeger}M</div>
-          <div style={{fontSize:10,color:T.textMut,marginTop:4}}>En değerli: {sirali[0]?.ad}</div>
+          <div style={{fontSize:10,color:T.gold,fontWeight:600,marginBottom:6}}>💰 KADRO DEĞERİ <span style={{color:T.textMut,fontWeight:500}}>· aktif kadro</span></div>
+          <div style={{fontSize:24,fontWeight:800,color:T.gold,fontFamily:T.fontDisplay}}>{fmtEuro(kadroDeger)}</div>
+          <div style={{fontSize:10,color:T.textMut,marginTop:4}}>Oyuncu başına ort. {fmtEuro(kadroDeger/(takim.oyuncular.length||1))} · En değerli: {enDegerli?.ad||"—"}</div>
         </div>
       </div>
     </div>}
@@ -6936,9 +6970,9 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   const [bd,setBd]=useState(null); // bilgi düzenleme taslağı
   const sistemDeger=useRef(null);
   useEffect(()=>{
-    sistemDeger.current={id:o.id, pac:o.pac,sho:o.sho,pas:o.pas,dri:o.dri,def:o.def,phy:o.phy, ovr:o.ovr, deger:o.deger};
+    sistemDeger.current={id:o.id, pac:o.pac,sho:o.sho,pas:o.pas,dri:o.dri,def:o.def,phy:o.phy, ovr:o.ovr, deger:(o.degerG!=null?Math.round(o.degerG):o.deger)};
   },[o.id]);
-  const acDuzenle=()=>{ setD({...o, yildizManuel: o.yildizManuel||0}); setDuzenle(true); };
+  const acDuzenle=()=>{ setD({...o, deger:Math.round(o.degerG!=null?o.degerG:(o.deger||750000)), yildizManuel: o.yildizManuel||0}); setDuzenle(true); };
   const acBilgi=()=>{ setBd({ad:o.ad,poz:o.poz,no:o.no,ayak:o.ayak||"Sağ",dogum:o.dogum||"",boy:o.boy||"",kilo:o.kilo||"",uyruk:o.uyruk||"",saglik:o.saglik||"Sağlam",foto:o.foto||null}); setBilgiAcik(true); };
   const kaydetBilgi=()=>{
     o.ad=bd.ad||o.ad; o.poz=bd.poz; o.no=parseInt(bd.no)||o.no; o.ayak=bd.ayak;
@@ -6947,7 +6981,15 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     const y=parseInt((bd.dogum.split(".")[2]||bd.dogum.split("-")[0]||"")); if(y>1950&&y<2020)o.yas=2026-y;
     o._manuel=true; setBilgiAcik(false);
   };
-  const kaydet=()=>{ Object.assign(o,d); o.ovr=d.ovr||Math.round((d.pac+d.sho+d.pas+d.dri+d.def+d.phy)/6); o._manuel=true; setDuzenle(false); };
+  const kaydet=()=>{
+    const perf=(o.degerP||0); const eskiG=(o.degerG!=null?o.degerG:o.deger);
+    Object.assign(o,d); o.ovr=d.ovr||Math.round((d.pac+d.sho+d.pas+d.dri+d.def+d.phy)/6); o._manuel=true;
+    // DEĞER (Faz 1): admin GÜNCEL değeri belirler → temel = güncel − performans (İşlem 1). Supabase'e KALICI yazılır.
+    const hedef=Math.round(parseFloat(d.deger)||0); const yeniTemel=Math.max(0, hedef-perf);
+    o.deger=yeniTemel; o.degerTemel=yeniTemel; o.degerP=perf; o.degerG=yeniTemel+perf;
+    if(typeof o.id==="string" && sb){ Db.oyuncuGuncelle(o.id,{deger:yeniTemel}); Db.degerLog(o.id,{onceki:eskiG,yeni:o.degerG,temel:yeniTemel,kaynak:"manuel",aciklama:"Süper admin değer düzenledi"}); }
+    setDuzenle(false);
+  };
   const otomatikYap=()=>{
     const s=sistemDeger.current; if(!s) return;
     setD({...d, pac:s.pac,sho:s.sho,pas:s.pas,dri:s.dri,def:s.def,phy:s.phy, ovr:s.ovr, deger:s.deger, yildizManuel:0});
@@ -7188,7 +7230,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
       </div>
       <div style={{padding:"6px 14px"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,background:T.bg1,borderRadius:12,padding:"12px",border:"0.5px solid "+T.line}}>
-          {[["YAŞ",o.yas],["BOY",o.boy?o.boy+" cm":"—"],["KİLO",o.kilo?o.kilo+" kg":"—"],["DEĞER","€"+o.deger+"M"]].map(([k,v],i)=>
+          {[["YAŞ",o.yas],["BOY",o.boy?o.boy+" cm":"—"],["KİLO",o.kilo?o.kilo+" kg":"—"],["DEĞER",fmtEuro(o.degerG!=null?o.degerG:(o.deger||750000))]].map(([k,v],i)=>
             <div key={k} style={{textAlign:"center",borderRight:i<3?"0.5px solid "+T.line:"none"}}>
               <div style={{fontSize:9,color:T.textMut}}>{k}</div>
               <div style={{fontSize:14,fontWeight:700,color:i===3?T.accent:T.text,marginTop:2}}>{v}</div>
@@ -7504,8 +7546,9 @@ function StatDuzeltModal({o, d, setD, T, kaydet, kapat, otomatikYap}){
           </div>
         </div>
         <div style={{background:T.bg2,borderRadius:10,padding:"10px",textAlign:"center"}}>
-          <div style={{fontSize:9,color:T.textMut}}>DEĞER (M€)</div>
-          <input type="number" value={d.deger} onChange={e=>setD({...d,deger:parseFloat(e.target.value)||0})} style={{width:"100%",background:"transparent",border:"none",color:T.gold,fontSize:16,fontWeight:700,textAlign:"center",fontFamily:T.fontDisplay}}/>
+          <div style={{fontSize:9,color:T.textMut}}>GÜNCEL DEĞER (€)</div>
+          <input type="number" step="10000" value={d.deger} onChange={e=>setD({...d,deger:parseFloat(e.target.value)||0})} style={{width:"100%",background:"transparent",border:"none",color:T.gold,fontSize:16,fontWeight:700,textAlign:"center",fontFamily:T.fontDisplay}}/>
+          <div style={{fontSize:8.5,color:T.textMut,marginTop:3}}>{fmtEuro(d.deger)} · temel {fmtEuro((d.deger||0)-(o.degerP||0))} + perf {fmtEuro(o.degerP||0)}</div>
         </div>
       </div>
 
