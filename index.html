@@ -885,6 +885,24 @@ async function fotoYukle(dosya, klasor, eskiUrl){
     return {url:(data&&data.publicUrl)||""};
   }catch(e){ return {hata:String(e&&e.message||e)}; }
 }
+/* Ses yükleme (sohbet medyası) — küçültme yok, ses MIME, güvenli isim, 5MB sınır */
+async function sesYukle(blob){
+  if(!sb) return {hata:"Giriş gerekli (bulut kapalı)."};
+  if(!blob) return {hata:"Ses yok."};
+  if(blob.size>5*1024*1024) return {hata:"Ses çok büyük (max 5MB)."};
+  var tip=blob.type||"audio/webm"; if(!/^audio\//.test(tip)) return {hata:"Geçersiz ses dosyası."};
+  try{
+    var uid=null; try{ uid=((await sb.auth.getUser()).data.user||{}).id||null; }catch(e){}
+    if(!uid) return {hata:"Giriş gerekli."};
+    var ext=tip.indexOf("webm")>-1?"webm":tip.indexOf("mpeg")>-1?"mp3":(tip.indexOf("mp4")>-1||tip.indexOf("m4a")>-1||tip.indexOf("aac")>-1)?"m4a":tip.indexOf("ogg")>-1?"ogg":tip.indexOf("wav")>-1?"wav":"webm";
+    var uuid=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now()+"-"+Math.random().toString(36).slice(2,10));
+    var yol=uid+"/sohbet/"+uuid+"."+ext;
+    var up=await sb.storage.from("fotolar").upload(yol, blob, {contentType:tip, upsert:false});
+    if(up.error) return {hata:up.error.message};
+    var g=sb.storage.from("fotolar").getPublicUrl(yol);
+    return {url:(g.data&&g.data.publicUrl)||""};
+  }catch(e){ return {hata:String(e&&e.message||e)}; }
+}
 
 /* Bulut veri — tüm uygulama durumu, kullanıcı başına tek JSON satırı */
 const Bulut = {
@@ -12051,8 +12069,20 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const ayEkle=async()=>{ const e=(ayMail||"").trim().toLowerCase(); if(!aySecLig){ setAyMesaj("⚠️ Önce lig seç"); return; } if(!e){ setAyMesaj("⚠️ E-posta yaz"); return; } setAyMesaj(""); const r=await Db.yardimciEkle(aySecLig, e); if(r&&r.ok){ const lig=tumLiglerY.find(x=>x.id===aySecLig); setHepYardimci(p=>[...p,{lig_id:aySecLig, ligAd:(lig&&lig.ad)||"(lig)", user_id:r.user_id, email:r.email||e, ad:r.ad||null, tarih:new Date().toISOString()}]); setAyMail(""); setAyMesaj("✓ Eklendi"); Db.logla(oturum,"Yardımcı yönetici eklendi",((lig&&lig.ad)||"")+" · "+e); } else setAyMesaj("⚠️ "+((r&&r.hata)||"olmadı")); };
   const ayCikar=async(y)=>{ if(!confirm((y.ad||y.email)+" — “"+y.ligAd+"” liginden yardımcı yöneticilikten çıkarılsın mı?")) return; const r=await Db.yardimciKaldir(y.lig_id, y.user_id); if(r&&r.ok){ setHepYardimci(p=>p.filter(x=>!(x.lig_id===y.lig_id && x.user_id===y.user_id))); Db.logla(oturum,"Yardımcı yönetici çıkarıldı",y.ligAd+" · "+(y.email||"")); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   // FAZ 4 — Bakım Merkezi
-  const orphanTara=async()=>{ setBakimMsj("Taranıyor…"); const o=await Db.orphanBul(); setOrphanlar(o||[]); setBakimMsj((o&&o.length)?(o.length+" sahipsiz dosya bulundu"):"✓ Sahipsiz dosya yok — depo temiz"); };
-  const orphanTemizleAll=async()=>{ if(!orphanlar||!orphanlar.length) return; if(!confirm(orphanlar.length+" sahipsiz dosya kalıcı silinsin mi?")) return; const r=await Db.orphanTemizle(orphanlar.map(o=>o.yol)); if(r&&r.ok){ setOrphanlar([]); Db.logla(oturum,"Orphan temizlik",r.adet+" dosya"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" dosya silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
+  const orphanTara=async()=>{ setBakimMsj("Taranıyor…"); const o=(await Db.orphanBul())||[]; setOrphanlar(o);
+    if(!o.length){ setBakimMsj("✓ Sahipsiz dosya yok — depo temiz"); return; }
+    const guvenli=o.some(x=>x.yas_gun!=null); const toplam=o.reduce((s,x)=>s+(x.boyut||0),0); const yasli=o.filter(x=>(x.yas_gun||0)>=14).length;
+    setBakimMsj((guvenli?"":"⚠️ ESKİ/güvensiz tarama — 73-74 SQL'ini çalıştır! ")+o.length+" sahipsiz · "+(toplam/1048576).toFixed(2)+" MB · ≥14 gün: "+yasli); };
+  const orphanTemizleEski=async()=>{ if(!orphanlar||!orphanlar.length) return;
+    if(!orphanlar.some(x=>x.yas_gun!=null)){ setBakimMsj("⚠️ Güvenli silme için önce SQL güncellemesini (73-74) çalıştır — yaş bilgisi yok, silme durduruldu."); return; }
+    const yasli=orphanlar.filter(x=>x.yas_gun!=null && x.yas_gun>=14);
+    if(!yasli.length){ setBakimMsj("14 günden eski sahipsiz dosya yok."); return; }
+    const bayt=yasli.reduce((s,x)=>s+(x.boyut||0),0);
+    if(!confirm(yasli.length+" adet, 14 GÜNDEN ESKİ sahipsiz dosya KALICI silinsin mi?\n\n~"+(bayt/1048576).toFixed(2)+" MB alan açılacak.\nAktif kullanılan hiçbir dosya silinmez.")) return;
+    setBakimMsj("Siliniyor…");
+    const r=await Db.orphanTemizle(yasli.map(o=>o.yol));
+    if(r&&r.ok){ setOrphanlar(p=>(p||[]).filter(x=>!(x.yas_gun!=null&&x.yas_gun>=14))); Db.logla(oturum,"Sahipsiz dosya temizlik (14g+)",r.adet+" dosya · ~"+(bayt/1048576).toFixed(2)+" MB"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" dosya silindi · ~"+(bayt/1048576).toFixed(2)+" MB açıldı"); }
+    else setBakimMsj("Olmadı (güvenli durdu, dosya silinmedi): "+((r&&r.hata)||"")); };
   const arsivleYap=async()=>{ if(!confirm("Kanal başına en yeni 5.000 mesaj aktif kalsın, gerisi arşive alınsın mı?")) return; setBakimMsj("Arşivleniyor…"); const r=await Db.sohbetArsivle(); if(r&&r.ok){ Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" mesaj arşive alındı"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   // Sohbetteki maç kartlarını manuel temizle (14 gün+). Sonuçlar maç sayfasında kalır — sadece sohbet kartı gider.
   const macKartTemizleYap=async()=>{ if(!confirm("2 haftadan eski maç sonucu kartları sohbetten kalıcı silinsin mi?\n\n(Maç sonuçları ve istatistikler maç sayfasında KALIR — sadece sohbetteki bildirim kartı gider.)")) return; setBakimMsj("Temizleniyor…"); const r=await Db.macKartTemizle(14); if(r&&r.ok){ const oz=await Db.macKartOzet(); setMkOzet(oz||{adet:0,bayt:0,eski:null}); Db.logla(oturum,"Maç kartı temizlik",r.adet+" kart"); setBakimMsj("✓ "+r.adet+" maç kartı silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
@@ -12939,9 +12969,30 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           {bakimMsj && <div style={{fontSize:11,color:bakimMsj[0]==="✓"?T.accent:T.gold,marginBottom:9}}>{bakimMsj}</div>}
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
             <button onClick={arsivleYap} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>💬 Sohbeti arşivle</button>
-            <button onClick={orphanTara} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>🔍 Sahipsiz dosya tara</button>
-            {orphanlar && orphanlar.length>0 && <button onClick={orphanTemizleAll} className="tap" style={{fontSize:11,color:"#fff",background:T.danger,border:0,borderRadius:9,padding:"7px 11px",fontWeight:800}}>🗑 {orphanlar.length} dosyayı sil</button>}
+            <button onClick={orphanTara} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>🔍 Sahipsiz dosyaları tara</button>
+            {orphanlar && orphanlar.some(x=>x.yas_gun!=null && x.yas_gun>=14) && <button onClick={orphanTemizleEski} className="tap" style={{fontSize:11,color:"#fff",background:T.danger,border:0,borderRadius:9,padding:"7px 11px",fontWeight:800}}>🗑 14 gün+ temizle ({orphanlar.filter(x=>x.yas_gun!=null&&x.yas_gun>=14).length})</button>}
           </div>
+          {orphanlar && orphanlar.length>0 && (()=>{
+            const guvenli=orphanlar.some(x=>x.yas_gun!=null);
+            const toplam=orphanlar.reduce((s,x)=>s+(x.boyut||0),0);
+            const yasli=orphanlar.filter(x=>x.yas_gun!=null&&x.yas_gun>=14);
+            const turSay={}; orphanlar.forEach(x=>{ const e=((x.yol||"").split(".").pop()||"?").toLowerCase().slice(0,5); turSay[e]=(turSay[e]||0)+1; });
+            const turler=Object.keys(turSay).sort((a,b)=>turSay[b]-turSay[a]).slice(0,6);
+            const enEski=guvenli?orphanlar.reduce((m,x)=>Math.max(m,x.yas_gun||0),0):null;
+            return <div style={{marginTop:9,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"10px 12px"}}>
+              {!guvenli && <div style={{fontSize:10.5,color:T.danger,fontWeight:700,marginBottom:7,lineHeight:1.5}}>⚠️ Eski/güvensiz tarama sonucu (yaş bilgisi yok). Güvenli silme için önce <b>73_sohbet_medya_orphan.sql</b> güncellemesini çalıştırın — silme durduruldu.</div>}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:8}}>
+                <div><div style={{fontSize:8.5,color:T.textMut}}>DOSYA</div><div style={{fontSize:16,fontWeight:900,color:T.text}} className="tab">{orphanlar.length}</div></div>
+                <div><div style={{fontSize:8.5,color:T.textMut}}>TOPLAM BOYUT</div><div style={{fontSize:16,fontWeight:900,color:T.text}} className="tab">{(toplam/1048576).toFixed(2)}<span style={{fontSize:9,fontWeight:600}}> MB</span></div></div>
+                <div><div style={{fontSize:8.5,color:T.textMut}}>≥14 GÜN</div><div style={{fontSize:16,fontWeight:900,color:yasli.length?T.danger:T.text}} className="tab">{guvenli?yasli.length:"—"}</div></div>
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center"}}>
+                {turler.map(e=><span key={e} style={{fontSize:9,color:T.textSoft,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:6,padding:"2px 7px",fontWeight:600}}>.{e} · {turSay[e]}</span>)}
+                {guvenli && enEski!=null && <span style={{fontSize:9,color:T.textMut,marginLeft:"auto"}}>En eski: {enEski} gün</span>}
+              </div>
+              <div style={{fontSize:9.5,color:T.textMut,marginTop:8,lineHeight:1.5}}>Yalnızca 14 günden eski, hiçbir kayda bağlı olmayan dosyalar silinir. Aktif kullanılan dosyalara asla dokunulmaz.</div>
+            </div>;
+          })()}
           {/* Sohbet maç kartları — otomatik (2 haftada bir) + görünürlük + manuel */}
           <div style={{marginTop:11,paddingTop:10,borderTop:"0.5px dashed "+T.line}}>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -13369,6 +13420,9 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   const [eskiYuk,setEskiYuk]=useState(false);
   const [unread,setUnread]=useState({});          // {kanal:adet}
   const kaydirRef=useRef(null), aboneRef=useRef(null), taslaklar=useRef({}), dipteRef=useRef(true);
+  const [kayit,setKayit]=useState(false);        // ses kaydı aktif (yalnız süper admin)
+  const [medyaYuk,setMedyaYuk]=useState(false);  // medya yükleniyor
+  const kayitRef=useRef(null), kayitIptalRef=useRef(false);
   const aktifTakimId = kanal.startsWith("t:") ? kanal.slice(2) : null;
   // Üyelik: lig genelinde yalnız o ligin üyesi (kaptan/lig yön./kadroda oyuncusu olan) yazar; takım kanalında o takımın üyesi. (RLS ile de zorlanır — 63/64.)
   const yazabilirKanal = kulupMod || (aktifTakimId ? (benimTakimlar||[]).some(tk=>tk.id===aktifTakimId) : !!(ligYon || (benimTakimlar&&benimTakimlar.length>0)));
@@ -13409,6 +13463,38 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
 
   const kanalDegis=(yeni)=>{ taslaklar.current[kanal]=metin; setMetin(taslaklar.current[yeni]||""); setYanit(null); setKanal(yeni); setUnread(u=>({...u,[yeni]:0})); };
 
+  // —— MEDYA (yalnız süper admin; RLS ile de zorlanır) ——
+  const medyaGonder=async(url,tip)=>{
+    if(!url||!oturum||(!turnuva&&!kulupMod)) return;
+    const ek={ medya_url:url, medya_tip:tip, metin:(tip==="foto"?"📷 Görsel":"🎤 Ses kaydı"),
+      takim_ad:kulupMod?(kulup.ad||null):(benimTakim?benimTakim.ad:null),
+      takim_logo:kulupMod?(kulup.logo||null):(benimTakim?(benimTakim.logo||null):null),
+      foto:benimOyuncu?(benimOyuncu.foto||null):null };
+    const r=kulupMod ? await Db.mesajGonder(null,null,oturum.id,ad,ek,kulup.id) : await Db.mesajGonder(turnuva.id,aktifTakimId,oturum.id,ad,ek);
+    if(r&&r.ok){ if(r.mesaj) setMesajlar(p=>p.some(x=>x.id===r.mesaj.id)?p:[...p,r.mesaj]); dibeKaydir(); }
+    else alert("Gönderilemedi: "+((r&&r.hata)||"")+"\n(Medya için 73_ SQL güncellemesi çalıştırılmış olmalı.)");
+  };
+  const fotoSec=async(e)=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return;
+    setMedyaYuk(true); const r=await fotoYukle(f,"sohbet"); setMedyaYuk(false);
+    if(r&&r.url) medyaGonder(r.url,"foto"); else alert("Görsel yüklenemedi: "+((r&&r.hata)||"")); };
+  const sesDosya=async(e)=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return;
+    setMedyaYuk(true); const r=await sesYukle(f); setMedyaYuk(false);
+    if(r&&r.url) medyaGonder(r.url,"ses"); else alert("Ses yüklenemedi: "+((r&&r.hata)||"")); };
+  const sesKayitBasla=async()=>{
+    if(typeof MediaRecorder==="undefined"||!navigator.mediaDevices){ alert("Tarayıcı ses kaydını desteklemiyor — ‘ses dosyası’ ile gönderebilirsin."); return; }
+    try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      const mr=new MediaRecorder(stream); const parcalar=[]; kayitIptalRef.current=false;
+      mr.ondataavailable=ev=>{ if(ev.data&&ev.data.size)parcalar.push(ev.data); };
+      mr.onstop=async()=>{ try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+        if(kayitIptalRef.current){ kayitIptalRef.current=false; return; }
+        const blob=new Blob(parcalar,{type:(mr.mimeType||"audio/webm").split(";")[0]});
+        if(blob.size<800) return;
+        setMedyaYuk(true); const r=await sesYukle(blob); setMedyaYuk(false);
+        if(r&&r.url) medyaGonder(r.url,"ses"); else alert("Ses yüklenemedi: "+((r&&r.hata)||"")); };
+      kayitRef.current=mr; mr.start(); setKayit(true);
+    }catch(e){ alert("Mikrofona erişilemedi: "+((e&&e.message)||e)); } };
+  const sesKayitDur=()=>{ try{ if(kayitRef.current&&kayitRef.current.state!=="inactive") kayitRef.current.stop(); }catch(e){} setKayit(false); };
+  const sesKayitIptal=()=>{ kayitIptalRef.current=true; try{ if(kayitRef.current&&kayitRef.current.state!=="inactive") kayitRef.current.stop(); }catch(e){} setKayit(false); };
   const gonder=async()=>{
     const t=metin.trim(); if(!t||!oturum||(!turnuva&&!kulupMod)) return;
     setGonderiliyor(true);
@@ -13559,7 +13645,9 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
               </div>}
               <div onClick={(e)=>{ e.stopPropagation(); setSecili(secili===m.id?null:m.id); }} className="tap" style={{background:benim?T.accent:T.bg1,color:benim?T.bg0:T.text,border:benim?0:"0.5px solid "+T.line,borderRadius:16,borderBottomRightRadius:benim?5:16,borderBottomLeftRadius:benim?16:5,padding:"9px 13px",fontSize:13.5,lineHeight:1.4,wordBreak:"break-word",cursor:"pointer"}}>
                 {m.yanit_id && <div style={{borderLeft:"2px solid "+(benim?T.bg0:T.accent),paddingLeft:7,marginBottom:5,opacity:.85}}><div style={{fontSize:10,fontWeight:700}}>{m.yanit_ad}</div><div style={{fontSize:11,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180}}>{m.yanit_metin}</div></div>}
-                {m.metin}
+                {m.medya_tip==="foto" && m.medya_url && <img src={m.medya_url} onClick={(e)=>{ e.stopPropagation(); window.open(m.medya_url,"_blank"); }} alt="" style={{display:"block",width:200,maxWidth:"100%",maxHeight:260,objectFit:"cover",borderRadius:10,marginBottom:5,cursor:"pointer",background:"rgba(0,0,0,.2)"}}/>}
+                {m.medya_tip==="ses" && m.medya_url && <audio controls src={m.medya_url} onClick={e=>e.stopPropagation()} style={{display:"block",width:220,maxWidth:"100%",marginBottom:5,height:38}}/>}
+                {(!m.medya_url || (m.metin!=="📷 Görsel" && m.metin!=="🎤 Ses kaydı")) && m.metin}
                 <span style={{fontSize:9,opacity:.6,marginLeft:8,verticalAlign:"bottom"}}>{zaman(m.olusma)}</span>
               </div>
               {/* Tepkiler */}
@@ -13599,9 +13687,18 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     {!oturum ? <div style={{flexShrink:0,padding:"14px 14px calc(14px + env(safe-area-inset-bottom))",textAlign:"center",fontSize:12,color:T.textMut,borderTop:"0.5px solid "+T.line,background:T.bg0}}>Yazmak için giriş yap.</div>
      : saltOkunur ? <div style={{flexShrink:0,padding:"14px 14px calc(14px + env(safe-area-inset-bottom))",textAlign:"center",fontSize:12,color:T.gold,fontWeight:700,borderTop:"0.5px solid "+T.line,background:T.bg0}}>👁 Salt-okunur görünüm — bu modda mesaj gönderilemez. Test için kendi hesabınla sohbete gir.</div>
      : !yazabilirKanal ? <div style={{flexShrink:0,padding:"14px 14px calc(14px + env(safe-area-inset-bottom))",textAlign:"center",fontSize:12,color:T.textMut,borderTop:"0.5px solid "+T.line,background:T.bg0}}>🔒 Bu {aktifTakimId?"takımın":"ligin"} üyesi değilsin — yalnız üyeler yazabilir.</div>
-     : <div style={{flexShrink:0,display:"flex",gap:8,padding:"10px 12px max(10px, calc(env(safe-area-inset-bottom) - var(--kb, 0px)))",borderTop:yonetimMod?"none":"0.5px solid "+T.line,background:T.bg0}}>
-        <input value={metin} onChange={e=>setMetin(e.target.value)} onFocus={()=>{ dipteRef.current=dipteMi(); setTimeout(dibeKaydir,300); }} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder={yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…"} style={{flex:1,minWidth:0,width:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,outline:"none",fontFamily:"inherit",boxSizing:"border-box",fontSize:16}}/>
-        <button onClick={gonder} disabled={gonderiliyor||!metin.trim()} className="tap" style={{background:yonetimMod?T.gold:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim())?.5:1}}>➤</button>
+     : kayit ? <div style={{flexShrink:0,display:"flex",gap:8,alignItems:"center",padding:"10px 12px max(10px, calc(env(safe-area-inset-bottom) - var(--kb, 0px)))",borderTop:"0.5px solid "+T.line,background:T.bg0}}>
+        <span style={{width:11,height:11,borderRadius:"50%",background:T.danger,flexShrink:0}}/>
+        <span style={{flex:1,fontSize:13,color:T.text,fontWeight:700}}>🎤 Ses kaydediliyor…</span>
+        <button onClick={sesKayitIptal} className="tap" style={{background:"none",border:"0.5px solid "+T.line,color:T.textMut,borderRadius:20,padding:"9px 12px",fontSize:12,fontWeight:700,flexShrink:0}}>✕ İptal</button>
+        <button onClick={sesKayitDur} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:20,padding:"9px 14px",fontSize:12,fontWeight:800,flexShrink:0}}>⏹ Bitir &amp; Gönder</button>
+      </div>
+     : <div style={{flexShrink:0,display:"flex",gap:6,alignItems:"center",padding:"10px 12px max(10px, calc(env(safe-area-inset-bottom) - var(--kb, 0px)))",borderTop:yonetimMod?"none":"0.5px solid "+T.line,background:T.bg0}}>
+        {adminMi && !saltOkunur && <label className="tap" title="Görsel gönder (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,color:T.text,fontSize:16,display:"grid",placeItems:"center",flexShrink:0,cursor:"pointer",opacity:medyaYuk?.5:1}}><input type="file" accept="image/*" onChange={fotoSec} disabled={medyaYuk} style={{display:"none"}}/>📷</label>}
+        {adminMi && !saltOkunur && <button onClick={sesKayitBasla} disabled={medyaYuk} className="tap" title="Ses kaydı (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,color:T.text,fontSize:16,display:"grid",placeItems:"center",flexShrink:0,opacity:medyaYuk?.5:1}}>🎤</button>}
+        {adminMi && !saltOkunur && <label className="tap" title="Ses dosyası (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,color:T.text,fontSize:15,display:"grid",placeItems:"center",flexShrink:0,cursor:"pointer",opacity:medyaYuk?.5:1}}><input type="file" accept="audio/*" onChange={sesDosya} disabled={medyaYuk} style={{display:"none"}}/>🎵</label>}
+        <input value={metin} onChange={e=>setMetin(e.target.value)} onFocus={()=>{ dipteRef.current=dipteMi(); setTimeout(dibeKaydir,300); }} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder={medyaYuk?"Medya yükleniyor…":(yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…")} style={{flex:1,minWidth:0,width:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,outline:"none",fontFamily:"inherit",boxSizing:"border-box",fontSize:16}}/>
+        <button onClick={gonder} disabled={gonderiliyor||!metin.trim()||medyaYuk} className="tap" style={{background:yonetimMod?T.gold:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim()||medyaYuk)?.5:1}}>➤</button>
       </div>}
   </div>;
 }
