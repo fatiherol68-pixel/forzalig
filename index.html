@@ -2381,10 +2381,21 @@ var DEGER_KAT={ KAL:{mac:6000,gol:30000,asist:35000,kurt:5000,mvp:50000},
   FOR:{mac:6000,gol:35000,asist:30000,kurt:500,mvp:50000} };
 function degerDim(n,unit){ var f=[1,.7,.5,.35], s=0; for(var i=0;i<(n||0);i++) s+=unit*(f[i]!==undefined?f[i]:.2); return s; }
 function degerTemelNorm(o){ return (o.degerTemel!=null)?o.degerTemel:((o.deger!=null&&o.deger>=50000)?o.deger:750000); }
+/* Faz 4: kilometre taşı rozetleri (bronz +15B / gümüş +40B / altın +90B) — gol/asist/kurtarış/maç */
+function rozetDeger(o){ var v=0, g=o.gol||0,a=o.asist||0,m=o.mac||0,k=o.kurtaris||0;
+  if(g>=50)v+=90000;else if(g>=25)v+=40000;else if(g>=10)v+=15000;
+  if(a>=30)v+=90000;else if(a>=15)v+=40000;else if(a>=5)v+=15000;
+  if(k>=50)v+=90000;else if(k>=25)v+=40000;else if(k>=10)v+=15000;
+  if(m>=100)v+=90000;else if(m>=50)v+=40000;else if(m>=25)v+=15000;
+  return v; }
 function degerPerformans(o, temel){
   var k=DEGER_KAT[degerPozKat(o.poz)]||DEGER_KAT.FOR; var p=0;
   p+=(o.mac||0)*k.mac + (o.gol||0)*k.gol + (o.asist||0)*k.asist + (o.kurtaris||0)*k.kurt + (o.mvp||0)*k.mvp;
-  p+=degerDim(o.altin||0,80000) + degerDim(o.gumus||0,40000) + (o.macinGolu||0)*20000; // ödül bonusları (azalan getiri)
+  // Faz 4: maç ödülleri (azalan getiri)
+  p+=degerDim(o.altin||0,80000) + degerDim(o.gumus||0,40000) + (o.macinGolu||0)*20000;
+  p+=degerDim(o.forvet||0,15000)+degerDim(o.ortasaha||0,15000)+degerDim(o.defans||0,15000)+degerDim(o.kaleci||0,15000);
+  p+=(o.centilmen||0)*8000+(o.enerjik||0)*8000;
+  p+=rozetDeger(o);                                                                     // kilometre taşı rozetleri
   p-=(o.kirmizi||0)*25000 + (o.sari||0)*8000; if(p<0)p=0;                               // kart cezası
   var tavan=Math.round((temel||750000)*1.5); if(p>tavan)p=tavan;                          // sezon tavanı %150
   return Math.round(p);
@@ -2467,7 +2478,12 @@ function turnuvaHesapla(turnuva){
     }
   }
   // —— PİYASA DEĞERİ —— her oyuncu için güncel = temel + performans (idempotent)
-  turnuva.takimlar.forEach(function(tk){ (tk.oyuncular||[]).forEach(function(o){ degerHesapla(o); }); });
+  turnuva.takimlar.forEach(function(tk){ (tk.oyuncular||[]).forEach(function(o){ o.sezonOdul=[]; degerHesapla(o); }); });
+  // Faz 4: sezon lideri bonusu (gol kralı / asist kralı / en iyi kaleci) — tavan üstü, idempotent
+  var _tumO=[]; turnuva.takimlar.forEach(function(tk){ (tk.oyuncular||[]).forEach(function(o){ _tumO.push(o); }); });
+  var _lider=function(alan){ var mx=0,l=null; _tumO.forEach(function(o){ if((o[alan]||0)>mx){mx=o[alan];l=o;} }); return mx>0?l:null; };
+  [["gol",350000,"Gol Kralı"],["asist",300000,"Asist Kralı"],["kurtaris",350000,"En İyi Kaleci"]].forEach(function(x){
+    var l=_lider(x[0]); if(l){ l.degerP=(l.degerP||0)+x[1]; l.degerG=(l.degerG||0)+x[1]; if((l.sezonOdul||[]).indexOf(x[2])<0){ l.sezonOdul=(l.sezonOdul||[]).concat(x[2]); } } });
 }
 
 // Otomatik fikstür üret (round-robin). cift=true → ev-deplasman (çift devre)
@@ -4863,8 +4879,8 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
         )}
       </div>}
       <div style={{display:"flex",gap:6,marginBottom:14}}>
-        {[["gol","⚽ Gol"],["asist","🎯 Asist"],["kurtaris","🧤 Kurtarış"],["odul","🏆 Ödül"]].map(([k,l])=>
-          <button key={k} onClick={()=>setKralTab(k)} className="tap" style={{flex:1,padding:"7px 2px",borderRadius:8,fontSize:11,fontWeight:700,background:kralTab===k?T.accent:T.bg1,color:kralTab===k?T.bg0:T.textMut,border:"0.5px solid "+T.line}}>{l}</button>
+        {[["gol","⚽ Gol"],["asist","🎯 Asist"],["kurtaris","🧤 Kurtarış"],["odul","🏆 Ödül"],["deger","💎 Değer"]].map(([k,l])=>
+          <button key={k} onClick={()=>setKralTab(k)} className="tap" style={{flex:1,padding:"7px 2px",borderRadius:8,fontSize:10.5,fontWeight:700,background:kralTab===k?T.accent:T.bg1,color:kralTab===k?T.bg0:T.textMut,border:"0.5px solid "+T.line}}>{l}</button>
         )}
       </div>
       {kralTab==="gol" && <KralListe liste={golK} alan="gol" birim="gol" T={T} git={git} turnuva={kralTurnuva}/>}
@@ -4881,6 +4897,28 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
         })}
         {ODULLER.every(([alan])=>!Motor.turnuvaOdulKrali(kralTurnuva,alan,1)[0]) && <BosUyari T={T} metin="Henüz ödül verilmedi. Maçlarda ödül seçtikçe burada görünür." />}
       </div>}
+      {kralTab==="deger" && (()=>{
+        var oys=[]; (kralTurnuva.takimlar||[]).forEach(function(tk){ (tk.oyuncular||[]).forEach(function(o){ oys.push(Object.assign({},o,{_takimAd:tk.ad,_renk:tk.renk})); }); });
+        if(!oys.length) return <BosUyari T={T} metin="Henüz oyuncu yok. Kadrolar dolunca değer sıralaması burada görünür." />;
+        var enDeger=oys.slice().sort(function(a,b){ return ((b.degerG!=null?b.degerG:b.deger)||0)-((a.degerG!=null?a.degerG:a.deger)||0); }).slice(0,10);
+        var enKazanan=oys.slice().sort(function(a,b){ return (b.degerP||0)-(a.degerP||0); }).filter(function(o){return (o.degerP||0)>0;}).slice(0,5);
+        var takimSira=(kralTurnuva.takimlar||[]).map(function(tk){ return {ad:tk.ad,renk:tk.renk,logo:tk.logo,v:(tk.oyuncular||[]).reduce(function(s,o){return s+(o.degerG!=null?o.degerG:(o.deger||0));},0),n:(tk.oyuncular||[]).length}; }).sort(function(a,b){return b.v-a.v;});
+        var baslik=function(t,alt){ return <div style={{fontSize:11,color:T.accent,fontWeight:800,margin:"14px 2px 8px",letterSpacing:.3}}>{t}{alt?<span style={{color:T.textMut,fontWeight:500}}> · {alt}</span>:null}</div>; };
+        var satir=function(i,ad,alt,val,renk,tik,vc){ return <div key={i+ad} onClick={tik} className={tik?"tap":""} style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,borderRadius:11,padding:"9px 11px",marginBottom:6,border:"0.5px solid "+(i===0?T.gold+"44":T.line)}}>
+          <div style={{width:24,height:24,borderRadius:7,flexShrink:0,display:"grid",placeItems:"center",fontFamily:T.fontDisplay,fontWeight:800,fontSize:13,background:i===0?T.gold+"22":T.bg2,color:i===0?T.gold:T.textMut}}>{i+1}</div>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ad}</div>{alt?<div style={{fontSize:10.5,color:T.textMut}}>{alt}</div>:null}</div>
+          <span style={{fontFamily:T.fontDisplay,fontWeight:800,fontSize:15,color:vc||T.gold,flexShrink:0}}>{val}</span>
+        </div>; };
+        return <div className="fade-in">
+          {baslik("💎 En Değerli Oyuncular")}
+          {enDeger.map(function(o,i){ return satir(i, o.ad, (posAd(o.poz)+" · "+(o._takimAd||"")), fmtEuro(o.degerG!=null?o.degerG:o.deger), o._renk, function(){ git({sayfa:"oyuncu",oyuncu:Object.assign({},o,{turnuva:turnuva.ad})}); }); })}
+          {enKazanan.length>0 && baslik("📈 En Çok Değer Kazanan","temel değerin üstünde")}
+          {enKazanan.map(function(o,i){ return satir(i, o.ad, (posAd(o.poz)+" · "+(o._takimAd||"")), "+"+fmtEuro(o.degerP), o._renk, function(){ git({sayfa:"oyuncu",oyuncu:Object.assign({},o,{turnuva:turnuva.ad})}); }, T.accent2||T.accent); })}
+          {baslik("🏆 En Değerli Takımlar","kadro toplam değeri")}
+          {takimSira.map(function(t,i){ return satir(i, t.ad, (t.n+" oyuncu · ort. "+fmtEuro(t.v/(t.n||1))), fmtEuro(t.v), t.renk, null); })}
+          <div style={{fontSize:9.5,color:T.textMut,textAlign:"center",marginTop:12,lineHeight:1.5}}>Değer = temel (750 Bin €) + pozisyona duyarlı performans + ödül/rozet bonusları. Maç oynandıkça otomatik güncellenir.</div>
+        </div>;
+      })()}
     </div>}
 
     {tab==="enler" && <div className="fade-in" style={{paddingTop:4}}>
