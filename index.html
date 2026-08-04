@@ -1096,6 +1096,14 @@ const Db = {
   },
   async orphanBul(){ if(!sb) return []; try{ const {data}=await sb.rpc('depo_orphan_bul'); return data||[]; }catch(e){ return []; } },
   async orphanTemizle(yollar){ if(!sb||!yollar||!yollar.length) return {ok:true,adet:0}; try{ const {error}=await sb.storage.from('fotolar').remove(yollar); return error?{hata:error.message}:{ok:true,adet:yollar.length}; }catch(e){ return {hata:String(e)}; } },
+  // Medyalı mesaj silinince: (1) DB'de medya referansını kaldır (dosya sahipsiz-takibe düşer),
+  // (2) dosyayı depodan ANINDA sil. Silme başarısız olsa bile referans null olduğu için tarama yakalar.
+  async medyaMesajTemizle(mesaj){ if(!sb) return {ok:false}; const url=mesaj&&mesaj.medya_url; if(!url) return {ok:true,dosya:false};
+    try{ try{ await sb.from('sohbet_mesajlari').update({medya_url:null,medya_tip:null}).eq('id',mesaj.id); }catch(e){}
+      const i=url.indexOf('/fotolar/'); if(i<0) return {ok:true,dosya:false};
+      const yol=url.slice(i+9); const {error}=await sb.storage.from('fotolar').remove([yol]);
+      return error?{ok:false,dosya:false,hata:error.message,yol:yol}:{ok:true,dosya:true,yol:yol};
+    }catch(e){ return {ok:false,hata:String(e)}; } },
   async sohbetArsivle(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('sohbet_arsivle'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   // Sohbetteki maç kartları: özet (adet/yer/en eski) + otomatik/manuel temizlik (14 gün+)
   async macKartOzet(){ if(!sb) return null; try{ const {data,error}=await sb.rpc('mac_kart_ozet'); return error?null:(data||null); }catch(e){ return null; } },
@@ -12070,7 +12078,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const ayCikar=async(y)=>{ if(!confirm((y.ad||y.email)+" — “"+y.ligAd+"” liginden yardımcı yöneticilikten çıkarılsın mı?")) return; const r=await Db.yardimciKaldir(y.lig_id, y.user_id); if(r&&r.ok){ setHepYardimci(p=>p.filter(x=>!(x.lig_id===y.lig_id && x.user_id===y.user_id))); Db.logla(oturum,"Yardımcı yönetici çıkarıldı",y.ligAd+" · "+(y.email||"")); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   // FAZ 4 — Bakım Merkezi
   const orphanTara=async()=>{ setBakimMsj("Taranıyor…"); const o=(await Db.orphanBul())||[]; setOrphanlar(o);
-    if(!o.length){ setBakimMsj("✓ Sahipsiz dosya yok — depo temiz"); return; }
+    if(!o.length){ setBakimMsj("✓ Depo temiz — sahipsiz dosya yok. Silinecek dosya olmadığı için temizle butonları görünmez."); return; }
     const guvenli=o.some(x=>x.yas_gun!=null); const toplam=o.reduce((s,x)=>s+(x.boyut||0),0); const yasli=o.filter(x=>(x.yas_gun||0)>=14).length;
     setBakimMsj((guvenli?"":"⚠️ ESKİ/güvensiz tarama — 73-74 SQL'ini çalıştır! ")+o.length+" sahipsiz · "+(toplam/1048576).toFixed(2)+" MB · ≥14 gün: "+yasli); };
   const orphanTemizleEski=async()=>{ if(!orphanlar||!orphanlar.length) return;
@@ -13523,7 +13531,8 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     if(mine){ await Db.tepkiKaldir(m.id,oturum.id,emoji); } else { await Db.tepkiEkle(m.id,oturum.id,emoji); }
     setTepkiMap(p=>{ const arr=(p[m.id]||[]).filter(x=>!(x.user_id===oturum.id&&x.emoji===emoji)); if(!mine) arr.push({user_id:oturum.id,emoji}); return {...p,[m.id]:arr}; });
   };
-  const mesajSil=async(m)=>{ setSecili(null); if(!confirm("Mesaj silinsin mi?")) return; await Db.mesajSil(m.id); setMesajlar(p=>p.filter(x=>x.id!==m.id)); };
+  const mesajSil=async(m)=>{ setSecili(null); if(!confirm("Mesaj silinsin mi?")) return; await Db.mesajSil(m.id); setMesajlar(p=>p.filter(x=>x.id!==m.id));
+    if(m.medya_url){ const d=await Db.medyaMesajTemizle(m); if(d&&d.dosya) Db.logla(oturum,"Sohbet medya dosyası silindi",(m.medya_tip==="ses"?"🎤 ses":"📷 görsel")+" · "+(d.yol||"")); } };
   const sikayet=async(m)=>{ setSecili(null); const s=prompt("Şikâyet sebebi (opsiyonel):",""); if(s===null) return; const r=await Db.sikayetEt(m,oturum.id,s); alert(r&&r.ok?"Şikâyetin iletildi, teşekkürler.":"Gönderilemedi."); };
   const eskiYukle=async()=>{ if(!mesajlar.length||eskiYuk||!dahaVar) return; setEskiYuk(true); const enEski=mesajlar[0].olusma; const eski=kulupMod ? await Db.mesajlar(null, null, enEski, kulup.id) : await Db.mesajlar(turnuva.id, aktifTakimId, enEski); const el=kaydirRef.current; const oncekiH=el?el.scrollHeight:0; setMesajlar(p=>[...eski,...p]); if(eski.length<30) setDahaVar(false); tepkileriYukle([...eski,...mesajlar]); setTimeout(()=>{ if(el) el.scrollTop=el.scrollHeight-oncekiH; },30); setEskiYuk(false); };
   const scrollDinle=(e)=>{ const el=e.target; dipteRef.current=dipteMi(); if(dipteRef.current) setYeniVar(false); if(el.scrollTop<40) eskiYukle(); };
