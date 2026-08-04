@@ -1115,6 +1115,14 @@ const Db = {
     list.forEach(m=>{ const u=m.medya_url||''; const i=u.indexOf('/fotolar/'); if(i>=0) yollar.push(u.slice(i+9)); });
     return {adet:list.length, yollar, ids:list.map(m=>m.id)};
   }catch(e){ return {hata:String(e)}; } },
+  // RLS-güvenli toplu silme (SECURITY DEFINER RPC). s: {ligId,takimId} | {kulupId} | {hepsi:true}
+  async sohbetMedyaSilRPC(s){ if(!sb) return {ok:false}; try{
+    const {data,error}=await sb.rpc('sohbet_medya_temizle',{ p_lig:(s&&s.ligId)||null, p_takim:(s&&s.takimId)||null, p_kulup:(s&&s.kulupId)||null, p_hepsi:!!(s&&s.hepsi) });
+    if(error){ const m=error.message||""; if(/does not exist|function|schema cache|sohbet_medya_temizle/i.test(m)) return {hata:"74 SQL güncellemesini çalıştır (sohbet_medya_temizle fonksiyonu yok)."}; return {hata:m}; }
+    const yollar=(data||[]).filter(Boolean); let dosya=0;
+    for(let i=0;i<yollar.length;i+=100){ const dilim=yollar.slice(i,i+100); const {error:e}=await sb.storage.from('fotolar').remove(dilim); if(!e) dosya+=dilim.length; }
+    return {ok:true, adet:yollar.length, dosya};
+  }catch(e){ return {hata:String(e)}; } },
   async sohbetMedyaSil(liste){ if(!sb) return {ok:false}; try{
     const ids=(liste&&liste.ids)||[]; if(!ids.length) return {ok:true,adet:0,dosya:0};
     // 1) Mesajları KİMLİĞE göre gizle + medya referansını kaldır; gerçek güncellenen sayısını al.
@@ -12128,14 +12136,11 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
     else setBakimMsj("Olmadı (güvenli durdu, dosya silinmedi): "+((r&&r.hata)||"")); };
   // SOHBET MEDYASINI TEMİZLE — lig+takım+kulüp sohbetlerindeki TÜM foto/ses medyasını (maç
   // kartları ve yazı hariç) siler + dosyaları depodan kaldırır. Tarama gerektirmez, hep görünür.
-  const sohbetMedyaTemizleYap=async()=>{ setBakimMsj("Sohbet medyası taranıyor…");
-    const liste=await Db.sohbetMedyaListe();
-    if(liste&&liste.hata){ setBakimMsj("Olmadı: "+liste.hata); return; }
-    if(!liste||!liste.adet){ setBakimMsj("Sohbette silinecek foto/ses medyası yok."); return; }
-    if(!confirm(liste.adet+" adet sohbet medyası (foto/ses) — lig + takım + kulüp — KALICI silinsin mi?\n\nMaç sonucu kartları ve yazılı mesajlar KALIR; yalnız foto/ses medyası ve depodaki dosyaları silinir.")) return;
+  const sohbetMedyaTemizleYap=async()=>{
+    if(!confirm("TÜM sohbet medyası (foto/ses) — lig + takım + kulüp — KALICI silinsin mi?\n\nMaç sonucu kartları ve yazılı mesajlar KALIR; yalnız foto/ses medyası ve depodaki dosyaları silinir.")) return;
     setBakimMsj("Siliniyor…");
-    const r=await Db.sohbetMedyaSil(liste);
-    if(r&&r.ok){ Db.logla(oturum,"Sohbet medyası temizlendi",r.adet+" medya · "+r.dosya+" dosya"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" sohbet medyası silindi · "+r.dosya+" dosya depodan kaldırıldı"); }
+    const r=await Db.sohbetMedyaSilRPC({hepsi:true});
+    if(r&&r.ok){ Db.logla(oturum,"Sohbet medyası temizlendi (tümü)",r.adet+" medya · "+r.dosya+" dosya"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj(r.adet?("✓ "+r.adet+" sohbet medyası silindi · "+r.dosya+" dosya depodan kaldırıldı"):"Sohbette silinecek foto/ses medyası yok."); }
     else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   const arsivleYap=async()=>{ if(!confirm("Kanal başına en yeni 5.000 mesaj aktif kalsın, gerisi arşive alınsın mı?")) return; setBakimMsj("Arşivleniyor…"); const r=await Db.sohbetArsivle(); if(r&&r.ok){ Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" mesaj arşive alındı"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   // Sohbetteki maç kartlarını manuel temizle (14 gün+). Sonuçlar maç sayfasında kalır — sadece sohbet kartı gider.
@@ -13557,12 +13562,9 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     if(!confirm("Bu sohbetteki TÜM foto/ses medyası KALICI silinsin mi?\n\nYazılı mesajlar ve maç sonucu kartları KALIR; yalnız foto/ses medyası ve depodaki dosyaları silinir.")) return;
     setMedyaYuk(true);
     const scope=kulupMod?{kulupId:kulup.id}:{ligId:turnuva&&turnuva.id, takimId:aktifTakimId};
-    const liste=await Db.sohbetMedyaListe(scope);
-    if(liste&&liste.hata){ setMedyaYuk(false); alert("Silinemedi: "+liste.hata); return; }
-    if(!liste||!liste.adet){ setMedyaYuk(false); alert("Bu sohbette silinecek foto/ses medyası yok."); return; }
-    const r=await Db.sohbetMedyaSil(liste);
+    const r=await Db.sohbetMedyaSilRPC(scope);
     setMedyaYuk(false);
-    if(r&&r.ok){ setMesajlar(p=>(p||[]).filter(m=>!m.medya_url)); Db.logla(oturum,"Sohbet medyası temizlendi (kanal)",r.adet+" medya · "+r.dosya+" dosya"); }
+    if(r&&r.ok){ setMesajlar(p=>(p||[]).filter(m=>!m.medya_url)); Db.logla(oturum,"Sohbet medyası temizlendi (kanal)",r.adet+" medya · "+r.dosya+" dosya"); if(!r.adet) alert("Bu sohbette silinecek foto/ses medyası yok."); }
     else alert("Silinemedi: "+((r&&r.hata)||"bilinmeyen")); };
   const gonder=async()=>{
     const t=metin.trim(); if(!t||!oturum||(!turnuva&&!kulupMod)) return;
