@@ -1104,6 +1104,21 @@ const Db = {
       const yol=url.slice(i+9); const {error}=await sb.storage.from('fotolar').remove([yol]);
       return error?{ok:false,dosya:false,hata:error.message,yol:yol}:{ok:true,dosya:true,yol:yol};
     }catch(e){ return {ok:false,hata:String(e)}; } },
+  // TÜM sohbet medyası (foto/ses) — lig+takım+kulüp. Süper admin RLS ile hepsini okur/günceller.
+  async sohbetMedyaListe(){ if(!sb) return {adet:0,yollar:[],ids:[]}; try{
+    const {data,error}=await sb.from('sohbet_mesajlari').select('id,medya_url').not('medya_url','is',null).limit(5000);
+    if(error) return {hata:error.message};
+    const list=data||[]; const yollar=[];
+    list.forEach(m=>{ const u=m.medya_url||''; const i=u.indexOf('/fotolar/'); if(i>=0) yollar.push(u.slice(i+9)); });
+    return {adet:list.length, yollar, ids:list.map(m=>m.id)};
+  }catch(e){ return {hata:String(e)}; } },
+  async sohbetMedyaSil(liste){ if(!sb) return {ok:false}; try{
+    const yollar=(liste&&liste.yollar)||[]; let dosya=0;
+    for(let i=0;i<yollar.length;i+=100){ const dilim=yollar.slice(i,i+100); const {error}=await sb.storage.from('fotolar').remove(dilim); if(!error) dosya+=dilim.length; }
+    const {error:e2}=await sb.from('sohbet_mesajlari').update({silindi:true,medya_url:null,medya_tip:null}).not('medya_url','is',null);
+    if(e2) return {hata:e2.message};
+    return {ok:true, adet:(liste&&liste.adet)||0, dosya};
+  }catch(e){ return {hata:String(e)}; } },
   async sohbetArsivle(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('sohbet_arsivle'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   // Sohbetteki maç kartları: özet (adet/yer/en eski) + otomatik/manuel temizlik (14 gün+)
   async macKartOzet(){ if(!sb) return null; try{ const {data,error}=await sb.rpc('mac_kart_ozet'); return error?null:(data||null); }catch(e){ return null; } },
@@ -12102,6 +12117,17 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
     const r=await Db.orphanTemizle(orphanlar.map(o=>o.yol));
     if(r&&r.ok){ setOrphanlar([]); Db.logla(oturum,"Sahipsiz dosya temizlik (FULL/anlık)",r.adet+" dosya · ~"+(bayt/1048576).toFixed(2)+" MB"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" dosya silindi · ~"+(bayt/1048576).toFixed(2)+" MB açıldı"); }
     else setBakimMsj("Olmadı (güvenli durdu, dosya silinmedi): "+((r&&r.hata)||"")); };
+  // SOHBET MEDYASINI TEMİZLE — lig+takım+kulüp sohbetlerindeki TÜM foto/ses medyasını (maç
+  // kartları ve yazı hariç) siler + dosyaları depodan kaldırır. Tarama gerektirmez, hep görünür.
+  const sohbetMedyaTemizleYap=async()=>{ setBakimMsj("Sohbet medyası taranıyor…");
+    const liste=await Db.sohbetMedyaListe();
+    if(liste&&liste.hata){ setBakimMsj("Olmadı: "+liste.hata); return; }
+    if(!liste||!liste.adet){ setBakimMsj("Sohbette silinecek foto/ses medyası yok."); return; }
+    if(!confirm(liste.adet+" adet sohbet medyası (foto/ses) — lig + takım + kulüp — KALICI silinsin mi?\n\nMaç sonucu kartları ve yazılı mesajlar KALIR; yalnız foto/ses medyası ve depodaki dosyaları silinir.")) return;
+    setBakimMsj("Siliniyor…");
+    const r=await Db.sohbetMedyaSil(liste);
+    if(r&&r.ok){ Db.logla(oturum,"Sohbet medyası temizlendi",r.adet+" medya · "+r.dosya+" dosya"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" sohbet medyası silindi · "+r.dosya+" dosya depodan kaldırıldı"); }
+    else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   const arsivleYap=async()=>{ if(!confirm("Kanal başına en yeni 5.000 mesaj aktif kalsın, gerisi arşive alınsın mı?")) return; setBakimMsj("Arşivleniyor…"); const r=await Db.sohbetArsivle(); if(r&&r.ok){ Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" mesaj arşive alındı"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   // Sohbetteki maç kartlarını manuel temizle (14 gün+). Sonuçlar maç sayfasında kalır — sadece sohbet kartı gider.
   const macKartTemizleYap=async()=>{ if(!confirm("2 haftadan eski maç sonucu kartları sohbetten kalıcı silinsin mi?\n\n(Maç sonuçları ve istatistikler maç sayfasında KALIR — sadece sohbetteki bildirim kartı gider.)")) return; setBakimMsj("Temizleniyor…"); const r=await Db.macKartTemizle(14); if(r&&r.ok){ const oz=await Db.macKartOzet(); setMkOzet(oz||{adet:0,bayt:0,eski:null}); Db.logla(oturum,"Maç kartı temizlik",r.adet+" kart"); setBakimMsj("✓ "+r.adet+" maç kartı silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
@@ -12989,6 +13015,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
             <button onClick={arsivleYap} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>💬 Sohbeti arşivle</button>
             <button onClick={orphanTara} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>🔍 Sahipsiz dosyaları tara</button>
+            <button onClick={sohbetMedyaTemizleYap} className="tap" style={{fontSize:11,color:"#fff",background:T.danger,border:0,borderRadius:9,padding:"7px 11px",fontWeight:800}}>🧹 Sohbet medyasını temizle</button>
             {orphanlar && orphanlar.some(x=>x.yas_gun!=null && x.yas_gun>=14) && <button onClick={orphanTemizleEski} className="tap" style={{fontSize:11,color:"#fff",background:T.danger,border:0,borderRadius:9,padding:"7px 11px",fontWeight:800}}>🗑 14 gün+ temizle ({orphanlar.filter(x=>x.yas_gun!=null&&x.yas_gun>=14).length})</button>}
             {orphanlar && orphanlar.length>0 && orphanlar.some(x=>x.yas_gun!=null) && <button onClick={orphanTemizleHepsi} className="tap" style={{fontSize:11,color:T.danger,background:"transparent",border:"1px solid "+T.danger,borderRadius:9,padding:"7px 11px",fontWeight:800}}>🧨 Full temizle ({orphanlar.length})</button>}
           </div>
