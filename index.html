@@ -1105,19 +1105,28 @@ const Db = {
       return error?{ok:false,dosya:false,hata:error.message,yol:yol}:{ok:true,dosya:true,yol:yol};
     }catch(e){ return {ok:false,hata:String(e)}; } },
   // TÜM sohbet medyası (foto/ses) — lig+takım+kulüp. Süper admin RLS ile hepsini okur/günceller.
-  async sohbetMedyaListe(){ if(!sb) return {adet:0,yollar:[],ids:[]}; try{
-    const {data,error}=await sb.from('sohbet_mesajlari').select('id,medya_url').not('medya_url','is',null).limit(5000);
+  // s (opsiyonel kapsam): {ligId, takimId} veya {kulupId}. Boş ise TÜM sohbet medyası.
+  async sohbetMedyaListe(s){ if(!sb) return {adet:0,yollar:[],ids:[]}; try{
+    let q=sb.from('sohbet_mesajlari').select('id,medya_url').not('medya_url','is',null);
+    if(s){ if(s.kulupId){ q=q.eq('kulup_id',s.kulupId); } else if(s.ligId){ q=q.eq('lig_id',s.ligId); q = s.takimId ? q.eq('takim_id',s.takimId) : q.is('takim_id',null); } }
+    const {data,error}=await q.limit(5000);
     if(error) return {hata:error.message};
     const list=data||[]; const yollar=[];
     list.forEach(m=>{ const u=m.medya_url||''; const i=u.indexOf('/fotolar/'); if(i>=0) yollar.push(u.slice(i+9)); });
     return {adet:list.length, yollar, ids:list.map(m=>m.id)};
   }catch(e){ return {hata:String(e)}; } },
   async sohbetMedyaSil(liste){ if(!sb) return {ok:false}; try{
+    const ids=(liste&&liste.ids)||[]; if(!ids.length) return {ok:true,adet:0,dosya:0};
+    // 1) Mesajları KİMLİĞE göre gizle + medya referansını kaldır; gerçek güncellenen sayısını al.
+    let guncellenen=0;
+    for(let i=0;i<ids.length;i+=200){ const dilim=ids.slice(i,i+200);
+      const {error,count}=await sb.from('sohbet_mesajlari').update({silindi:true,medya_url:null,medya_tip:null},{count:'exact'}).in('id',dilim);
+      if(error) return {hata:error.message}; guncellenen+=(count||0); }
+    if(!guncellenen) return {ok:false, hata:"yetki (RLS) — hiçbir mesaj güncellenmedi", adet:0, dosya:0};
+    // 2) Dosyaları depodan sil (best-effort; başarısız olan sahipsiz kalır, tarama yakalar).
     const yollar=(liste&&liste.yollar)||[]; let dosya=0;
     for(let i=0;i<yollar.length;i+=100){ const dilim=yollar.slice(i,i+100); const {error}=await sb.storage.from('fotolar').remove(dilim); if(!error) dosya+=dilim.length; }
-    const {error:e2}=await sb.from('sohbet_mesajlari').update({silindi:true,medya_url:null,medya_tip:null}).not('medya_url','is',null);
-    if(e2) return {hata:e2.message};
-    return {ok:true, adet:(liste&&liste.adet)||0, dosya};
+    return {ok:true, adet:guncellenen, dosya};
   }catch(e){ return {hata:String(e)}; } },
   async sohbetArsivle(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('sohbet_arsivle'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   // Sohbetteki maç kartları: özet (adet/yer/en eski) + otomatik/manuel temizlik (14 gün+)
@@ -13542,6 +13551,19 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     }catch(e){ alert("Mikrofona erişilemedi: "+((e&&e.message)||e)); } };
   const sesKayitDur=()=>{ try{ if(kayitRef.current&&kayitRef.current.state!=="inactive") kayitRef.current.stop(); }catch(e){} setKayit(false); };
   const sesKayitIptal=()=>{ kayitIptalRef.current=true; try{ if(kayitRef.current&&kayitRef.current.state!=="inactive") kayitRef.current.stop(); }catch(e){} setKayit(false); };
+  // Bu sohbetteki (lig/takım/kulüp) tüm foto/ses medyasını temizle — yalnız süper admin. Ekranı anında günceller.
+  const buKanalMedyaTemizle=async()=>{
+    if(!adminMi) return;
+    if(!confirm("Bu sohbetteki TÜM foto/ses medyası KALICI silinsin mi?\n\nYazılı mesajlar ve maç sonucu kartları KALIR; yalnız foto/ses medyası ve depodaki dosyaları silinir.")) return;
+    setMedyaYuk(true);
+    const scope=kulupMod?{kulupId:kulup.id}:{ligId:turnuva&&turnuva.id, takimId:aktifTakimId};
+    const liste=await Db.sohbetMedyaListe(scope);
+    if(liste&&liste.hata){ setMedyaYuk(false); alert("Silinemedi: "+liste.hata); return; }
+    if(!liste||!liste.adet){ setMedyaYuk(false); alert("Bu sohbette silinecek foto/ses medyası yok."); return; }
+    const r=await Db.sohbetMedyaSil(liste);
+    setMedyaYuk(false);
+    if(r&&r.ok){ setMesajlar(p=>(p||[]).filter(m=>!m.medya_url)); Db.logla(oturum,"Sohbet medyası temizlendi (kanal)",r.adet+" medya · "+r.dosya+" dosya"); }
+    else alert("Silinemedi: "+((r&&r.hata)||"bilinmeyen")); };
   const gonder=async()=>{
     const t=metin.trim(); if(!t||!oturum||(!turnuva&&!kulupMod)) return;
     setGonderiliyor(true);
@@ -13745,6 +13767,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
         {adminMi && !saltOkunur && <label className="tap" title="Görsel gönder (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,color:T.text,fontSize:16,display:"grid",placeItems:"center",flexShrink:0,cursor:"pointer",opacity:medyaYuk?.5:1}}><input type="file" accept="image/*" onChange={fotoSec} disabled={medyaYuk} style={{display:"none"}}/>📷</label>}
         {adminMi && !saltOkunur && <button onClick={sesKayitBasla} disabled={medyaYuk} className="tap" title="Ses kaydı (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,color:T.text,fontSize:16,display:"grid",placeItems:"center",flexShrink:0,opacity:medyaYuk?.5:1}}>🎤</button>}
         {adminMi && !saltOkunur && <label className="tap" title="Ses dosyası (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,color:T.text,fontSize:15,display:"grid",placeItems:"center",flexShrink:0,cursor:"pointer",opacity:medyaYuk?.5:1}}><input type="file" accept="audio/*" onChange={sesDosya} disabled={medyaYuk} style={{display:"none"}}/>🎵</label>}
+        {adminMi && !saltOkunur && <button onClick={buKanalMedyaTemizle} disabled={medyaYuk} className="tap" title="Bu sohbetin tüm foto/ses medyasını temizle (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.danger+"66",color:T.danger,fontSize:15,display:"grid",placeItems:"center",flexShrink:0,opacity:medyaYuk?.5:1}}>🧹</button>}
         <input value={metin} onChange={e=>setMetin(e.target.value)} onFocus={()=>{ dipteRef.current=dipteMi(); setTimeout(dibeKaydir,300); }} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); gonder(); } }} placeholder={medyaYuk?"Medya yükleniyor…":(yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…")} style={{flex:1,minWidth:0,width:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,outline:"none",fontFamily:"inherit",boxSizing:"border-box",fontSize:16}}/>
         <button onClick={gonder} disabled={gonderiliyor||!metin.trim()||medyaYuk} className="tap" style={{background:yonetimMod?T.gold:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim()||medyaYuk)?.5:1}}>➤</button>
       </div>}
