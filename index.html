@@ -1210,6 +1210,25 @@ const Db = {
   // ---- ETİKET (@-mention) + MODERASYON (Faz 3+4+5) ----
   _modHata(e){ const m=(e&&e.message)||String(e||""); if(/does not exist|schema cache|function .*(sohbet_|ceza_|moderator|mesaj_moderasyon|ihlal)/i.test(m)) return "Moderasyon/etiket SQL'i (77+78) çalıştırılmalı."; return m; },
   async sohbetUyeleri(lig,takim,kulup){ if(!sb) return []; try{ const {data}=await sb.rpc('sohbet_uyeleri',{p_lig:lig||null,p_takim:takim||null,p_kulup:kulup||null}); return data||[]; }catch(e){ return []; } },
+  // @-etiket için TAM kadro (doğrudan DB) — istemci turnuva önbelleği eksik/hafif olsa da tüm takım+oyuncular gelsin (web/mobil/PWA tutarlı)
+  async kanalKadrosu(ligId){ if(!sb||!ligId) return {takimlar:[], oyuncular:[]}; try{
+    const [tkR, otR] = await Promise.all([
+      sb.from('takimlar').select('id,ad').eq('lig_id',ligId).neq('durum','arsiv'),
+      sb.from('oyuncu_takim').select('player_id,takim_id').eq('lig_id',ligId).eq('aktif',true)
+    ]);
+    const tk=tkR.data||[], ot=otR.data||[];
+    const takAd={}; tk.forEach(t=>{ takAd[t.id]=t.ad; });
+    const pidler=[...new Set(ot.map(x=>x.player_id))];
+    let acikById={}, tamById={};
+    if(pidler.length){
+      try{ const {data:ac}=await sb.from('oyuncular_acik').select('player_id,gorunen_ad,foto').in('player_id',pidler); (ac||[]).forEach(o=>{ acikById[o.player_id]=o; }); }catch(e){}
+      try{ const {data:tm}=await sb.from('oyuncular').select('player_id,ad_soyad,takma_ad,foto,sahip_user_id').in('player_id',pidler); (tm||[]).forEach(o=>{ tamById[o.player_id]=o; }); }catch(e){}
+    }
+    const oyuncular=ot.map(u=>{ const tam=tamById[u.player_id]||{}; const ac=acikById[u.player_id]||{};
+      return { player_id:u.player_id, takim_id:u.takim_id, takim_ad:takAd[u.takim_id]||null,
+        ad:(tam.ad_soyad||tam.takma_ad||ac.gorunen_ad||"Oyuncu"), foto:(tam.foto||ac.foto||null), sahip_user_id:(tam.sahip_user_id||null) }; });
+    return { takimlar:tk, oyuncular };
+  }catch(e){ return {takimlar:[], oyuncular:[]}; } },
   async moderatorYetki(lig,takim,kulup){ if(!sb) return false; try{ const {data}=await sb.rpc('moderator_yetki',{p_lig:lig||null,p_takim:takim||null,p_kulup:kulup||null}); return !!data; }catch(e){ return false; } },
   async cezaAktif(lig,takim,kulup){ if(!sb) return null; try{ const {data}=await sb.rpc('ceza_aktif',{p_lig:lig||null,p_takim:takim||null,p_kulup:kulup||null}); return (data&&data[0])||null; }catch(e){ return null; } },
   async sohbetAyarGetir(lig,takim,kulup){ if(!sb) return null; try{ let q=sb.from('sohbet_ayar').select('*'); if(kulup) q=q.eq('kapsam','kulup').eq('kapsam_id',kulup); else if(takim) q=q.eq('kapsam','takim').eq('kapsam_id',takim); else if(lig) q=q.eq('kapsam','lig').eq('kapsam_id',lig); else return null; const {data}=await q.maybeSingle(); return data||null; }catch(e){ return null; } },
@@ -12766,9 +12785,9 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
       <Kart ik="🎟️" say={uyeler.filter(u=>u.hak&&u.hak.toplam>0).length} et="yetkili"/>
     </div>
 
-    <div style={{display:"flex",gap:6,padding:"10px 14px 0"}}>
+    <div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"10px 14px 0",justifyContent:"center"}}>
       {[["ozet","🎯 İşlem Merkezi"],["anket","🗳️ Anket"],["mod","🛡️ Moderasyon"],["uyeler","👥 Üyeler"],["hakemler","🧑‍⚖️ Hakemler"],["hak","🎟️ Lig Hakkı"],["ligler","🌍 Açık Ligler"],["yetki","✅ Yetkiler"],["sistem","⚙️ Sistem"]].map(([k,l])=>
-        <button key={k} onClick={()=>setSekme(k)} className="tap" style={{fontSize:11,padding:"7px 11px",borderRadius:9,fontWeight:700,background:sekme===k?T.accent:T.bg1,color:sekme===k?T.bg0:T.textMut,border:"0.5px solid "+(sekme===k?T.accent:T.line)}}>{l}</button>
+        <button key={k} onClick={()=>setSekme(k)} className="tap" style={{fontSize:11,padding:"7px 11px",borderRadius:9,fontWeight:700,whiteSpace:"nowrap",background:sekme===k?T.accent:T.bg1,color:sekme===k?T.bg0:T.textMut,border:"0.5px solid "+(sekme===k?T.accent:T.line)}}>{l}</button>
       )}
     </div>
     {mesaj && <div style={{fontSize:11,color:T.accent,textAlign:"center",padding:"8px 14px 0"}}>{mesaj}</div>}
@@ -13866,6 +13885,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   // Moderasyon + etiket durumu (kanal başına)
   const scopeLig=kulupMod?null:(turnuva&&turnuva.id), scopeTakim=kulupMod?null:aktifTakimId, scopeKulup=kulupMod?(kulup&&kulup.id):null;
   const [uyeler,setUyeler]=useState([]);          // @-etiket için kanal üyeleri
+  const [kanalKadro,setKanalKadro]=useState({takimlar:[],oyuncular:[]}); // @-etiket için TAM kadro (DB'den)
   const [modYetki,setModYetki]=useState(false);   // bu kanalda moderasyon yetkim var mı
   const [cezam,setCezam]=useState(null);          // benim aktif cezam (mute/ban)
   const [kanalAyar,setKanalAyar]=useState(null);  // yavaş mod / sadece yönetici
@@ -13900,6 +13920,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     if(r&&r.ok){ setKanalAyar({yavas_sn:yavas, sadece_yonetici:sadece}); setModAyarAcik(false); } else alert("Olmadı: "+((r&&r.hata)||"")); };
   useEffect(()=>{ let a=true; if(!oturum){ setUyeler([]);setModYetki(false);setCezam(null);setKanalAyar(null); return; }
     Db.sohbetUyeleri(scopeLig,scopeTakim,scopeKulup).then(x=>{ if(a) setUyeler(x||[]); });
+    if(scopeLig) Db.kanalKadrosu(scopeLig).then(x=>{ if(a) setKanalKadro(x||{takimlar:[],oyuncular:[]}); }); else setKanalKadro({takimlar:[],oyuncular:[]});
     Db.moderatorYetki(scopeLig,scopeTakim,scopeKulup).then(x=>{ if(a) setModYetki(!!x); });
     Db.cezaAktif(scopeLig,scopeTakim,scopeKulup).then(x=>{ if(a) setCezam(x||null); });
     Db.sohbetAyarGetir(scopeLig,scopeTakim,scopeKulup).then(x=>{ if(a) setKanalAyar(x||null); });
@@ -13909,21 +13930,25 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     const map={}; const isim=(o)=>o.gorunen_ad||o.takma_ad||o.ad_soyad||o.ad||o.isim||"";
     const ekle=(u)=>{ if(!u||!u.ad) return; const k=(u.ad).toLowerCase()+"|"+(u.player_id||u.user_id||u.takim_id||u.ad); if(!map[k]) map[k]=u; };
     if(!kulupMod && turnuva){
-      // En dolu lig verisi: turnuvalar içindeki eşleşen lig (kadrolar burada tam) → yoksa turnuva prop'u
+      // 1) EN GÜVENİLİR KAYNAK: DB'den çekilen tam kadro (kanalKadro) → tüm takım + tüm oyuncular her yerde (web/mobil/PWA) aynı
+      const kTakim=(kanalKadro&&kanalKadro.takimlar)||[]; const kOyun=(kanalKadro&&kanalKadro.oyuncular)||[];
+      if(!aktifTakimId) kTakim.forEach(t=>{ if(t.ad) ekle({ad:t.ad, takim_id:t.id, takim_ad:t.ad, rol:'takim'}); });  // lig kanalı: takım adları da etiketlenebilir
+      kOyun.forEach(o=>{ if(aktifTakimId && o.takim_id!==aktifTakimId) return; if(o.ad) ekle({user_id:o.sahip_user_id||null, player_id:o.player_id||null, ad:o.ad, foto:o.foto||null, takim_ad:o.takim_ad||null, takim_id:o.takim_id||null, rol:'oyuncu'}); });
+      // 2) İSTEMCİ ÖNBELLEĞİ (yedek): turnuvalar tam yüklüyse ek oyuncu/demo yakala
       const ligTam=(turnuvalar||[]).find(t=>t&&t.id===turnuva.id) || turnuva;
       const tks=(ligTam.takimlar||[]); const hedef=aktifTakimId?tks.filter(t=>t.id===aktifTakimId):tks;
-      if(!aktifTakimId) hedef.forEach(t=>{ if(t.ad) ekle({ad:t.ad, takim_id:t.id, takim_ad:t.ad, rol:'takim'}); });  // lig kanalı: takım adları da etiketlenebilir
+      if(!aktifTakimId) hedef.forEach(t=>{ if(t.ad) ekle({ad:t.ad, takim_id:t.id, takim_ad:t.ad, rol:'takim'}); });
       hedef.forEach(t=>{ (t.oyuncular||[]).forEach(o=>{ const ad=isim(o); if(ad) ekle({user_id:o.sahip_user_id||null, player_id:o.player_id||o.id||null, ad, foto:o.foto||null, takim_ad:t.ad, takim_id:t.id, rol:'oyuncu'}); }); }); }
     (uyeler||[]).forEach(u=>ekle(u));   // kaptan / lig_yon / hakem (ve hesaba bağlı oyuncular)
     return Object.values(map);
-  },[turnuva, turnuvalar, aktifTakimId, kulupMod, uyeler]);
+  },[turnuva, turnuvalar, aktifTakimId, kulupMod, uyeler, kanalKadro]);
   // @-etiket: input'ta son "@kelime"yi yakala → süzülmüş panel
   const etiketKontrol=(deger, pos)=>{ try{ const onceki=deger.slice(0,pos); const m=onceki.match(/@([\wçğıöşüÇĞİÖŞÜ]*)$/);
     if(!m){ setEtiketPanel(null); return; } const q=(m[1]||"").toLowerCase();
     const hepsi=(etiketUyeler||[]).filter(u=>(u.ad||"").toLowerCase().indexOf(q)>-1);
     let items;
-    if(!q){ const tk=hepsi.filter(u=>u.rol==='takim').slice(0,5); const oy=hepsi.filter(u=>u.rol!=='takim').slice(0,10); items=tk.concat(oy); }
-    else items=hepsi.slice(0,12);
+    if(!q){ const tk=hepsi.filter(u=>u.rol==='takim').slice(0,10); const oy=hepsi.filter(u=>u.rol!=='takim').slice(0,60); items=tk.concat(oy); }
+    else items=hepsi.slice(0,40);
     setEtiketPanel({q, items}); }catch(e){ setEtiketPanel(null); } };
   const etiketSec=(u)=>{ // seçilen üyeyi input'a yaz
     const el=document.getElementById("fzMsgInput"); const pos=el?el.selectionStart:metin.length;
