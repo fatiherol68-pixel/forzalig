@@ -55,7 +55,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260805070341"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260805072945"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -304,6 +304,18 @@
   .prem-tap:active { transform: scale(.965); }
   /* Stagger — liste açılış dalgası */
   @keyframes staggerIn { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:none;} }
+  /* ANKET KARTI — premium giriş + parıltı + oy onayı */
+  @keyframes fzAnketIn { from{opacity:0;transform:translateY(14px) scale(.98);} to{opacity:1;transform:none;} }
+  @keyframes fzGlow { 0%,100%{box-shadow:0 0 0 0 rgba(56,189,248,.0), 0 8px 24px rgba(0,0,0,.28);} 50%{box-shadow:0 0 0 1px rgba(56,189,248,.28), 0 10px 30px rgba(56,189,248,.10);} }
+  @keyframes fzShine { 0%{transform:translateX(-120%) skewX(-18deg);} 100%{transform:translateX(280%) skewX(-18deg);} }
+  @keyframes fzFill { from{width:0;} }
+  @keyframes fzOnay { 0%{transform:scale(.6);opacity:0;} 55%{transform:scale(1.15);} 100%{transform:scale(1);opacity:1;} }
+  .fz-anket { animation: fzAnketIn .5s cubic-bezier(.2,.85,.25,1) both, fzGlow 4.5s ease-in-out 1s infinite; position:relative; overflow:hidden; }
+  .fz-anket::after { content:""; position:absolute; top:0; left:0; width:38%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent); animation: fzShine 3.8s ease-in-out 1.2s infinite; pointer-events:none; }
+  .fz-anket-fill { animation: fzFill .6s cubic-bezier(.2,.8,.2,1) both; }
+  .fz-anket-opt { transition: border-color .2s, background .2s, transform .12s; }
+  .fz-anket-opt:active { transform: scale(.99); }
+  .fz-onay { display:inline-block; animation: fzOnay .4s cubic-bezier(.2,1.4,.4,1) both; }
   .stagger > * { animation: staggerIn .4s cubic-bezier(.2,.8,.2,1) both; }
   .stagger > *:nth-child(1){animation-delay:.02s;} .stagger > *:nth-child(2){animation-delay:.06s;}
   .stagger > *:nth-child(3){animation-delay:.10s;} .stagger > *:nth-child(4){animation-delay:.14s;}
@@ -384,7 +396,7 @@
   @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
   .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
-  <script type="module" crossorigin src="/assets/index-j1ydDJzL.js"></script>
+  <script type="module" crossorigin src="/assets/index-d586W7r5.js"></script>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash">
