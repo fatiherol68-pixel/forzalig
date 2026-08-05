@@ -309,7 +309,7 @@
   @keyframes staggerIn { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:none;} }
   /* ANKET KARTI — premium giriş + parıltı + oy onayı */
   @keyframes fzAnketIn { from{opacity:0;transform:translateY(14px) scale(.98);} to{opacity:1;transform:none;} }
-  @keyframes fzGlow { 0%,100%{box-shadow:0 0 0 0 rgba(56,189,248,.0), 0 8px 24px rgba(0,0,0,.28);} 50%{box-shadow:0 0 0 1px rgba(56,189,248,.28), 0 10px 30px rgba(56,189,248,.10);} }
+  @keyframes fzGlow { 0%,100%{box-shadow:0 8px 26px rgba(0,0,0,.35), 0 0 0 1px rgba(255,201,60,.20);} 50%{box-shadow:0 10px 32px rgba(255,201,60,.16), 0 0 0 1px rgba(255,201,60,.45);} }
   @keyframes fzShine { 0%{transform:translateX(-120%) skewX(-18deg);} 100%{transform:translateX(280%) skewX(-18deg);} }
   @keyframes fzFill { from{width:0;} }
   @keyframes fzOnay { 0%{transform:scale(.6);opacity:0;} 55%{transform:scale(1.15);} 100%{transform:scale(1);opacity:1;} }
@@ -12065,30 +12065,32 @@ function AnketKart({anket, T, oturum, adminMi}){
   const yorumGonder=async()=>{ const t=(yorumMetin||"").trim(); if(!t) return; const r=await Db.anketYorumYaz(anket.id,t);
     if(r&&r.ok){ setYorumMetin(""); const y=await Db.anketYorumlar(anket.id); setYorumlar(y); } else setMsj(r&&r.hata||"Yorum gönderilemedi"); };
   const yorumSil=async(id)=>{ const r=await Db.anketYorumSil(id); if(r&&r.ok) setYorumlar(p=>p.filter(x=>x.id!==id)); };
-  return <div className="fz-anket" style={{border:"1px solid "+T.accent2+"55",background:"radial-gradient(120% 130% at 0% 0%,"+T.accent2+"1e,transparent 55%),linear-gradient(160deg,rgba(139,123,255,.12),"+T.bg1+")",borderRadius:16,padding:14,marginBottom:12}}>
-    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
-      <span style={{fontSize:9.5,fontWeight:800,color:T.gold,background:T.gold+"22",border:"0.5px solid "+T.gold+"55",borderRadius:20,padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:4}}>👑 ForzaLig Yönetimi</span>
-      <span style={{fontSize:9,fontWeight:800,letterSpacing:".4px",color:bitti?T.textMut:T.accent2,background:(bitti?T.textMut:T.accent2)+"18",borderRadius:20,padding:"3px 9px",marginLeft:"auto"}}>{bitti?"● SONA ERDİ":anket.gizli_oy?"🔒 GİZLİ OY":"● ANKET"}</span>
+  // TEMA-BAĞIMSIZ canlı şema: anket her temada altın→amber→kırmızı ile belirgin durur
+  const K1="#FFC93C", K2="#FB923C", K3="#F4436B", KD="#1A1206";
+  return <div className="fz-anket" style={{flexShrink:0,border:"1.5px solid "+K1+"88",background:"radial-gradient(120% 130% at 0% 0%,"+K1+"26,transparent 52%),radial-gradient(120% 120% at 100% 100%,"+K3+"18,transparent 55%),linear-gradient(165deg,"+KD+","+T.bg1+")",borderRadius:16,padding:14,marginBottom:12,boxShadow:"0 8px 26px rgba(0,0,0,.35), 0 0 0 1px "+K1+"20"}}>
+    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:9}}>
+      <span style={{fontSize:9.5,fontWeight:900,color:KD,background:"linear-gradient(90deg,"+K1+","+K2+")",borderRadius:20,padding:"3px 10px",display:"inline-flex",alignItems:"center",gap:4,boxShadow:"0 2px 8px "+K1+"55"}}>👑 ForzaLig Yönetimi</span>
+      <span style={{fontSize:9,fontWeight:900,letterSpacing:".5px",color:bitti?T.textMut:K1,background:(bitti?T.textMut:K1)+"1e",border:"1px solid "+(bitti?T.textMut:K1)+"55",borderRadius:20,padding:"3px 9px",marginLeft:"auto"}}>{bitti?"● SONA ERDİ":anket.gizli_oy?"🔒 GİZLİ OY":"● ANKET"}</span>
     </div>
-    <div style={{fontSize:14.5,fontWeight:900,color:T.text,letterSpacing:"-.2px"}}>{anket.baslik}</div>
-    {anket.aciklama && <div style={{fontSize:11.5,color:T.textSoft,margin:"3px 0 9px"}}>{anket.aciklama}</div>}
-    <div style={{margin:"8px 0 4px"}}>
+    <div style={{fontSize:15,fontWeight:900,color:"#FFF7E6",letterSpacing:"-.2px"}}>{anket.baslik}</div>
+    {anket.aciklama && <div style={{fontSize:11.5,color:"#E8D9BE",opacity:.85,margin:"3px 0 10px"}}>{anket.aciklama}</div>}
+    <div style={{margin:"9px 0 4px"}}>
       {sec.map(s=>{ const adet=sayimMap[s.id]||0; const yuzde=toplam?Math.round(adet/toplam*100):0; const benim=secili.indexOf(s.id)>-1;
-        return <div key={s.id} onClick={()=>!bitti&&secTikla(s.id)} className="tap fz-anket-opt" style={{position:"relative",overflow:"hidden",display:"flex",alignItems:"center",gap:9,padding:"10px 12px",border:"1px solid "+(benim?T.accent:T.line),borderRadius:11,marginBottom:6,background:benim?T.accent+"14":T.bg2,cursor:bitti?"default":"pointer",boxShadow:benim?"0 0 0 1px "+T.accent+"33 inset":"none"}}>
-          {sonucGoster&&!gizliSonuc && <div className="fz-anket-fill" style={{position:"absolute",inset:0,background:"linear-gradient(90deg,"+T.accent+"22,"+T.accent2+"1c)",width:yuzde+"%",transition:"width .6s cubic-bezier(.2,.8,.2,1)"}}/>}
-          <span style={{position:"relative",width:17,height:17,borderRadius:anket.tip==='coklu'?4:"50%",border:"2px solid "+(benim?T.accent:T.line),display:"grid",placeItems:"center",flexShrink:0}}>{benim&&<b style={{width:8,height:8,borderRadius:anket.tip==='coklu'?2:"50%",background:T.accent}}/>}</span>
-          <span style={{position:"relative",fontSize:12.5,color:T.text,flex:1}}>{s.metin}</span>
-          {sonucGoster&&!gizliSonuc && <span style={{position:"relative",fontSize:12,fontWeight:800,color:T.accent}} className="tab">%{yuzde}</span>}
+        return <div key={s.id} onClick={()=>!bitti&&secTikla(s.id)} className="tap fz-anket-opt" style={{position:"relative",overflow:"hidden",display:"flex",alignItems:"center",gap:9,padding:"11px 12px",border:"1px solid "+(benim?K1:"rgba(255,201,60,.22)"),borderRadius:11,marginBottom:6,background:benim?K1+"1c":"rgba(0,0,0,.22)",cursor:bitti?"default":"pointer",boxShadow:benim?"0 0 0 1px "+K1+"55 inset, 0 2px 10px "+K1+"22":"none"}}>
+          {sonucGoster&&!gizliSonuc && <div className="fz-anket-fill" style={{position:"absolute",inset:0,background:"linear-gradient(90deg,"+K1+"3a,"+K2+"26)",width:yuzde+"%",transition:"width .6s cubic-bezier(.2,.8,.2,1)"}}/>}
+          <span style={{position:"relative",width:17,height:17,borderRadius:anket.tip==='coklu'?4:"50%",border:"2px solid "+(benim?K1:"rgba(255,201,60,.4)"),display:"grid",placeItems:"center",flexShrink:0}}>{benim&&<b style={{width:8,height:8,borderRadius:anket.tip==='coklu'?2:"50%",background:K1}}/>}</span>
+          <span style={{position:"relative",fontSize:12.5,fontWeight:benim?700:500,color:"#FFF7E6",flex:1}}>{s.metin}</span>
+          {sonucGoster&&!gizliSonuc && <span style={{position:"relative",fontSize:12,fontWeight:900,color:K1}} className="tab">%{yuzde}</span>}
         </div>; })}
     </div>
-    {!bitti && (!verdi || anket.oy_degistir) && <button onClick={oyVer} disabled={yuk||!secili.length} className="tap" style={{width:"100%",background:T.accent,color:T.bg0,border:0,borderRadius:10,padding:"9px",fontSize:12.5,fontWeight:800,opacity:(yuk||!secili.length)?.5:1,marginTop:2}}>{verdi?"Oyu güncelle":"🗳️ Oy kullan"}</button>}
-    {verdi && !anket.oy_degistir && <div style={{textAlign:"center",fontSize:11.5,color:T.accent,fontWeight:800,padding:"7px 0"}}><span className="fz-onay" style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:16,height:16,borderRadius:"50%",background:T.accent,color:T.bg0,display:"grid",placeItems:"center",fontSize:10}}>✓</span> Oyun alındı</span></div>}
-    {msj && <div style={{fontSize:10.5,color:msj.indexOf("✓")>-1?T.accent:T.gold,textAlign:"center",marginTop:5}}>{msj}</div>}
-    <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:10,color:T.textMut,marginTop:10,paddingTop:9,borderTop:"0.5px solid "+T.line}}>
+    {!bitti && (!verdi || anket.oy_degistir) && <button onClick={oyVer} disabled={yuk||!secili.length} className="tap" style={{width:"100%",background:"linear-gradient(90deg,"+K1+","+K2+")",color:KD,border:0,borderRadius:11,padding:"10px",fontSize:12.5,fontWeight:900,opacity:(yuk||!secili.length)?.5:1,marginTop:2,boxShadow:"0 4px 14px "+K1+"44"}}>{verdi?"Oyu güncelle":"🗳️ Oy kullan"}</button>}
+    {verdi && !anket.oy_degistir && <div style={{textAlign:"center",fontSize:11.5,color:K1,fontWeight:800,padding:"7px 0"}}><span className="fz-onay" style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:16,height:16,borderRadius:"50%",background:"linear-gradient(90deg,"+K1+","+K2+")",color:KD,display:"grid",placeItems:"center",fontSize:10}}>✓</span> Oyun alındı</span></div>}
+    {msj && <div style={{fontSize:10.5,color:msj.indexOf("✓")>-1?K1:K3,textAlign:"center",marginTop:5,fontWeight:700}}>{msj}</div>}
+    <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:10,color:"#C9B896",marginTop:10,paddingTop:9,borderTop:"1px solid "+K1+"22"}}>
       <span>👥 {katilim} katılım</span>
       {gizliSonuc && <span>🔒 sonuç gizli</span>}
       {anket.biter && <span>{bitti?"⏹ bitti":("⏳ "+kalanSure(anket.biter))}</span>}
-      {anket.yorum_acik && <span onClick={yorumlariYukle} className="tap" style={{marginLeft:"auto",color:T.accent2,cursor:"pointer",fontWeight:700}}>💬 Yorumlar</span>}
+      {anket.yorum_acik && <span onClick={yorumlariYukle} className="tap" style={{marginLeft:"auto",color:K1,cursor:"pointer",fontWeight:800}}>💬 Yorumlar</span>}
     </div>
     {yorumAcik && anket.yorum_acik && <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid "+T.line}}>
       <div style={{display:"flex",gap:7,marginBottom:8}}>
