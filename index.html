@@ -13873,6 +13873,18 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   const secilenEtiket=useRef({});                 // ad(lower) -> uid (bu mesaj için)
   const [modHedef,setModHedef]=useState(null);    // moderasyon modalı açık mesaj
   const [modAyarAcik,setModAyarAcik]=useState(false); // kanal ayarı (yavaş/sadece-yönetici) modalı
+  const [hizliAnket,setHizliAnket]=useState(false); // composer'dan hızlı anket
+  const [haBaslik,setHaBaslik]=useState(""); const [haSec,setHaSec]=useState(["",""]); const [haSaat,setHaSaat]=useState(0); const [haYuk,setHaYuk]=useState(false);
+  const hizliAnketOlustur=async()=>{ const secs=haSec.map(s=>s.trim()).filter(Boolean);
+    if(!haBaslik.trim()||secs.length<2){ alert("Başlık + en az 2 seçenek gir."); return; }
+    const hedefler = kulupMod?[{kapsam:'kulup',kapsam_id:kulup.id}] : aktifTakimId?[{kapsam:'takim',kapsam_id:aktifTakimId}] : [{kapsam:'lig_takimlari',kapsam_id:turnuva.id}];
+    setHaYuk(true);
+    const r=await Db.anketOlustur({baslik:haBaslik.trim(), secenekler:secs, durum:'yayin', biter: haSaat? new Date(Date.now()+haSaat*3600e3).toISOString():null, hedefler});
+    setHaYuk(false);
+    if(r&&r.ok){ setHizliAnket(false); setHaBaslik(""); setHaSec(["",""]); setHaSaat(0); Db.logla(oturum,"Hızlı anket (sohbet)",haBaslik.trim());
+      const lid=kulupMod?null:(turnuva&&turnuva.id); const tid=kulupMod?null:aktifTakimId; const kid=kulupMod?(kulup&&kulup.id):null;
+      Db.sohbetAnketleri(lid,tid,kid).then(x=>setKanalAnketler(x||[])); dibeKaydir(); }
+    else alert("Olmadı: "+((r&&r.hata)||"")); };
   const [modSebep,setModSebep]=useState("Küfür / hakaret");
   const [modIhlal,setModIhlal]=useState(0);       // son 30 gün ihlal sayısı (öneri)
   const modIslem=async(tur, saat)=>{ if(!modHedef) return;
@@ -13905,7 +13917,10 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   // @-etiket: input'ta son "@kelime"yi yakala → süzülmüş panel
   const etiketKontrol=(deger, pos)=>{ try{ const onceki=deger.slice(0,pos); const m=onceki.match(/@([\wçğıöşüÇĞİÖŞÜ]*)$/);
     if(!m){ setEtiketPanel(null); return; } const q=(m[1]||"").toLowerCase();
-    const items=(etiketUyeler||[]).filter(u=>((u.ad||"").toLowerCase().indexOf(q)>-1)||("takımım".indexOf(q)>-1)).slice(0,10);
+    const hepsi=(etiketUyeler||[]).filter(u=>(u.ad||"").toLowerCase().indexOf(q)>-1);
+    let items;
+    if(!q){ const tk=hepsi.filter(u=>u.rol==='takim').slice(0,5); const oy=hepsi.filter(u=>u.rol!=='takim').slice(0,10); items=tk.concat(oy); }
+    else items=hepsi.slice(0,12);
     setEtiketPanel({q, items}); }catch(e){ setEtiketPanel(null); } };
   const etiketSec=(u)=>{ // seçilen üyeyi input'a yaz
     const el=document.getElementById("fzMsgInput"); const pos=el?el.selectionStart:metin.length;
@@ -14237,15 +14252,42 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
         <button onClick={sesKayitIptal} className="tap" style={{background:"none",border:"0.5px solid "+T.line,color:T.textMut,borderRadius:20,padding:"9px 12px",fontSize:12,fontWeight:700,flexShrink:0}}>✕ İptal</button>
         <button onClick={sesKayitDur} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:20,padding:"9px 14px",fontSize:12,fontWeight:800,flexShrink:0}}>⏹ Bitir &amp; Gönder</button>
       </div>
-     : <div style={{flexShrink:0,display:"flex",gap:6,alignItems:"center",padding:"10px 12px max(10px, calc(env(safe-area-inset-bottom) - var(--kb, 0px)))",borderTop:yonetimMod?"none":"0.5px solid "+T.line,background:T.bg0}}>
-        {adminMi && !saltOkunur && <label className="tap" title="Görsel gönder (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,color:T.text,fontSize:16,display:"grid",placeItems:"center",flexShrink:0,cursor:"pointer",opacity:medyaYuk?.5:1}}><input type="file" accept="image/*" onChange={fotoSec} disabled={medyaYuk} style={{display:"none"}}/>📷</label>}
-        {adminMi && !saltOkunur && <button onClick={sesKayitBasla} disabled={medyaYuk} className="tap" title="Ses kaydı (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,color:T.text,fontSize:16,display:"grid",placeItems:"center",flexShrink:0,opacity:medyaYuk?.5:1}}>🎤</button>}
-        {adminMi && !saltOkunur && <label className="tap" title="Ses dosyası (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,color:T.text,fontSize:15,display:"grid",placeItems:"center",flexShrink:0,cursor:"pointer",opacity:medyaYuk?.5:1}}><input type="file" accept="audio/*" onChange={sesDosya} disabled={medyaYuk} style={{display:"none"}}/>🎵</label>}
-        {adminMi && !saltOkunur && <button onClick={buKanalMedyaTemizle} disabled={medyaYuk} className="tap" title="Bu sohbetin tüm foto/ses medyasını temizle (süper admin)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.danger+"66",color:T.danger,fontSize:15,display:"grid",placeItems:"center",flexShrink:0,opacity:medyaYuk?.5:1}}>🧹</button>}
-        {modYetki && <button onClick={()=>setModAyarAcik(true)} className="tap" title="Sohbet moderasyon ayarı (yavaş mod / sadece yönetici)" style={{width:40,height:40,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.gold+"66",color:T.gold,fontSize:15,display:"grid",placeItems:"center",flexShrink:0}}>🛡</button>}
-        <input id="fzMsgInput" value={metin} onChange={e=>{ setMetin(e.target.value); etiketKontrol(e.target.value, e.target.selectionStart); }} onFocus={()=>{ dipteRef.current=dipteMi(); setTimeout(dibeKaydir,300); }} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); setEtiketPanel(null); gonder(); } }} placeholder={medyaYuk?"Medya yükleniyor…":(yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…  @ ile etiketle")} style={{flex:1,minWidth:0,width:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,outline:"none",fontFamily:"inherit",boxSizing:"border-box",fontSize:16}}/>
-        <button onClick={gonder} disabled={gonderiliyor||!metin.trim()||medyaYuk} className="tap" style={{background:yonetimMod?T.gold:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim()||medyaYuk)?.5:1}}>➤</button>
-      </div>}
+     : (()=>{ const arac=(adminMi||modYetki)&&!saltOkunur; const bstil={width:38,height:38,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,fontSize:15,display:"grid",placeItems:"center",flexShrink:0,cursor:"pointer"};
+       return <div style={{flexShrink:0,display:"flex",flexDirection:"column",gap:8,padding:"10px 12px max(10px, calc(env(safe-area-inset-bottom) - var(--kb, 0px)))",borderTop:yonetimMod?"none":"0.5px solid "+T.line,background:T.bg0}}>
+        {/* Satır 1 — Mesaj yaz (herkeste aynı, ortada) */}
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <input id="fzMsgInput" value={metin} onChange={e=>{ setMetin(e.target.value); etiketKontrol(e.target.value, e.target.selectionStart); }} onFocus={()=>{ dipteRef.current=dipteMi(); setTimeout(dibeKaydir,300); }} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); setEtiketPanel(null); gonder(); } }} placeholder={medyaYuk?"Medya yükleniyor…":(yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…  @ ile etiketle")} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,outline:"none",fontFamily:"inherit",boxSizing:"border-box",fontSize:16}}/>
+          <button onClick={gonder} disabled={gonderiliyor||!metin.trim()||medyaYuk} className="tap" style={{background:yonetimMod?T.gold:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim()||medyaYuk)?.5:1}}>➤</button>
+        </div>
+        {/* Satır 2 — Yönetim araçları (yalnız admin/moderatör) */}
+        {arac && <div style={{display:"flex",gap:9,justifyContent:"center",flexWrap:"wrap"}}>
+          {adminMi && <label className="tap" title="Görsel" style={{...bstil,opacity:medyaYuk?.5:1}}><input type="file" accept="image/*" onChange={fotoSec} disabled={medyaYuk} style={{display:"none"}}/>📷</label>}
+          {adminMi && <button onClick={sesKayitBasla} disabled={medyaYuk} className="tap" title="Ses kaydı" style={{...bstil,color:T.text,opacity:medyaYuk?.5:1}}>🎤</button>}
+          {adminMi && <label className="tap" title="Ses dosyası" style={{...bstil,opacity:medyaYuk?.5:1}}><input type="file" accept="audio/*" onChange={sesDosya} disabled={medyaYuk} style={{display:"none"}}/>🎵</label>}
+          {adminMi && <button onClick={()=>setHizliAnket(true)} className="tap" title="Hızlı anket oluştur" style={{...bstil,border:"0.5px solid "+T.accent+"66",color:T.accent}}>📊</button>}
+          {adminMi && <button onClick={buKanalMedyaTemizle} disabled={medyaYuk} className="tap" title="Sohbet medyasını temizle" style={{...bstil,border:"0.5px solid "+T.danger+"55",color:T.danger,opacity:medyaYuk?.5:1}}>🧹</button>}
+          {modYetki && <button onClick={()=>setModAyarAcik(true)} className="tap" title="Moderasyon ayarı (yavaş mod / sadece yönetici)" style={{...bstil,border:"0.5px solid "+T.gold+"66",color:T.gold}}>🛡</button>}
+        </div>}
+      </div>; })()}
+
+    {/* ===== HIZLI ANKET (composer 📊) ===== */}
+    {hizliAnket && <div onClick={()=>setHizliAnket(false)} style={{position:"fixed",inset:0,background:"rgba(3,6,12,.66)",zIndex:70,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:460,background:T.bg1,borderTop:"1px solid "+T.line,borderTopLeftRadius:18,borderTopRightRadius:18,padding:16,maxHeight:"85vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:16}}>📊</span><b style={{fontSize:14}}>Hızlı Anket</b><span style={{fontSize:10,color:T.textMut,background:T.bg2,borderRadius:6,padding:"2px 7px"}}>{aktifTakimId?"Bu takım":kulupMod?"Bu kulüp":"Bu lig"}</span><span onClick={()=>setHizliAnket(false)} className="tap" style={{marginLeft:"auto",color:T.textMut,fontSize:20,cursor:"pointer"}}>×</span></div>
+        <input value={haBaslik} onChange={e=>setHaBaslik(e.target.value)} placeholder="Anket sorusu" style={{width:"100%",background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px 13px",color:T.text,fontSize:13.5,fontFamily:"inherit",marginBottom:9,boxSizing:"border-box"}}/>
+        {haSec.map((s,i)=><div key={i} style={{display:"flex",gap:6,marginBottom:6}}>
+          <input value={s} onChange={e=>setHaSec(p=>{const a=[...p];a[i]=e.target.value;return a;})} placeholder={"Seçenek "+(i+1)} style={{flex:1,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"9px 12px",color:T.text,fontSize:12.5,fontFamily:"inherit"}}/>
+          {haSec.length>2 && <button onClick={()=>setHaSec(p=>p.filter((_,j)=>j!==i))} className="tap" style={{background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,color:T.danger,width:38}}>✕</button>}
+        </div>)}
+        {haSec.length<6 && <button onClick={()=>setHaSec(p=>[...p,""])} className="tap" style={{fontSize:11.5,color:T.accent,background:"none",border:0,fontWeight:700,marginBottom:12}}>＋ Seçenek ekle</button>}
+        <div style={{fontSize:10.5,color:T.textMut,marginBottom:6}}>Süre</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+          {[["Süresiz",0],["1 saat",1],["1 gün",24],["3 gün",72],["1 hafta",168]].map(([l,v])=><span key={v} onClick={()=>setHaSaat(v)} className="tap" style={{fontSize:11.5,padding:"7px 12px",borderRadius:9,fontWeight:700,cursor:"pointer",background:haSaat===v?T.accent:T.bg2,color:haSaat===v?T.bg0:T.textSoft,border:"0.5px solid "+T.line}}>{l}</span>)}
+        </div>
+        <button onClick={hizliAnketOlustur} disabled={haYuk} className="tap" style={{width:"100%",background:T.accent,color:T.bg0,border:0,borderRadius:11,padding:"12px",fontSize:13,fontWeight:800,opacity:haYuk?.6:1}}>🚀 Yayınla — {aktifTakimId?"bu takım sohbetine":kulupMod?"bu kulübe":"bu ligin tüm takımlarına"}</button>
+        <div style={{fontSize:10,color:T.textMut,marginTop:9,textAlign:"center"}}>Detaylı ayar (gizli oy, çoklu seçim, yorum vb.) için Admin → 🗳️ Anket.</div>
+      </div>
+    </div>}
 
     {/* ===== MODERASYON MODALI (mesaj) ===== */}
     {modHedef && <div onClick={()=>setModHedef(null)} style={{position:"fixed",inset:0,background:"rgba(3,6,12,.66)",zIndex:70,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
