@@ -904,6 +904,23 @@ async function sesYukle(blob){
   }catch(e){ return {hata:String(e&&e.message||e)}; }
 }
 
+/* TR saat dilimi — sistem UTC saklar; kullanıcıya Türkiye saatiyle gösterilir. */
+function trTarih(iso, tamMi){
+  try{ if(!iso) return "";
+    const d=new Date(iso);
+    const o={timeZone:"Europe/Istanbul", day:"2-digit", month:"long", year:"numeric", hour:"2-digit", minute:"2-digit"};
+    if(!tamMi){ delete o.year; }
+    return d.toLocaleString("tr-TR", o);
+  }catch(e){ return ""; }
+}
+/* "2g 14s 3d" tarzı kalan süre (bitişe) */
+function kalanSure(iso){
+  try{ if(!iso) return ""; const f=new Date(iso).getTime()-Date.now(); if(f<=0) return "doldu";
+    const g=Math.floor(f/864e5), s=Math.floor(f%864e5/36e5), d=Math.floor(f%36e5/6e4);
+    return g>0?(g+"g "+s+"s"):s>0?(s+"s "+d+"d"):(d+"d");
+  }catch(e){ return ""; }
+}
+
 /* Bulut veri — tüm uygulama durumu, kullanıcı başına tek JSON satırı */
 const Bulut = {
   async yukle(userId){
@@ -1136,6 +1153,39 @@ const Db = {
     for(let i=0;i<yollar.length;i+=100){ const dilim=yollar.slice(i,i+100); const {error}=await sb.storage.from('fotolar').remove(dilim); if(!error) dosya+=dilim.length; }
     return {ok:true, adet:guncellenen, dosya};
   }catch(e){ return {hata:String(e)}; } },
+  // ---- ANKET (Faz 1+2) — yazma yalnız SECURITY DEFINER RPC ----
+  _anketHata(e){ const m=(e&&e.message)||String(e||""); if(/does not exist|schema cache|function .*anket/i.test(m)) return "Anket SQL'i (75+76) çalıştırılmalı."; return m; },
+  async anketOlustur(o){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('anket_olustur',{
+      p_baslik:o.baslik, p_aciklama:o.aciklama||null, p_gorsel:o.gorsel||null, p_tip:o.tip||'tek', p_max:o.max||1,
+      p_yorum:o.yorum!==false, p_gizli:!!o.gizli, p_oy_degistir:o.oyDegistir!==false, p_sonuc:o.sonuc||'oydan_sonra',
+      p_baslar:o.baslar||null, p_biter:o.biter||null, p_durum:o.durum||'taslak',
+      p_secenekler:o.secenekler||[], p_hedefler:o.hedefler||[] });
+    return error?{hata:this._anketHata(error)}:{ok:true, id:data}; }catch(e){ return {hata:this._anketHata(e)}; } },
+  async anketDurum(id,durum){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('anket_durum',{p_id:id,p_durum:durum}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async anketGuncelle(id,g){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('anket_guncelle',{p_id:id,p_baslik:g.baslik||null,p_aciklama:g.aciklama||null,p_biter:g.biter||null,p_yorum:g.yorum,p_sonuc:g.sonuc||null}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async anketListe(){ if(!sb) return []; try{ const {data}=await sb.from('anketler').select('*').order('created',{ascending:false}).limit(100); return data||[]; }catch(e){ return []; } },
+  async anketSecenekler(id){ if(!sb) return []; try{ const {data}=await sb.from('anket_secenek').select('*').eq('anket_id',id).order('sira'); return data||[]; }catch(e){ return []; } },
+  async anketHedefler(id){ if(!sb) return []; try{ const {data}=await sb.from('anket_hedef').select('*').eq('anket_id',id); return data||[]; }catch(e){ return []; } },
+  async anketSonuc(id){ if(!sb) return []; try{ const {data,error}=await sb.rpc('anket_sonuc',{p_anket:id}); if(error) return []; return data||[]; }catch(e){ return []; } },
+  async anketSonucKirilim(id,seviye){ if(!sb) return []; try{ const {data}=await sb.rpc('anket_sonuc_kirilim',{p_anket:id,p_seviye:seviye}); return data||[]; }catch(e){ return []; } },
+  async anketHedefSay(id){ if(!sb) return 0; try{ const {data}=await sb.rpc('anket_hedef_say',{p_anket:id}); return data||0; }catch(e){ return 0; } },
+  async anketOyVermeyenSay(id){ if(!sb) return 0; try{ const {data}=await sb.rpc('anket_oy_vermeyenler',{p_anket:id}); return (data||[]).length; }catch(e){ return 0; } },
+  async anketKatilimSay(id){ if(!sb) return 0; try{ const {count}=await sb.from('anket_katilim').select('*',{count:'exact',head:true}).eq('anket_id',id); return count||0; }catch(e){ return 0; } },
+  async anketOyVer(id,secenekIds){ if(!sb) return {hata:"Giriş gerekli"}; try{ const {data,error}=await sb.rpc('anket_oy_ver',{p_anket:id,p_secenekler:secenekIds}); return error?{hata:this._anketHata(error)}:(data&&data.ok?{ok:true}:{ok:true}); }catch(e){ return {hata:this._anketHata(e)}; } },
+  async benimOyum(id){ if(!sb) return null; try{ const u=((await sb.auth.getUser()).data.user||{}).id; if(!u) return null;
+    const {data:oy}=await sb.from('anket_oy').select('secenek_id').eq('anket_id',id).eq('user_id',u);
+    if(oy&&oy.length) return {verdi:true, secenekler:oy.map(x=>x.secenek_id)};
+    const {data:kat}=await sb.from('anket_katilim').select('user_id').eq('anket_id',id).eq('user_id',u).maybeSingle();
+    return kat?{verdi:true, secenekler:[]}:{verdi:false, secenekler:[]}; }catch(e){ return null; } },
+  async sohbetAnketleri(ligId,takimId,kulupId){ if(!sb) return []; try{ const {data,error}=await sb.rpc('sohbet_anketleri',{p_lig:ligId||null,p_takim:takimId||null,p_kulup:kulupId||null}); if(error) return []; return data||[]; }catch(e){ return []; } },
+  async anketYorumlar(id){ if(!sb) return []; try{ const {data}=await sb.from('anket_yorum').select('*').eq('anket_id',id).order('created',{ascending:false}).limit(200); return data||[]; }catch(e){ return []; } },
+  async anketYorumYaz(id,metin){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('anket_yorum_yaz',{p_anket:id,p_metin:metin}); return error?{hata:this._anketHata(error)}:{ok:true,id:data}; }catch(e){ return {hata:this._anketHata(e)}; } },
+  async anketYorumSil(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('anket_yorum_sil',{p_id:id}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async ligTakimListesi(){ if(!sb) return {ligler:[],takimlar:[]}; try{
+    const [{data:lg},{data:tk}]=await Promise.all([
+      sb.from('ligler').select('id,ad').eq('silindi',false).order('ad'),
+      sb.from('takimlar').select('id,ad,lig_id').order('ad') ]);
+    return {ligler:lg||[], takimlar:tk||[]}; }catch(e){ return {ligler:[],takimlar:[]}; } },
   async sohbetArsivle(){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('sohbet_arsivle'); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   // Sohbetteki maç kartları: özet (adet/yer/en eski) + otomatik/manuel temizlik (14 gün+)
   async macKartOzet(){ if(!sb) return null; try{ const {data,error}=await sb.rpc('mac_kart_ozet'); return error?null:(data||null); }catch(e){ return null; } },
@@ -11967,6 +12017,244 @@ function LigBasvuru({T, oturum, git}){
   </div>;
 }
 
+/* ===== ANKET KARTI — sohbette gösterilen premium kart + oy + yorum ===== */
+function AnketKart({anket, T, oturum, adminMi}){
+  const [sec,setSec]=useState([]);          // seçenekler
+  const [sonuc,setSonuc]=useState([]);      // {secenek_id, adet}
+  const [oyum,setOyum]=useState(null);      // {verdi, secenekler}
+  const [katilim,setKatilim]=useState(0);
+  const [secili,setSecili]=useState([]);    // kullanıcının seçtikleri (gönderilmeden önce)
+  const [yuk,setYuk]=useState(false);
+  const [msj,setMsj]=useState("");
+  const [yorumAcik,setYorumAcik]=useState(false);
+  const [yorumlar,setYorumlar]=useState([]);
+  const [yorumMetin,setYorumMetin]=useState("");
+  const bitti = anket.biter && new Date(anket.biter).getTime()<=Date.now();
+  const yenile=async()=>{ const s=await Db.anketSonuc(anket.id); setSonuc(s); const k=await Db.anketKatilimSay(anket.id); setKatilim(k); };
+  useEffect(()=>{ let a=true; (async()=>{
+    const s=await Db.anketSecenekler(anket.id); if(!a)return; setSec(s);
+    const so=await Db.anketSonuc(anket.id); if(!a)return; setSonuc(so);
+    const k=await Db.anketKatilimSay(anket.id); if(!a)return; setKatilim(k);
+    if(oturum){ const o=await Db.benimOyum(anket.id); if(!a)return; setOyum(o); if(o&&o.secenekler) setSecili(o.secenekler); }
+  })(); return ()=>{a=false;}; },[anket.id, oturum]);
+  const verdi = oyum&&oyum.verdi;
+  const sonucGoster = adminMi || anket.sonuc_gorunur==='oydan_sonra'&&verdi || anket.sonuc_gorunur==='bitince'&&bitti;
+  const gizliSonuc = anket.sonuc_gorunur==='gizli' || (anket.sonuc_gorunur==='admin'&&!adminMi);
+  const toplam = sonuc.reduce((s,x)=>s+(x.adet||0),0);
+  const sayimMap={}; sonuc.forEach(x=>sayimMap[x.secenek_id]=x.adet||0);
+  const secTikla=(id)=>{ if(verdi&&!anket.oy_degistir) return;
+    if(anket.tip==='coklu'){ setSecili(p=> p.indexOf(id)>-1 ? p.filter(x=>x!==id) : (p.length<(anket.max_secim||1)?[...p,id]:p)); }
+    else setSecili([id]); };
+  const oyVer=async()=>{ if(!oturum){ setMsj("Oy için giriş yap."); return; } if(!secili.length){ setMsj("Seçenek seç."); return; }
+    setYuk(true); setMsj(""); const r=await Db.anketOyVer(anket.id, secili); setYuk(false);
+    if(r&&r.ok){ setMsj("Oyun kaydedildi ✓"); const o=await Db.benimOyum(anket.id); setOyum(o); yenile(); }
+    else setMsj(r&&r.hata||"Olmadı"); };
+  const yorumlariYukle=async()=>{ setYorumAcik(a=>!a); if(!yorumlar.length){ const y=await Db.anketYorumlar(anket.id); setYorumlar(y); } };
+  const yorumGonder=async()=>{ const t=(yorumMetin||"").trim(); if(!t) return; const r=await Db.anketYorumYaz(anket.id,t);
+    if(r&&r.ok){ setYorumMetin(""); const y=await Db.anketYorumlar(anket.id); setYorumlar(y); } else setMsj(r&&r.hata||"Yorum gönderilemedi"); };
+  const yorumSil=async(id)=>{ const r=await Db.anketYorumSil(id); if(r&&r.ok) setYorumlar(p=>p.filter(x=>x.id!==id)); };
+  return <div style={{border:"1px solid "+T.accent2+"55",background:"linear-gradient(160deg,"+T.accent2+"12,"+T.bg1+")",borderRadius:14,padding:13,marginBottom:12}}>
+    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7}}>
+      <span style={{fontSize:9.5,fontWeight:800,color:T.gold,background:T.gold+"22",border:"0.5px solid "+T.gold+"55",borderRadius:6,padding:"2px 7px"}}>👑 ForzaLig Yönetimi</span>
+      <span style={{fontSize:9.5,fontWeight:800,color:T.accent2,background:T.accent2+"18",borderRadius:6,padding:"2px 7px",marginLeft:"auto"}}>{bitti?"Sona erdi":anket.gizli_oy?"Gizli oy":"Anket"}</span>
+    </div>
+    <div style={{fontSize:14.5,fontWeight:900,color:T.text,letterSpacing:"-.2px"}}>{anket.baslik}</div>
+    {anket.aciklama && <div style={{fontSize:11.5,color:T.textSoft,margin:"3px 0 9px"}}>{anket.aciklama}</div>}
+    <div style={{margin:"8px 0 4px"}}>
+      {sec.map(s=>{ const adet=sayimMap[s.id]||0; const yuzde=toplam?Math.round(adet/toplam*100):0; const benim=secili.indexOf(s.id)>-1;
+        return <div key={s.id} onClick={()=>!bitti&&secTikla(s.id)} className="tap" style={{position:"relative",overflow:"hidden",display:"flex",alignItems:"center",gap:9,padding:"9px 11px",border:"1px solid "+(benim?T.accent:T.line),borderRadius:10,marginBottom:6,background:benim?T.accent+"12":T.bg2,cursor:bitti?"default":"pointer"}}>
+          {sonucGoster&&!gizliSonuc && <div style={{position:"absolute",inset:0,background:T.accent+"14",width:yuzde+"%",transition:"width .5s"}}/>}
+          <span style={{position:"relative",width:17,height:17,borderRadius:anket.tip==='coklu'?4:"50%",border:"2px solid "+(benim?T.accent:T.line),display:"grid",placeItems:"center",flexShrink:0}}>{benim&&<b style={{width:8,height:8,borderRadius:anket.tip==='coklu'?2:"50%",background:T.accent}}/>}</span>
+          <span style={{position:"relative",fontSize:12.5,color:T.text,flex:1}}>{s.metin}</span>
+          {sonucGoster&&!gizliSonuc && <span style={{position:"relative",fontSize:12,fontWeight:800,color:T.accent}} className="tab">%{yuzde}</span>}
+        </div>; })}
+    </div>
+    {!bitti && (!verdi || anket.oy_degistir) && <button onClick={oyVer} disabled={yuk||!secili.length} className="tap" style={{width:"100%",background:T.accent,color:T.bg0,border:0,borderRadius:10,padding:"9px",fontSize:12.5,fontWeight:800,opacity:(yuk||!secili.length)?.5:1,marginTop:2}}>{verdi?"Oyu güncelle":"🗳️ Oy kullan"}</button>}
+    {verdi && !anket.oy_degistir && <div style={{textAlign:"center",fontSize:11,color:T.accent,fontWeight:700,padding:"6px 0"}}>✓ Oyun alındı</div>}
+    {msj && <div style={{fontSize:10.5,color:msj.indexOf("✓")>-1?T.accent:T.gold,textAlign:"center",marginTop:5}}>{msj}</div>}
+    <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:10,color:T.textMut,marginTop:10,paddingTop:9,borderTop:"0.5px solid "+T.line}}>
+      <span>👥 {katilim} katılım</span>
+      {gizliSonuc && <span>🔒 sonuç gizli</span>}
+      {anket.biter && <span>{bitti?"⏹ bitti":("⏳ "+kalanSure(anket.biter))}</span>}
+      {anket.yorum_acik && <span onClick={yorumlariYukle} className="tap" style={{marginLeft:"auto",color:T.accent2,cursor:"pointer",fontWeight:700}}>💬 Yorumlar</span>}
+    </div>
+    {yorumAcik && anket.yorum_acik && <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid "+T.line}}>
+      <div style={{display:"flex",gap:7,marginBottom:8}}>
+        <input value={yorumMetin} onChange={e=>setYorumMetin(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')yorumGonder();}} placeholder="Yorum yaz…" style={{flex:1,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:18,padding:"8px 13px",color:T.text,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+        <button onClick={yorumGonder} className="tap" style={{background:T.accent2,color:T.bg0,border:0,borderRadius:"50%",width:36,height:36,fontSize:15,fontWeight:800,flexShrink:0}}>➤</button>
+      </div>
+      <div style={{maxHeight:240,overflowY:"auto"}}>
+        {yorumlar.filter(y=>!y.silindi).map(y=><div key={y.id} style={{padding:"7px 0",borderBottom:"0.5px solid "+T.line}}>
+          <div style={{fontSize:11.5}}><b style={{color:T.text}}>{y.ad||"Kullanıcı"}</b> {y.takim_ad&&<span style={{fontSize:9,color:T.textMut,background:T.bg2,borderRadius:5,padding:"1px 6px"}}>{y.takim_ad}</span>} <span style={{fontSize:9,color:T.textMut}}>· {trTarih(y.created)}</span>{adminMi&&<span onClick={()=>yorumSil(y.id)} className="tap" style={{float:"right",color:T.danger,cursor:"pointer",fontSize:10}}>sil</span>}</div>
+          <div style={{fontSize:12,color:T.textSoft,marginTop:2}}>{y.metin}</div>
+        </div>)}
+        {!yorumlar.filter(y=>!y.silindi).length && <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:"8px 0"}}>Henüz yorum yok.</div>}
+      </div>
+    </div>}
+  </div>;
+}
+
+/* ===== ANKET MERKEZİ — Süper Admin panel sekmesi ===== */
+function AnketMerkezi({T, oturum}){
+  const [gorunum,setGorunum]=useState("liste");   // liste | olustur | detay
+  const [anketler,setAnketler]=useState([]);
+  const [secili,setSecili]=useState(null);
+  const [yuk,setYuk]=useState(true);
+  const [msj,setMsj]=useState("");
+  const [kaynak,setKaynak]=useState({ligler:[],takimlar:[]});
+  // oluştur formu
+  const [f,setF]=useState({baslik:"",aciklama:"",secenekler:["",""],tip:"tek",max:2,yorum:true,gizli:false,oyDegistir:true,sonuc:"oydan_sonra",biter:"",kapsamTur:"tum",ligSec:[],takimSec:[],rol:"aktif"});
+  const listeYukle=async()=>{ setYuk(true); const a=await Db.anketListe(); setAnketler(a); setYuk(false); };
+  useEffect(()=>{ listeYukle(); Db.ligTakimListesi().then(setKaynak); },[]);
+  const durumRenk={taslak:T.textMut,zamanli:T.accent2,yayin:T.accent,durdu:T.gold,bitti:T.textMut,iptal:T.danger,arsiv:T.textMut};
+  const setSec=(i,v)=>setF(p=>{ const s=[...p.secenekler]; s[i]=v; return {...p,secenekler:s}; });
+  const hedefKur=()=>{ const h=[];
+    if(f.kapsamTur==='tum') h.push({kapsam:'tum'});
+    else if(f.kapsamTur==='lig') f.ligSec.forEach(id=>h.push({kapsam:'lig_takimlari',kapsam_id:id}));
+    else if(f.kapsamTur==='takim') f.takimSec.forEach(id=>h.push({kapsam:'takim',kapsam_id:id}));
+    else if(f.kapsamTur==='rol') h.push({kapsam:'rol',rol_filtre:f.rol});
+    return h; };
+  const olustur=async(durum)=>{ const secs=f.secenekler.map(s=>s.trim()).filter(Boolean);
+    if(!f.baslik.trim()){ setMsj("Başlık gir."); return; }
+    if(secs.length<2){ setMsj("En az 2 seçenek gir."); return; }
+    const hedefler=hedefKur(); if(!hedefler.length){ setMsj("Hedef seç."); return; }
+    setMsj("Kaydediliyor…");
+    const r=await Db.anketOlustur({baslik:f.baslik.trim(),aciklama:f.aciklama.trim()||null,secenekler:secs,tip:f.tip,max:f.tip==='coklu'?Math.max(2,f.max):1,yorum:f.yorum,gizli:f.gizli,oyDegistir:f.oyDegistir,sonuc:f.sonuc,biter:f.biter?new Date(f.biter).toISOString():null,durum:durum,hedefler:hedefler});
+    if(r&&r.ok){ Db.logla(oturum,"Anket "+(durum==='yayin'?"yayınlandı":"taslak kaydedildi"),f.baslik.trim()); setMsj("✓ "+(durum==='yayin'?"Yayınlandı":"Taslak kaydedildi")); setF({baslik:"",aciklama:"",secenekler:["",""],tip:"tek",max:2,yorum:true,gizli:false,oyDegistir:true,sonuc:"oydan_sonra",biter:"",kapsamTur:"tum",ligSec:[],takimSec:[],rol:"aktif"}); setGorunum("liste"); listeYukle(); }
+    else setMsj("Olmadı: "+(r&&r.hata||"")); };
+  const durumDegis=async(a,durum)=>{ if(durum==='iptal'&&!confirm("Anket iptal edilsin mi? Tüm sohbetlerde kapanır.")) return;
+    const r=await Db.anketDurum(a.id,durum); if(r&&r.ok){ Db.logla(oturum,"Anket durum: "+durum,a.baslik); setAnketler(p=>p.map(x=>x.id===a.id?{...x,durum}:x)); if(secili&&secili.id===a.id) setSecili({...secili,durum}); } else setMsj("Olmadı: "+(r&&r.hata||"")); };
+
+  if(gorunum==="olustur"){
+    const ligTakimlari=(lid)=>kaynak.takimlar.filter(t=>t.lig_id===lid);
+    return <div>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><button onClick={()=>setGorunum("liste")} className="tap" style={{fontSize:11,color:T.textMut,background:"none",border:0}}>‹ Geri</button><div style={{fontSize:13,fontWeight:800}}>Yeni Anket</div></div>
+      {msj && <div style={{fontSize:11,color:msj[0]==="✓"?T.accent:T.gold,marginBottom:8}}>{msj}</div>}
+      <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14,marginBottom:10}}>
+        <div style={{fontSize:10.5,color:T.textMut,fontWeight:700,marginBottom:8}}>TEMEL</div>
+        <input value={f.baslik} onChange={e=>setF(p=>({...p,baslik:e.target.value}))} placeholder="Anket başlığı" style={{width:"100%",background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:13,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box"}}/>
+        <textarea value={f.aciklama} onChange={e=>setF(p=>({...p,aciklama:e.target.value}))} placeholder="Açıklama (isteğe bağlı)" rows={2} style={{width:"100%",background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12.5,fontFamily:"inherit",marginBottom:10,boxSizing:"border-box",resize:"vertical"}}/>
+        <div style={{fontSize:10.5,color:T.textMut,marginBottom:6}}>Seçenekler (2–10)</div>
+        {f.secenekler.map((s,i)=><div key={i} style={{display:"flex",gap:6,marginBottom:6}}>
+          <input value={s} onChange={e=>setSec(i,e.target.value)} placeholder={"Seçenek "+(i+1)} style={{flex:1,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"8px 11px",color:T.text,fontSize:12.5,fontFamily:"inherit"}}/>
+          {f.secenekler.length>2 && <button onClick={()=>setF(p=>({...p,secenekler:p.secenekler.filter((_,j)=>j!==i)}))} className="tap" style={{background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,color:T.danger,width:36}}>✕</button>}
+        </div>)}
+        {f.secenekler.length<10 && <button onClick={()=>setF(p=>({...p,secenekler:[...p.secenekler,""]}))} className="tap" style={{fontSize:11,color:T.accent,background:"none",border:0,fontWeight:700}}>＋ Seçenek ekle</button>}
+      </div>
+      <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14,marginBottom:10}}>
+        <div style={{fontSize:10.5,color:T.textMut,fontWeight:700,marginBottom:10}}>GELİŞMİŞ</div>
+        {[["Çoklu seçim","tip","coklu","tek"],["Yorumlar açık","yorum"],["Gizli oy","gizli"],["Oy değiştirilebilir","oyDegistir"]].map(([lbl,key,on,off])=>{
+          const val = key==='tip'? f.tip===(on||'coklu') : !!f[key];
+          return <div key={key} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"0.5px solid "+T.line}}>
+            <div style={{flex:1,fontSize:12.5}}>{lbl}</div>
+            <div onClick={()=>setF(p=> key==='tip'? {...p,tip:(p.tip==='coklu'?'tek':'coklu')} : {...p,[key]:!p[key]})} className="tap" style={{width:38,height:22,borderRadius:20,background:val?T.accent:"#25324a",position:"relative",transition:".2s"}}><i style={{position:"absolute",top:2,left:val?18:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:".2s",display:"block"}}/></div>
+          </div>; })}
+        {f.tip==='coklu' && <div style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0"}}><div style={{flex:1,fontSize:12.5}}>En fazla seçim</div><input type="number" min="2" max={f.secenekler.length} value={f.max} onChange={e=>setF(p=>({...p,max:parseInt(e.target.value)||2}))} style={{width:60,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:8,padding:"6px 8px",color:T.text,fontFamily:"inherit"}}/></div>}
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0"}}><div style={{flex:1,fontSize:12.5}}>Sonuç görünürlüğü</div>
+          <select value={f.sonuc} onChange={e=>setF(p=>({...p,sonuc:e.target.value}))} style={{background:T.bg2,border:"0.5px solid "+T.line,borderRadius:8,padding:"7px 9px",color:T.text,fontFamily:"inherit",fontSize:12}}><option value="oydan_sonra">Oy verince</option><option value="bitince">Bitince</option><option value="admin">Yalnız admin</option><option value="gizli">Gizli</option></select></div>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0"}}><div style={{flex:1,fontSize:12.5}}>Bitiş (boş=süresiz)</div><input type="datetime-local" value={f.biter} onChange={e=>setF(p=>({...p,biter:e.target.value}))} style={{background:T.bg2,border:"0.5px solid "+T.line,borderRadius:8,padding:"6px 8px",color:T.text,fontFamily:"inherit",fontSize:11.5}}/></div>
+      </div>
+      <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14,marginBottom:10}}>
+        <div style={{fontSize:10.5,color:T.textMut,fontWeight:700,marginBottom:10}}>HEDEF</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+          {[["tum","Tüm sistem"],["lig","Lig(ler)"],["takim","Takım(lar)"],["rol","Rol"]].map(([k,l])=>
+            <span key={k} onClick={()=>setF(p=>({...p,kapsamTur:k}))} className="tap" style={{fontSize:11,padding:"6px 12px",borderRadius:20,cursor:"pointer",background:f.kapsamTur===k?T.accent+"22":T.bg2,color:f.kapsamTur===k?T.accent:T.textSoft,border:"0.5px solid "+(f.kapsamTur===k?T.accent+"66":T.line)}}>{l}</span>)}
+        </div>
+        {f.kapsamTur==='lig' && <div style={{maxHeight:180,overflowY:"auto"}}>{kaynak.ligler.map(l=><label key={l.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 2px",fontSize:12.5}}><input type="checkbox" checked={f.ligSec.indexOf(l.id)>-1} onChange={()=>setF(p=>({...p,ligSec:p.ligSec.indexOf(l.id)>-1?p.ligSec.filter(x=>x!==l.id):[...p.ligSec,l.id]}))}/>{l.ad}</label>)}{!kaynak.ligler.length&&<div style={{fontSize:11,color:T.textMut}}>Lig yok.</div>}</div>}
+        {f.kapsamTur==='takim' && <div style={{maxHeight:180,overflowY:"auto"}}>{kaynak.takimlar.map(t=><label key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 2px",fontSize:12.5}}><input type="checkbox" checked={f.takimSec.indexOf(t.id)>-1} onChange={()=>setF(p=>({...p,takimSec:p.takimSec.indexOf(t.id)>-1?p.takimSec.filter(x=>x!==t.id):[...p.takimSec,t.id]}))}/>{t.ad}</label>)}{!kaynak.takimlar.length&&<div style={{fontSize:11,color:T.textMut}}>Takım yok.</div>}</div>}
+        {f.kapsamTur==='rol' && <select value={f.rol} onChange={e=>setF(p=>({...p,rol:e.target.value}))} style={{background:T.bg2,border:"0.5px solid "+T.line,borderRadius:8,padding:"8px 10px",color:T.text,fontFamily:"inherit",fontSize:12.5}}><option value="aktif">Aktif oyuncular</option><option value="kaptan">Takım kaptanları</option><option value="lig_yon">Lig yöneticileri</option></select>}
+        {f.kapsamTur==='tum' && <div style={{fontSize:11.5,color:T.textSoft}}>Sistemdeki tüm uygun kullanıcılar hedeflenecek.</div>}
+        <div style={{fontSize:10.5,color:T.textMut,marginTop:8}}>{f.kapsamTur==='lig'?f.ligSec.length+" lig seçili":f.kapsamTur==='takim'?f.takimSec.length+" takım seçili":""}</div>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={()=>olustur("taslak")} className="tap" style={{flex:1,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px",color:T.text,fontSize:12.5,fontWeight:700}}>Taslak kaydet</button>
+        <button onClick={()=>olustur("yayin")} className="tap" style={{flex:1,background:T.accent,border:0,borderRadius:10,padding:"11px",color:T.bg0,fontSize:12.5,fontWeight:800}}>🚀 Yayınla</button>
+      </div>
+    </div>;
+  }
+
+  if(gorunum==="detay" && secili){ return <AnketDetay anket={secili} T={T} oturum={oturum} onGeri={()=>{setGorunum("liste");}} onDurum={durumDegis}/>; }
+
+  // LİSTE
+  return <div>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+      <div style={{fontSize:13,fontWeight:800}}>🗳️ Anket Merkezi</div>
+      <button onClick={()=>{setMsj("");setGorunum("olustur");}} className="tap" style={{marginLeft:"auto",background:T.accent,color:T.bg0,border:0,borderRadius:9,padding:"7px 12px",fontSize:11.5,fontWeight:800}}>＋ Yeni Anket</button>
+    </div>
+    {msj && <div style={{fontSize:11,color:msj[0]==="✓"?T.accent:T.gold,marginBottom:8}}>{msj}</div>}
+    {yuk && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:20}}>Yükleniyor…</div>}
+    {!yuk && !anketler.length && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:24,background:T.bg1,borderRadius:12,border:"0.5px dashed "+T.line}}>Henüz anket yok. “＋ Yeni Anket” ile başla.<br/><span style={{fontSize:10.5}}>(75+76 SQL çalıştırılmış olmalı.)</span></div>}
+    {anketler.map(a=><div key={a.id} onClick={()=>{setSecili(a);setGorunum("detay");}} className="tap" style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"11px 13px",marginBottom:7,cursor:"pointer"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{flex:1,fontSize:13,fontWeight:700,color:T.text,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.baslik}</span>
+        <span style={{fontSize:9,fontWeight:800,color:durumRenk[a.durum]||T.textMut,background:T.bg2,borderRadius:6,padding:"2px 8px"}}>{a.durum}</span>
+      </div>
+      <div style={{display:"flex",gap:12,fontSize:10,color:T.textMut,marginTop:6}}>
+        {a.gizli_oy&&<span>🔒 gizli</span>}{a.tip==='coklu'&&<span>çoklu</span>}
+        {a.biter&&<span>{new Date(a.biter)<=Date.now()?"bitti":("⏳ "+kalanSure(a.biter))}</span>}
+        <span style={{marginLeft:"auto"}}>{trTarih(a.created)}</span>
+      </div>
+    </div>)}
+  </div>;
+}
+
+/* ANKET DETAY — sonuç + kırılım + yorum yönetimi + durum */
+function AnketDetay({anket, T, oturum, onGeri, onDurum}){
+  const [sonuc,setSonuc]=useState([]);
+  const [hedef,setHedef]=useState(0);
+  const [katilim,setKatilim]=useState(0);
+  const [vermeyen,setVermeyen]=useState(0);
+  const [yorumlar,setYorumlar]=useState([]);
+  const [tab,setTab]=useState("sonuc");
+  useEffect(()=>{ let a=true; (async()=>{
+    const s=await Db.anketSonuc(anket.id); if(!a)return; setSonuc(s);
+    const h=await Db.anketHedefSay(anket.id); if(!a)return; setHedef(h);
+    const k=await Db.anketKatilimSay(anket.id); if(!a)return; setKatilim(k);
+    const v=await Db.anketOyVermeyenSay(anket.id); if(!a)return; setVermeyen(v);
+    const y=await Db.anketYorumlar(anket.id); if(!a)return; setYorumlar(y);
+  })(); return ()=>{a=false;}; },[anket.id]);
+  const toplam=sonuc.reduce((s,x)=>s+(x.adet||0),0);
+  const kat=hedef?Math.round(katilim/hedef*100):0;
+  const yorumSil=async(id)=>{ const r=await Db.anketYorumSil(id); if(r&&r.ok) setYorumlar(p=>p.map(y=>y.id===id?{...y,silindi:true}:y)); };
+  const dbtn=(d,l,c)=><button onClick={()=>onDurum(anket,d)} className="tap" style={{fontSize:10.5,fontWeight:700,color:c||T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:8,padding:"6px 10px"}}>{l}</button>;
+  return <div>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><button onClick={onGeri} className="tap" style={{fontSize:11,color:T.textMut,background:"none",border:0}}>‹ Geri</button><div style={{fontSize:13,fontWeight:800,flex:1,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{anket.baslik}</div><span style={{fontSize:9,fontWeight:800,color:T.accent,background:T.bg2,borderRadius:6,padding:"2px 8px"}}>{anket.durum}</span></div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+      <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 11px"}}><div style={{fontSize:8.5,color:T.textMut}}>NET HEDEF</div><div style={{fontSize:18,fontWeight:900}} className="tab">{hedef}</div></div>
+      <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 11px"}}><div style={{fontSize:8.5,color:T.textMut}}>KATILIM</div><div style={{fontSize:18,fontWeight:900,color:T.accent}} className="tab">{katilim}</div></div>
+      <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 11px"}}><div style={{fontSize:8.5,color:T.textMut}}>ORAN</div><div style={{fontSize:18,fontWeight:900}} className="tab">%{kat}</div></div>
+    </div>
+    <div style={{display:"flex",gap:6,borderBottom:"0.5px solid "+T.line,marginBottom:10}}>
+      {[["sonuc","Sonuç"],["yorum","Yorumlar ("+yorumlar.filter(y=>!y.silindi).length+")"],["yonet","Yönet"]].map(([k,l])=>
+        <button key={k} onClick={()=>setTab(k)} className="tap" style={{fontSize:12,fontWeight:700,color:tab===k?T.text:T.textMut,background:"none",border:0,borderBottom:"2px solid "+(tab===k?T.accent:"transparent"),padding:"7px 9px",marginBottom:"-1px"}}>{l}</button>)}
+    </div>
+    {tab==="sonuc" && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14}}>
+      {sonuc.map(s=>{ const yuzde=toplam?Math.round(s.adet/toplam*100):0; return <div key={s.secenek_id} style={{marginBottom:11}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:4}}><b style={{color:T.text}}>{s.metin}</b><span className="tab" style={{color:T.accent,fontWeight:800}}>%{yuzde} · {s.adet}</span></div>
+        <div style={{height:9,borderRadius:6,background:T.bg2,overflow:"hidden"}}><i style={{display:"block",height:"100%",width:yuzde+"%",background:"linear-gradient(90deg,"+T.accent+","+T.accent2+")"}}/></div>
+      </div>; })}
+      <div style={{fontSize:10.5,color:T.textMut,marginTop:8}}>Toplam {toplam} oy · Oy vermeyen: {vermeyen}{anket.gizli_oy?" · 🔒 gizli oy (lig/takım kırılımı yok)":""}</div>
+    </div>}
+    {tab==="yorum" && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"6px 14px"}}>
+      {yorumlar.map(y=><div key={y.id} style={{padding:"9px 0",borderBottom:"0.5px solid "+T.line,opacity:y.silindi?.5:1}}>
+        <div style={{fontSize:11.5}}><b style={{color:T.text}}>{y.ad}</b> {y.takim_ad&&<span style={{fontSize:9,color:T.textMut}}>· {y.takim_ad} · {y.lig_ad}</span>} <span style={{fontSize:9,color:T.textMut}}>· {trTarih(y.created)}</span>{!y.silindi&&<span onClick={()=>yorumSil(y.id)} className="tap" style={{float:"right",color:T.danger,cursor:"pointer",fontSize:10.5,fontWeight:700}}>kaldır</span>}</div>
+        <div style={{fontSize:12.5,color:T.textSoft,marginTop:3}}>{y.silindi?<i style={{color:T.textMut}}>Yönetim tarafından kaldırıldı</i>:y.metin}</div>
+      </div>)}
+      {!yorumlar.length && <div style={{fontSize:11.5,color:T.textMut,textAlign:"center",padding:16}}>Yorum yok.</div>}
+    </div>}
+    {tab==="yonet" && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14}}>
+      <div style={{fontSize:11,color:T.textMut,marginBottom:10}}>Durum işlemleri (tüm sohbetlerde eşzamanlı):</div>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+        {anket.durum!=='yayin'&&dbtn('yayin','▶ Yayınla',T.accent)}
+        {anket.durum==='yayin'&&dbtn('durdu','⏸ Durdur',T.gold)}
+        {anket.durum==='yayin'&&dbtn('bitti','⏹ Erken bitir')}
+        {dbtn('arsiv','🗄 Arşivle')}
+        {dbtn('iptal','✕ İptal et',T.danger)}
+      </div>
+    </div>}
+  </div>;
+}
+
 function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon, onDestek}){
   const [sekme,setSekme]=useState("ozet");
   const [ligler,setLigler]=useState([]);
@@ -12399,7 +12687,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
     </div>
 
     <div style={{display:"flex",gap:6,padding:"10px 14px 0"}}>
-      {[["ozet","🎯 İşlem Merkezi"],["uyeler","👥 Üyeler"],["hakemler","🧑‍⚖️ Hakemler"],["hak","🎟️ Lig Hakkı"],["ligler","🌍 Açık Ligler"],["yetki","✅ Yetkiler"],["sistem","⚙️ Sistem"]].map(([k,l])=>
+      {[["ozet","🎯 İşlem Merkezi"],["anket","🗳️ Anket"],["uyeler","👥 Üyeler"],["hakemler","🧑‍⚖️ Hakemler"],["hak","🎟️ Lig Hakkı"],["ligler","🌍 Açık Ligler"],["yetki","✅ Yetkiler"],["sistem","⚙️ Sistem"]].map(([k,l])=>
         <button key={k} onClick={()=>setSekme(k)} className="tap" style={{fontSize:11,padding:"7px 11px",borderRadius:9,fontWeight:700,background:sekme===k?T.accent:T.bg1,color:sekme===k?T.bg0:T.textMut,border:"0.5px solid "+(sekme===k?T.accent:T.line)}}>{l}</button>
       )}
     </div>
@@ -12407,6 +12695,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
 
     <div style={{padding:"12px 14px"}}>
       {yuk && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:20}}>Yükleniyor…</div>}
+
+      {!yuk && sekme==="anket" && <AnketMerkezi T={T} oturum={oturum}/>}
 
       {!yuk && sekme==="ozet" && <div>
         {/* 📢 TOPLU MESAJ / DUYURU */}
@@ -13485,6 +13775,12 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   const [medyaYuk,setMedyaYuk]=useState(false);  // medya yükleniyor
   const kayitRef=useRef(null), kayitIptalRef=useRef(false);
   const aktifTakimId = kanal.startsWith("t:") ? kanal.slice(2) : null;
+  // Bu kanalda gösterilecek aktif anketler (hedefteyse) — sohbet kartı olarak üstte
+  const [kanalAnketler,setKanalAnketler]=useState([]);
+  useEffect(()=>{ let a=true; if(!oturum){ setKanalAnketler([]); return; }
+    const lid=kulupMod?null:(turnuva&&turnuva.id); const tid=kulupMod?null:aktifTakimId; const kid=kulupMod?(kulup&&kulup.id):null;
+    Db.sohbetAnketleri(lid,tid,kid).then(x=>{ if(a) setKanalAnketler(x||[]); });
+    return ()=>{a=false;}; },[kanal, turnuva&&turnuva.id, kulupMod, oturum&&oturum.id]);
   // Üyelik: lig genelinde yalnız o ligin üyesi (kaptan/lig yön./kadroda oyuncusu olan) yazar; takım kanalında o takımın üyesi. (RLS ile de zorlanır — 63/64.)
   const yazabilirKanal = kulupMod || (aktifTakimId ? (benimTakimlar||[]).some(tk=>tk.id===aktifTakimId) : !!(ligYon || (benimTakimlar&&benimTakimlar.length>0)));
   // Gönderen adı: önce bağlı oyuncunun ad-soyadı, sonra profil adı, sonra e-postanın @ öncesi
@@ -13666,6 +13962,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     {/* MESAJLAR */}
     <div ref={kaydirRef} onScroll={scrollDinle} onClick={()=>secili&&setSecili(null)} style={{flex:1,minHeight:0,overflowY:"auto",overflowX:"hidden",overscrollBehavior:"contain",WebkitOverflowScrolling:"touch",touchAction:"pan-y",padding:"14px 12px",display:"flex",flexDirection:"column",gap:3}}>
       {eskiYuk && <div style={{textAlign:"center",color:T.textMut,fontSize:11,padding:6}}>Eski mesajlar yükleniyor…</div>}
+      {kanalAnketler.map(a=><AnketKart key={a.id} anket={a} T={T} oturum={oturum} adminMi={adminMi}/>)}
       {yuk ? <div style={{textAlign:"center",color:T.textMut,fontSize:12,padding:30}}>Yükleniyor…</div>
        : mesajlar.length===0 ? <div style={{textAlign:"center",color:T.textMut,fontSize:12.5,padding:40}}>İlk mesajı sen yaz 👋</div>
        : mesajlar.map((m,i)=>{
