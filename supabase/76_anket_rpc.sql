@@ -151,7 +151,7 @@ begin
   n := coalesce(array_length(p_secenekler,1),0);
   if n=0 then raise exception 'Seçenek seçilmedi'; end if;
   if a.tip='tek'  and n>1 then raise exception 'Bu ankette tek seçim yapılır'; end if;
-  if a.tip='coklu' and n>a.max_secim then raise exception 'En fazla '||a.max_secim||' seçim yapılabilir'; end if;
+  if a.tip='coklu' and n>a.max_secim then raise exception 'En fazla % seçim yapılabilir', a.max_secim; end if;
   if exists(select 1 from unnest(p_secenekler) x where x not in (select id from public.anket_secenek where anket_id=p_anket)) then
     raise exception 'Geçersiz seçenek'; end if;
   if a.gizli_oy then
