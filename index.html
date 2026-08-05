@@ -13908,12 +13908,15 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   const etiketUyeler = useMemo(()=>{
     const map={}; const isim=(o)=>o.gorunen_ad||o.takma_ad||o.ad_soyad||o.ad||o.isim||"";
     const ekle=(u)=>{ if(!u||!u.ad) return; const k=(u.ad).toLowerCase()+"|"+(u.player_id||u.user_id||u.takim_id||u.ad); if(!map[k]) map[k]=u; };
-    if(!kulupMod && turnuva){ const tks=(turnuva.takimlar||[]); const hedef=aktifTakimId?tks.filter(t=>t.id===aktifTakimId):tks;
+    if(!kulupMod && turnuva){
+      // En dolu lig verisi: turnuvalar içindeki eşleşen lig (kadrolar burada tam) → yoksa turnuva prop'u
+      const ligTam=(turnuvalar||[]).find(t=>t&&t.id===turnuva.id) || turnuva;
+      const tks=(ligTam.takimlar||[]); const hedef=aktifTakimId?tks.filter(t=>t.id===aktifTakimId):tks;
       if(!aktifTakimId) hedef.forEach(t=>{ if(t.ad) ekle({ad:t.ad, takim_id:t.id, takim_ad:t.ad, rol:'takim'}); });  // lig kanalı: takım adları da etiketlenebilir
       hedef.forEach(t=>{ (t.oyuncular||[]).forEach(o=>{ const ad=isim(o); if(ad) ekle({user_id:o.sahip_user_id||null, player_id:o.player_id||o.id||null, ad, foto:o.foto||null, takim_ad:t.ad, takim_id:t.id, rol:'oyuncu'}); }); }); }
     (uyeler||[]).forEach(u=>ekle(u));   // kaptan / lig_yon / hakem (ve hesaba bağlı oyuncular)
     return Object.values(map);
-  },[turnuva, aktifTakimId, kulupMod, uyeler]);
+  },[turnuva, turnuvalar, aktifTakimId, kulupMod, uyeler]);
   // @-etiket: input'ta son "@kelime"yi yakala → süzülmüş panel
   const etiketKontrol=(deger, pos)=>{ try{ const onceki=deger.slice(0,pos); const m=onceki.match(/@([\wçğıöşüÇĞİÖŞÜ]*)$/);
     if(!m){ setEtiketPanel(null); return; } const q=(m[1]||"").toLowerCase();
