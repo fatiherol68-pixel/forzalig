@@ -13900,7 +13900,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   const etiketSec=(u)=>{ // seçilen üyeyi input'a yaz
     const el=document.getElementById("fzMsgInput"); const pos=el?el.selectionStart:metin.length;
     const onceki=metin.slice(0,pos).replace(/@([\wçğıöşüÇĞİÖŞÜ]*)$/,""); const sonra=metin.slice(pos);
-    const ad=u.ad||"Takımım"; secilenEtiket.current[(ad).toLowerCase()]=u.user_id||"__takimim__";
+    const ad=u.ad||"Takımım"; secilenEtiket.current[(ad).toLowerCase()]=u.user_id||null;  // null = hesaba bağlı değil → bildirim yok
     const yeni=onceki+"@"+ad+" "+sonra; setMetin(yeni); setEtiketPanel(null);
     setTimeout(()=>{ if(el){ el.focus(); const p=(onceki+"@"+ad+" ").length; el.setSelectionRange(p,p); } },10); };
   // Metindeki @adlardan etiketlenen uid'leri çıkar (bildirim için)
@@ -13909,9 +13909,9 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
       if(uid==="__takimim__"){ (uyeler||[]).filter(u=>u.rol==="oyuncu"&&(scopeTakim? true : u.takim_ad)).forEach(u=>{ if(u.user_id&&uids.indexOf(u.user_id)<0) uids.push(u.user_id); }); }
       else if(uid&&uids.indexOf(uid)<0) uids.push(uid); } });
     return uids; };
-  // Etiketli isme tıkla → oyuncu profili
-  const oyuncuAcUid=(uid)=>{ try{ const kaynak=[turnuva].concat(turnuvalar||[]).filter(Boolean);
-    for(const tt of kaynak){ for(const tk of (tt.takimlar||[])){ const o=(tk.oyuncular||[]).find(x=>x.sahip_user_id===uid); if(o){ git({sayfa:"oyuncu",oyuncu:{...o,takimAd:tk.ad,turnuva:tt.ad,_adaylar:tk.oyuncular}}); return; } } } }catch(e){} };
+  // Etiketli isme tıkla → oyuncu profili (player_id veya user_id ile)
+  const uyeAc=(u)=>{ try{ if(!u) return; const kaynak=[turnuva].concat(turnuvalar||[]).filter(Boolean);
+    for(const tt of kaynak){ for(const tk of (tt.takimlar||[])){ const o=(tk.oyuncular||[]).find(x=>(u.player_id&&x.player_id===u.player_id)||(u.user_id&&u.user_id!=="__takimim__"&&x.sahip_user_id===u.user_id)); if(o){ git({sayfa:"oyuncu",oyuncu:{...o,takimAd:tk.ad,turnuva:tt.ad,_adaylar:tk.oyuncular}}); return; } } } }catch(e){} };
   // Mesaj metni: küfür-gizli placeholder + @etiket vurgusu (tıklanabilir)
   const mesajMetni=(m)=>{
     const benimMsj = m.user_id===(oturum&&oturum.id);
@@ -13919,7 +13919,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     const t=m.metin||""; if(t.indexOf("@")<0) return t;
     const parcalar=t.split(/(@[\wçğıöşüÇĞİÖŞÜ]+)/g);
     return parcalar.map((p,i)=>{ if(p&&p[0]==="@"){ const ad=p.slice(1).toLowerCase(); const u=(uyeler||[]).find(x=>(x.ad||"").toLowerCase()===ad);
-      return <span key={i} onClick={(e)=>{ e.stopPropagation(); if(u&&u.user_id&&u.user_id!=="__takimim__") oyuncuAcUid(u.user_id); }} style={{color:benimMsj?T.bg0:T.accent2,fontWeight:800,cursor:u?"pointer":"default",textDecoration:u?"underline":"none",textUnderlineOffset:2}}>{p}</span>; }
+      return <span key={i} onClick={(e)=>{ e.stopPropagation(); if(u) uyeAc(u); }} style={{color:benimMsj?T.bg0:T.accent2,fontWeight:800,cursor:u?"pointer":"default",textDecoration:u?"underline":"none",textUnderlineOffset:2}}>{p}</span>; }
       return p; }); };
   // Üyelik: lig genelinde yalnız o ligin üyesi (kaptan/lig yön./kadroda oyuncusu olan) yazar; takım kanalında o takımın üyesi. (RLS ile de zorlanır — 63/64.)
   const yazabilirKanal = kulupMod || (aktifTakimId ? (benimTakimlar||[]).some(tk=>tk.id===aktifTakimId) : !!(ligYon || (benimTakimlar&&benimTakimlar.length>0)));
@@ -14178,7 +14178,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
                   ? <button onClick={()=>mesajSil(m)} className="tap" style={{background:"none",border:0,color:T.danger,fontSize:11,fontWeight:700}}>🗑 Sil</button>
                   : <button onClick={()=>sikayet(m)} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:11,fontWeight:700}}>⚑ Şikâyet</button>}
                 {!benim && (ligYon) && <button onClick={()=>mesajSil(m)} className="tap" style={{background:"none",border:0,color:T.danger,fontSize:11,fontWeight:700}}>🗑 Kaldır</button>}
-                {modYetki && !benim && !m.sistem && <button onClick={()=>{ setModHedef(m); setSecili(null); }} className="tap" style={{background:"none",border:0,color:T.gold,fontSize:11,fontWeight:800}}>🛡 Moderasyon</button>}
+                {modYetki && !m.sistem && <button onClick={()=>{ setModHedef(m); setModIhlal(0); Db.ihlalOzet(m.user_id,30).then(setModIhlal); setSecili(null); }} className="tap" style={{background:"none",border:0,color:T.gold,fontSize:11,fontWeight:800}}>🛡 Moderasyon</button>}
               </div>}
             </div>
           </div>;
@@ -14203,7 +14203,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     {/* @-ETİKET OTOMATİK TAMAMLAMA */}
     {etiketPanel && (etiketPanel.items.length>0 || scopeTakim) && !cezam && <div style={{flexShrink:0,maxHeight:210,overflowY:"auto",borderTop:"0.5px solid "+T.line,background:T.bg1}}>
       {scopeTakim && "takımım".indexOf(etiketPanel.q)>-1 && <div onClick={()=>etiketSec({ad:"Takımım",user_id:"__takimim__"})} className="tap" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 14px",cursor:"pointer",borderBottom:"0.5px solid "+T.line}}><span style={{width:28,height:28,borderRadius:"50%",background:T.accent+"22",display:"grid",placeItems:"center",fontSize:14,flexShrink:0}}>👥</span><div><div style={{fontSize:12.5,fontWeight:700,color:T.accent}}>@Takımım</div><div style={{fontSize:10,color:T.textMut}}>Takımının tüm aktif oyuncuları</div></div></div>}
-      {etiketPanel.items.map(u=><div key={u.user_id} onClick={()=>etiketSec(u)} className="tap" style={{display:"flex",alignItems:"center",gap:9,padding:"8px 14px",cursor:"pointer",borderBottom:"0.5px solid "+T.line}}>
+      {etiketPanel.items.map((u,ui)=><div key={u.player_id||u.user_id||ui} onClick={()=>etiketSec(u)} className="tap" style={{display:"flex",alignItems:"center",gap:9,padding:"8px 14px",cursor:"pointer",borderBottom:"0.5px solid "+T.line}}>
         {u.foto?<img src={u.foto} alt="" style={{width:28,height:28,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>:<span style={{width:28,height:28,borderRadius:"50%",background:T.bg2,display:"grid",placeItems:"center",fontSize:12,fontWeight:800,color:T.textSoft,flexShrink:0}}>{((u.ad||"?").trim()[0]||"?").toUpperCase()}</span>}
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>@{u.ad}</div><div style={{fontSize:10,color:T.textMut}}>{u.takim_ad||""}{u.rol==="kaptan"?" · Kaptan":u.rol==="lig_yon"?" · Lig Yön.":u.rol==="hakem"?" · Hakem":""}</div></div>
       </div>)}
