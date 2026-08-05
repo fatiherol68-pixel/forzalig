@@ -13977,8 +13977,12 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     <div ref={kaydirRef} onScroll={scrollDinle} onClick={()=>secili&&setSecili(null)} style={{flex:1,minHeight:0,overflowY:"auto",overflowX:"hidden",overscrollBehavior:"contain",WebkitOverflowScrolling:"touch",touchAction:"pan-y",padding:"14px 12px",display:"flex",flexDirection:"column",gap:3}}>
       {eskiYuk && <div style={{textAlign:"center",color:T.textMut,fontSize:11,padding:6}}>Eski mesajlar yükleniyor…</div>}
       {yuk ? <div style={{textAlign:"center",color:T.textMut,fontSize:12,padding:30}}>Yükleniyor…</div>
-       : mesajlar.length===0 ? <div style={{textAlign:"center",color:T.textMut,fontSize:12.5,padding:40}}>İlk mesajı sen yaz 👋</div>
-       : mesajlar.map((m,i)=>{
+       : (()=>{
+        // Mesajlar + aktif anketler tek kronolojik akışta (anket oluşturulma zamanına oturur; yeni mesaj en altta — WhatsApp mantığı)
+        const akis=[...(mesajlar||[]).map(m=>({...m,__a:false})), ...(kanalAnketler||[]).map(a=>({__a:true,__anket:a,olusma:a.created,id:"anket:"+a.id}))].sort((x,y)=>new Date(x.olusma||0)-new Date(y.olusma||0));
+        if(!akis.length) return <div style={{textAlign:"center",color:T.textMut,fontSize:12.5,padding:40}}>İlk mesajı sen yaz 👋</div>;
+        return akis.map((m,i)=>{
+          if(m.__a) return <AnketKart key={m.id} anket={m.__anket} T={T} oturum={oturum} adminMi={adminMi}/>;
           // SİSTEM MESAJI
           if(m.sistem){
             if(m.kart && m.sistem_tip==="mac"){ const k=m.kart;
@@ -14018,7 +14022,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
           // NORMAL MESAJ
           const benim=oturum&&m.user_id===oturum.id;
           const tepk=tepkiMap[m.id]||[]; const grup={}; tepk.forEach(x=>{ grup[x.emoji]=grup[x.emoji]||{n:0,mine:false}; grup[x.emoji].n++; if(oturum&&x.user_id===oturum.id) grup[x.emoji].mine=true; });
-          const oncekiAyni = i>0 && mesajlar[i-1] && !mesajlar[i-1].sistem && mesajlar[i-1].user_id===m.user_id;
+          const oncekiAyni = i>0 && akis[i-1] && !akis[i-1].__a && !akis[i-1].sistem && akis[i-1].user_id===m.user_id;
           return <div key={m.id} style={{alignSelf:benim?"flex-end":"flex-start",maxWidth:"82%",marginTop:oncekiAyni?1:8,display:"flex",gap:8,flexDirection:benim?"row-reverse":"row"}}>
             <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0,alignSelf:"flex-end",visibility:oncekiAyni?"hidden":"visible"}} dangerouslySetInnerHTML={{__html:svgAvatar(m.ad,30,m.foto)}}/>
             <div style={{minWidth:0}}>
@@ -14048,9 +14052,8 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
               </div>}
             </div>
           </div>;
-        })}
-      {/* AKTİF ANKETLER — en altta (kronolojik olarak en yeni işlem) */}
-      {kanalAnketler.map(a=><AnketKart key={a.id} anket={a} T={T} oturum={oturum} adminMi={adminMi}/>)}
+        });
+       })()}
     </div>
 
     {/* ↓ yeni mesaj */}
