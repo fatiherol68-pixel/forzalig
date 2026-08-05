@@ -13892,10 +13892,19 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     Db.cezaAktif(scopeLig,scopeTakim,scopeKulup).then(x=>{ if(a) setCezam(x||null); });
     Db.sohbetAyarGetir(scopeLig,scopeTakim,scopeKulup).then(x=>{ if(a) setKanalAyar(x||null); });
     return ()=>{a=false;}; },[kanal, turnuva&&turnuva.id, kulupMod, oturum&&oturum.id]);
+  // Etiketlenebilir üyeler: İSTEMCİ verisinden (turnuva/takım oyuncuları — demo+gerçek hepsi) + RPC (kaptan/yönetici/hakem)
+  const etiketUyeler = useMemo(()=>{
+    const map={}; const isim=(o)=>o.gorunen_ad||o.takma_ad||o.ad_soyad||o.ad||o.isim||"";
+    const ekle=(u)=>{ if(!u||!u.ad) return; const k=(u.ad).toLowerCase()+"|"+(u.player_id||u.user_id||u.ad); if(!map[k]) map[k]=u; };
+    if(!kulupMod && turnuva){ const tks=(turnuva.takimlar||[]); (aktifTakimId?tks.filter(t=>t.id===aktifTakimId):tks).forEach(t=>{
+      (t.oyuncular||[]).forEach(o=>{ const ad=isim(o); if(ad) ekle({user_id:o.sahip_user_id||null, player_id:o.player_id||o.id||null, ad, foto:o.foto||null, takim_ad:t.ad, rol:'oyuncu'}); }); }); }
+    (uyeler||[]).forEach(u=>ekle(u));   // kaptan / lig_yon / hakem (ve hesaba bağlı oyuncular)
+    return Object.values(map);
+  },[turnuva, aktifTakimId, kulupMod, uyeler]);
   // @-etiket: input'ta son "@kelime"yi yakala → süzülmüş panel
   const etiketKontrol=(deger, pos)=>{ try{ const onceki=deger.slice(0,pos); const m=onceki.match(/@([\wçğıöşüÇĞİÖŞÜ]*)$/);
     if(!m){ setEtiketPanel(null); return; } const q=(m[1]||"").toLowerCase();
-    const items=(uyeler||[]).filter(u=>((u.ad||"").toLowerCase().indexOf(q)>-1)||("takımım".indexOf(q)>-1)).slice(0,8);
+    const items=(etiketUyeler||[]).filter(u=>((u.ad||"").toLowerCase().indexOf(q)>-1)||("takımım".indexOf(q)>-1)).slice(0,10);
     setEtiketPanel({q, items}); }catch(e){ setEtiketPanel(null); } };
   const etiketSec=(u)=>{ // seçilen üyeyi input'a yaz
     const el=document.getElementById("fzMsgInput"); const pos=el?el.selectionStart:metin.length;
@@ -13906,7 +13915,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   // Metindeki @adlardan etiketlenen uid'leri çıkar (bildirim için)
   const etiketleriTopla=(t)=>{ const uids=[]; const low=(t||"").toLowerCase();
     Object.keys(secilenEtiket.current).forEach(ad=>{ if(low.indexOf("@"+ad)>-1){ const uid=secilenEtiket.current[ad];
-      if(uid==="__takimim__"){ (uyeler||[]).filter(u=>u.rol==="oyuncu"&&(scopeTakim? true : u.takim_ad)).forEach(u=>{ if(u.user_id&&uids.indexOf(u.user_id)<0) uids.push(u.user_id); }); }
+      if(uid==="__takimim__"){ (etiketUyeler||[]).filter(u=>u.rol==="oyuncu").forEach(u=>{ if(u.user_id&&uids.indexOf(u.user_id)<0) uids.push(u.user_id); }); }
       else if(uid&&uids.indexOf(uid)<0) uids.push(uid); } });
     return uids; };
   // Etiketli isme tıkla → oyuncu profili (player_id veya user_id ile)
@@ -13918,7 +13927,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     if(m.gizli && !modYetki && !benimMsj) return <i style={{color:"inherit",opacity:.7}}>🚫 Bu mesaj uygunsuz içerik nedeniyle gizlendi.</i>;
     const t=m.metin||""; if(t.indexOf("@")<0) return t;
     const parcalar=t.split(/(@[\wçğıöşüÇĞİÖŞÜ]+)/g);
-    return parcalar.map((p,i)=>{ if(p&&p[0]==="@"){ const ad=p.slice(1).toLowerCase(); const u=(uyeler||[]).find(x=>(x.ad||"").toLowerCase()===ad);
+    return parcalar.map((p,i)=>{ if(p&&p[0]==="@"){ const ad=p.slice(1).toLowerCase(); const u=(etiketUyeler||[]).find(x=>(x.ad||"").toLowerCase()===ad);
       return <span key={i} onClick={(e)=>{ e.stopPropagation(); if(u) uyeAc(u); }} style={{color:benimMsj?T.bg0:T.accent2,fontWeight:800,cursor:u?"pointer":"default",textDecoration:u?"underline":"none",textUnderlineOffset:2}}>{p}</span>; }
       return p; }); };
   // Üyelik: lig genelinde yalnız o ligin üyesi (kaptan/lig yön./kadroda oyuncusu olan) yazar; takım kanalında o takımın üyesi. (RLS ile de zorlanır — 63/64.)
