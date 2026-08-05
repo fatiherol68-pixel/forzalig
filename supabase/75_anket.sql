@@ -21,7 +21,7 @@ create table if not exists public.anketler(
   max_secim    int  not null default 1,                -- coklu için üst sınır
   yorum_acik   boolean not null default true,
   gizli_oy     boolean not null default false,
-  oy_degistir  boolean not null default true,
+  oy_degistir  boolean not null default false,   -- varsayılan: TEK SEFER (değiştirilemez)
   sonuc_gorunur text not null default 'oydan_sonra',   -- oydan_sonra|bitince|admin|gizli
   baslar       timestamptz,
   biter        timestamptz,
