@@ -3687,6 +3687,15 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
     <span style={{fontSize:11,color:T.textSoft,fontWeight:600}}>{l}</span>
     {rozet>0 && <span style={{position:"absolute",top:8,right:"calc(50% - 24px)",background:T.danger,color:"#fff",fontSize:9,fontWeight:800,borderRadius:8,padding:"0 5px",minWidth:15,textAlign:"center"}}>{rozet>99?"99+":rozet}</span>}
   </div>;
+  // PROFİL TAMAMLAMA (V5) — mevcut verilerden türetilir; yeni tablo/kolon YOK
+  const ptAdimlar=[
+    {ad:"Profil fotoğrafı", ok:!!profilFoto},
+    {ad:"Oyuncu kariyeri", ok:!!benimOyuncum},
+    {ad:"Bir takıma bağlan", ok:!!benimTakim},
+    {ad:"İlk maçını oyna", ok:!!(benimOyuncum && (benimOyuncum.mac||0)>0)},
+  ];
+  const ptTamam=ptAdimlar.filter(a=>a.ok).length;
+  const ptYuzde=Math.round(ptTamam/ptAdimlar.length*100);
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     {/* HEADER */}
     <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"20px 16px 16px",background:"linear-gradient(120deg,"+T.accent+"3a,"+T.bg0+" 45%,"+(T.accent2||T.accent)+"22 75%,"+T.bg0+")"}}>
@@ -3779,6 +3788,19 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:700,color:T.text}}>Sorun bildir</div><div style={{fontSize:11,color:T.textMut}}>Bir aksaklık mı var? Bize anlat</div></div>
         <span style={{color:T.textMut,fontSize:18}}>›</span>
       </div>}
+
+      {/* PROFİL TAMAMLAMA (V5) — sadece giriş yapan + destek görünümü değilken + eksik varsa */}
+      {oturum && !sg && ptYuzde<100 && <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>PROFİL TAMAMLAMA</div>
+        <div style={{display:"flex",alignItems:"center",gap:14,background:"linear-gradient(135deg,"+T.accent+"14,"+T.bg1+")",border:"0.5px solid "+T.accent+"33",borderRadius:16,padding:15}}>
+          <div style={{position:"relative",width:64,height:64,flexShrink:0,borderRadius:"50%",background:"conic-gradient("+T.accent+" "+ptYuzde+"%,"+T.bg0+" 0)"}}>
+            <div style={{position:"absolute",inset:6,borderRadius:"50%",background:T.bg1,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:900,color:T.text,fontFamily:T.fontDisplay}}>%{ptYuzde}</div>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            {ptAdimlar.map((a,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,padding:"3px 0",color:T.textSoft}}><span>{a.ad}</span><span style={{color:a.ok?T.accent:T.gold,fontWeight:700}}>{a.ok?"✓":"Eksik"}</span></div>)}
+          </div>
+        </div>
+      </>}
 
       {/* ÖZET */}
       <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>ÖZET</div>
