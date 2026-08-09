@@ -12818,9 +12818,22 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
       <Kart ik="🎟️" say={uyeler.filter(u=>u.hak&&u.hak.toplam>0).length} et="yetkili"/>
     </div>
 
-    <div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"10px 14px 0",justifyContent:"center"}}>
-      {[["ozet","🎯 İşlem Merkezi"],["anket","🗳️ Anket"],["mod","🛡️ Moderasyon"],["uyeler","👥 Üyeler"],["hakemler","🧑‍⚖️ Hakemler"],["hak","🎟️ Lig Hakkı"],["ligler","🌍 Açık Ligler"],["yetki","✅ Yetkiler"],["sistem","⚙️ Sistem"]].map(([k,l])=>
-        <button key={k} onClick={()=>setSekme(k)} className="tap" style={{fontSize:11,padding:"7px 11px",borderRadius:9,fontWeight:700,whiteSpace:"nowrap",background:sekme===k?T.accent:T.bg1,color:sekme===k?T.bg0:T.textMut,border:"0.5px solid "+(sekme===k?T.accent:T.line)}}>{l}</button>
+    {/* V5 gruplu sekme şeridi — sekme anahtarları/işlevleri AYNI; sadece görsel gruplama eklendi */}
+    <div style={{padding:"10px 14px 0"}}>
+      {[
+        {g:"", t:[["ozet","🎯 İşlem Merkezi"]]},
+        {g:"İnsanlar", t:[["uyeler","👥 Üyeler"],["hakemler","🧑‍⚖️ Hakemler"],["yetki","✅ Yetkiler"]]},
+        {g:"Lig & Maç", t:[["hak","🎟️ Lig Hakkı"],["ligler","🌍 Açık Ligler"]]},
+        {g:"İletişim", t:[["anket","🗳️ Anket"]]},
+        {g:"Moderasyon", t:[["mod","🛡️ Moderasyon"]]},
+        {g:"Sistem", t:[["sistem","⚙️ Sistem"]]},
+      ].map((grp,gi)=>
+        <div key={gi} style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:7}}>
+          {grp.g && <span style={{fontSize:9,color:T.textMut,fontWeight:800,letterSpacing:0.6,textTransform:"uppercase",minWidth:52,flexShrink:0}}>{grp.g}</span>}
+          {grp.t.map(([k,l])=>
+            <button key={k} onClick={()=>setSekme(k)} className="tap" style={{fontSize:11,padding:"7px 11px",borderRadius:9,fontWeight:700,whiteSpace:"nowrap",background:sekme===k?T.accent:T.bg1,color:sekme===k?T.bg0:T.textMut,border:"0.5px solid "+(sekme===k?T.accent:T.line)}}>{l}</button>
+          )}
+        </div>
       )}
     </div>
     {mesaj && <div style={{fontSize:11,color:T.accent,textAlign:"center",padding:"8px 14px 0"}}>{mesaj}</div>}
