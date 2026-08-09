@@ -12991,12 +12991,16 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
         {(()=>{ const yetkili=uyeler.filter(u=>u.hak&&u.hak.toplam>0); const normal=uyeler.filter(u=>!(u.hak&&u.hak.toplam>0)&&!u.admin);
           const yeniSay=uyeler.filter(u=>{ try{ return (Date.now()-new Date(u.created).getTime())<7*86400000; }catch(e){ return false; } }).length;
           const askiSay=uyeler.filter(u=>yasakliMi(u.user_id)).length;
+          const futbolcuSay=uyeler.filter(u=>u.roller&&u.roller.futbolcu).length;
+          const hakemSay=uyeler.filter(u=>u.roller&&u.roller.hakem).length;
           const q=uyeAra.trim().toLowerCase();
           const gosterilen=uyeler.filter(u=>{
             if(uyeSeg==="yeni"){ try{ if((Date.now()-new Date(u.created).getTime())>=7*86400000) return false; }catch(e){ return false; } }
             else if(uyeSeg==="yetkili"){ if(!(u.hak&&u.hak.toplam>0)) return false; }
             else if(uyeSeg==="normal"){ if((u.hak&&u.hak.toplam>0)||u.admin) return false; }
             else if(uyeSeg==="askida"){ if(!yasakliMi(u.user_id)) return false; }
+            else if(uyeSeg==="futbolcu"){ if(!(u.roller&&u.roller.futbolcu)) return false; }
+            else if(uyeSeg==="hakem"){ if(!(u.roller&&u.roller.hakem)) return false; }
             if(q && !((u.ad||"").toLowerCase().indexOf(q)>-1 || (u.email||"").toLowerCase().indexOf(q)>-1)) return false;
             return true;
           });
@@ -13008,7 +13012,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           </div>
           {/* FAZ 5 — segment çipleri + arama */}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-            {[["hepsi","Tümü",uyeler.length],["yeni","Yeni 7g",yeniSay],["yetkili","Yetkili",yetkili.length],["normal","Normal",normal.length],["askida","Askıda",askiSay]].map(x=>
+            {[["hepsi","Tümü",uyeler.length],["futbolcu","⚽ Futbolcu",futbolcuSay],["hakem","🧑‍⚖️ Hakem",hakemSay],["yeni","Yeni 7g",yeniSay],["yetkili","Yetkili",yetkili.length],["normal","Normal",normal.length],["askida","Askıda",askiSay]].map(x=>
               <button key={x[0]} onClick={()=>setUyeSeg(x[0])} className="tap" style={{fontSize:11,fontWeight:700,padding:"6px 11px",borderRadius:20,border:"0.5px solid "+(uyeSeg===x[0]?T.accent:T.line),background:uyeSeg===x[0]?T.accent:T.bg1,color:uyeSeg===x[0]?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut}}>{x[1]}{x[2]>0?" · "+x[2]:""}</button>
             )}
           </div>
