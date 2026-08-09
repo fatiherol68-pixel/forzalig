@@ -3696,6 +3696,13 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   ];
   const ptTamam=ptAdimlar.filter(a=>a.ok).length;
   const ptYuzde=Math.round(ptTamam/ptAdimlar.length*100);
+  // ROLLERİM (V5) — mevcut profil.roller + adminMi'den türetilir; yeni tablo/kolon YOK
+  const _roller = sg ? ((sgProfil&&sgProfil.roller)||{}) : ((profil&&profil.roller)||{});
+  const _rolAdmin = sg ? !!sg.adminMi : !!adminMi;
+  const rollerListe=[];
+  if(_rolAdmin) rollerListe.push({ik:"🛡️", ad:"Süper Admin", renk:T.danger});
+  if(_roller.hakem) rollerListe.push({ik:"🧑‍⚖️", ad:_roller.hakem_pasif?"Hakem · pasif":"Hakem", renk:_roller.hakem_pasif?T.textMut:(T.accent2||T.accent)});
+  if(_roller.futbolcu || benimOyuncum) rollerListe.push({ik:"⚽", ad:"Futbolcu", renk:T.accent});
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     {/* HEADER */}
     <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"20px 16px 16px",background:"linear-gradient(120deg,"+T.accent+"3a,"+T.bg0+" 45%,"+(T.accent2||T.accent)+"22 75%,"+T.bg0+")"}}>
@@ -3716,6 +3723,10 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
     </div>
 
     <div style={{padding:"0 14px"}}>
+      {/* ROLLERİM (V5) — kimlik şeridi; mevcut rollerden türetilir, yeni veri yok */}
+      {oturum && rollerListe.length>0 && <div style={{display:"flex",flexWrap:"wrap",gap:7,margin:"14px 0 0"}}>
+        {rollerListe.map((r,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:800,color:r.renk,background:r.renk+"14",border:"0.5px solid "+r.renk+"44",borderRadius:20,padding:"5px 11px"}}>{r.ik} {r.ad}</span>)}
+      </div>}
       {/* KARİYER KARTIM */}
       {oturum && benimOyuncum ? <>
         <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"16px 2px 9px"}}>KARİYERİM</div>
