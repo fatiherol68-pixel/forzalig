@@ -3649,7 +3649,7 @@ function EnKart({et, o, deg, br, renk, T, takim, onClick}){
   </div>;
 }
 
-function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi}){
+function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi, bildirimListe}){
   const kariyereGit=()=>{
     if(!sahiplenme) return;
     // yerelde oyuncuyu bul
@@ -3706,6 +3706,24 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   if(_rolAdmin) rollerListe.push({ik:"🛡️", ad:"Süper Admin", renk:T.danger});
   if(_roller.hakem) rollerListe.push({ik:"🧑‍⚖️", ad:_roller.hakem_pasif?"Hakem · pasif":"Hakem", renk:_roller.hakem_pasif?T.textMut:(T.accent2||T.accent)});
   if(_roller.futbolcu || benimOyuncum) rollerListe.push({ik:"⚽", ad:"Futbolcu", renk:T.accent});
+  // BENİ BEKLEYENLER (V5) — mevcut bildirimlerden; yeni veri yok. Destek görünümünde gizli.
+  const okunmamisB = (bildirimListe||[]).filter(b=>b&&b.okundu===false).length;
+  // SON KULLANDIKLARIM (V5) — git() localStorage'a yazar; buradan okunur. Yeni veri yok.
+  let sonKullanilan=[]; try{ const _s=JSON.parse(localStorage.getItem("fl_son")||"[]"); if(Array.isArray(_s)) sonKullanilan=_s.filter(x=>x&&x.ad&&x.nav); }catch(e){ sonKullanilan=[]; }
+  // KARİYER YOLCULUĞU (V5) — mevcut istatistiklerden kilometre taşları. Not: tarih-damgalı değil (o ayrı bir DB kolonu ister).
+  const ky=[]; if(benimOyuncum){ const o=benimOyuncum;
+    ky.push({ik:"⚽", ad:"Kariyerine başladın", alt:o.poz||"Oyuncu"});
+    if(benimTakim) ky.push({ik:"🛡️", ad:benimTakim.ad+" formasını giydin", alt:"takıma katıldın"});
+    if(benimTakimT) ky.push({ik:"🏆", ad:benimTakimT.ad, alt:"ligde mücadele"});
+    if((o.mac||0)>0) ky.push({ik:"🏃", ad:"Sahaya çıktın", alt:(o.mac||0)+" maç"});
+    if((o.gol||0)>0) ky.push({ik:"🥅", ad:"Gol sevincini yaşadın", alt:"toplam "+(o.gol||0)+" gol"});
+    if((o.gol||0)>=10) ky.push({ik:"🔟", ad:(o.gol||0)+" gole ulaştın", alt:"golcü kimliği"});
+    if((o.asist||0)>0) ky.push({ik:"🅰️", ad:(o.asist||0)+" asist", alt:"paylaşımcı"});
+    if((o.mvp||0)>0) ky.push({ik:"⭐", ad:(o.mvp||0)+"× maçın adamı", alt:"MVP"});
+    if((o.ovr||0)>0) ky.push({ik:"📈", ad:"Genel reyting "+(o.ovr||0), alt:"performans"});
+  }
+  // YÖNETİM KISAYOLLARI (V5) — Yönetim, Profil içinden; sadece süper admin (destek görünümünde gizli).
+  const yonKisa=[{ik:"👥",ad:"İnsanlar",sekme:"uyeler"},{ik:"🏆",ad:"Lig & Maç",sekme:"ligler"},{ik:"🗳️",ad:"İletişim",sekme:"anket"},{ik:"🛡️",ad:"Moderasyon",sekme:"mod"},{ik:"⚙️",ad:"Sistem",sekme:"sistem"}];
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     {/* HEADER */}
     <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"20px 16px 16px",background:"linear-gradient(120deg,"+T.accent+"3a,"+T.bg0+" 45%,"+(T.accent2||T.accent)+"22 75%,"+T.bg0+")"}}>
@@ -3730,6 +3748,15 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
       {oturum && rollerListe.length>0 && <div style={{display:"flex",flexWrap:"wrap",gap:7,margin:"14px 0 0"}}>
         {rollerListe.map((r,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:800,color:r.renk,background:r.renk+"14",border:"0.5px solid "+r.renk+"44",borderRadius:20,padding:"5px 11px"}}>{r.ik} {r.ad}</span>)}
       </div>}
+      {/* BENİ BEKLEYENLER (V5) — mevcut bildirimlerden; destek görünümünde gizli */}
+      {oturum && !sg && okunmamisB>0 && <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"16px 2px 9px"}}>BENİ BEKLEYENLER</div>
+        <div onClick={()=>git({sayfa:"bildirim"})} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:12,background:"linear-gradient(135deg,"+T.gold+"1e,"+T.bg1+" 60%)",border:"0.5px solid "+T.gold+"44",borderRadius:14,padding:"13px 14px",cursor:"pointer"}}>
+          <span style={{width:40,height:40,flexShrink:0,borderRadius:12,background:T.gold+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>🔔</span>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>{okunmamisB} okunmamış bildirim</div><div style={{fontSize:11,color:T.textMut,marginTop:1}}>dokun → hepsini gör</div></div>
+          <span style={{background:T.danger,color:"#fff",fontSize:11,fontWeight:800,borderRadius:9,padding:"2px 8px",minWidth:20,textAlign:"center"}}>{okunmamisB>99?"99+":okunmamisB}</span>
+        </div>
+      </>}
       {/* KARİYER KARTIM */}
       {oturum && benimOyuncum ? <>
         <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"16px 2px 9px"}}>KARİYERİM</div>
@@ -3778,6 +3805,22 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
         </div>
       </>}
 
+      {/* KARİYER YOLCULUĞU (V5) — kilometre taşları (mevcut istatistiklerden; tarih-damgasız) */}
+      {oturum && benimOyuncum && ky.length>0 && <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>KARİYER YOLCULUĞU</div>
+        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:16,padding:"6px 14px 10px"}}>
+          {ky.map((k,i)=><div key={i} style={{display:"flex",gap:12,alignItems:"stretch",padding:"7px 0"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
+              <span style={{width:30,height:30,borderRadius:"50%",background:T.accent+"1e",border:"1px solid "+T.accent+"55",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>{k.ik}</span>
+              {i<ky.length-1 && <span style={{width:2,flex:1,minHeight:12,background:T.line,marginTop:2}}/>}
+            </div>
+            <div style={{flex:1,minWidth:0,paddingTop:5}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{k.ad}</div>
+              <div style={{fontSize:10.5,color:T.textMut,marginTop:1}}>{k.alt}</div>
+            </div>
+          </div>)}
+        </div>
+      </>}
       {/* HIZLI ERİŞİM */}
       {oturum && <>
         <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>HIZLI ERİŞİM</div>
@@ -3786,6 +3829,16 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
           <QA ik="🔔" l="Bildirim" renk={T.gold} onClick={()=>git({sayfa:"bildirim"})}/>
           <QA ik="⭐" l="Takip" renk={T.accent} rozet={toplamTakip} onClick={()=>git({sayfa:"takip"})}/>
           <QA ik="🏆" l="En'ler" renk={T.purple||"#7c4dff"} onClick={()=>git({sayfa:"tumenler"})}/>
+        </div>
+      </>}
+
+      {/* SON KULLANDIKLARIM (V5) — son bakılan lig/oyuncu (localStorage); destek görünümünde gizli */}
+      {oturum && !sg && sonKullanilan.length>0 && <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>SON KULLANDIKLARIM</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
+          {sonKullanilan.map((s,i)=><button key={i} onClick={()=>{ try{ git(s.nav); }catch(e){} }} className="tap" style={{display:"inline-flex",alignItems:"center",gap:6,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:20,padding:"7px 12px",color:T.textSoft,fontSize:11.5,fontWeight:600,cursor:"pointer"}}>
+            <span>{s.tur==="turnuva"?"🏆":"👤"}</span><span style={{maxWidth:130,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.ad}</span>
+          </button>)}
         </div>
       </>}
 
@@ -3813,6 +3866,16 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
           <div style={{flex:1,minWidth:0}}>
             {ptAdimlar.map((a,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,padding:"3px 0",color:T.textSoft}}><span>{a.ad}</span><span style={{color:a.ok?T.accent:T.gold,fontWeight:700}}>{a.ok?"✓":"Eksik"}</span></div>)}
           </div>
+        </div>
+      </>}
+
+      {/* YÖNETİM — Profil içinden hızlı giriş; sadece süper admin (destek görünümünde gizli) */}
+      {oturum && !sg && adminMi && <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>YÖNETİM — HIZLI GİRİŞ</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
+          {yonKisa.map((y,i)=><button key={i} onClick={()=>git({sayfa:"admin",adminSekme:y.sekme})} className="tap kart-hover" style={{flex:"1 1 28%",display:"flex",flexDirection:"column",alignItems:"center",gap:6,background:"linear-gradient(140deg,"+T.danger+"12,"+T.bg1+")",border:"0.5px solid "+T.danger+"33",borderRadius:13,padding:"13px 6px",color:T.textSoft,cursor:"pointer"}}>
+            <span style={{fontSize:19}}>{y.ik}</span><span style={{fontSize:10.5,fontWeight:800,color:T.text}}>{y.ad}</span>
+          </button>)}
         </div>
       </>}
 
@@ -12453,8 +12516,8 @@ function RadyoYonetim({T, oturum}){
     </div>)}
   </div>;
 }
-function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon, onDestek}){
-  const [sekme,setSekme]=useState("ozet");
+function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon, onDestek, baslangicSekme}){
+  const [sekme,setSekme]=useState(baslangicSekme||"ozet");
   const [ligler,setLigler]=useState([]);
   const [yetkiler,setYetkiler]=useState([]);
   const [yuk,setYuk]=useState(true);
@@ -15624,6 +15687,8 @@ function App(){
     // Maç açılıyorsa ağır detayı tembel getir (istatistik/ratingler/medya)
     if(n && n.mac && n.mac._tamDegil && n.mac.id){ macTamYukle(n.mac).then(m=>{ if(m) setNav(cur=> (cur&&cur.mac&&cur.mac.id===m.id)?{...cur,mac:{...m}}:cur); }); }
     titret(); setNavGecmis(p=>[...p, nav]); setNav(n); try{ window.history.replaceState({...(window.history.state||{}), sy:window.scrollY}, ""); window.history.pushState({fz:1},"",URL_FOR(n)); }catch(e){} window.scrollTo(0,0); try{ if(n&&n.sayfa) Db.olayYaz(oturum,'sayfa',n.sayfa); }catch(e){}
+    // SON KULLANDIKLARIM (V5) — profilde göstermek için son bakılan lig/oyuncu (localStorage; yeni veri/tablo YOK)
+    try{ if(n&&(n.sayfa==="oyuncu"||n.sayfa==="turnuva")){ const ad=(n.oyuncu&&n.oyuncu.ad)||(n.turnuva&&n.turnuva.ad)||""; if(ad){ const nav2=n.sayfa==="turnuva"?{sayfa:"turnuva",turnuva:{id:n.turnuva.id,ad:n.turnuva.ad,_ozet:true}}:{sayfa:"oyuncu",oyuncu:n.oyuncu}; const kayit={tur:n.sayfa,ad,nav:nav2}; let arr=[]; try{ arr=JSON.parse(localStorage.getItem("fl_son")||"[]"); }catch(e2){} if(!Array.isArray(arr))arr=[]; arr=arr.filter(x=>x&&!(x.tur===kayit.tur&&x.ad===kayit.ad)); arr.unshift(kayit); arr=arr.slice(0,6); localStorage.setItem("fl_son",JSON.stringify(arr)); } } }catch(e){}
   };
   const geriIc=()=>{ setNavGecmis(p=>{ if(p.length===0){ setNav({sayfa:"ana"}); return p; } const son=p[p.length-1]; setNav(son); return p.slice(0,-1); }); window.scrollTo(0,0); };
   const geriIcRef=useRef(geriIc); geriIcRef.current=geriIc;
@@ -16107,10 +16172,10 @@ function App(){
       case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
       case "sohbet": icerik=<SohbetSayfa T={T} git={git} geri={geri} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} kulup={nav.kulup} adminMi={etkinAdminMi} turnuvalar={turnuvalar} saltOkunur={saltOkunur}/>; break;
       case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
-      case "profil": icerik = <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil} destekBilgi={destek?{uid:destek.uid, ad:destek.ad, profil:destekProfil, adminMi:destekAdminMi}:null}/>; break;
+      case "profil": icerik = <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil} destekBilgi={destek?{uid:destek.uid, ad:destek.ad, profil:destekProfil, adminMi:destekAdminMi}:null} bildirimListe={gercekBildirim}/>; break;
       case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
       case "sorun": icerik=<SorunBildir T={T} git={git} oturum={oturum} teshis={teshisUret()}/>; break;
-      case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
+      case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} baslangicSekme={nav.adminSekme} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
       case "ayar": icerik = destek ? destekKapali : <Ayarlar T={T} stilKey={stilKey} setStilKey={setStilKey} renkKey={renkKey} setRenkKey={setRenkKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
       default: icerik=<AnaSayfa turnuvalar={turnuvalar} T={T} git={git}/>;
