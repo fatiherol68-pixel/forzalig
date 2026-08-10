@@ -1547,6 +1547,15 @@ const Db = {
   // ---- Olaylar (gol/asist/kart) ----
   async olayEkle(macId, pid, takimId, tip, dakika){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('mac_olaylari').insert({mac_id:macId, player_id:pid, takim_id:takimId||null, tip, dakika:dakika||null}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async macOlaylari(macId){ if(!sb) return []; try{ const {data}=await sb.from('mac_olaylari').select('*').eq('mac_id',macId); return data||[]; }catch(e){ return []; } },
+  // Kariyer Zaman Tüneli — bir oyuncunun takımının oynanmış maçları (tarih + o maçtaki gol/asist/MVP). Yeni tablo YOK; mevcut maclar (public) okunur.
+  async oyuncuKariyerMaclari(takimId, oyuncuAd){ if(!sb||!takimId||!oyuncuAd) return []; try{
+    const {data,error}=await sb.from('maclar').select('tarih,hafta,olaylar,mvp,ev_takim_id,dep_takim_id,ev_skor,dep_skor').or('ev_takim_id.eq.'+takimId+',dep_takim_id.eq.'+takimId).eq('oynandi',true).limit(400);
+    if(error) return [];
+    return (data||[]).map(m=>{ const ev=Array.isArray(m.olaylar)?m.olaylar:[];
+      const gol=ev.filter(o=>o&&o.tip==='gol'&&o.oyuncu===oyuncuAd).length;
+      const asist=ev.filter(o=>o&&o.tip==='gol'&&o.asist===oyuncuAd).length;
+      return {tarih:m.tarih||'', hafta:m.hafta||null, gol, asist, mvp:(m.mvp===oyuncuAd)}; });
+  }catch(e){ return []; } },
   // ---- Katılım (madde 20) ----
   async katilimIsaretle(macId, pid, durum){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('katilim').upsert({mac_id:macId, player_id:pid, durum, guncelleme:new Date().toISOString()},{onConflict:'mac_id,player_id'}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async katilim(macId){ if(!sb) return []; try{ const {data}=await sb.from('katilim').select('*').eq('mac_id',macId); return data||[]; }catch(e){ return []; } },
@@ -3661,6 +3670,7 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
     else if(sahiplenme.lig_slug){ window.location.href=PAYLASIM_URL(sahiplenme.lig_slug); }
   };
   const tumOyuncular=useMemo(()=>Motor.tumOyuncular(turnuvalar),[turnuvalar]);
+  const [kztMac,setKztMac]=useState(null);   // Kariyer Zaman Tüneli — oyuncunun tarihli maçları (null=henüz yüklenmedi)
   // takip edilen oyuncu/takım/lig sayıları
   const takipOyuncuList = tumOyuncular.filter(o=> (takipOyuncu||[]).includes(o.id));
   const takipTakimList=[]; turnuvalar.forEach(t=>t.takimlar.forEach(tk=>{ if((takipTakim||[]).includes(tk.id)) takipTakimList.push({...tk,turnuva:t.ad,_t:t}); }));
@@ -3708,6 +3718,19 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   if(_rolAdmin) rollerListe.push({ik:"🛡️", ad:"Süper Admin", renk:T.danger});
   if(_roller.hakem) rollerListe.push({ik:"🧑‍⚖️", ad:_roller.hakem_pasif?"Hakem · pasif":"Hakem", renk:_roller.hakem_pasif?T.textMut:(T.accent2||T.accent)});
   if(_roller.futbolcu || benimOyuncum) rollerListe.push({ik:"⚽", ad:"Futbolcu", renk:T.accent});
+  // KARİYER ZAMAN TÜNELİ (V5) — mevcut maclar tablosundan tarihli olaylar çekilir; yeni tablo YOK.
+  useEffect(()=>{ let a=true; const tId=benimTakim&&benimTakim.id, ad=benimOyuncum&&benimOyuncum.ad;
+    if(oturum && tId && ad){ Db.oyuncuKariyerMaclari(tId, ad).then(l=>{ if(a) setKztMac(Array.isArray(l)?l:[]); }).catch(()=>{ if(a) setKztMac([]); }); }
+    else setKztMac(null);
+    return ()=>{a=false;};
+  },[benimTakim&&benimTakim.id, benimOyuncum&&benimOyuncum.ad, oturum]);
+  const _kztPd=(t)=>{ try{ let s=""+t; s=s.includes("-")?s:s.split(".").reverse().join("-"); const d=new Date(s); return isNaN(d.getTime())?0:d.getTime(); }catch(e){ return 0; } };
+  const _kztFmt=(t)=>{ const s=""+t; const m=s.includes("-")?s.split("-"):s.split(".").reverse(); if(m.length<3) return s; const A=["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"]; return (parseInt(m[2],10)||"")+" "+(A[(parseInt(m[1],10)||1)-1]||"")+" "+m[0]; };
+  const kztTarihli=(kztMac||[]).filter(m=>m.tarih && (""+m.tarih).length>=8).sort((a,b)=>_kztPd(b.tarih)-_kztPd(a.tarih));
+  const kztOlay=[];
+  kztTarihli.forEach(m=>{ if(m.mvp) kztOlay.push({t:m.tarih, ik:"⭐", ad:"Maçın adamı seçildin"}); if((m.gol||0)>0) kztOlay.push({t:m.tarih, ik:"⚽", ad:m.gol+" gol"+((m.asist||0)>0?" + "+m.asist+" asist":"")+" attın"}); });
+  if(kztTarihli.length){ const ilk=kztTarihli[kztTarihli.length-1]; kztOlay.push({t:ilk.tarih, ik:"🏁", ad:"İlk maçına çıktın"}); }
+  const kztGoster=kztOlay.slice(0,12);
   // BENİ BEKLEYENLER (V5) — mevcut bildirimlerden; yeni veri yok. Destek görünümünde gizli.
   const okunmamisB = (bildirimListe||[]).filter(b=>b&&b.okundu===false).length;
   // SON KULLANDIKLARIM (V5) — git() localStorage'a yazar; buradan okunur. Yeni veri yok.
@@ -3807,8 +3830,25 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
         </div>
       </>}
 
-      {/* KARİYER YOLCULUĞU (V5) — kilometre taşları (mevcut istatistiklerden; tarih-damgasız) */}
-      {oturum && benimOyuncum && ky.length>0 && <>
+      {/* KARİYER ZAMAN TÜNELİ (V5) — tarihli gerçek olaylar (maclar tablosundan) */}
+      {oturum && kztGoster.length>0 && <>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>KARİYER ZAMAN TÜNELİ</div>
+        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:16,padding:"6px 14px 10px"}}>
+          {kztGoster.map((k,i)=><div key={i} style={{display:"flex",gap:12,alignItems:"stretch",padding:"7px 0"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
+              <span style={{width:30,height:30,borderRadius:"50%",background:T.gold+"1e",border:"1px solid "+T.gold+"55",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>{k.ik}</span>
+              {i<kztGoster.length-1 && <span style={{width:2,flex:1,minHeight:12,background:T.line,marginTop:2}}/>}
+            </div>
+            <div style={{flex:1,minWidth:0,paddingTop:4}}>
+              <div style={{fontSize:12.5,fontWeight:700,color:T.text}}>{k.ad}</div>
+              <div style={{fontSize:10.5,color:T.gold,marginTop:1,fontWeight:700}}>📅 {_kztFmt(k.t)}</div>
+            </div>
+          </div>)}
+        </div>
+      </>}
+
+      {/* KARİYER YOLCULUĞU (V5) — kilometre taşları (tarih-damgasız); yalnızca tarihli olay yoksa */}
+      {oturum && benimOyuncum && ky.length>0 && kztGoster.length===0 && <>
         <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:0.8,margin:"18px 2px 9px"}}>KARİYER YOLCULUĞU</div>
         <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:16,padding:"6px 14px 10px"}}>
           {ky.map((k,i)=><div key={i} style={{display:"flex",gap:12,alignItems:"stretch",padding:"7px 0"}}>
