@@ -7402,6 +7402,29 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     return ev;
   },[o.id]);
 
+  // KARİYER ZAMAN TÜNELİ — bellekteki (yüklü/demo) maçlardan GERÇEK olaylar; tarih varsa tarih, yoksa hafta. Yeni veri YOK.
+  const kztOlay=useMemo(()=>{
+    let tk=null, tur=null;
+    for(const t of (turnuvalar||[])){ for(const k of (t.takimlar||[])){ if((k.oyuncular||[]).some(p=>p&&(p.id===o.id||p.ad===o.ad))){ tk=k; tur=t; break; } } if(tk) break; }
+    if(!tur||!tk) return [];
+    const maclar=(tur.maclar||[]).filter(m=>m&&m.oynandi && (m.takimAId===tk.id||m.takimBId===tk.id||m.takimA===tk.ad||m.takimB===tk.ad));
+    const pd=(t)=>{ try{ let s=""+t; s=s.includes("-")?s:s.split(".").reverse().join("-"); const d=new Date(s); return isNaN(d.getTime())?0:d.getTime(); }catch(e){ return 0; } };
+    const fmt=(t)=>{ const s=""+t; const m=s.includes("-")?s.split("-"):s.split(".").reverse(); if(m.length<3) return s; const A=["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"]; return (parseInt(m[2],10)||"")+" "+(A[(parseInt(m[1],10)||1)-1]||"")+" "+m[0]; };
+    const eord=(m)=>{ const tarihli=m.tarih&&(""+m.tarih).length>=8; return tarihli?pd(m.tarih):(1000000+(m.hafta||0)); };
+    const elbl=(m)=>{ const tarihli=m.tarih&&(""+m.tarih).length>=8; return tarihli?fmt(m.tarih):(m.hafta?(m.hafta+". Hafta"):""); };
+    const olay=[];
+    maclar.forEach(m=>{ const ev=Array.isArray(m.olaylar)?m.olaylar:[];
+      const gol=ev.filter(x=>x&&x.tip==='gol'&&(x.oyuncuId===o.id||x.oyuncu===o.ad)).length;
+      const asist=ev.filter(x=>x&&x.tip==='gol'&&(x.asistId===o.id||x.asist===o.ad)).length;
+      const mvp=(m.mvpId===o.id||m.mvp===o.ad);
+      if(mvp) olay.push({ik:"⭐",ad:"Maçın adamı seçildi",lbl:elbl(m),ord:eord(m)});
+      if(gol>0) olay.push({ik:"⚽",ad:gol+" gol"+(asist>0?" + "+asist+" asist":""),lbl:elbl(m),ord:eord(m)});
+    });
+    olay.sort((a,b)=>b.ord-a.ord);
+    if(maclar.length){ let ilk=maclar[0]; maclar.forEach(m=>{ if(eord(m)<eord(ilk)) ilk=m; }); olay.push({ik:"🏁",ad:"İlk maçına çıktı",lbl:elbl(ilk),ord:-1}); }
+    return olay.slice(0,14);
+  },[o&&o.id, o&&o.ad, turnuvalar]);
+
   const SEKMELER=[["akis","Akış"],["genel","Genel"],["ist","İstatistik"],["mac","Maç Geçmişi"],["lisans","🎫 Lisans"]];
   const renkCifti = T.renkCifti||["#000","#fff"];
 
@@ -7519,6 +7542,20 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
 
     {/* ===== AKIŞ ===== */}
     {sekme==="akis" && <div className="fade-in" style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:9}}>
+      {/* KARİYER ZAMAN TÜNELİ (V5) — gerçek maç olayları (tarih/hafta). Boşsa gösterilmez. */}
+      {kztOlay.length>0 && <div style={{background:T.bg1,borderRadius:12,padding:"6px 13px 10px",border:"0.5px solid "+T.line}}>
+        <div style={{fontSize:10,color:T.gold,fontWeight:800,letterSpacing:.7,padding:"9px 0 4px"}}>🏆 KARİYER ZAMAN TÜNELİ</div>
+        {kztOlay.map((k,i)=><div key={i} style={{display:"flex",gap:11,alignItems:"stretch",padding:"6px 0"}}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
+            <span style={{width:28,height:28,borderRadius:"50%",background:T.gold+"1e",border:"1px solid "+T.gold+"55",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>{k.ik}</span>
+            {i<kztOlay.length-1 && <span style={{width:2,flex:1,minHeight:10,background:T.line,marginTop:2}}/>}
+          </div>
+          <div style={{flex:1,minWidth:0,paddingTop:3}}>
+            <div style={{fontSize:12.5,fontWeight:700,color:T.text}}>{k.ad}</div>
+            {k.lbl && <div style={{fontSize:10.5,color:T.gold,marginTop:1,fontWeight:700}}>📅 {k.lbl}</div>}
+          </div>
+        </div>)}
+      </div>}
       {akisOlaylar.map((e,i)=>
         <div key={i} style={{background:T.bg1,borderRadius:12,padding:"11px 12px",border:"0.5px solid "+T.line,borderLeft:"3px solid "+e.renk}}>
           <div style={{fontSize:9,color:e.renk,fontWeight:700,letterSpacing:.5}}>{e.et}{e.za?" · "+e.za:""}</div>
