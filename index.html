@@ -4405,6 +4405,48 @@ function FidanKart({T}){
 
 /* FİDAN AYARI (Süper Admin) — oranı belirle: kaç golde kaç fidan. sistem_ayar'a yazar.
    kaydet = anahtarCevir (Db.ayarYaz + anahtarlar state günceller). */
+/* ANASAYFA VİTRİNİ YÖNETİMİ (Süper Admin) — sponsorlar/haberler/iletişim → sistem_ayar (JSON). */
+function IcerikYonetim({anahtarlar, kaydet, T}){
+  const A=anahtarlar||{};
+  const pl=(k)=>{ try{ const v=JSON.parse(A[k]||"[]"); return Array.isArray(v)?v:[]; }catch(e){ return []; } };
+  const spInit=pl('sponsorlar').map(s=>[s.ad,s.url||"",s.renk||""].filter((x,i)=>i<1||x).join(" | ")).join("\n");
+  const hbInit=pl('haberler').map(h=>[h.baslik,h.metin||""].filter((x,i)=>i<1||x).join(" | ")).join("\n");
+  let iletInit={instagram:"",whatsapp:"",mail:""}; try{ if(A.iletisim){ const o=JSON.parse(A.iletisim); iletInit={instagram:o.instagram||"",whatsapp:o.whatsapp||"",mail:o.mail||""}; } }catch(e){}
+  const [sp,setSp]=useState(spInit);
+  const [hb,setHb]=useState(hbInit);
+  const [ilet,setIlet]=useState(iletInit);
+  const [durum,setDurum]=useState("");
+  useEffect(()=>{ setSp(spInit); setHb(hbInit); setIlet(iletInit); },[anahtarlar]);
+  const kaydetHepsi=async()=>{
+    const spArr=sp.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const p=l.split("|").map(x=>x.trim()); return {ad:p[0], url:p[1]||"", renk:p[2]||""}; }).filter(x=>x.ad);
+    const hbArr=hb.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const p=l.split("|").map(x=>x.trim()); return {tip:"haber", baslik:p[0], metin:p[1]||"", tarih:""}; }).filter(x=>x.baslik);
+    await kaydet('sponsorlar', JSON.stringify(spArr));
+    await kaydet('haberler', JSON.stringify(hbArr));
+    await kaydet('iletisim', JSON.stringify({instagram:String(ilet.instagram||"").replace(/^@/,""), whatsapp:ilet.whatsapp||"", mail:ilet.mail||""}));
+    setDurum("✓ Kaydedildi — anasayfada görünür"); setTimeout(()=>setDurum(""),2600);
+  };
+  const ta={width:"100%",minHeight:60,padding:"9px 10px",borderRadius:9,background:T.bg1,border:"1px solid "+T.line,color:T.text,fontSize:12.5,lineHeight:1.5,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"};
+  const inp={flex:1,minWidth:120,padding:"8px 10px",borderRadius:9,background:T.bg1,border:"1px solid "+T.line,color:T.text,fontSize:13,boxSizing:"border-box"};
+  const lbl={fontSize:11,fontWeight:800,color:T.textSoft,margin:"12px 0 5px",letterSpacing:.3};
+  return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
+    <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>🖼️</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Anasayfa Vitrini</div></div>
+    <div style={{fontSize:10.5,color:T.textMut,marginBottom:6,lineHeight:1.5}}>Sponsorlar, haberler ve iletişim — anasayfada herkese görünür. Boş bırakırsan haberler otomatik gündemle dolar.</div>
+    <div style={lbl}>Sponsorlar <span style={{fontWeight:500,color:T.textMut}}>(her satır: Ad | link | #renk)</span></div>
+    <textarea value={sp} onChange={e=>setSp(e.target.value)} placeholder={"Kardeşler Halı Saha | https://... | #34D399"} style={ta}/>
+    <div style={lbl}>Haberler / Duyurular <span style={{fontWeight:500,color:T.textMut}}>(her satır: Başlık | metin)</span></div>
+    <textarea value={hb} onChange={e=>setHb(e.target.value)} placeholder={"Yeni sezon başladı | Kayıtlar 1 Eylül'e kadar açık."} style={ta}/>
+    <div style={lbl}>İletişim</div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+      <input value={ilet.instagram} onChange={e=>setIlet(v=>({...v,instagram:e.target.value}))} placeholder="Instagram kullanıcı adı" style={inp}/>
+      <input value={ilet.whatsapp} onChange={e=>setIlet(v=>({...v,whatsapp:e.target.value}))} placeholder="WhatsApp numara" style={inp}/>
+      <input value={ilet.mail} onChange={e=>setIlet(v=>({...v,mail:e.target.value}))} placeholder="E-posta" style={inp}/>
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginTop:12}}>
+      <button onClick={kaydetHepsi} className="tap" style={{padding:"9px 18px",borderRadius:10,background:T.accent,color:T.bg0,fontSize:12.5,fontWeight:800,border:0}}>Kaydet</button>
+      <span style={{fontSize:11.5,color:durum?T.accent:T.textMut}}>{durum}</span>
+    </div>
+  </div>;
+}
 function FidanAyar({anahtarlar, kaydet, T}){
   const A=anahtarlar||{};
   const [gol,setGol]=useState(String(A.fidan_gol_birim||"20"));
@@ -4776,6 +4818,85 @@ function EnKartV5({et, o, deg, br, renk, T, takim, onClick}){
     </div>
   </div>;
 }
+
+/* ===== TASLAKTAN GETİRİLEN VİTRİN BÖLÜMLERİ — mevcut uygulama korunur, sadece EKLENİR ===== */
+function CanliBant({items, T}){
+  if(!items||!items.length) return null;
+  const dizi=[...items,...items];
+  return <div style={{position:"relative",overflow:"hidden",borderTop:"1px solid "+T.line,borderBottom:"1px solid "+T.line,background:"linear-gradient(90deg,"+T.bg0+","+T.bg1+" 50%,"+T.bg0+")"}}>
+    <style>{"@keyframes flbant{from{transform:translateX(0)}to{transform:translateX(-50%)}}.flbant-track{display:inline-flex;align-items:center;white-space:nowrap;animation:flbant 36s linear infinite}.flbant-track:hover{animation-play-state:paused}"}</style>
+    <div className="flbant-track">
+      {dizi.map((it,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:7,padding:"9px 20px",fontSize:12,borderRight:"1px solid "+T.line}}>
+        <span style={{fontSize:13}}>{it.ik}</span>
+        <span style={{fontWeight:700,color:T.text}}>{it.a}</span>
+        {it.b && <span style={{color:T.accent,fontWeight:700}}>{it.b}</span>}
+      </span>)}
+    </div>
+    <span style={{position:"absolute",left:0,top:0,bottom:0,display:"flex",alignItems:"center",gap:6,padding:"0 12px",background:T.danger,color:"#fff",fontSize:10,fontWeight:800,letterSpacing:.8,zIndex:2,boxShadow:"8px 0 14px "+T.bg0}}>
+      <span style={{width:7,height:7,borderRadius:"50%",background:"#fff"}} className="fz-nabiz"/>CANLI
+    </span>
+  </div>;
+}
+function VitrinFifa({oyuncu, T, etiket}){
+  if(!oyuncu) return null;
+  const d=kartVerisiYap(oyuncu,null);
+  const g=(k,idx)=> (oyuncu[k]!=null?oyuncu[k]:d.stats[idx][1]);
+  const kartO={...oyuncu, ovr:(oyuncu.ovr!=null?oyuncu.ovr:d.ovr), pac:g("pac",0), sho:g("sho",1), pas:g("pas",2), dri:g("dri",3), def:g("def",4), phy:g("phy",5)};
+  return <div style={{position:"relative",overflow:"hidden",borderRadius:18,padding:"18px 14px 22px",border:"1px solid "+T.line,
+    background:"radial-gradient(80% 60% at 50% 0%,"+T.accent+"18,transparent 60%), linear-gradient(180deg,"+T.bg1+","+T.bg0+")"}}>
+    <div style={{textAlign:"center",fontSize:10,fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",color:T.gold,marginBottom:14}}>{etiket||"HAFTANIN KARTI"}</div>
+    <FifaKart o={kartO} T={T}/>
+  </div>;
+}
+function EnlerChipRow({T, git}){
+  const CATS=['⚽ Gol Kralı','🅰️ Asist Kralı','✨ Katkı Kralı','📊 Keskin Nişancı','🎩 Hat-trick','⚡ Çiftçi','🧤 En İyi Kaleci','🎯 En İyi Forvet','🛡️ En İyi Defans','🏃 Vazgeçilmez','👑 MVP','🕊️ Centilmen','🏆 En Golcü Takım','🤝 En Centilmen Takım'];
+  return <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
+    {CATS.map((c,i)=><span key={i} onClick={()=>git&&git({sayfa:"tumenler"})} className="tap" style={{fontSize:11.5,fontWeight:600,color:T.textSoft,background:T.bg1,border:"1px solid "+T.line,borderRadius:20,padding:"7px 12px",cursor:"pointer"}}>{c}</span>)}
+    <span onClick={()=>git&&git({sayfa:"tumenler"})} className="tap" style={{fontSize:11.5,fontWeight:700,color:T.accent,background:T.accent+"14",border:"1px solid "+T.accent+"3a",borderRadius:20,padding:"7px 12px",cursor:"pointer"}}>+ Tümü →</span>
+  </div>;
+}
+function HaberVitrin({haberler, T}){
+  if(!haberler||!haberler.length) return null;
+  return <div style={{display:"flex",flexDirection:"column",gap:8}}>
+    {haberler.map((h,i)=>{ const dv=(h.tip==="duyuru"); const rk=dv?T.gold:T.accent;
+      return <div key={i} style={{background:"linear-gradient(160deg,"+T.bg1+","+T.bg2+")",border:"1px solid "+T.line,borderRadius:13,padding:"13px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+          <span style={{fontSize:9,fontWeight:800,letterSpacing:.5,color:rk,background:rk+"18",border:"1px solid "+rk+"3a",borderRadius:6,padding:"2px 7px",textTransform:"uppercase"}}>{dv?"DUYURU":"HABER"}</span>
+          {h.tarih && <span style={{fontSize:10,color:T.textMut}}>{h.tarih}</span>}
+        </div>
+        <div style={{fontSize:14,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,marginBottom:h.metin?4:0}}>{h.baslik}</div>
+        {h.metin && <div style={{fontSize:12,color:T.textSoft,lineHeight:1.5}}>{h.metin}</div>}
+      </div>;
+    })}
+  </div>;
+}
+function SponsorSerit({sponsorlar, T}){
+  const list=(sponsorlar&&sponsorlar.length)?sponsorlar:null;
+  return <div style={{display:"flex",flexWrap:"wrap",gap:10,justifyContent:"center"}}>
+    {list ? list.map((s,i)=>{
+      const inner=<div style={{display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"1px solid "+T.line,borderRadius:12,padding:"11px 16px",minWidth:120,justifyContent:"center"}}>
+        <span style={{width:28,height:28,borderRadius:8,flexShrink:0,display:"grid",placeItems:"center",fontWeight:900,fontFamily:T.fontDisplay,color:"#04120a",background:s.renk||T.accent}}>{(s.ad||"?").charAt(0).toUpperCase()}</span>
+        <span style={{fontSize:13,fontWeight:700,color:T.text}}>{s.ad}</span>
+      </div>;
+      return s.url ? <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="tap" style={{textDecoration:"none"}}>{inner}</a> : <div key={i}>{inner}</div>;
+    }) : [0,1,2].map(i=><div key={i} style={{display:"flex",alignItems:"center",gap:8,background:T.bg1,border:"1px dashed "+T.line,borderRadius:12,padding:"14px 20px",color:T.textMut,fontSize:12,fontWeight:600}}>
+      <span style={{fontSize:15}}>🤝</span> Bu alan sponsora açık
+    </div>)}
+  </div>;
+}
+function IletisimBar({iletisim, T}){
+  const ig=(iletisim&&iletisim.instagram)||"forzalig";
+  const wa=iletisim&&iletisim.whatsapp;
+  const mail=iletisim&&iletisim.mail;
+  const btn=(key,href,ik,ad,alt)=><a key={key} href={href} target="_blank" rel="noopener noreferrer" className="tap kart-hover" style={{flex:1,minWidth:140,display:"flex",alignItems:"center",gap:11,background:T.bg1,border:"1px solid "+T.line,borderRadius:13,padding:"12px 14px",textDecoration:"none"}}>
+    <span style={{fontSize:20,flexShrink:0}}>{ik}</span>
+    <span style={{minWidth:0}}><span style={{display:"block",fontSize:10,color:T.textMut}}>{ad}</span><span style={{display:"block",fontSize:13,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{alt}</span></span>
+  </a>;
+  const arr=[btn("ig","https://instagram.com/"+ig,"📸","Instagram","@"+ig)];
+  if(wa) arr.push(btn("wa","https://wa.me/"+String(wa).replace(/[^0-9]/g,""),"💬","WhatsApp",wa));
+  if(mail) arr.push(btn("ml","mailto:"+mail,"✉️","E-posta",mail));
+  return <div style={{display:"flex",flexWrap:"wrap",gap:9}}>{arr}</div>;
+}
 function AnaSayfaV5({turnuvalar, T, git}){
   const aktifTurnuva = useMemo(()=>{
     const dolu = turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0);
@@ -4787,6 +4908,13 @@ function AnaSayfaV5({turnuvalar, T, git}){
     const puanla=(t)=>(t.form||[]).slice(-5).reduce((s,f)=>s+(f==="G"?3:f==="B"?1:0),0);
     return [...aktifTurnuva.takimlar].map(t=>({t,p:puanla(t)})).sort((a,b)=>b.p-a.p)[0];
   },[aktifTurnuva]);
+  // Vitrin içeriği (sponsorlar/haberler/iletişim) — süper adminden sistem_ayar'a yazılır. Boşsa zarifçe gizlenir.
+  const [icerik,setIcerik]=useState({sponsorlar:[],haberler:[],iletisim:null});
+  useEffect(()=>{ let a=true; Db.ayarlarOku().then(ay=>{ if(!a||!ay)return;
+    const jl=(k)=>{ try{ const v=JSON.parse(ay[k]||"[]"); return Array.isArray(v)?v:[]; }catch(e){ return []; } };
+    let ilet=null; try{ ilet=ay.iletisim?JSON.parse(ay.iletisim):null; }catch(e){}
+    setIcerik({sponsorlar:jl('sponsorlar'), haberler:jl('haberler'), iletisim:ilet});
+  }); return ()=>{a=false;}; },[]);
   const tumO = Motor.tumOyuncular(turnuvalar);
   const topTakim = turnuvalar.reduce((s,t)=>s+(t.takimSay!=null?t.takimSay:(t.takimlar?t.takimlar.length:0)),0);
   const topMac = turnuvalar.reduce((s,t)=>s+(t.macSay!=null?t.macSay:(t.maclar?t.maclar.length:0)),0);
@@ -4837,8 +4965,29 @@ function AnaSayfaV5({turnuvalar, T, git}){
   const oyuncuGit=(o)=>{ if(o&&git)git({sayfa:"oyuncu",oyuncu:{...o}}); };
   const takimGit=(tkm)=>{ if(tkm&&git){ const t=turnuvalar.find(x=>x.ad===tkm.turnuva); git({sayfa:"takim",takim:tkm,turnuva:t}); } };
   const haftaninOyuncusu = golK[0] || asistK[0] || null;
+  const yildizFull = haftaninOyuncusu ? (tumO.find(p=>p.id===haftaninOyuncusu.id)||haftaninOyuncusu) : null;
+  // CANLI BANT — gerçek olaylardan
+  const bantItems = [
+    {ik:"🏆", a:lider.ad+" lider", b:fark>0?("+"+fark+" puan"):"eşit"},
+    golK[0] && {ik:"⚽", a:"Gol kralı "+golK[0].ad, b:golK[0].gol+" gol"},
+    enGolluMac && {ik:"🔥", a:enGolluMac.takimA+" "+enGolluMac.skorA+"-"+enGolluMac.skorB+" "+enGolluMac.takimB},
+    {ik:"📊", a:topMac+" maç oynandı", b:topGolLig+" gol"},
+    vitrin.kaleci && {ik:"🧤", a:"En iyi kaleci "+vitrin.kaleci.ad, b:vitrin.kaleci.kurtaris+" kurtarış"},
+    vitrin.mvp && {ik:"⭐", a:"En çok MVP "+vitrin.mvp.ad, b:vitrin.mvp.mvp+" kez"},
+    enCokGolTakim && {ik:"💥", a:"En golcü "+enCokGolTakim.ad, b:enCokGolTakim.ag+" gol"},
+  ].filter(Boolean);
+  // HABERLER — süper admin girdileri + gerçek veriden otomatik gündem
+  const otoHaber = [
+    {tip:"haber", baslik:lider.ad+" zirvede", metin:lider.o+" maçta "+lider.g+" galibiyet."+(fark>0?(" İkinciye "+fark+" puan fark."):""), tarih:"bugün"},
+    golK[0] && {tip:"haber", baslik:"Gol kralı: "+golK[0].ad, metin:golK[0].gol+" gol ile listenin zirvesinde.", tarih:"bugün"},
+    {tip:"haber", baslik:"Ligde tempo yüksek", metin:tk.maclar.length+" maçta "+topGolLig+" gol · maç başı "+ortGolLig+" ortalama.", tarih:"bu hafta"},
+  ].filter(Boolean);
+  const haberlerListe = [...(icerik.haberler||[]), ...otoHaber].slice(0,6);
 
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
+
+    {/* ===== ÜSTTE AKAN CANLI BANT ===== */}
+    <CanliBant items={bantItems} T={T}/>
 
     {/* ===== V5 SİNEMATİK HERO ===== */}
     <div style={{position:"relative",overflow:"hidden",padding:"30px 20px 22px",borderBottom:"1px solid "+T.line,
@@ -4888,7 +5037,14 @@ function AnaSayfaV5({turnuvalar, T, git}){
         <EnKartV5 et="🏆 En Golcü Takım" o={vitrin.golcuTakim} deg={vitrin.golcuTakim&&vitrin.golcuTakim.ag} br="gol" renk={T.accent} T={T} takim onClick={()=>takimGit(vitrin.golcuTakim)}/>
         <EnKartV5 et="📈 En Formda" o={vitrin.formEn} deg={vitrin.formEn&&("OVR "+vitrin.formEn.ovr)} br="" renk="#27ae60" T={T} onClick={()=>oyuncuGit(vitrin.formEn)}/>
       </div>
+      <div style={{marginTop:12}}><EnlerChipRow T={T} git={git}/></div>
     </div>
+
+    {/* HAFTANIN KARTI — FIFA vitrin */}
+    {yildizFull && <div style={{padding:"22px 14px 0"}}>
+      <V5Eyebrow T={T}>Haftanın Kartı</V5Eyebrow>
+      <VitrinFifa oyuncu={yildizFull} T={T} etiket={"⚽ "+tk.ad}/>
+    </div>}
 
     {/* HAFTANIN ÖNE ÇIKANI — lider banner */}
     <div style={{padding:"22px 14px 0"}}>
@@ -5047,6 +5203,24 @@ function AnaSayfaV5({turnuvalar, T, git}){
         </div>
       )}
     </div>}
+
+    {/* HABERLER & DUYURULAR */}
+    {haberlerListe.length>0 && <div style={{padding:"20px 14px 6px"}}>
+      <V5Eyebrow T={T}>Haberler & Duyurular</V5Eyebrow>
+      <HaberVitrin haberler={haberlerListe} T={T}/>
+    </div>}
+
+    {/* SPONSORLAR */}
+    <div style={{padding:"20px 14px 6px"}}>
+      <V5Eyebrow T={T}>Sponsorlar</V5Eyebrow>
+      <SponsorSerit sponsorlar={icerik.sponsorlar} T={T}/>
+    </div>
+
+    {/* İLETİŞİM */}
+    <div style={{padding:"20px 14px 10px"}}>
+      <V5Eyebrow T={T}>İletişim</V5Eyebrow>
+      <IletisimBar iletisim={icerik.iletisim} T={T}/>
+    </div>
   </div>;
 }
 
@@ -13999,6 +14173,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
         })()}
         {/* ===== FİDAN SAYACI AYARI — kaç golde kaç fidan (tüm liglere göre) ===== */}
         <FidanAyar anahtarlar={anahtarlar} kaydet={anahtarCevir} T={T}/>
+        {/* ===== ANASAYFA VİTRİNİ — sponsorlar/haberler/iletişim ===== */}
+        <IcerikYonetim anahtarlar={anahtarlar} kaydet={anahtarCevir} T={T}/>
         {/* ===== İZLEME PANELLERİ — tek dokunuşla dış servisler (Clarity/Sentry/UptimeRobot) ===== */}
         {(()=>{ const paneller=[
             ["🎬","Clarity","Isı haritası + kayıtlar","https://clarity.microsoft.com"],
