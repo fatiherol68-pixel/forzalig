@@ -5292,8 +5292,12 @@ function AnaSayfaV6({turnuvalar, T, git}){
   const haftaOnce = Date.now()-7*864e5;
   const buHaftaMac = tk.maclar.filter(m=>{ const d=parseT(m.tarih); return (m.oynandi!==false) && d && d.getTime()>=haftaOnce; });
   const buHaftaGol = buHaftaMac.reduce((s,m)=>s+(m.skorA||0)+(m.skorB||0),0);
-  const macMerkez = bugunMac.length>0 ? bugunMac.slice(0,3) : yaklasan.slice(0,3);
-  const macMerkezTip = bugunMac.length>0 ? "bugun" : "yaklasan";
+  const oynananlar = [...tk.maclar].filter(m=>m.oynandi!==false).reverse();
+  // Maç Merkezi HER ZAMAN dolu: bugün > yaklaşan > son sonuçlar
+  let macMerkez, macMerkezTip;
+  if(bugunMac.length>0){ macMerkez=bugunMac.slice(0,3); macMerkezTip="bugun"; }
+  else if(yaklasan.length>0){ macMerkez=yaklasan.slice(0,3); macMerkezTip="yaklasan"; }
+  else { macMerkez=oynananlar.slice(0,3); macMerkezTip="oynanan"; }
   const ozet = [
     {ik:"🏆", t: fark>0?`${lider.ad} liderlikte — ikinci sıraya ${fark} puan fark var.`:`${lider.ad} liderlikte — ikinci ile eşit puanda.`},
     golK[0] && {ik:"⚽", t:`Gol kralı: ${golK[0].ad} (${golK[0].gol} gol) — maç başı ${(golK[0].gol/Math.max(1,golK[0].mac)).toFixed(1)} ortalama.`},
@@ -5347,10 +5351,12 @@ function AnaSayfaV6({turnuvalar, T, git}){
           </div>
         )}
       </div>
-      {(buHaftaMac.length>0) && <div style={{position:"relative",marginTop:14,display:"inline-flex",alignItems:"center",gap:8,background:T.accent+"14",border:"0.5px solid "+T.accent+"33",borderRadius:20,padding:"6px 12px"}}>
+      <div style={{position:"relative",marginTop:14,display:"inline-flex",alignItems:"center",gap:8,background:T.accent+"14",border:"0.5px solid "+T.accent+"33",borderRadius:20,padding:"6px 12px"}}>
         <span style={{width:6,height:6,borderRadius:"50%",background:T.accent}} className="fz-nabiz"/>
-        <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu hafta <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaMac.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaGol}</b> gol</span>
-      </div>}
+        {buHaftaMac.length>0
+          ? <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu hafta <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaMac.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaGol}</b> gol</span>
+          : <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu sezon <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{oynananlar.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{topGolLig}</b> gol</span>}
+      </div>
     </div>
 
     {/* ===== MAÇ MERKEZİ (V6 yeni) ===== */}
