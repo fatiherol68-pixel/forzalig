@@ -13529,6 +13529,11 @@ function RadyoYonetim({T, oturum}){
   const [ad,setAd]=useState("");
   const mrRef=useRef(null); const parcaRef=useRef([]); const streamRef=useRef(null); const onaRef=useRef(null);
   useEffect(()=>{ Db.radyoOku().then(l=>setListe(Array.isArray(l)?l:[])).catch(()=>setListe([])); },[]);
+  // Radyo sürüm/senkron anahtarları (bu ekranda doğrudan görünsün diye) — sistem_ayar'a yazar, ANINDA etki eder
+  const [surum,setSurum]=useState(null); const [yayin,setYayin]=useState(null);
+  useEffect(()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; setSurum(ay.radyo_surum||"v1"); try{ setYayin(ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null); }catch(e){ setYayin(null); } }); },[]);
+  const surumCevir=async(v)=>{ setSurum(v); const r=await Db.ayarYaz("radyo_surum",v); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj("✓ Radyo "+(v==="v2"?"V2 açıldı":"V1'e döndü")); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
+  const senkronCevir=async()=>{ const on=!!(yayin&&yayin.mod==="senkron"); const y=on?{mod:"kapali"}:{mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); const r=await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj(on?"✓ Senkron kapandı":"✓ Senkron açıldı — herkes aynı yayında"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
   const kaydet=async(yeni)=>{ setListe(yeni); const r=await Db.radyoYaz(yeni); if(r&&r.ok){ try{ window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj("✓ Kaydedildi"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")+" — sistem ayar yazma izni gerekir (bakım-modu anahtarıyla aynı yer)."); };
   const ekle=(url,adx,tur)=>{ const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,7); const yeni=[...(liste||[]),{id, ad:(adx||("Parça "+((liste||[]).length+1))), url, tur:tur||"klip"}]; kaydet(yeni); setAd(""); };
   const sil=(id)=>{ if(!confirm("Bu parça listeden çıkarılsın mı?")) return; kaydet((liste||[]).filter(x=>x.id!==id)); };
@@ -13546,6 +13551,24 @@ function RadyoYonetim({T, oturum}){
   const kayitBitir=()=>{ try{ if(mrRef.current&&mrRef.current.state!=="inactive") mrRef.current.stop(); }catch(e){} setKayit(false); };
   const ikon=(p)=> p&&p.tur==="anons"?"📣":p&&p.tur==="ses"?"🎙️":"🎵";
   return <div>
+    {/* 🆕 RADYO SÜRÜM ANAHTARI — bu ekranda doğrudan görünür (tek tuş, anında) */}
+    {(()=>{ const v2=surum==="v2"; const senk=!!(yayin&&yayin.mod==="senkron");
+      const sw=(on)=>({width:40,height:23,borderRadius:12,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
+      const knob=(on)=>({position:"absolute",top:2,left:on?19:2,width:17,height:17,borderRadius:"50%",background:"#fff",transition:"left .2s"});
+      return <div style={{background:"linear-gradient(160deg,"+T.accent+"16,"+T.bg1+")",border:"1px solid "+T.accent+"55",borderRadius:12,padding:"13px 14px",marginBottom:12}}>
+        <div style={{fontSize:13.5,fontWeight:800,color:T.text,marginBottom:2}}>🆕 Radyo Sürümü — tek tuş</div>
+        <div style={{fontSize:11,color:T.textMut,marginBottom:8,lineHeight:1.5}}>V2 = senkron canlı yayın + ses seviyesi + ilerleme çubuğu + beğeni + uyku. Anında etki eder; kapatınca <b style={{color:T.textSoft}}>eski radyoya</b> döner.</div>
+        <div onClick={()=>surumCevir(v2?"v1":"v2")} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderTop:"1px solid "+T.line,cursor:"pointer"}}>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,color:T.text,fontWeight:700}}>📻 Radyo V2'yi kullan</div><div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>{v2?"Açık — yeni radyo görünüyor":"Kapalı — şu an eski radyo (V1)"}</div></div>
+          <span style={sw(v2)}><span style={knob(v2)}/></span>
+        </div>
+        {v2 && <div onClick={senkronCevir} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderTop:"1px solid "+T.line,cursor:"pointer"}}>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,color:T.text,fontWeight:700}}>📡 Senkron canlı yayın</div><div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>{senk?"Açık — herkes aynı anda aynı şarkı":"Kapalı — herkes serbest dinliyor"}</div></div>
+          <span style={sw(senk)}><span style={knob(senk)}/></span>
+        </div>}
+        {surum===null && <div style={{fontSize:10.5,color:T.textMut,paddingTop:8}}>yükleniyor…</div>}
+      </div>;
+    })()}
     <div style={{background:"linear-gradient(120deg,"+T.accent2+"14,"+T.bg1+")",border:"0.5px solid "+T.accent2+"44",borderRadius:12,padding:"13px 14px",marginBottom:12}}>
       <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:4}}>📻 ForzaLig Radyo</div>
       <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.55}}>Buraya eklediğin kısa sesler, tüm kullanıcıların uygulamasında alt menünün üstünde <b style={{color:T.textSoft}}>mini-çalar</b> olarak çıkar. Liste boşken çalar görünmez. Yeni tablo/depo yok — ses mevcut depona, liste sistem ayarına kaydedilir.</div>
