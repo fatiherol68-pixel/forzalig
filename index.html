@@ -5223,6 +5223,12 @@ function AnaSayfaV5({turnuvalar, T, git}){
     </div>
   </div>;
 }
+/* ===== ANASAYFA V6 (Faz 1+) — paralel yeni anasayfa. Süper Admin 'anasayfa_surum=v6' ile açar; varsayılan=eski (V5).
+   ŞİMDİLİK güvenli iskele: V5'i birebir render eder (sıfır davranış değişikliği). Faz 1'de KPI nabzı, Enler
+   spotlight, Maç Merkezi vb. buraya eklenecek — V5'e (eskiye) hiç dokunmadan. Sorun olursa tek tuşla V5'e dönülür. */
+function AnaSayfaV6(props){
+  return <AnaSayfaV5 {...props}/>;
+}
 
 function MiniIstatBanner({buyuk, etiket, renk, T}){
   return <div style={{flex:1,textAlign:"center"}}>
@@ -14171,6 +14177,27 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             <div style={{fontSize:10.5,color:T.textMut,marginTop:9,lineHeight:1.5}}>Kapalı = kullanıcı görmez/etkilenmez · Bakım modu açıkken sadece sen düzenleyebilirsin. Anında etki eder, güncelleme beklemez.</div>
           </div>;
         })()}
+        {/* ===== 🆕 SÜRÜM & RADYO — tek tuş geri dönüş (paralel yeni tasarımları aç/kapat, ANINDA) ===== */}
+        {(()=>{ const A=anahtarlar||{};
+          const sw=(on)=>({width:36,height:20,borderRadius:11,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
+          const knob=(on)=>({position:"absolute",top:2,left:on?18:2,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"});
+          const anaV6=A.anasayfa_surum==="v6"; const radyoV2=A.radyo_surum==="v2";
+          let yayin=null; try{ yayin=A.radyo_yayin?JSON.parse(A.radyo_yayin):null; }catch(e){}
+          const senkOn=!!(yayin&&yayin.mod==="senkron");
+          const cevir=async(k,v)=>{ await anahtarCevir(k,v); try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} };
+          const senkronCevir=()=> cevir("radyo_yayin", senkOn?JSON.stringify({mod:"kapali"}):JSON.stringify({mod:"senkron",ref:Date.now(),slot:210}));
+          const satir=(et,alt,on,onClick)=><div onClick={onClick} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderBottom:"1px solid "+T.line,cursor:"pointer"}}>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,color:T.text,fontWeight:600}}>{et}</div>{alt&&<div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>{alt}</div>}</div>
+            <span style={sw(on)}><span style={knob(on)}/></span>
+          </div>;
+          return <div style={{background:"linear-gradient(160deg,"+T.accent+"12,"+T.bg1+")",border:"1px solid "+T.accent+"33",borderRadius:14,padding:"14px 15px",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>🆕</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Sürüm & Radyo — tek tuşla geri dönüş</div></div>
+            <div style={{fontSize:10.5,color:T.textMut,marginBottom:8,lineHeight:1.5}}>Yeni tasarımlar ESKİSİNE dokunmadan paralel durur. İstediğin an aç/kapat — <b>anında</b>, güncelleme beklemeden. Sorun olursa kapat, eskiye dönersin.</div>
+            {satir("📻 Radyo V2 (senkron · ses seviyesi · beğeni · uyku)", radyoV2?"Açık — yeni radyo görünüyor":"Kapalı — eski radyo (V1) çalışıyor", radyoV2, ()=>cevir("radyo_surum",radyoV2?"v1":"v2"))}
+            {radyoV2 && satir("📡 Senkron canlı yayın (herkes aynı anda aynı şarkı)", senkOn?"Açık — dinleyiciler tek yayında, sıra otomatik":"Kapalı — herkes serbest dinliyor", senkOn, senkronCevir)}
+            {satir("🏠 Yeni anasayfa (V6)", anaV6?"Açık":"Kapalı · yapım aşamasında (şimdilik eskiyle aynı)", anaV6, ()=>cevir("anasayfa_surum",anaV6?"v5":"v6"))}
+          </div>;
+        })()}
         {/* ===== FİDAN SAYACI AYARI — kaç golde kaç fidan (tüm liglere göre) ===== */}
         <FidanAyar anahtarlar={anahtarlar} kaydet={anahtarCevir} T={T}/>
         {/* ===== ANASAYFA VİTRİNİ — sponsorlar/haberler/iletişim ===== */}
@@ -15816,6 +15843,124 @@ function RadyoCalar({T, barGizle}){
     </div>}
   </>;
 }
+/* ===== RADYO V2 (Faz 1) — senkron + cila + failover. Süper Admin 'radyo_surum=v2' ile açar; varsayılan eski (V1).
+   Senkron: sunucusuz + deterministik. sistem_ayar.radyo_yayin = {mod:"senkron"|"kapali", ref:<epoch ms>, slot:<sn>}.
+   mod=senkron iken her cihaz aynı formülle aynı parçanın aynı saniyesini bulur → "herkes aynı anda aynı şarkı".
+   Yeni tablo/depo YOK: liste=radyo_liste, ses=mevcut 'fotolar' deposu. Beğeni/ses/uyku LOKAL (localStorage). */
+function RadyoCalarV2({T, barGizle}){
+  const [liste,setListe]=useState([]);
+  const [idx,setIdx]=useState(0);
+  const [calisiyor,setCalisiyor]=useState(false);
+  const [acik,setAcik]=useState(false);
+  const [ses,setSes]=useState(()=>{ try{ const v=parseFloat(localStorage.getItem("fz_radyo_ses")); return isNaN(v)?0.9:Math.min(1,Math.max(0,v)); }catch(e){ return 0.9; } });
+  const [sure,setSure]=useState(0);
+  const [toplam,setToplam]=useState(0);
+  const [begeni,setBegeni]=useState(()=>{ try{ const a=JSON.parse(localStorage.getItem("fz_radyo_begeni")||"[]"); return new Set(Array.isArray(a)?a:[]); }catch(e){ return new Set(); } });
+  const [uyku,setUyku]=useState(0);            // kalan dk (0=kapalı)
+  const [yayin,setYayin]=useState(null);        // {mod,ref,slot} senkron config
+  const audioRef=useRef(null);
+  const uykuRef=useRef(null);
+  const SLOT=(yayin&&yayin.slot)||210;          // senkron dilim (sn)
+  const yukle=()=>{ Db.radyoOku().then(l=>{ setListe(Array.isArray(l)?l.filter(x=>x&&x.url):[]); }).catch(()=>{}); };
+  const yayinOku=()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; try{ const y=ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; setYayin(y&&y.mod?y:null); }catch(e){ setYayin(null); } }).catch(()=>{}); };
+  useEffect(()=>{ yukle(); yayinOku(); const h=()=>{ yukle(); yayinOku(); }; window.addEventListener("radyo-guncelle",h); return ()=>window.removeEventListener("radyo-guncelle",h); },[]);
+  const n=liste.length;
+  const gerIdx = n? ((idx%n)+n)%n : 0;
+  const parca = n? liste[gerIdx] : null;
+  const senkronAktif = !!(yayin && yayin.mod==="senkron" && yayin.ref && n);
+  // Senkron konum: her cihaz aynı formül → aynı parça + aynı saniye
+  const senkronKonum=()=>{ if(!senkronAktif) return null; const el=(Date.now()-yayin.ref)/1000; if(el<0) return null; const top=n*SLOT; const pos=((el%top)+top)%top; return {i:Math.floor(pos/SLOT)%n, off:pos%SLOT}; };
+  const oynatDurdur=(zorla)=>{ const a=audioRef.current; if(!a||!parca) return;
+    const hedef=(typeof zorla==="boolean")?zorla:!calisiyor;
+    if(hedef){ if(a.src!==parca.url){ a.src=parca.url; } a.volume=ses; a.play().then(()=>setCalisiyor(true)).catch(()=>setCalisiyor(false)); }
+    else { a.pause(); setCalisiyor(false); }
+  };
+  const sonraki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i+1); setCalisiyor(true); };
+  const onceki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i-1); setCalisiyor(true); };
+  // parça değişince çalıyorsa yeni kaynağı çal
+  useEffect(()=>{ const a=audioRef.current; if(!a||!parca) return; if(calisiyor){ a.src=parca.url; a.volume=ses; a.play().catch(()=>{}); } },[idx]);
+  // ses seviyesi
+  useEffect(()=>{ const a=audioRef.current; if(a) a.volume=ses; try{ localStorage.setItem("fz_radyo_ses",String(ses)); }catch(e){} },[ses]);
+  // SENKRON tik: her 2 sn idx/offset düzelt (herkesi aynı yerde tut)
+  useEffect(()=>{ if(!senkronAktif) return; const tik=()=>{ const k=senkronKonum(); if(!k) return; if(k.i!==gerIdx){ setIdx(k.i); return; } const a=audioRef.current; if(a&&calisiyor&&isFinite(k.off)){ if(Math.abs((a.currentTime||0)-k.off)>2.5){ try{ a.currentTime=k.off; }catch(e){} } } };
+    tik(); const id=setInterval(tik,2000); return ()=>clearInterval(id);
+  },[senkronAktif, yayin&&yayin.ref, gerIdx, calisiyor]);
+  // uyku sayacı
+  useEffect(()=>{ if(uykuRef.current){ clearTimeout(uykuRef.current); uykuRef.current=null; } if(uyku>0){ uykuRef.current=setTimeout(()=>{ oynatDurdur(false); setUyku(0); }, uyku*60000); } return ()=>{ if(uykuRef.current) clearTimeout(uykuRef.current); }; },[uyku]);
+  // MediaSession — kilit ekranı
+  useEffect(()=>{ try{
+    if(typeof navigator==="undefined" || !("mediaSession" in navigator)) return;
+    if(parca && window.MediaMetadata){ navigator.mediaSession.metadata=new window.MediaMetadata({title:(parca.ad||"ForzaLig Radyo"), artist:(senkronAktif?"📡 Canlı Yayın":"ForzaLig Radyo"), album:"halı saha ligin cebinde"}); }
+    const set=(a,f)=>{ try{ navigator.mediaSession.setActionHandler(a,f); }catch(e){} };
+    set("play",()=>oynatDurdur(true)); set("pause",()=>oynatDurdur(false));
+    set("nexttrack",senkronAktif?null:sonraki); set("previoustrack",senkronAktif?null:onceki);
+    try{ navigator.mediaSession.playbackState=calisiyor?"playing":"paused"; }catch(e){}
+  }catch(e){} },[parca&&parca.url,calisiyor,senkronAktif]);
+  const begeniyeCevir=(p)=>{ if(!p) return; const id=p.id||p.url; setBegeni(s=>{ const y=new Set(s); if(y.has(id)) y.delete(id); else y.add(id); try{ localStorage.setItem("fz_radyo_begeni",JSON.stringify([...y])); }catch(e){} return y; }); };
+  if(!n) return null;
+  const ikon=(p)=> p&&p.tur==="anons"?"📣":p&&p.tur==="ses"?"🎙️":"🎵";
+  const fmt=(s)=>{ s=Math.max(0,Math.floor(s||0)); const m=Math.floor(s/60); const k=s%60; return m+":"+(k<10?"0":"")+k; };
+  const yuzde = toplam>0 ? Math.min(100,(sure/toplam)*100) : 0;
+  const parcaBegenili = parca && begeni.has(parca.id||parca.url);
+  return <>
+    <audio ref={audioRef} preload="none" playsInline
+      onEnded={()=>{ if(senkronAktif){ const k=senkronKonum(); if(k){ setIdx(k.i); } } else { sonraki(); } }}
+      onError={()=>{ if(!senkronAktif && n>1){ setIdx(i=>i+1); } }}
+      onTimeUpdate={e=>{ setSure(e.target.currentTime||0); }}
+      onLoadedMetadata={e=>{ setToplam(e.target.duration||0); if(senkronAktif){ const k=senkronKonum(); if(k&&isFinite(k.off)){ try{ e.target.currentTime=k.off; }catch(err){} } } }}/>
+    {!barGizle && acik && <div onClick={()=>setAcik(false)} style={{position:"fixed",inset:0,zIndex:906,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:480,background:T.bg0,borderTopLeftRadius:20,borderTopRightRadius:20,border:"0.5px solid "+T.line,padding:"10px 14px calc(18px + env(safe-area-inset-bottom))",maxHeight:"78vh",overflowY:"auto"}}>
+        <div style={{width:40,height:4,borderRadius:3,background:T.line,margin:"6px auto 12px"}}/>
+        <div style={{display:"flex",alignItems:"center",gap:8,margin:"0 2px 12px"}}>
+          <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:1}}>📻 FORZALIG RADYO</div>
+          {senkronAktif && <span style={{fontSize:9,fontWeight:800,color:T.danger,background:T.danger+"18",border:"0.5px solid "+T.danger+"55",borderRadius:20,padding:"2px 8px",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,borderRadius:"50%",background:T.danger}} className="fz-nabiz"/>CANLI · herkes aynı yayında</span>}
+        </div>
+        {/* Şu an çalan + beğeni */}
+        {parca && <div style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:13,padding:"11px 12px",marginBottom:12}}>
+          <span style={{fontSize:26,width:40,height:40,display:"grid",placeItems:"center",background:T.accent+"18",borderRadius:11}}>{ikon(parca)}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{parca.ad||"Yayın"}</div>
+            <div style={{fontSize:11,color:T.textMut,marginTop:2}}>{fmt(sure)} / {toplam?fmt(toplam):"--:--"}</div>
+          </div>
+          <button onClick={()=>begeniyeCevir(parca)} className="tap" aria-label="Beğen" style={{width:38,height:38,borderRadius:11,border:0,cursor:"pointer",background:parcaBegenili?T.danger+"1e":T.bg2,color:parcaBegenili?T.danger:T.textMut,fontSize:17}}>{parcaBegenili?"❤️":"🤍"}</button>
+        </div>}
+        {/* Ses + uyku */}
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,padding:"0 2px"}}>
+          <span style={{fontSize:15}}>🔊</span>
+          <input type="range" min="0" max="1" step="0.02" value={ses} onChange={e=>setSes(parseFloat(e.target.value))} style={{flex:1,accentColor:T.accent,height:4}}/>
+          <select value={uyku} onChange={e=>setUyku(parseInt(e.target.value)||0)} style={{fontSize:11,background:T.bg1,color:uyku?T.accent:T.textSoft,border:"0.5px solid "+T.line,borderRadius:9,padding:"6px 8px",fontWeight:700}}>
+            <option value="0">😴 Uyku</option><option value="15">15 dk</option><option value="30">30 dk</option><option value="60">60 dk</option>
+          </select>
+        </div>
+        <div style={{fontSize:10,color:T.textMut,fontWeight:800,letterSpacing:.5,margin:"2px 2px 6px"}}>ÇALMA LİSTESİ {senkronAktif && <span style={{color:T.textMut,fontWeight:600}}>(canlı yayında sıra otomatik)</span>}</div>
+        {liste.map((p,i)=>{ const bg=begeni.has(p.id||p.url); return <div key={p.id||i} onClick={()=>{ if(senkronAktif) return; setIdx(i); setCalisiyor(true); setAcik(false); }} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 8px",borderRadius:11,background:i===gerIdx?T.accent+"14":"transparent",marginBottom:2,opacity:senkronAktif&&i!==gerIdx?.5:1}}>
+          <span style={{fontSize:16,width:26,textAlign:"center"}}>{ikon(p)}</span>
+          <span style={{flex:1,minWidth:0,fontSize:13,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.ad||("Parça "+(i+1))}</span>
+          {bg && <span style={{fontSize:11}}>❤️</span>}
+          {i===gerIdx && calisiyor && <span style={{fontSize:10,color:T.accent,fontWeight:800}}>çalıyor</span>}
+        </div>; })}
+      </div>
+    </div>}
+    {!barGizle && <div style={{position:"fixed",bottom:"calc(60px + env(safe-area-inset-bottom))",left:0,right:0,maxWidth:480,margin:"0 auto",zIndex:899,background:"linear-gradient(90deg,"+T.bg2+"F5,"+T.bg1+"F5)",borderTop:"0.5px solid "+T.line,backdropFilter:"blur(8px)",boxShadow:"0 -3px 14px rgba(0,0,0,.28)"}}>
+      {/* ilerleme çubuğu */}
+      <div style={{height:3,background:T.line,position:"relative"}}><div style={{position:"absolute",left:0,top:0,bottom:0,width:yuzde+"%",background:senkronAktif?T.danger:T.accent,transition:"width .3s linear"}}/></div>
+      <div style={{display:"flex",alignItems:"center",padding:"7px 12px"}}>
+        <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>oynatDurdur()} className="tap" aria-label="Oynat/Duraklat" style={{width:38,height:38,flexShrink:0,borderRadius:"50%",border:0,cursor:"pointer",background:"linear-gradient(135deg,"+T.accent+","+(T.accent2||T.accent)+")",color:"#04140c",fontSize:16,display:"grid",placeItems:"center"}}>{calisiyor?"⏸":"▶"}</button>
+          <div onClick={()=>setAcik(true)} className="tap" style={{minWidth:0,cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,borderRadius:"50%",background:T.danger,flexShrink:0}} className={senkronAktif?"fz-nabiz":""}/><span style={{fontSize:8.5,fontWeight:800,color:T.danger,letterSpacing:.3,whiteSpace:"nowrap"}}>{senkronAktif?"CANLI YAYIN":"ForzaLig Radyo"}</span></div>
+            <div style={{fontSize:12,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>{ikon(parca)} {parca?(parca.ad||"Yayın"):"Yayın"}</div>
+          </div>
+        </div>
+        <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
+          {parca && <button onClick={()=>begeniyeCevir(parca)} className="tap" aria-label="Beğen" style={{width:32,height:32,borderRadius:9,border:0,background:"transparent",color:parcaBegenili?T.danger:T.textMut,fontSize:15}}>{parcaBegenili?"❤️":"🤍"}</button>}
+          {!senkronAktif && <button onClick={onceki} className="tap" aria-label="Önceki" style={{width:30,height:32,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏮</button>}
+          {!senkronAktif && <button onClick={sonraki} className="tap" aria-label="Sonraki" style={{width:30,height:32,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏭</button>}
+        </div>
+      </div>
+    </div>}
+  </>;
+}
 function App(){
   // ⏱️ AÇILIŞ ÖLÇÜMÜ (geçici teşhis — sadece admin görür): boot fazlarını damgala
   try{ if(!window.__FLB){ const n=(performance.getEntriesByType&&performance.getEntriesByType('navigation')[0])||{};
@@ -15922,9 +16067,14 @@ function App(){
   const [saltOkunurBase]=useState(()=> !!PAYLASIM_SLUG);
   // FAZ 3 — sistem anahtarları (bakım modu). Açılışta tek hafif okuma; kullanıcıyı yavaşlatmaz.
   const [sistemBayrak,setSistemBayrak]=useState({});
-  useEffect(()=>{ let a=true; Db.ayarlarOku().then(x=>{ if(a) setSistemBayrak(x||{}); }); return ()=>{a=false;}; },[]);
+  useEffect(()=>{ let a=true; const oku=()=>Db.ayarlarOku().then(x=>{ if(a) setSistemBayrak(x||{}); });
+    oku(); const h=()=>oku(); window.addEventListener("surum-guncelle",h);   // Süper Admin sürüm/senkron değiştirince ANINDA yeniden oku (deploy beklemeden)
+    return ()=>{a=false; window.removeEventListener("surum-guncelle",h);}; },[]);
   const bakimModu = (sistemBayrak.bakim==="1"||sistemBayrak.bakim===true) && !adminMi;  // admin hariç herkes salt-okunur
   const saltOkunur = saltOkunurBase || !!destek || bakimModu;  // destek/bakım = global salt-okunur (yazma/yetki otomatik kapanır)
+  // ===== SÜRÜM SEÇİMİ (tek tuş geri dönüş) — Süper Admin sistem_ayar'dan seçer; varsayılan=ESKİ (v5/v1). Eskiye sıfır etki.
+  const AnaComp = (sistemBayrak && sistemBayrak.anasayfa_surum==="v6") ? AnaSayfaV6 : AnaSayfaV5;
+  const RadyoComp = (sistemBayrak && sistemBayrak.radyo_surum==="v2") ? RadyoCalarV2 : RadyoCalar;
   // 👁 DESTEK MODU — kullanıcı gözünden görüntüle. Oturum DEVRALINMAZ (admin kendi oturumunda kalır).
   const destekBaslat=async(u)=>{
     if(!u||!u.user_id) return;
@@ -16859,7 +17009,7 @@ function App(){
     // Yetkisiz kişi düzenleme ekranına gelirse: kaydetmeyi engelle (sunucu RLS de engeller, bu arayüz kapısı)
     const kilitliKaydet=()=>{ alert("Bu maçı yalnızca ligin yöneticisi düzenleyebilir."); return Promise.resolve({hata:"yetki yok"}); };
     switch(nav.sayfa){
-      case "ana": icerik=<AnaSayfaV5 turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} yukleniyor={liglerYuk}/>; break;
+      case "ana": icerik=<AnaComp turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} yukleniyor={liglerYuk}/>; break;
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} ligKurYetki={etkinLigKurYetkim} saltOkunur={saltOkunur} yukleniyor={liglerYuk} oturum={oturum} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
@@ -16887,7 +17037,7 @@ function App(){
       case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} baslangicSekme={nav.adminSekme} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
       case "ayar": icerik = destek ? destekKapali : <Ayarlar T={T} stilKey={stilKey} setStilKey={setStilKey} renkKey={renkKey} setRenkKey={setRenkKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
-      default: icerik=<AnaSayfaV5 turnuvalar={turnuvalar} T={T} git={git}/>;
+      default: icerik=<AnaComp turnuvalar={turnuvalar} T={T} git={git}/>;
     }
   }
 
@@ -17113,7 +17263,7 @@ function App(){
     </div>}
 
     {/* RADYO — global mini-çalar (içerik varken görünür; sayfa değişince ses kesilmez). Kendi hata kalkanında → asla tüm uygulamayı düşürmez. */}
-    <HataSiniri sayfa="radyo" gomulu><RadyoCalar T={T} barGizle={(nav.sayfa==="sohbet"&&nav.turnuva) || ["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa)}/></HataSiniri>
+    <HataSiniri sayfa="radyo" gomulu><RadyoComp T={T} barGizle={(nav.sayfa==="sohbet"&&nav.turnuva) || ["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa)}/></HataSiniri>
 
     {/* mobil alt menü — giriş yapmış kullanıcıda salt-okunur (demo evren/destek) modda da görünür ki mahsur kalmasın */}
     {(oturum || !saltOkunur) && !(nav.sayfa==="sohbet"&&nav.turnuva) && !["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa) && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
