@@ -13613,7 +13613,7 @@ function RadyoYonetim({T, oturum}){
   const yeniListenerPC=(lid)=>{ let pc=pcMapRef.current[lid]; if(pc) return pc;
     pc=new RTCPeerConnection(ICE); pcMapRef.current[lid]=pc;
     try{ (yayinStreamRef.current.getTracks()||[]).forEach(t=>pc.addTrack(t,yayinStreamRef.current)); }catch(e){}
-    pc.onicecandidate=e=>{ if(e.candidate) sgonder("ice",{to:lid,from:myIdRef.current,cand:e.candidate}); };
+    pc.onicecandidate=e=>{ if(e.candidate){ const c=e.candidate; sgonder("ice",{to:lid,from:myIdRef.current,cand:(c.toJSON?c.toJSON():{candidate:c.candidate,sdpMid:c.sdpMid,sdpMLineIndex:c.sdpMLineIndex})}); } };
     pc.onconnectionstatechange=()=>{ const st=pc.connectionState; if(["failed","closed","disconnected"].indexOf(st)>-1){ try{pc.close();}catch(e){} delete pcMapRef.current[lid]; }
       setDinleyici(Object.keys(pcMapRef.current).filter(k=>pcMapRef.current[k].connectionState==="connected").length); };
     return pc; };
@@ -13631,7 +13631,7 @@ function RadyoYonetim({T, oturum}){
       const kanal=sb.channel("fz-radyo-canli",{config:{broadcast:{self:false}}}); canalRef.current=kanal;
       kanal.on("broadcast",{event:"hello"},async({payload})=>{ const lid=payload&&payload.from; if(!lid) return;
         const pc=yeniListenerPC(lid);
-        try{ const offer=await pc.createOffer(); await pc.setLocalDescription(offer); sgonder("offer",{to:lid,from:myIdRef.current,sdp:offer}); sgonder("duck",{level:muzikSevRef.current}); setDinleyici(Object.keys(pcMapRef.current).length); }catch(e){} });
+        try{ const offer=await pc.createOffer(); await pc.setLocalDescription(offer); sgonder("offer",{to:lid,from:myIdRef.current,sdp:{type:offer.type,sdp:offer.sdp}}); sgonder("duck",{level:muzikSevRef.current}); setDinleyici(Object.keys(pcMapRef.current).length); }catch(e){} });
       kanal.on("broadcast",{event:"answer"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.sdp){ try{ await pc.setRemoteDescription(payload.sdp); }catch(e){} } });
       kanal.on("broadcast",{event:"ice"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.cand){ try{ await pc.addIceCandidate(payload.cand); }catch(e){} } });
       kanal.subscribe(async(st)=>{
@@ -13651,13 +13651,13 @@ function RadyoYonetim({T, oturum}){
       setMesaj(izin?"🎤 Mikrofon İZNİ gerekli — adres çubuğundaki 🎤/🔒 simgesine tıkla → 'İzin ver' → tekrar 'Mikrofonu Aç'.":("Mikrofon açılamadı: "+msj)); }
   };
   const canliBitir=async()=>{
-    try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e){}   // yayıncı cihaz: normale dön
-    try{ sgonder("live-end",{from:myIdRef.current}); }catch(e){}
+    try{ sgonder("live-end",{from:myIdRef.current}); }catch(e){}   // önce uzak dinleyicilere haber
     meterDur();
     Object.keys(pcMapRef.current).forEach(k=>{ try{pcMapRef.current[k].close();}catch(e){} }); pcMapRef.current={}; setDinleyici(0);
     try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} yayinStreamRef.current=null;
     try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} canalRef.current=null;
     await Db.ayarYaz("radyo_yayin",JSON.stringify({mod:"kapali"}));
+    try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e){}   // yayıncı cihaz: normale dön + dinleyici kanalı geri kurulur (DB artık 'kapali')
     try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
     setCanli(false); setMesaj("Yayın bitti — müzik moduna dönüldü");
   };
@@ -16463,25 +16463,29 @@ function RadyoCalarV2({T, barGizle}){
     setCanliVar(true);
     let pc=dinlePcRef.current; if(pc){ try{pc.close();}catch(e){} }
     pc=new RTCPeerConnection(DICE); dinlePcRef.current=pc;
-    pc.onicecandidate=e=>{ if(e.candidate) dgonder("ice",{to:payload.from,from:dinleIdRef.current,cand:e.candidate}); };
+    pc.onicecandidate=e=>{ if(e.candidate){ const c=e.candidate; dgonder("ice",{to:payload.from,from:dinleIdRef.current,cand:(c.toJSON?c.toJSON():{candidate:c.candidate,sdpMid:c.sdpMid,sdpMLineIndex:c.sdpMLineIndex})}); } };
     pc.ontrack=e=>{ liveStreamRef.current=(e.streams&&e.streams[0])||null; setCanliDinle(true); };
     pc.onconnectionstatechange=()=>{ const st=pc.connectionState; if(st==="connected") setCanliDinle(true); if(["failed","closed","disconnected"].indexOf(st)>-1) dinleTemizle(); };
-    try{ await pc.setRemoteDescription(payload.sdp); const ans=await pc.createAnswer(); await pc.setLocalDescription(ans); dgonder("answer",{to:payload.from,from:dinleIdRef.current,sdp:ans}); }catch(e){}
+    try{ await pc.setRemoteDescription(payload.sdp); const ans=await pc.createAnswer(); await pc.setLocalDescription(ans); dgonder("answer",{to:payload.from,from:dinleIdRef.current,sdp:{type:ans.type,sdp:ans.sdp}}); }catch(e){}
   };
-  useEffect(()=>{ if(!sb) return; let aktif=true;
+  const aktifRef=useRef(false);
+  const dinleyiciKur=()=>{ if(!sb||dinleCanalRef.current) return; aktifRef.current=true;
     const kanal=sb.channel("fz-radyo-canli",{config:{broadcast:{self:false}}}); dinleCanalRef.current=kanal;
     const hello=()=>dgonder("hello",{from:dinleIdRef.current});
-    kanal.on("broadcast",{event:"live-start"},({payload})=>{ if(!aktif||benYayinciRef.current) return; setCanliVar(true); if(payload&&payload.duck!=null) setDuckSev(payload.duck); hello(); });
-    kanal.on("broadcast",{event:"duck"},({payload})=>{ if(aktif&&payload&&payload.level!=null) setDuckSev(payload.level); });
-    kanal.on("broadcast",{event:"offer"},({payload})=>{ if(aktif&&!benYayinciRef.current) teklifIsle(payload); });
-    kanal.on("broadcast",{event:"ice"},({payload})=>{ if(!aktif||!payload||payload.to!==dinleIdRef.current) return; const pc=dinlePcRef.current; if(pc&&payload.cand){ try{ pc.addIceCandidate(payload.cand); }catch(e){} } });
-    kanal.on("broadcast",{event:"live-end"},()=>{ if(aktif){ setCanliVar(false); dinleTemizle(); } });
+    kanal.on("broadcast",{event:"live-start"},({payload})=>{ if(!aktifRef.current||benYayinciRef.current) return; setCanliVar(true); if(payload&&payload.duck!=null) setDuckSev(payload.duck); hello(); });
+    kanal.on("broadcast",{event:"duck"},({payload})=>{ if(aktifRef.current&&payload&&payload.level!=null) setDuckSev(payload.level); });
+    kanal.on("broadcast",{event:"offer"},({payload})=>{ if(aktifRef.current&&!benYayinciRef.current) teklifIsle(payload); });
+    kanal.on("broadcast",{event:"ice"},({payload})=>{ if(!aktifRef.current||!payload||payload.to!==dinleIdRef.current) return; const pc=dinlePcRef.current; if(pc&&payload.cand){ try{ pc.addIceCandidate(payload.cand); }catch(e){} } });
+    kanal.on("broadcast",{event:"live-end"},()=>{ if(aktifRef.current){ setCanliVar(false); dinleTemizle(); } });
     kanal.subscribe((st)=>{ if(st==="SUBSCRIBED"){ Db.ayarlarOku().then(ay=>{ try{ const y=ay&&ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; if(y&&y.mod==="canli"&&!benYayinciRef.current){ setCanliVar(true); if(y.duck!=null) setDuckSev(y.duck); hello(); } }catch(e){} }); } });
-    return ()=>{ aktif=false; dinleTemizle(); try{ sb.removeChannel(kanal); }catch(e){} };
-  },[]);
-  // Bu cihaz yayıncı olduğunda: kendi müziğini sustur + kendi yayınını DİNLEME (aynı-cihaz çakışması + mobil ses oturumu için)
+  };
+  const dinleyiciKapat=()=>{ aktifRef.current=false; dinleTemizle(); const k=dinleCanalRef.current; dinleCanalRef.current=null; try{ k&&sb.removeChannel(k); }catch(e){} };
+  useEffect(()=>{ dinleyiciKur(); return ()=>dinleyiciKapat(); },[]);
+  // Bu cihaz yayıncı olduğunda: kendi müziğini sustur + kendi yayınını DİNLEME + kendi dinleyici kanalını KAPAT
+  // (aynı cihazda aynı topic'e iki kanal abone olunca Realtime çakışıyordu → mobil↔pc tutarsızlığı buradan geliyordu; yayında dinleyici kanalı tamamen kalkar, yayın bitince geri kurulur)
   useEffect(()=>{ const h=(e)=>{ const on=!!(e&&e.detail&&e.detail.aktif); benYayinciRef.current=on;
-      if(on){ try{ const a=audioRef.current; if(a){ a.pause(); } setCalisiyor(false); }catch(err){} dinleTemizle(); setCanliVar(false); }
+      if(on){ try{ const a=audioRef.current; if(a){ a.pause(); } setCalisiyor(false); }catch(err){} dinleyiciKapat(); setCanliVar(false); }
+      else { setCanliVar(false); dinleyiciKur(); }
     }; window.addEventListener("radyo-yayinci",h); return ()=>window.removeEventListener("radyo-yayinci",h); },[]);
   // Dinleyici autoplay kilidi: canlı yayın varken kullanıcının HERHANGİ bir dokunuşu sesi açsın (tarayıcı kuralı → tek dokunuş yeter)
   useEffect(()=>{ if(!canliVar || benYayinciRef.current) return;
