@@ -5415,15 +5415,44 @@ function AnaSayfaV6({turnuvalar, T, git}){
           <div style={{fontSize:8,color:T.textMut,letterSpacing:.5,marginTop:2}}>OVR</div>
         </div>}
       </div>}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-        <EnKartV5 et="⚽ Gol Kralı" o={vitrin.gol} deg={vitrin.gol&&vitrin.gol.gol} br="gol" renk={T.accent} T={T} onClick={()=>oyuncuGit(vitrin.gol)}/>
-        <EnKartV5 et="🎯 Asist Kralı" o={vitrin.asist} deg={vitrin.asist&&vitrin.asist.asist} br="asist" renk="#38BDF8" T={T} onClick={()=>oyuncuGit(vitrin.asist)}/>
-        <EnKartV5 et="🧤 En İyi Kaleci" o={vitrin.kaleci} deg={vitrin.kaleci&&vitrin.kaleci.kurtaris} br="kurtarış" renk="#a78bfa" T={T} onClick={()=>oyuncuGit(vitrin.kaleci)}/>
-        <EnKartV5 et="⭐ En Çok MVP" o={vitrin.mvp} deg={vitrin.mvp&&vitrin.mvp.mvp} br="kez" renk={T.gold} T={T} onClick={()=>oyuncuGit(vitrin.mvp)}/>
-        <EnKartV5 et="🏆 En Golcü Takım" o={vitrin.golcuTakim} deg={vitrin.golcuTakim&&vitrin.golcuTakim.ag} br="gol" renk={T.accent} T={T} takim onClick={()=>takimGit(vitrin.golcuTakim)}/>
-        <EnKartV5 et="📈 En Formda" o={vitrin.formEn} deg={vitrin.formEn&&("OVR "+vitrin.formEn.ovr)} br="" renk="#27ae60" T={T} onClick={()=>oyuncuGit(vitrin.formEn)}/>
-      </div>
-      <div style={{marginTop:12}}><EnlerChipRow T={T} git={git}/></div>
+      {(()=>{
+        const enler=[
+          {et:"Gol Kralı", ik:"⚽", o:vitrin.gol, deg:vitrin.gol&&vitrin.gol.gol, br:"gol", renk:T.accent},
+          {et:"Asist Kralı", ik:"🎯", o:vitrin.asist, deg:vitrin.asist&&vitrin.asist.asist, br:"asist", renk:"#38BDF8"},
+          {et:"En İyi Kaleci", ik:"🧤", o:vitrin.kaleci, deg:vitrin.kaleci&&vitrin.kaleci.kurtaris, br:"kurtarış", renk:"#a78bfa"},
+          {et:"En Çok MVP", ik:"⭐", o:vitrin.mvp, deg:vitrin.mvp&&vitrin.mvp.mvp, br:"kez", renk:T.gold},
+          {et:"En Formda", ik:"📈", o:vitrin.formEn, deg:vitrin.formEn&&vitrin.formEn.ovr, br:"OVR", renk:"#27ae60"},
+        ].filter(x=>x.o&&x.deg!=null);
+        const bant=[...enler]; if(vitrin.golcuTakim) bant.push({et:"En Golcü Takım",ik:"🏆",o:vitrin.golcuTakim,deg:vitrin.golcuTakim.ag,br:"gol",renk:T.accent});
+        return <>
+          {/* KAYAN YAZI — canlı hareketli Enler şeridi (başlık değil, içerik) */}
+          {bant.length>0 && <div style={{position:"relative",overflow:"hidden",borderRadius:12,border:"1px solid "+T.line,background:"linear-gradient(90deg,"+T.bg0+","+T.bg1+" 50%,"+T.bg0+")",marginBottom:12}}>
+            <style>{"@keyframes flbant{from{transform:translateX(0)}to{transform:translateX(-50%)}}.enler-kay{display:inline-flex;align-items:center;white-space:nowrap;animation:flbant 32s linear infinite}.enler-kay:hover{animation-play-state:paused}"}</style>
+            <div className="enler-kay">
+              {[...bant,...bant].map((x,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:7,padding:"9px 18px",fontSize:12,borderRight:"1px solid "+T.line}}>
+                <span style={{fontSize:13}}>{x.ik}</span><span style={{color:T.textMut,fontWeight:600}}>{x.et}</span><b style={{color:T.text}}>{x.o.ad}</b><b style={{color:x.renk,fontFamily:T.fontDisplay}}>{x.deg}{x.br==="OVR"?"":(" "+x.br)}</b>
+              </span>)}
+            </div>
+          </div>}
+          {/* FIFA + KPI HİBRİT MİNİ KARTLAR — yatay kayan (OVR rozeti + büyük istatistik) */}
+          <div style={{display:"flex",gap:10,overflowX:"auto",padding:"2px 0 10px",WebkitOverflowScrolling:"touch"}}>
+            {enler.map((x,i)=>{ const p=(tumO.find(q=>q.id===(x.o&&x.o.id)))||x.o; const ovr=(p&&p.ovr)||x.o.ovr;
+              return <div key={i} onClick={()=>oyuncuGit(x.o)} className="tap prem-tap" style={{flexShrink:0,width:132,borderRadius:15,overflow:"hidden",position:"relative",background:"linear-gradient(165deg,"+x.renk+"33,"+T.bg1+" 58%)",border:"1px solid "+x.renk+"55",padding:"12px 11px 13px",textAlign:"center"}}>
+                <div style={{position:"absolute",inset:0,background:"radial-gradient(circle at 50% 0%,"+x.renk+"22,transparent 60%)",pointerEvents:"none"}}/>
+                <div style={{position:"absolute",top:9,left:10,fontSize:13}}>{x.ik}</div>
+                {ovr!=null && <div style={{position:"absolute",top:8,right:10,textAlign:"center"}}><div style={{fontSize:16,fontWeight:900,fontFamily:T.fontDisplay,color:x.renk,lineHeight:1}}>{ovr}</div><div style={{fontSize:6,color:T.textMut,letterSpacing:.5}}>OVR</div></div>}
+                <div style={{margin:"16px auto 8px",position:"relative",display:"flex",justifyContent:"center"}}><Avatar o={x.o} boy={52} T={T}/></div>
+                <div style={{fontSize:12,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",position:"relative"}}>{x.o.ad}</div>
+                <div style={{fontSize:8,color:T.textMut,textTransform:"uppercase",letterSpacing:.4,marginTop:2,position:"relative"}}>{x.et}</div>
+                <div style={{fontSize:22,fontWeight:900,fontFamily:T.fontDisplay,color:x.renk,marginTop:5,lineHeight:1,position:"relative"}}>{x.deg}<span style={{fontSize:8.5,color:T.textMut,fontWeight:700}}>{x.br==="OVR"?"":(" "+x.br)}</span></div>
+              </div>;
+            })}
+            {git && <div onClick={()=>git({sayfa:"tumenler"})} className="tap" style={{flexShrink:0,width:98,borderRadius:15,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,background:T.bg1,border:"1px dashed "+T.line,color:T.textSoft,cursor:"pointer"}}>
+              <div style={{fontSize:22}}>➕</div><div style={{fontSize:11,fontWeight:800}}>Tüm Enler</div><div style={{fontSize:9,color:T.textMut}}>40+ kategori</div>
+            </div>}
+          </div>
+        </>;
+      })()}
     </div>
 
     {yildizFull && <div style={{padding:"22px 14px 0"}}>
