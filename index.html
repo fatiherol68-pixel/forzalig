@@ -13643,8 +13643,13 @@ function RadyoYonetim({T, oturum}){
   const acRef=useRef(null); const rafRef=useRef(null); const barsRef=useRef([]);   // ses dalgası (equalizer çubukları)
   const myIdRef=useRef((window.crypto&&crypto.randomUUID)?crypto.randomUUID():"b"+Date.now()+Math.random().toString(36).slice(2,6));
   const NB=22;
+  // ===== CANLI YAYIN TEKNİK DURUM (teşhis paneli) — hata hangi aşamada koparsa NET görülür (körlemesine yama yok) =====
+  const [teknik,setTeknik]=useState(null);   // null = henüz yayın denenmedi
+  const tekRef=useRef({}); const sesPeakRef=useRef(0);
+  const tset=(k,v)=>{ tekRef.current={...tekRef.current,[k]:v}; setTeknik({...tekRef.current}); };
+  const tlog=(e)=>{ try{ console.log("[FZ-RADYO] "+e); }catch(_){} };
   const meterBasla=(stream)=>{ try{ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; let ac=acRef.current; if(!ac||ac.state==="closed"){ ac=new AC(); acRef.current=ac; } if(ac.state==="suspended"){ try{ ac.resume(); }catch(e){} } const src=ac.createMediaStreamSource(stream); const an=ac.createAnalyser(); an.fftSize=128; src.connect(an); const buf=new Uint8Array(an.frequencyBinCount); const step=Math.max(1,Math.floor(buf.length/NB));
-    const tik=()=>{ an.getByteFrequencyData(buf); for(let i=0;i<NB;i++){ const v=buf[i*step]||0; const h=Math.max(6,Math.round((v/255)*100)); const el=barsRef.current[i]; if(el) el.style.height=h+"%"; } rafRef.current=requestAnimationFrame(tik); }; tik();
+    const tik=()=>{ an.getByteFrequencyData(buf); let mx=0; for(let i=0;i<NB;i++){ const v=buf[i*step]||0; if(v>mx)mx=v; const h=Math.max(6,Math.round((v/255)*100)); const el=barsRef.current[i]; if(el) el.style.height=h+"%"; } if(mx>16 && !sesPeakRef.current){ sesPeakRef.current=1; tset("ses","algılandı ✓"); tlog("MIC_AUDIO_DETECTED"); } rafRef.current=requestAnimationFrame(tik); }; tik();
   }catch(e){} };
   const meterDur=()=>{ try{ if(rafRef.current) cancelAnimationFrame(rafRef.current); }catch(e){} rafRef.current=null; try{ acRef.current&&acRef.current.close(); }catch(e){} acRef.current=null; try{ (barsRef.current||[]).forEach(el=>{ if(el) el.style.height="6%"; }); }catch(e){} };
   const ICE={iceServers:[
@@ -13657,7 +13662,8 @@ function RadyoYonetim({T, oturum}){
     pc=new RTCPeerConnection(ICE); pcMapRef.current[lid]=pc;
     try{ (yayinStreamRef.current.getTracks()||[]).forEach(t=>pc.addTrack(t,yayinStreamRef.current)); }catch(e){}
     pc.onicecandidate=e=>{ if(e.candidate){ const c=e.candidate; sgonder("ice",{to:lid,from:myIdRef.current,cand:(c.toJSON?c.toJSON():{candidate:c.candidate,sdpMid:c.sdpMid,sdpMLineIndex:c.sdpMLineIndex})}); } };
-    pc.onconnectionstatechange=()=>{ const st=pc.connectionState; if(["failed","closed","disconnected"].indexOf(st)>-1){ try{pc.close();}catch(e){} delete pcMapRef.current[lid]; }
+    pc.oniceconnectionstatechange=()=>{ try{ tset("peer", pc.iceConnectionState+" / "+pc.connectionState); tlog("ICE_STATE_"+pc.iceConnectionState); }catch(e){} };
+    pc.onconnectionstatechange=()=>{ const st=pc.connectionState; try{ tset("peer", pc.iceConnectionState+" / "+st); tlog("PEER_"+st); }catch(e){} if(["failed","closed","disconnected"].indexOf(st)>-1){ try{pc.close();}catch(e){} delete pcMapRef.current[lid]; }
       setDinleyici(Object.keys(pcMapRef.current).filter(k=>pcMapRef.current[k].connectionState==="connected").length); };
     return pc; };
   const canliBasla=async()=>{ if(canli) return;
@@ -13666,23 +13672,34 @@ function RadyoYonetim({T, oturum}){
     // iOS/tarayıcı SES KİLİDİNİ kullanıcı jesti içinde (await'ten ÖNCE, senkron) aç → player'a basmadan çalışır
     try{ const AC=window.AudioContext||window.webkitAudioContext; if(AC){ if(!acRef.current||acRef.current.state==="closed") acRef.current=new AC(); if(acRef.current.state==="suspended") acRef.current.resume(); } }catch(e){}
     try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){}   // önceki denemeden kalan mikrofonu bırak
+    tekRef.current={}; sesPeakRef.current=0; setTeknik({}); tlog("BASLADI");
     setMesaj("① Mikrofon açılıyor…");
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true}); yayinStreamRef.current=stream;
+      const tr=(stream.getAudioTracks&&stream.getAudioTracks()[0])||null;
+      tset("izin","verildi ✓"); tlog("MIC_PERMISSION_OK");
+      tset("track", tr?((tr.readyState||"?")+" · "+(tr.enabled?"açık":"KAPALI")+(tr.muted?" · MUTED":"")+(tr.label?" · "+tr.label.slice(0,18):"")):"track YOK"); tlog("MIC_TRACK_OK");
       meterBasla(stream);
       setMesaj("② Yayın kanalına bağlanılıyor…");
+      // KÖK ÇÖZÜM (PC yayıncı hatası): aynı 'fz-radyo-canli' topraktaki ESKİ kanalları (bu cihazın dinleyici kanalı dahil) yayıncı abone olmadan ÖNCE kapat ve BEKLE.
+      //  PC'de mikrofon izni hazır → getUserMedia ANINDA döner; dinleyici kanalının async kaldırılması bitmeden yayıncı aynı topic'e abone oluyordu → Supabase CHANNEL_ERROR → PC'de yayın hiç başlamıyordu.
+      //  Mobilde getUserMedia daha yavaş olduğu için kaldırma önce bitiyordu → "mobil yayıncı çalışıyor, PC çalışmıyor" tutarsızlığı buradan geliyordu.
+      try{ const eski=(sb.getChannels?sb.getChannels():[]).filter(c=>((c.topic||"").indexOf("fz-radyo-canli")>-1)); for(const c of eski){ try{ await sb.removeChannel(c); }catch(_){} } if(eski.length) tlog("TOPIC_CLEARED_"+eski.length); }catch(_){}
       const kanal=sb.channel("fz-radyo-canli",{config:{broadcast:{self:false}}}); canalRef.current=kanal;
       kanal.on("broadcast",{event:"hello"},async({payload})=>{ const lid=payload&&payload.from; if(!lid) return;
+        tset("hello","geldi ✓"); tlog("HELLO_RECEIVED "+String(lid).slice(0,6));
         const pc=yeniListenerPC(lid);
-        try{ const offer=await pc.createOffer(); await pc.setLocalDescription(offer); sgonder("offer",{to:lid,from:myIdRef.current,sdp:{type:offer.type,sdp:offer.sdp}}); sgonder("duck",{level:muzikSevRef.current}); setDinleyici(Object.keys(pcMapRef.current).length); }catch(e){} });
-      kanal.on("broadcast",{event:"answer"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.sdp){ try{ await pc.setRemoteDescription(payload.sdp); }catch(e){} } });
-      kanal.on("broadcast",{event:"ice"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.cand){ try{ await pc.addIceCandidate(payload.cand); }catch(e){} } });
+        try{ const offer=await pc.createOffer(); await pc.setLocalDescription(offer); sgonder("offer",{to:lid,from:myIdRef.current,sdp:{type:offer.type,sdp:offer.sdp}}); sgonder("duck",{level:muzikSevRef.current}); tset("offer","gönderildi ✓"); tlog("OFFER_SENT"); setDinleyici(Object.keys(pcMapRef.current).length); }catch(e){ tlog("OFFER_HATA "+((e&&e.message)||e)); } });
+      kanal.on("broadcast",{event:"answer"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.sdp){ try{ await pc.setRemoteDescription(payload.sdp); tset("answer","alındı ✓"); tlog("ANSWER_RECEIVED"); }catch(e){ tlog("ANSWER_HATA "+((e&&e.message)||e)); } } });
+      kanal.on("broadcast",{event:"ice"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.cand){ try{ await pc.addIceCandidate(payload.cand); tset("ice","akıyor ✓"); }catch(e){} } });
       kanal.subscribe(async(st)=>{
         if(st==="SUBSCRIBED"){
+          tset("kanal","bağlı ✓"); tlog("CHANNEL_SUBSCRIBED");
           await Db.ayarYaz("radyo_yayin",JSON.stringify({mod:"canli",ref:Date.now(),by:oturum?oturum.id:null,duck:muzikSevRef.current}));
           try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
           sgonder("live-start",{from:myIdRef.current,duck:muzikSevRef.current}); setCanli(true); setMesaj("🔴 CANLIDASIN — bas konuş, istediğin kadar. Bitince ⏹ Yayını Bitir.");
         } else if(st==="CHANNEL_ERROR"||st==="TIMED_OUT"||st==="CLOSED"){
+          tset("kanal","HATA: "+st); tlog("CHANNEL_"+st);
           setMesaj("⚠️ Yayın kanalı bağlanamadı ("+st+"). Sayfayı YENİLE ve tekrar dene. (Realtime/bağlantı sorunu)");
           try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e){} meterDur();
           try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} yayinStreamRef.current=null;
@@ -13704,6 +13721,14 @@ function RadyoYonetim({T, oturum}){
     try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
     setCanli(false); setMesaj("Yayın bitti — müzik moduna dönüldü");
   };
+  // Canlı yayında outbound RTP izle → "ses PC'den ÇIKIYOR mu" kesin görülür (paket artıyorsa ses çıkıyor demektir)
+  useEffect(()=>{ if(!canli) return; let alive=true;
+    const t=setInterval(async()=>{ try{ let paket=0,bayt=0; const pcs=Object.keys(pcMapRef.current).map(k=>pcMapRef.current[k]);
+      for(const pc of pcs){ try{ const rep=await pc.getStats(); rep.forEach(s=>{ if(s.type==="outbound-rtp" && (s.kind==="audio"||s.mediaType==="audio")){ paket+=s.packetsSent||0; bayt+=s.bytesSent||0; } }); }catch(e){} }
+      if(alive) tset("rtp", paket>0?(paket+" paket · "+Math.round(bayt/1024)+" KB çıktı"):"henüz paket yok — bağlantı kurulmadı");
+    }catch(e){} },2000);
+    return ()=>{ alive=false; clearInterval(t); };
+  },[canli]);
   useEffect(()=>()=>{ meterDur(); try{ Object.keys(pcMapRef.current).forEach(k=>pcMapRef.current[k].close()); }catch(e){} try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} },[]);
   useEffect(()=>{ Db.radyoOku().then(l=>setListe(Array.isArray(l)?l:[])).catch(()=>setListe([])); },[]);
   // Radyo sürüm/senkron anahtarları (bu ekranda doğrudan görünsün diye) — sistem_ayar'a yazar, ANINDA etki eder
@@ -13773,6 +13798,21 @@ function RadyoYonetim({T, oturum}){
               <div style={{fontSize:10.5,color:T.textMut,marginTop:5,lineHeight:1.5}}>{muzikSev<0.03?"🔇 Arka müzik kapalı — dinleyici sadece SENİ duyar":("🎚️ Dinleyicide müzik arkada %"+Math.round(muzikSev*100)+" çalar, senin sesin üstte. Kaydırarak dengeyi ayarla.")}</div>
             </div>
           </>}
+      {teknik && <div style={{marginTop:12,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:12,padding:"11px 12px"}}>
+        <div style={{fontSize:10.5,fontWeight:800,color:T.textMut,letterSpacing:.4,marginBottom:8,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>🔧 CANLI YAYIN — TEKNİK DURUM <span style={{fontSize:8.5,color:T.textMut,fontWeight:600}}>(teşhis · hata nerede koparsa görünür)</span></div>
+        {[["Mikrofon izni","izin"],["Mikrofon track","track"],["Ses algılanıyor (konuş)","ses"],["Yayın kanalı","kanal"],["Dinleyici 'merhaba'","hello"],["Offer gönderildi","offer"],["Answer alındı","answer"],["ICE adayları","ice"],["Peer bağlantısı","peer"],["Gönderilen ses (RTP)","rtp"]].map(([et,k])=>{
+          const v=teknik[k]; const kotu=v && /HATA|YOK|KAPALI|MUTED|kurulmad|yok/i.test(String(v));
+          return <div key={k} style={{display:"flex",alignItems:"center",gap:8,fontSize:11,padding:"2.5px 0"}}>
+            <span style={{width:16,flexShrink:0,textAlign:"center"}}>{v==null?"⏳":kotu?"❌":"✅"}</span>
+            <span style={{color:T.textSoft,flex:1,whiteSpace:"nowrap"}}>{et}</span>
+            <span style={{color:kotu?T.danger:(v==null?T.textMut:T.accent),fontWeight:600,fontSize:9.5,maxWidth:158,textAlign:"right",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v==null?"—":String(v)}</span>
+          </div>;
+        })}
+        <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,padding:"5px 0 0",marginTop:4,borderTop:"1px solid "+T.line}}>
+          <span style={{width:16,textAlign:"center"}}>👥</span><span style={{color:T.textSoft,flex:1}}>Bağlı dinleyici</span><span style={{color:T.accent,fontWeight:800}}>{dinleyici}</span>
+        </div>
+        <div style={{fontSize:9,color:T.textMut,marginTop:8,lineHeight:1.55}}>PC'de başla, <b style={{color:T.textSoft}}>BAŞKA</b> cihazda (telefon) dinle. <b style={{color:T.textSoft}}>"Gönderilen ses (RTP)"</b> paketi ARTIYORSA ses PC'den çıkıyordur; <b style={{color:T.textSoft}}>"Peer bağlantısı"</b> <b style={{color:T.accent}}>connected</b> olmalı. Derin analiz: <b style={{color:T.textSoft}}>chrome://webrtc-internals</b> → outbound-rtp audio · packetsSent.</div>
+      </div>}
     </div>
     <div style={{background:"linear-gradient(120deg,"+T.accent2+"14,"+T.bg1+")",border:"0.5px solid "+T.accent2+"44",borderRadius:12,padding:"13px 14px",marginBottom:12}}>
       <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:4}}>📻 ForzaLig Radyo</div>
