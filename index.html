@@ -13623,20 +13623,29 @@ function RadyoYonetim({T, oturum}){
     // iOS/tarayıcı SES KİLİDİNİ kullanıcı jesti içinde (await'ten ÖNCE, senkron) aç → player'a basmadan çalışır
     try{ const AC=window.AudioContext||window.webkitAudioContext; if(AC){ if(!acRef.current||acRef.current.state==="closed") acRef.current=new AC(); if(acRef.current.state==="suspended") acRef.current.resume(); } }catch(e){}
     try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){}   // önceki denemeden kalan mikrofonu bırak
+    setMesaj("① Mikrofon açılıyor…");
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true}); yayinStreamRef.current=stream;
       meterBasla(stream);
+      setMesaj("② Yayın kanalına bağlanılıyor…");
       const kanal=sb.channel("fz-radyo-canli",{config:{broadcast:{self:false}}}); canalRef.current=kanal;
       kanal.on("broadcast",{event:"hello"},async({payload})=>{ const lid=payload&&payload.from; if(!lid) return;
         const pc=yeniListenerPC(lid);
         try{ const offer=await pc.createOffer(); await pc.setLocalDescription(offer); sgonder("offer",{to:lid,from:myIdRef.current,sdp:offer}); sgonder("duck",{level:muzikSevRef.current}); setDinleyici(Object.keys(pcMapRef.current).length); }catch(e){} });
       kanal.on("broadcast",{event:"answer"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.sdp){ try{ await pc.setRemoteDescription(payload.sdp); }catch(e){} } });
       kanal.on("broadcast",{event:"ice"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.cand){ try{ await pc.addIceCandidate(payload.cand); }catch(e){} } });
-      kanal.subscribe(async(st)=>{ if(st==="SUBSCRIBED"){
-        await Db.ayarYaz("radyo_yayin",JSON.stringify({mod:"canli",ref:Date.now(),by:oturum?oturum.id:null,duck:muzikSevRef.current}));
-        try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
-        sgonder("live-start",{from:myIdRef.current,duck:muzikSevRef.current}); setCanli(true); setMesaj("🔴 CANLIDASIN — bas konuş, istediğin kadar. Bitince ⏹ Yayını Bitir.");
-      } });
+      kanal.subscribe(async(st)=>{
+        if(st==="SUBSCRIBED"){
+          await Db.ayarYaz("radyo_yayin",JSON.stringify({mod:"canli",ref:Date.now(),by:oturum?oturum.id:null,duck:muzikSevRef.current}));
+          try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
+          sgonder("live-start",{from:myIdRef.current,duck:muzikSevRef.current}); setCanli(true); setMesaj("🔴 CANLIDASIN — bas konuş, istediğin kadar. Bitince ⏹ Yayını Bitir.");
+        } else if(st==="CHANNEL_ERROR"||st==="TIMED_OUT"||st==="CLOSED"){
+          setMesaj("⚠️ Yayın kanalı bağlanamadı ("+st+"). Sayfayı YENİLE ve tekrar dene. (Realtime/bağlantı sorunu)");
+          try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e){} meterDur();
+          try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} yayinStreamRef.current=null;
+          try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} canalRef.current=null;
+        }
+      });
     }catch(e){ try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e2){} meterDur();
       const msj=String((e&&e.message)||e); const izin=/permission|denied|notallowed|not allowed/i.test(msj);
       setMesaj(izin?"🎤 Mikrofon İZNİ gerekli — adres çubuğundaki 🎤/🔒 simgesine tıkla → 'İzin ver' → tekrar 'Mikrofonu Aç'.":("Mikrofon açılamadı: "+msj)); }
@@ -16674,8 +16683,9 @@ function App(){
   // ===== SÜPER ADMIN — TÜM platform liglerini TAM yükle (Enler/Keşfet/anasayfa hepsini görsün, oyuncular+takımlar dahil).
   //   Arka planda çalışır → boot hızını etkilemez. Yeni/sonradan eklenen ligler de otomatik gelir. =====
   useEffect(()=>{ if(!adminMi || !oturum || destek) return; let aktif=true;
-    Db.liglerYukle(null, true).then(hepsi=>{ if(!aktif || !Array.isArray(hepsi) || !hepsi.length) return; hepsi.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} }); setTurnuvalar(hepsi); }).catch(()=>{});
-    return ()=>{ aktif=false; };
+    // 4 sn geciktir → Realtime/radyo kanalı önce kurulsun (ağır yükleme bağlantıyı boğmasın)
+    const t=setTimeout(()=>{ Db.liglerYukle(null, true).then(hepsi=>{ if(!aktif || !Array.isArray(hepsi) || !hepsi.length) return; hepsi.forEach(x=>{ try{ turnuvaHesapla(x); }catch(e){} }); setTurnuvalar(hepsi); }).catch(()=>{}); }, 4000);
+    return ()=>{ aktif=false; clearTimeout(t); };
   },[adminMi, oturum && oturum.id, destek]);
   // 👁 DESTEK MODU — kullanıcı gözünden görüntüle. Oturum DEVRALINMAZ (admin kendi oturumunda kalır).
   const destekBaslat=async(u)=>{
