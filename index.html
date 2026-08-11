@@ -13604,7 +13604,7 @@ function RadyoYonetim({T, oturum}){
   const acRef=useRef(null); const rafRef=useRef(null); const barsRef=useRef([]);   // ses dalgası (equalizer çubukları)
   const myIdRef=useRef((window.crypto&&crypto.randomUUID)?crypto.randomUUID():"b"+Date.now()+Math.random().toString(36).slice(2,6));
   const NB=22;
-  const meterBasla=(stream)=>{ try{ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; const ac=new AC(); acRef.current=ac; const src=ac.createMediaStreamSource(stream); const an=ac.createAnalyser(); an.fftSize=128; src.connect(an); const buf=new Uint8Array(an.frequencyBinCount); const step=Math.max(1,Math.floor(buf.length/NB));
+  const meterBasla=(stream)=>{ try{ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; let ac=acRef.current; if(!ac||ac.state==="closed"){ ac=new AC(); acRef.current=ac; } if(ac.state==="suspended"){ try{ ac.resume(); }catch(e){} } const src=ac.createMediaStreamSource(stream); const an=ac.createAnalyser(); an.fftSize=128; src.connect(an); const buf=new Uint8Array(an.frequencyBinCount); const step=Math.max(1,Math.floor(buf.length/NB));
     const tik=()=>{ an.getByteFrequencyData(buf); for(let i=0;i<NB;i++){ const v=buf[i*step]||0; const h=Math.max(6,Math.round((v/255)*100)); const el=barsRef.current[i]; if(el) el.style.height=h+"%"; } rafRef.current=requestAnimationFrame(tik); }; tik();
   }catch(e){} };
   const meterDur=()=>{ try{ if(rafRef.current) cancelAnimationFrame(rafRef.current); }catch(e){} rafRef.current=null; try{ acRef.current&&acRef.current.close(); }catch(e){} acRef.current=null; try{ (barsRef.current||[]).forEach(el=>{ if(el) el.style.height="6%"; }); }catch(e){} };
@@ -13620,6 +13620,9 @@ function RadyoYonetim({T, oturum}){
   const canliBasla=async()=>{ if(canli) return;
     if(typeof RTCPeerConnection==="undefined"||!navigator.mediaDevices||!sb){ setMesaj("Tarayıcı/bağlantı canlı yayını desteklemiyor."); return; }
     try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:true}})); }catch(e){}   // yayıncı cihaz: kendi müziğini sustur + kendini dinleme (mobil ses oturumu mikrofon için serbest kalsın)
+    // iOS/tarayıcı SES KİLİDİNİ kullanıcı jesti içinde (await'ten ÖNCE, senkron) aç → player'a basmadan çalışır
+    try{ const AC=window.AudioContext||window.webkitAudioContext; if(AC){ if(!acRef.current||acRef.current.state==="closed") acRef.current=new AC(); if(acRef.current.state==="suspended") acRef.current.resume(); } }catch(e){}
+    try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){}   // önceki denemeden kalan mikrofonu bırak
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true}); yayinStreamRef.current=stream;
       meterBasla(stream);
@@ -16471,6 +16474,13 @@ function RadyoCalarV2({T, barGizle}){
   useEffect(()=>{ const h=(e)=>{ const on=!!(e&&e.detail&&e.detail.aktif); benYayinciRef.current=on;
       if(on){ try{ const a=audioRef.current; if(a){ a.pause(); } setCalisiyor(false); }catch(err){} dinleTemizle(); setCanliVar(false); }
     }; window.addEventListener("radyo-yayinci",h); return ()=>window.removeEventListener("radyo-yayinci",h); },[]);
+  // Dinleyici autoplay kilidi: canlı yayın varken kullanıcının HERHANGİ bir dokunuşu sesi açsın (tarayıcı kuralı → tek dokunuş yeter)
+  useEffect(()=>{ if(!canliVar || benYayinciRef.current) return;
+    const unlock=()=>{ try{ const la=canliAudioRef.current; if(la&&la.srcObject){ la.volume=1; la.play().catch(()=>{}); } }catch(e){}
+      try{ const a=audioRef.current; if(a&&parca&&duckSev>0.02){ if(a.src!==parca.url) a.src=parca.url; a.volume=Math.max(0,Math.min(1,duckSev*ses)); a.play().then(()=>setCalisiyor(true)).catch(()=>{}); } }catch(e){} };
+    document.addEventListener("pointerdown",unlock,{once:true,passive:true});
+    return ()=>{ try{ document.removeEventListener("pointerdown",unlock); }catch(e){} };
+  },[canliVar]);
   // canlı yayın gelince: sesi bağla (tam ses) + müziği arkada OTOMATİK başlat & KIS (sesin üstte), bitince müzik geri
   useEffect(()=>{ const la=canliAudioRef.current;
     if(canliDinle){
