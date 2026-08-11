@@ -1829,6 +1829,10 @@ const Db = {
   async radyoIstekOku(){ if(!sb) return []; try{ const {data,error}=await sb.from('sistem_ayar').select('deger').eq('anahtar','radyo_istek').maybeSingle(); if(error||!data||!data.deger) return []; try{ const a=JSON.parse(data.deger); return Array.isArray(a)?a:[]; }catch(e){ return []; } }catch(e){ return []; } },
   async radyoIstekYaz(liste){ return await this.ayarYaz('radyo_istek', JSON.stringify(Array.isArray(liste)?liste.slice(-40):[])); },
   async radyoIstekEkle(istek){ try{ const l=await this.radyoIstekOku(); l.push(istek); const r=await this.radyoIstekYaz(l); return r; }catch(e){ return {hata:String(e)}; } },
+  // DEPOLAMA KOTASI — güvenli: storage boyutu SECURITY DEFINER SQL fonksiyonundan (service-role sırrı FRONTEND'DE YOK).
+  async radyoDepoStat(){ if(!sb) return null; try{ const {data,error}=await sb.rpc('radyo_depo_stat'); if(error) return {hata:error.message}; return data||null; }catch(e){ return {hata:String(e)}; } },
+  // EGRESS (aylık trafik) — SADECE opsiyonel Edge Function varsa (Management API PAT server-side secret). Yoksa null döner, UI '—' gösterir.
+  async radyoEgress(){ if(!sb||!sb.functions) return null; try{ const {data,error}=await sb.functions.invoke('radyo-egress',{body:{}}); if(error) return null; return data||null; }catch(e){ return null; } },
   // FİDAN (Faz 1) — TÜM liglerde oynanmış maçlardaki toplam gol (ev_skor+dep_skor). Yeni tablo/SQL YOK.
   // Sayfalı okur (1000'lik Supabase tavanını aşar) → binlerce maçta bile doğru toplam. Sadece 2 int kolon çeker → hafif.
   async fidanGolToplam(){ if(!sb) return 0; try{
@@ -13772,6 +13776,8 @@ function RadyoYonetim({T, oturum}){
   const istekOnayla=async(it)=>{ const yeni=[...(liste||[]),{id:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now()), ad:it.sarki||"Parça", url:it.url, tur:"klip"}]; await kaydet(yeni); const kalan=(istekler||[]).filter(x=>x.id!==it.id); setIstekler(kalan); await Db.radyoIstekYaz(kalan); setMesaj("✓ '"+(it.sarki||"Parça")+"' sıraya eklendi"); };
   const istekReddet=async(it)=>{ const kalan=(istekler||[]).filter(x=>x.id!==it.id); setIstekler(kalan); await Db.radyoIstekYaz(kalan); };
   const kasaStat=(()=>{ let b=0,bilinen=0; (liste||[]).forEach(p=>{ if(p&&p.boyut){ b+=p.boyut; bilinen++; } }); return {mb:b/1048576, bilinen:bilinen, toplam:(liste||[]).length}; })();
+  const [depo,setDepo]=useState(null); const [egress,setEgress]=useState(null);
+  useEffect(()=>{ let a=true; Db.radyoDepoStat().then(d=>{ if(a) setDepo(d); }).catch(()=>{}); Db.radyoEgress().then(e=>{ if(a) setEgress(e); }).catch(()=>{}); return ()=>{a=false;}; },[]);
   const dosyaSec=async(e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; e.target.value=""; if(!/^audio\//.test(f.type||"")){ setMesaj("Lütfen bir ses dosyası seç (mp3/m4a/ogg)."); return; } setYuklyor(true); setMesaj("Yükleniyor…"); const r=await sesYukle(f); setYuklyor(false); if(r&&r.url){ ekle(r.url, (ad.trim()||f.name.replace(/\.[^.]+$/,"")), "klip", f.size||0); } else setMesaj("Yüklenemedi: "+((r&&r.hata)||"")); };
   const kayitBasla=async()=>{
     if(kayit) return;
@@ -13874,6 +13880,28 @@ function RadyoYonetim({T, oturum}){
         </div>
       </div>)}
     </div>}
+    {/* 💾 DEPOLAMA / KOTA — güvenli SQL fonksiyonu (service-role sırrı frontend'de yok) */}
+    {(()=>{ const hazir=depo&&!depo.hata&&depo.bytes!=null; const toplamMB=hazir?depo.bytes/1048576:null; const radyoMB=kasaStat.mb; const digerMB=hazir?Math.max(0,toplamMB-radyoMB):null;
+      const LIMIT=1024; const yuz=hazir?Math.min(100,(toplamMB/LIMIT)*100):0; const uyRenk=yuz>=95?T.danger:yuz>=85?T.gold:yuz>=70?T.accent2:T.accent;
+      const egB=egress&&egress.egressBytes!=null?egress.egressBytes:null; const egGB=egB!=null?(egB/1073741824):null;
+      return <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"13px 14px",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:11}}><span style={{fontSize:15}}>💾</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Depolama & Trafik</div>{hazir&&<span style={{marginLeft:"auto",fontSize:10,fontWeight:800,color:uyRenk,background:uyRenk+"1a",borderRadius:20,padding:"2px 9px"}}>%{Math.round(yuz)}</span>}</div>
+        {!depo && <div style={{fontSize:11,color:T.textMut}}>Yükleniyor…</div>}
+        {depo&&depo.hata && <div style={{fontSize:10.5,color:T.gold,lineHeight:1.55}}>⚠ Depolama okunamıyor — <b style={{color:T.textSoft}}>radyo_depo_stat</b> SQL fonksiyonu henüz kurulmamış olabilir. (Aşağıdaki adımı uygula.)</div>}
+        {hazir && <>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11.5,color:T.textSoft,marginBottom:6}}><span>🎵 Radyo müziği <b style={{color:T.accent}}>{radyoMB.toFixed(radyoMB<10?1:0)} MB</b></span><span>🗂 Diğer <b style={{color:T.text}}>{digerMB.toFixed(digerMB<10?1:0)} MB</b></span></div>
+          <div style={{height:9,borderRadius:6,background:T.bg0,overflow:"hidden",display:"flex"}}>
+            <div style={{width:Math.min(100,(radyoMB/LIMIT)*100)+"%",background:T.accent}}/>
+            <div style={{width:Math.min(100,(digerMB/LIMIT)*100)+"%",background:T.accent2}}/>
+          </div>
+          <div style={{fontSize:10.5,color:T.textMut,marginTop:7}}>Toplam <b style={{color:T.text}}>{toplamMB.toFixed(0)} MB</b> / ~{LIMIT} MB · {depo.objeler} dosya {yuz>=70&&<span style={{color:uyRenk,fontWeight:700}}>· {yuz>=95?"kritik":yuz>=85?"yüksek":"dikkat"}</span>}</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:11,paddingTop:10,borderTop:"1px solid "+T.line,fontSize:11.5,color:T.textSoft}}>
+            <span>🌐 Aylık trafik (egress)</span><span style={{fontWeight:800,color:egGB!=null?T.text:T.textMut}}>{egGB!=null?egGB.toFixed(1)+" GB":"—"}</span>
+          </div>
+          {egGB==null && <div style={{fontSize:9.5,color:T.textMut,marginTop:5}}>Egress için opsiyonel <b style={{color:T.textSoft}}>radyo-egress</b> Edge Function gerekir (Management API).</div>}
+        </>}
+      </div>;
+    })()}
     <div style={{background:"linear-gradient(120deg,"+T.accent2+"14,"+T.bg1+")",border:"0.5px solid "+T.accent2+"44",borderRadius:12,padding:"13px 14px",marginBottom:12}}>
       <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:4}}>📻 ForzaLig Radyo</div>
       <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.55}}>Buraya eklediğin kısa sesler, tüm kullanıcıların uygulamasında alt menünün üstünde <b style={{color:T.textSoft}}>mini-çalar</b> olarak çıkar. Liste boşken çalar görünmez. Yeni tablo/depo yok — ses mevcut depona, liste sistem ayarına kaydedilir.</div>
