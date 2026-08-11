@@ -5227,7 +5227,7 @@ function AnaSayfaV5({turnuvalar, T, git}){
    V5'in kanıtlı veri mantığı + yardımcıları AYNEN kullanılır; üstüne Faz-1 eklentileri:
    (A8) Maç Merkezi (Bugün/Yaklaşan/Son), (A1) hero 'bu hafta' nabzı, (A2) Enler SPOTLIGHT, (A6) 'AI'→'Özet'.
    Eskiye (V5) HİÇ dokunulmaz; sorun olursa tek tuşla V5'e dönülür. */
-function AnaSayfaV6({turnuvalar, T, git}){
+function AnaSayfaV6({turnuvalar, T, git, oturum}){
   const aktifTurnuva = useMemo(()=>{
     const dolu = turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0);
     if(!dolu.length) return null;
@@ -5328,9 +5328,31 @@ function AnaSayfaV6({turnuvalar, T, git}){
   const spotAday = vitrin.gol || vitrin.asist || vitrin.formEn || vitrin.mvp || null;
   const spotFull = spotAday ? (tumO.find(p=>p.id===spotAday.id)||spotAday) : null;
   const cip=(renk)=>({flexShrink:0,display:"inline-flex",alignItems:"center",gap:5,fontSize:10.5,fontWeight:800,color:renk,background:renk+"18",border:"0.5px solid "+renk+"44",borderRadius:20,padding:"5px 11px",whiteSpace:"nowrap"});
+  // ── KİŞİSEL ŞERİT (giriş yapana) — kullanıcının oyuncusu + sıradaki maçı ──
+  let benimO=null, benimTk=null, benimTkT=null; const bakUid=oturum&&oturum.id;
+  if(bakUid){ for(const t of (turnuvalar||[])){ for(const tkm of (t.takimlar||[])){ const f=(tkm.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===bakUid); if(f){benimO=f;benimTk=tkm;benimTkT=t;break;} } if(benimO)break; } }
+  const benimSonraki = (benimO&&benimTk&&benimTkT)? (benimTkT.maclar||[]).find(m=>m.oynandi===false && (m.takimA===benimTk.ad||m.takimB===benimTk.ad)) : null;
 
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     <CanliBant items={bantItems} T={T}/>
+
+    {/* ===== KİŞİSEL ŞERİT (giriş yapana özel) ===== */}
+    {oturum && benimO && <div style={{padding:"14px 14px 0"}}>
+      <div onClick={()=>oyuncuGit({...benimO,turnuva:benimTkT&&benimTkT.ad})} className="tap prem-tap" style={{display:"flex",alignItems:"center",gap:13,background:"linear-gradient(120deg,"+T.accent+"22,"+T.bg1+" 55%)",border:"1px solid "+T.accent+"44",borderRadius:16,padding:"13px 14px"}}>
+        <Avatar o={benimO} boy={50} T={T}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:10,color:T.accent,fontWeight:800,letterSpacing:.4}}>{selam.toUpperCase()} 👋</div>
+          <div style={{fontSize:17,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimO.ad}</div>
+          <div style={{fontSize:11,color:T.textSoft,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimTk?benimTk.ad+" · ":""}<b style={{color:T.text}}>{benimO.gol||0}</b> gol · <b style={{color:T.text}}>{benimO.asist||0}</b> asist · <b style={{color:T.text}}>{benimO.mac||0}</b> maç</div>
+        </div>
+        {benimO.ovr!=null && <div style={{flexShrink:0,textAlign:"center",background:T.accent+"1e",borderRadius:12,padding:"8px 12px",border:"0.5px solid "+T.accent+"44"}}><div style={{fontSize:22,fontWeight:900,fontFamily:T.fontDisplay,color:T.accent,lineHeight:1}}>{benimO.ovr}</div><div style={{fontSize:8,color:T.textMut,letterSpacing:.5,marginTop:2}}>OVR</div></div>}
+      </div>
+      {benimSonraki && <div onClick={()=>git&&git({sayfa:"mac",mac:benimSonraki,turnuva:benimTkT})} className="tap" style={{display:"flex",alignItems:"center",gap:10,marginTop:8,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 12px"}}>
+        <span style={{fontSize:16}}>📅</span>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800,letterSpacing:.3}}>SIRADAKİ MAÇIN</div><div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimSonraki.takimA} vs {benimSonraki.takimB}{benimSonraki.hafta?" · Hafta "+benimSonraki.hafta:""}</div></div>
+        <span style={{color:T.textMut,fontSize:16}}>›</span>
+      </div>}
+    </div>}
 
     {/* ===== V6 HERO (V5 + bu hafta nabzı) ===== */}
     <div style={{position:"relative",overflow:"hidden",padding:"30px 20px 22px",borderBottom:"1px solid "+T.line,
@@ -17548,7 +17570,7 @@ function App(){
     // Yetkisiz kişi düzenleme ekranına gelirse: kaydetmeyi engelle (sunucu RLS de engeller, bu arayüz kapısı)
     const kilitliKaydet=()=>{ alert("Bu maçı yalnızca ligin yöneticisi düzenleyebilir."); return Promise.resolve({hata:"yetki yok"}); };
     switch(nav.sayfa){
-      case "ana": icerik=<AnaComp turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} yukleniyor={liglerYuk}/>; break;
+      case "ana": icerik=<AnaComp turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} oturum={oturum} yukleniyor={liglerYuk}/>; break;
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} ligKurYetki={etkinLigKurYetkim} saltOkunur={saltOkunur} yukleniyor={liglerYuk} oturum={oturum} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
@@ -17576,7 +17598,7 @@ function App(){
       case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} baslangicSekme={nav.adminSekme} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
       case "ayar": icerik = destek ? destekKapali : <Ayarlar T={T} stilKey={stilKey} setStilKey={setStilKey} renkKey={renkKey} setRenkKey={setRenkKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
-      default: icerik=<AnaComp turnuvalar={turnuvalar} T={T} git={git}/>;
+      default: icerik=<AnaComp turnuvalar={turnuvalar} T={T} git={git} oturum={oturum}/>;
     }
   }
 
