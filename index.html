@@ -1825,6 +1825,10 @@ const Db = {
   // RADYO (Faz 1) — playlist sistem_ayar kv'de JSON; ses mevcut 'fotolar' deposunda (sesYukle). Yeni tablo/depo YOK.
   async radyoOku(){ if(!sb) return []; try{ const {data,error}=await sb.from('sistem_ayar').select('deger').eq('anahtar','radyo_liste').maybeSingle(); if(error||!data||!data.deger) return []; try{ const a=JSON.parse(data.deger); return Array.isArray(a)?a:[]; }catch(e){ return []; } }catch(e){ return []; } },
   async radyoYaz(liste){ return await this.ayarYaz('radyo_liste', JSON.stringify(Array.isArray(liste)?liste:[])); },
+  // RADYO PARÇA İSTEKLERİ (redesign) — sistem_ayar 'radyo_istek' JSON dizisi. Yeni tablo YOK.
+  async radyoIstekOku(){ if(!sb) return []; try{ const {data,error}=await sb.from('sistem_ayar').select('deger').eq('anahtar','radyo_istek').maybeSingle(); if(error||!data||!data.deger) return []; try{ const a=JSON.parse(data.deger); return Array.isArray(a)?a:[]; }catch(e){ return []; } }catch(e){ return []; } },
+  async radyoIstekYaz(liste){ return await this.ayarYaz('radyo_istek', JSON.stringify(Array.isArray(liste)?liste.slice(-40):[])); },
+  async radyoIstekEkle(istek){ try{ const l=await this.radyoIstekOku(); l.push(istek); const r=await this.radyoIstekYaz(l); return r; }catch(e){ return {hata:String(e)}; } },
   // FİDAN (Faz 1) — TÜM liglerde oynanmış maçlardaki toplam gol (ev_skor+dep_skor). Yeni tablo/SQL YOK.
   // Sayfalı okur (1000'lik Supabase tavanını aşar) → binlerce maçta bile doğru toplam. Sadece 2 int kolon çeker → hafif.
   async fidanGolToplam(){ if(!sb) return 0; try{
@@ -13755,10 +13759,20 @@ function RadyoYonetim({T, oturum}){
     try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
   };
   const kaydet=async(yeni)=>{ setListe(yeni); const r=await Db.radyoYaz(yeni); if(r&&r.ok){ try{ window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj("✓ Kaydedildi"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")+" — sistem ayar yazma izni gerekir (bakım-modu anahtarıyla aynı yer)."); };
-  const ekle=(url,adx,tur)=>{ const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,7); const yeni=[...(liste||[]),{id, ad:(adx||("Parça "+((liste||[]).length+1))), url, tur:tur||"klip"}]; kaydet(yeni); setAd(""); };
+  const ekle=(url,adx,tur,boyut)=>{ const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,7); const yeni=[...(liste||[]),{id, ad:(adx||("Parça "+((liste||[]).length+1))), url, tur:tur||"klip", ...(boyut?{boyut:boyut}:{})}]; kaydet(yeni); setAd(""); };
   const sil=(id)=>{ if(!confirm("Bu parça listeden çıkarılsın mı?")) return; kaydet((liste||[]).filter(x=>x.id!==id)); };
   const tasi=(i,yon)=>{ const a=[...(liste||[])]; const j=i+yon; if(j<0||j>=a.length) return; const t=a[i]; a[i]=a[j]; a[j]=t; kaydet(a); };
-  const dosyaSec=async(e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; e.target.value=""; if(!/^audio\//.test(f.type||"")){ setMesaj("Lütfen bir ses dosyası seç (mp3/m4a/ogg)."); return; } setYuklyor(true); setMesaj("Yükleniyor…"); const r=await sesYukle(f); setYuklyor(false); if(r&&r.url){ ekle(r.url, (ad.trim()||f.name.replace(/\.[^.]+$/,"")), "klip"); } else setMesaj("Yüklenemedi: "+((r&&r.hata)||"")); };
+  // ===== DİNLEYİCİLER (presence, RadyoCalarV2'den window olayıyla) + PARÇA İSTEKLERİ + KASA İSTATİSTİĞİ =====
+  const [dinleyiciler,setDinleyiciler]=useState(()=>{ try{ return window.__fzDinleyiciler||[]; }catch(e){ return []; } });
+  useEffect(()=>{ const h=(e)=>{ try{ setDinleyiciler((e&&e.detail)||window.__fzDinleyiciler||[]); }catch(x){} }; window.addEventListener("fz-dinleyici",h); return ()=>window.removeEventListener("fz-dinleyici",h); },[]);
+  const dinlBenzersiz=(()=>{ const m={}; (dinleyiciler||[]).forEach(d=>{ if(d&&d.uid&&!m[d.uid]) m[d.uid]=d; }); return Object.keys(m).map(k=>m[k]); })();
+  const takimDagilim=(()=>{ const m={}; dinlBenzersiz.forEach(d=>{ const t=(d.takim||"Takımsız"); if(!m[t]) m[t]={takim:t,adet:0,renk:d.renk}; m[t].adet++; }); return Object.keys(m).map(k=>m[k]).sort((a,b)=>b.adet-a.adet); })();
+  const [istekler,setIstekler]=useState([]);
+  useEffect(()=>{ let a=true; const yu=()=>Db.radyoIstekOku().then(l=>{ if(a) setIstekler(Array.isArray(l)?l:[]); }).catch(()=>{}); yu(); const id=setInterval(yu,15000); return ()=>{ a=false; clearInterval(id); }; },[]);
+  const istekOnayla=async(it)=>{ const yeni=[...(liste||[]),{id:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now()), ad:it.sarki||"Parça", url:it.url, tur:"klip"}]; await kaydet(yeni); const kalan=(istekler||[]).filter(x=>x.id!==it.id); setIstekler(kalan); await Db.radyoIstekYaz(kalan); setMesaj("✓ '"+(it.sarki||"Parça")+"' sıraya eklendi"); };
+  const istekReddet=async(it)=>{ const kalan=(istekler||[]).filter(x=>x.id!==it.id); setIstekler(kalan); await Db.radyoIstekYaz(kalan); };
+  const kasaStat=(()=>{ let b=0,bilinen=0; (liste||[]).forEach(p=>{ if(p&&p.boyut){ b+=p.boyut; bilinen++; } }); return {mb:b/1048576, bilinen:bilinen, toplam:(liste||[]).length}; })();
+  const dosyaSec=async(e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; e.target.value=""; if(!/^audio\//.test(f.type||"")){ setMesaj("Lütfen bir ses dosyası seç (mp3/m4a/ogg)."); return; } setYuklyor(true); setMesaj("Yükleniyor…"); const r=await sesYukle(f); setYuklyor(false); if(r&&r.url){ ekle(r.url, (ad.trim()||f.name.replace(/\.[^.]+$/,"")), "klip", f.size||0); } else setMesaj("Yüklenemedi: "+((r&&r.hata)||"")); };
   const kayitBasla=async()=>{
     if(kayit) return;
     if(typeof MediaRecorder==="undefined"||!navigator.mediaDevices){ setMesaj("Tarayıcı ses kaydını desteklemiyor — 'Ses dosyası yükle' ile ekleyebilirsin."); return; }
@@ -13829,6 +13843,37 @@ function RadyoYonetim({T, oturum}){
         <div style={{fontSize:9,color:T.textMut,marginTop:8,lineHeight:1.55}}>PC'de başla, <b style={{color:T.textSoft}}>BAŞKA</b> cihazda (telefon) dinle. <b style={{color:T.textSoft}}>"Gönderilen ses (RTP)"</b> paketi ARTIYORSA ses PC'den çıkıyordur; <b style={{color:T.textSoft}}>"Peer bağlantısı"</b> <b style={{color:T.accent}}>connected</b> olmalı. Derin analiz: <b style={{color:T.textSoft}}>chrome://webrtc-internals</b> → outbound-rtp audio · packetsSent.</div>
       </div>}
     </div>
+    {/* 👥 DİNLEYİCİLER — mevcut presence + takım verisiyle (yeni sistem yok) */}
+    <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"13px 14px",marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:dinlBenzersiz.length?10:0}}>
+        <span style={{fontSize:15}}>👥</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>{dinlBenzersiz.length} kişi dinliyor</div>
+        <span style={{marginLeft:"auto",width:8,height:8,borderRadius:"50%",background:dinlBenzersiz.length?T.accent:T.line}} className={dinlBenzersiz.length?"fz-nabiz":""}/>
+      </div>
+      {takimDagilim.length>0 && <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+        {takimDagilim.slice(0,6).map((t,i)=><span key={i} style={{fontSize:10.5,fontWeight:700,color:T.textSoft,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:20,padding:"3px 9px"}}>{t.takim} · <b style={{color:T.accent}}>{t.adet}</b></span>)}
+      </div>}
+      {dinlBenzersiz.slice(0,15).map((d,i)=><div key={d.uid||i} style={{display:"flex",alignItems:"center",gap:9,padding:"5px 0"}}>
+        <span style={{width:28,height:28,borderRadius:8,flexShrink:0,display:"grid",placeItems:"center",fontSize:10.5,fontWeight:800,color:"#04140c",background:d.renk||T.accent}}>{String(d.ad||"?").slice(0,2).toUpperCase()}</span>
+        <span style={{flex:1,minWidth:0,fontSize:12.5,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.ad||"Dinleyici"}</span>
+        {d.takim && <span style={{fontSize:10,color:T.textMut,whiteSpace:"nowrap"}}>{d.takim}</span>}
+      </div>)}
+      {dinlBenzersiz.length>15 && <div style={{fontSize:10,color:T.textMut,textAlign:"center",marginTop:6}}>+ {dinlBenzersiz.length-15} kişi daha</div>}
+      {dinlBenzersiz.length===0 && <div style={{fontSize:11,color:T.textMut,paddingTop:2}}>Şu an aktif dinleyici yok — uygulaması açık kullanıcılar burada görünür.</div>}
+    </div>
+    {/* 🎵 PARÇA İSTEKLERİ — kullanıcı kasadan ister, sen sıraya ekle/reddet */}
+    {istekler.length>0 && <div style={{background:"linear-gradient(160deg,"+T.gold+"12,"+T.bg1+")",border:"0.5px solid "+T.gold+"44",borderRadius:12,padding:"13px 14px",marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:15}}>🎵</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Parça İstekleri</div><span style={{marginLeft:"auto",fontSize:10,fontWeight:800,color:T.gold,background:T.gold+"1e",borderRadius:20,padding:"2px 8px"}}>{istekler.length} yeni</span></div>
+      {istekler.slice().reverse().map((it,i)=><div key={it.id||i} style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"10px 11px",marginBottom:7}}>
+        <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:9}}>
+          <span style={{width:30,height:30,borderRadius:8,flexShrink:0,display:"grid",placeItems:"center",fontSize:11,fontWeight:800,color:"#04140c",background:it.renk||T.accent2}}>{String(it.ad||"?").slice(0,2).toUpperCase()}</span>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.ad||"Dinleyici"}{it.takim?" · "+it.takim:""}</div><div style={{fontSize:12,color:T.accent,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>🎵 {it.sarki||"Parça"}</div></div>
+        </div>
+        <div style={{display:"flex",gap:7}}>
+          <button onClick={()=>istekOnayla(it)} className="tap" style={{flex:1,background:T.accent,color:"#04140c",border:0,borderRadius:9,padding:"8px",fontSize:12,fontWeight:800,cursor:"pointer"}}>＋ Sıraya Ekle</button>
+          <button onClick={()=>istekReddet(it)} className="tap" style={{flex:1,background:T.bg2,color:T.textSoft,border:"0.5px solid "+T.line,borderRadius:9,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Reddet</button>
+        </div>
+      </div>)}
+    </div>}
     <div style={{background:"linear-gradient(120deg,"+T.accent2+"14,"+T.bg1+")",border:"0.5px solid "+T.accent2+"44",borderRadius:12,padding:"13px 14px",marginBottom:12}}>
       <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:4}}>📻 ForzaLig Radyo</div>
       <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.55}}>Buraya eklediğin kısa sesler, tüm kullanıcıların uygulamasında alt menünün üstünde <b style={{color:T.textSoft}}>mini-çalar</b> olarak çıkar. Liste boşken çalar görünmez. Yeni tablo/depo yok — ses mevcut depona, liste sistem ayarına kaydedilir.</div>
@@ -13856,7 +13901,10 @@ function RadyoYonetim({T, oturum}){
     </div>
     {(mesaj||yuklyor) && <div style={{fontSize:11.5,color:yuklyor?T.textMut:(mesaj.indexOf("✓")>-1?T.accent:mesaj.indexOf("●")>-1?T.danger:T.gold),textAlign:"center",padding:"6px 0 10px"}}>{yuklyor?"⏳ "+mesaj:mesaj}</div>}
 
-    <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:.6,margin:"6px 2px 8px"}}>ÇALMA LİSTESİ {liste?"· "+liste.length:""}</div>
+    <div style={{display:"flex",alignItems:"center",gap:8,margin:"6px 2px 8px"}}>
+      <span style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:.6}}>🎵 MÜZİK KASASI {liste?"· "+kasaStat.toplam+" şarkı":""}</span>
+      {kasaStat.bilinen>0 && <span style={{marginLeft:"auto",fontSize:10,fontWeight:800,color:T.accent,background:T.accent+"14",border:"0.5px solid "+T.accent+"33",borderRadius:20,padding:"2px 9px"}}>{kasaStat.mb.toFixed(kasaStat.mb<10?1:0)} MB{kasaStat.bilinen<kasaStat.toplam?" (+"+(kasaStat.toplam-kasaStat.bilinen)+" bilinmiyor)":""}</span>}
+    </div>
     {liste===null && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Yükleniyor…</div>}
     {liste&&liste.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16,background:T.bg1,border:"0.5px dashed "+T.line,borderRadius:11}}>Henüz ses yok. Yukarıdan klip kaydet, ses dosyası yükle ya da ses linki yapıştır.</div>}
     {liste&&liste.map((p,i)=><div key={p.id||i} style={{display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"9px 11px",marginBottom:6}}>
@@ -16495,7 +16543,7 @@ function RadyoCalar({T, barGizle}){
    Senkron: sunucusuz + deterministik. sistem_ayar.radyo_yayin = {mod:"senkron"|"kapali", ref:<epoch ms>, slot:<sn>}.
    mod=senkron iken her cihaz aynı formülle aynı parçanın aynı saniyesini bulur → "herkes aynı anda aynı şarkı".
    Yeni tablo/depo YOK: liste=radyo_liste, ses=mevcut 'fotolar' deposu. Beğeni/ses/uyku LOKAL (localStorage). */
-function RadyoCalarV2({T, barGizle}){
+function RadyoCalarV2({T, barGizle, kimlik}){
   const [liste,setListe]=useState([]);
   const [idx,setIdx]=useState(0);
   const [calisiyor,setCalisiyor]=useState(false);
@@ -16512,6 +16560,27 @@ function RadyoCalarV2({T, barGizle}){
   const yukle=()=>{ Db.radyoOku().then(l=>{ setListe(Array.isArray(l)?l.filter(x=>x&&x.url):[]); }).catch(()=>{}); };
   const yayinOku=()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; try{ const y=ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; setYayin(y&&y.mod?y:null); }catch(e){ setYayin(null); } }).catch(()=>{}); };
   useEffect(()=>{ yukle(); yayinOku(); const h=()=>{ yukle(); yayinOku(); }; window.addEventListener("radyo-guncelle",h); return ()=>window.removeEventListener("radyo-guncelle",h); },[]);
+  // ===== DİNLEYİCİ PRESENCE (kim dinliyor) — mevcut kimlikle, AYRI kanal, yeni tablo YOK =====
+  const [dinleyiciler,setDinleyiciler]=useState([]);
+  const presCanalRef=useRef(null);
+  const presIdRef=useRef((window.crypto&&crypto.randomUUID)?crypto.randomUUID():"d"+Date.now()+Math.random().toString(36).slice(2,6));
+  const kimlikRef=useRef(kimlik);
+  const presKayit=()=>{ const k=kimlikRef.current; return k?{uid:k.uid,ad:k.ad,takim:k.takim,renk:k.renk,t:Date.now()}:{uid:presIdRef.current,ad:"Misafir",takim:null,renk:null,t:Date.now()}; };
+  useEffect(()=>{ if(!sb) return; let aktif=true;
+    const kanal=sb.channel("fz-radyo-dinleyici",{config:{presence:{key:presIdRef.current}}}); presCanalRef.current=kanal;
+    const topla=()=>{ try{ const st=kanal.presenceState()||{}; const arr=[]; Object.keys(st).forEach(k=>{ const m=(st[k]&&st[k][0])||null; if(m&&m.uid) arr.push(m); }); if(aktif) setDinleyiciler(arr); try{ window.__fzDinleyiciler=arr; window.dispatchEvent(new CustomEvent("fz-dinleyici",{detail:arr})); }catch(e){} }catch(e){} };
+    kanal.on("presence",{event:"sync"},topla).on("presence",{event:"join"},topla).on("presence",{event:"leave"},topla);
+    kanal.subscribe((st)=>{ if(st==="SUBSCRIBED"){ try{ kanal.track(presKayit()); }catch(e){} } });
+    return ()=>{ aktif=false; try{ kanal.untrack(); }catch(e){} try{ sb.removeChannel(kanal); }catch(e){} };
+  },[]);
+  useEffect(()=>{ kimlikRef.current=kimlik; try{ presCanalRef.current&&presCanalRef.current.track(presKayit()); }catch(e){} },[kimlik]);
+  const dinleyiciBenzersiz = (()=>{ const m={}; (dinleyiciler||[]).forEach(d=>{ if(d&&d.uid&&!m[d.uid]) m[d.uid]=d; }); return Object.keys(m).map(k=>m[k]); })();
+  const dinleyiciSayi = dinleyiciBenzersiz.length;
+  const [dinlAcik,setDinlAcik]=useState(false); const [istekAcik,setIstekAcik]=useState(false); const [istekMesaj,setIstekMesaj]=useState("");
+  const parcaIste=async(p)=>{ if(!p) return;
+    try{ const son=parseInt(localStorage.getItem("fz_radyo_istek_ts")||"0"); if(Date.now()-son<60000){ setIstekMesaj("⏳ Dakikada 1 istek — birazdan tekrar dene."); return; } }catch(e){}
+    const k=kimlik; const istek={id:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now()), uid:(k&&k.uid)||presIdRef.current, ad:(k&&k.ad)||"Dinleyici", takim:(k&&k.takim)||null, renk:(k&&k.renk)||null, sarki:p.ad||"Parça", url:p.url, ts:Date.now()};
+    const r=await Db.radyoIstekEkle(istek); if(r&&r.ok){ try{ localStorage.setItem("fz_radyo_istek_ts",String(Date.now())); }catch(e){} setIstekMesaj("✅ İsteğin spikere iletildi!"); setTimeout(()=>{ setIstekAcik(false); setIstekMesaj(""); },1500); } else setIstekMesaj("Gönderilemedi — tekrar dene."); };
   const n=liste.length;
   const gerIdx = n? ((idx%n)+n)%n : 0;
   const parca = n? liste[gerIdx] : null;
@@ -16624,7 +16693,19 @@ function RadyoCalarV2({T, barGizle}){
         <div style={{display:"flex",alignItems:"center",gap:8,margin:"0 2px 12px"}}>
           <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:1}}>📻 FORZALIG RADYO</div>
           {senkronAktif && <span style={{fontSize:9,fontWeight:800,color:T.danger,background:T.danger+"18",border:"0.5px solid "+T.danger+"55",borderRadius:20,padding:"2px 8px",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,borderRadius:"50%",background:T.danger}} className="fz-nabiz"/>CANLI · herkes aynı yayında</span>}
+          <span onClick={()=>setDinlAcik(v=>!v)} className="tap" style={{marginLeft:"auto",fontSize:9.5,fontWeight:800,color:T.accent,background:T.accent+"14",border:"0.5px solid "+T.accent+"44",borderRadius:20,padding:"3px 9px",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:T.accent}} className="fz-nabiz"/>👥 {dinleyiciSayi} dinliyor</span>
         </div>
+        {/* Kim dinliyor — mevcut kimlik/takım verisiyle */}
+        {dinlAcik && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px",marginBottom:12}}>
+          <div style={{fontSize:10,color:T.textMut,fontWeight:800,letterSpacing:.5,marginBottom:8}}>ŞU AN DİNLEYENLER · {dinleyiciSayi}</div>
+          {dinleyiciBenzersiz.slice(0,20).map((d,i)=><div key={d.uid||i} style={{display:"flex",alignItems:"center",gap:9,padding:"5px 0"}}>
+            <span style={{width:28,height:28,borderRadius:8,flexShrink:0,display:"grid",placeItems:"center",fontSize:10.5,fontWeight:800,color:"#04140c",background:d.renk||T.accent}}>{String(d.ad||"?").slice(0,2).toUpperCase()}</span>
+            <span style={{flex:1,minWidth:0,fontSize:12.5,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.ad||"Dinleyici"}</span>
+            {d.takim && <span style={{fontSize:10,color:T.textMut,whiteSpace:"nowrap"}}>{d.takim}</span>}
+          </div>)}
+          {dinleyiciSayi>20 && <div style={{fontSize:10,color:T.textMut,textAlign:"center",marginTop:6}}>+ {dinleyiciSayi-20} kişi daha</div>}
+          {dinleyiciSayi===0 && <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:"4px 0"}}>Henüz kimse yok — ilk dinleyen sen ol 🎧</div>}
+        </div>}
         {/* Şu an çalan + beğeni */}
         {parca && <div style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:13,padding:"11px 12px",marginBottom:12}}>
           <span style={{fontSize:26,width:40,height:40,display:"grid",placeItems:"center",background:T.accent+"18",borderRadius:11}}>{ikon(parca)}</span>
@@ -16642,6 +16723,17 @@ function RadyoCalarV2({T, barGizle}){
             <option value="0">😴 Uyku</option><option value="15">15 dk</option><option value="30">30 dk</option><option value="60">60 dk</option>
           </select>
         </div>
+        {/* Parça İste — kasadan seç, spikere iletilir (ortak listeye admin ekler) */}
+        {n>0 && <><button onClick={()=>setIstekAcik(v=>!v)} className="tap" style={{width:"100%",background:istekAcik?T.bg2:T.accent+"18",color:T.accent,border:"0.5px solid "+T.accent+"44",borderRadius:12,padding:"11px",fontSize:13.5,fontWeight:800,marginBottom:12,cursor:"pointer"}}>🎵 Parça İste</button>
+        {istekAcik && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px",marginBottom:12}}>
+          <div style={{fontSize:10,color:T.textMut,fontWeight:800,marginBottom:8}}>KASADAN SEÇ — spikere iletilir</div>
+          {liste.slice(0,30).map((p,i)=><div key={p.id||i} onClick={()=>parcaIste(p)} className="tap" style={{display:"flex",alignItems:"center",gap:9,padding:"7px 6px",borderRadius:9}}>
+            <span style={{fontSize:14,width:22,textAlign:"center"}}>{ikon(p)}</span>
+            <span style={{flex:1,minWidth:0,fontSize:12.5,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.ad||("Parça "+(i+1))}</span>
+            <span style={{fontSize:11,color:T.accent,fontWeight:800}}>İste ›</span>
+          </div>)}
+          {istekMesaj && <div style={{fontSize:11.5,color:/✅/.test(istekMesaj)?T.accent:T.gold,textAlign:"center",marginTop:8,fontWeight:700}}>{istekMesaj}</div>}
+        </div>}</>}
         <div style={{fontSize:10,color:T.textMut,fontWeight:800,letterSpacing:.5,margin:"2px 2px 6px"}}>ÇALMA LİSTESİ {senkronAktif && <span style={{color:T.textMut,fontWeight:600}}>(canlı yayında sıra otomatik)</span>}</div>
         {liste.map((p,i)=>{ const bg=begeni.has(p.id||p.url); return <div key={p.id||i} onClick={()=>{ if(senkronAktif) return; setIdx(i); setCalisiyor(true); setAcik(false); }} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 8px",borderRadius:11,background:i===gerIdx?T.accent+"14":"transparent",marginBottom:2,opacity:senkronAktif&&i!==gerIdx?.5:1}}>
           <span style={{fontSize:16,width:26,textAlign:"center"}}>{ikon(p)}</span>
@@ -16663,6 +16755,7 @@ function RadyoCalarV2({T, barGizle}){
           </div>
         </div>
         <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
+          {dinleyiciSayi>0 && <span onClick={()=>{setAcik(true);setDinlAcik(true);}} className="tap" style={{fontSize:9.5,fontWeight:800,color:T.accent,display:"flex",alignItems:"center",gap:3,cursor:"pointer"}}><span style={{width:5,height:5,borderRadius:"50%",background:T.accent}} className="fz-nabiz"/>👥 {dinleyiciSayi}</span>}
           {parca && <button onClick={()=>begeniyeCevir(parca)} className="tap" aria-label="Beğen" style={{width:32,height:32,borderRadius:9,border:0,background:"transparent",color:parcaBegenili?T.danger:T.textMut,fontSize:15}}>{parcaBegenili?"❤️":"🤍"}</button>}
           {!senkronAktif && <button onClick={onceki} className="tap" aria-label="Önceki" style={{width:30,height:32,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏮</button>}
           {!senkronAktif && <button onClick={sonraki} className="tap" aria-label="Sonraki" style={{width:30,height:32,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏭</button>}
@@ -16785,6 +16878,12 @@ function App(){
   // ===== SÜRÜM SEÇİMİ (tek tuş geri dönüş) — Süper Admin sistem_ayar'dan seçer; varsayılan=ESKİ (v5/v1). Eskiye sıfır etki.
   const AnaComp = (sistemBayrak && sistemBayrak.anasayfa_surum==="v5") ? AnaSayfaV5 : AnaSayfaV6;  // V6 artık VARSAYILAN (Maç Merkezi + akan FIFA/KPI Enler + tüm-lig); sadece açıkça 'v5' seçilirse eski anasayfa
   const RadyoComp = (sistemBayrak && sistemBayrak.radyo_surum==="v1") ? RadyoCalar : RadyoCalarV2;  // V2 artık VARSAYILAN (canlı mikrofon dinleyicisi hep devrede); sadece açıkça 'v1' seçilirse eski
+  // Radyo dinleyici kimliği (presence için) — mevcut oturum + profil + takım verisinden türetilir (yeni tablo yok)
+  const radyoKimlik = useMemo(()=>{ if(!oturum||!oturum.id) return null;
+    let ad=(profil&&(profil.ad||profil.isim||profil.gorunen_ad))||(oturum.email?String(oturum.email).split("@")[0]:"")||"Dinleyici"; let takim=null, renk=null;
+    try{ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ if((tk.oyuncular||[]).some(o=>o.sahip_user_id===oturum.id)){ takim=tk.ad; renk=tk.renk||tk.renk1; break; } } if(takim)break; } }catch(e){}
+    return {uid:oturum.id, ad:String(ad).slice(0,28), takim:takim?String(takim).slice(0,24):null, renk:renk||null};
+  },[oturum&&oturum.id, profil, turnuvalar]);
   // ===== SÜPER ADMIN — TÜM platform liglerini TAM yükle (Enler/Keşfet/anasayfa hepsini görsün, oyuncular+takımlar dahil).
   //   Arka planda çalışır → boot hızını etkilemez. Yeni/sonradan eklenen ligler de otomatik gelir. =====
   useEffect(()=>{ if(!adminMi || !oturum || destek) return; let aktif=true;
@@ -17980,7 +18079,7 @@ function App(){
     </div>}
 
     {/* RADYO — global mini-çalar (içerik varken görünür; sayfa değişince ses kesilmez). Kendi hata kalkanında → asla tüm uygulamayı düşürmez. */}
-    <HataSiniri sayfa="radyo" gomulu><RadyoComp T={T} barGizle={(nav.sayfa==="sohbet"&&nav.turnuva) || ["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa)}/></HataSiniri>
+    <HataSiniri sayfa="radyo" gomulu><RadyoComp T={T} kimlik={radyoKimlik} barGizle={(nav.sayfa==="sohbet"&&nav.turnuva) || ["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa)}/></HataSiniri>
 
     {/* mobil alt menü — giriş yapmış kullanıcıda salt-okunur (demo evren/destek) modda da görünür ki mahsur kalmasın */}
     {(oturum || !saltOkunur) && !(nav.sayfa==="sohbet"&&nav.turnuva) && !["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa) && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
