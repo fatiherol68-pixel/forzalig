@@ -5273,10 +5273,11 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
   const lider = tk.takimlar[0];
   const ikinci = tk.takimlar[1]||lider;
   const fark = lider.puan-ikinci.puan;
-  const golK = Motor.turnuvaGolKrallari(tk,3);
-  const asistK = Motor.turnuvaAsist(tk,3);
-  const kurtarisK = Motor.turnuvaKurtaris(tk,2);
-  const ilk5 = tk.takimlar.slice(0,5);
+  // TÜM-LİG: gol kralı/asist/kaleci + son maçlar + en iyi takımlar bütün liglerden toplanır (tek lig değil)
+  const golK = Motor.golKrallari(turnuvalar,3);       // TÜM-LİG (bütün liglerden)
+  const asistK = Motor.asistKrallari(turnuvalar,3);   // TÜM-LİG
+  const kurtarisK = Motor.kurtarisKrallari(turnuvalar,2); // TÜM-LİG
+  const ilk5 = tk.takimlar.slice(0,5);                // puan durumu: öne çıkan ligin tablosu (combined tablo anlamsız olur)
   const sonMaclar = [...tk.maclar].filter(m=>m.oynandi!==false).reverse().slice(0,5);
   const enGolluMac = [...tk.maclar].sort((a,b)=>(b.skorA+b.skorB)-(a.skorA+a.skorB))[0];
   const enFarkliMac = [...tk.maclar].sort((a,b)=>Math.abs(b.skorA-b.skorB)-Math.abs(a.skorA-a.skorB))[0];
@@ -16647,6 +16648,12 @@ function App(){
   // ===== SÜRÜM SEÇİMİ (tek tuş geri dönüş) — Süper Admin sistem_ayar'dan seçer; varsayılan=ESKİ (v5/v1). Eskiye sıfır etki.
   const AnaComp = (sistemBayrak && sistemBayrak.anasayfa_surum==="v6") ? AnaSayfaV6 : AnaSayfaV5;
   const RadyoComp = (sistemBayrak && sistemBayrak.radyo_surum==="v2") ? RadyoCalarV2 : RadyoCalar;
+  // ===== SÜPER ADMIN — TÜM platform liglerini TAM yükle (Enler/Keşfet/anasayfa hepsini görsün, oyuncular+takımlar dahil).
+  //   Arka planda çalışır → boot hızını etkilemez. Yeni/sonradan eklenen ligler de otomatik gelir. =====
+  useEffect(()=>{ if(!adminMi || !oturum || destek) return; let aktif=true;
+    Db.liglerYukle(null, true).then(hepsi=>{ if(!aktif || !Array.isArray(hepsi) || !hepsi.length) return; hepsi.forEach(t=>{ try{ turnuvaHesapla(t); }catch(e){} }); setTurnuvalar(hepsi); }).catch(()=>{});
+    return ()=>{ aktif=false; };
+  },[adminMi, oturum && oturum.id, destek]);
   // 👁 DESTEK MODU — kullanıcı gözünden görüntüle. Oturum DEVRALINMAZ (admin kendi oturumunda kalır).
   const destekBaslat=async(u)=>{
     if(!u||!u.user_id) return;
