@@ -13675,7 +13675,14 @@ function RadyoYonetim({T, oturum}){
     tekRef.current={}; sesPeakRef.current=0; setTeknik({}); tlog("BASLADI");
     setMesaj("① Mikrofon açılıyor…");
     try{
-      const stream=await navigator.mediaDevices.getUserMedia({audio:true}); yayinStreamRef.current=stream;
+      // getUserMedia'yı AYRI yakala + 8sn zaman aşımı → izin verilse bile takılıyorsa/rejects ise SEBEBİ panelde görünür (cihaz meşgul, mikrofon yok, vb.)
+      tset("izin","🎤 izin isteniyor…");
+      let stream;
+      try{ stream=await Promise.race([ navigator.mediaDevices.getUserMedia({audio:true}), new Promise((_,rej)=>setTimeout(()=>rej(new Error("zaman aşımı (8sn) — mikrofon yanıt vermedi; başka uygulama/sekme mikrofonu kullanıyor olabilir")),8000)) ]); }
+      catch(ge){ const gm=String((ge&&(ge.name?(ge.name+": "+ge.message):ge.message))||ge); tset("izin","❌ "+gm);
+        try{ const devs=await navigator.mediaDevices.enumerateDevices(); const mics=(devs||[]).filter(d=>d.kind==="audioinput"); tset("track","🎚 "+mics.length+" mikrofon aygıtı"+(mics.length?(mics[0].label?(" · "+mics[0].label.slice(0,20)):" · etiket gizli (izin yok)"):" — AYGIT YOK")); }catch(e){}
+        tlog("GUM_HATA "+gm); throw ge; }
+      yayinStreamRef.current=stream;
       const tr=(stream.getAudioTracks&&stream.getAudioTracks()[0])||null;
       tset("izin","verildi ✓"); tlog("MIC_PERMISSION_OK");
       tset("track", tr?((tr.readyState||"?")+" · "+(tr.enabled?"açık":"KAPALI")+(tr.muted?" · MUTED":"")+(tr.label?" · "+tr.label.slice(0,18):"")):"track YOK"); tlog("MIC_TRACK_OK");
