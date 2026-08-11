@@ -13634,7 +13634,9 @@ function RadyoYonetim({T, oturum}){
         try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
         sgonder("live-start",{from:myIdRef.current,duck:muzikSevRef.current}); setCanli(true); setMesaj("🔴 CANLIDASIN — bas konuş, istediğin kadar. Bitince ⏹ Yayını Bitir.");
       } });
-    }catch(e){ setMesaj("Mikrofon açılamadı: "+String((e&&e.message)||e)); }
+    }catch(e){ try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e2){} meterDur();
+      const msj=String((e&&e.message)||e); const izin=/permission|denied|notallowed|not allowed/i.test(msj);
+      setMesaj(izin?"🎤 Mikrofon İZNİ gerekli — adres çubuğundaki 🎤/🔒 simgesine tıkla → 'İzin ver' → tekrar 'Mikrofonu Aç'.":("Mikrofon açılamadı: "+msj)); }
   };
   const canliBitir=async()=>{
     try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e){}   // yayıncı cihaz: normale dön
