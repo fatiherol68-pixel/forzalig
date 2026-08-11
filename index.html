@@ -13578,7 +13578,12 @@ function RadyoYonetim({T, oturum}){
   const muzikSevRef=useRef(0.18);
   const muzikSevCevir=(v)=>{ setMuzikSev(v); muzikSevRef.current=v; sgonder("duck",{level:v}); };
   const canalRef=useRef(null); const pcMapRef=useRef({}); const yayinStreamRef=useRef(null);
+  const acRef=useRef(null); const rafRef=useRef(null); const meterRef=useRef(null);   // VU metre (mikrofon seviyesi)
   const myIdRef=useRef((window.crypto&&crypto.randomUUID)?crypto.randomUUID():"b"+Date.now()+Math.random().toString(36).slice(2,6));
+  const meterBasla=(stream)=>{ try{ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; const ac=new AC(); acRef.current=ac; const src=ac.createMediaStreamSource(stream); const an=ac.createAnalyser(); an.fftSize=256; src.connect(an); const buf=new Uint8Array(an.fftSize);
+    const tik=()=>{ an.getByteTimeDomainData(buf); let max=0; for(let i=0;i<buf.length;i++){ const v=Math.abs(buf[i]-128); if(v>max)max=v; } const lvl=Math.min(100,Math.round((max/55)*100)); if(meterRef.current) meterRef.current.style.width=lvl+"%"; rafRef.current=requestAnimationFrame(tik); }; tik();
+  }catch(e){} };
+  const meterDur=()=>{ try{ if(rafRef.current) cancelAnimationFrame(rafRef.current); }catch(e){} rafRef.current=null; try{ acRef.current&&acRef.current.close(); }catch(e){} acRef.current=null; try{ if(meterRef.current) meterRef.current.style.width="0%"; }catch(e){} };
   const ICE={iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:global.stun.twilio.com:3478"}]};
   const sgonder=(ev,payload)=>{ try{ canalRef.current&&canalRef.current.send({type:"broadcast",event:ev,payload}); }catch(e){} };
   const yeniListenerPC=(lid)=>{ let pc=pcMapRef.current[lid]; if(pc) return pc;
@@ -13591,6 +13596,7 @@ function RadyoYonetim({T, oturum}){
     if(typeof RTCPeerConnection==="undefined"||!navigator.mediaDevices||!sb){ setMesaj("Tarayıcı/bağlantı canlı yayını desteklemiyor."); return; }
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true}); yayinStreamRef.current=stream;
+      meterBasla(stream);
       const kanal=sb.channel("fz-radyo-canli",{config:{broadcast:{self:false}}}); canalRef.current=kanal;
       kanal.on("broadcast",{event:"hello"},async({payload})=>{ const lid=payload&&payload.from; if(!lid) return;
         const pc=yeniListenerPC(lid);
@@ -13606,6 +13612,7 @@ function RadyoYonetim({T, oturum}){
   };
   const canliBitir=async()=>{
     try{ sgonder("live-end",{from:myIdRef.current}); }catch(e){}
+    meterDur();
     Object.keys(pcMapRef.current).forEach(k=>{ try{pcMapRef.current[k].close();}catch(e){} }); pcMapRef.current={}; setDinleyici(0);
     try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} yayinStreamRef.current=null;
     try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} canalRef.current=null;
@@ -13613,7 +13620,7 @@ function RadyoYonetim({T, oturum}){
     try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
     setCanli(false); setMesaj("Yayın bitti — müzik moduna dönüldü");
   };
-  useEffect(()=>()=>{ try{ Object.keys(pcMapRef.current).forEach(k=>pcMapRef.current[k].close()); }catch(e){} try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} },[]);
+  useEffect(()=>()=>{ meterDur(); try{ Object.keys(pcMapRef.current).forEach(k=>pcMapRef.current[k].close()); }catch(e){} try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} },[]);
   useEffect(()=>{ Db.radyoOku().then(l=>setListe(Array.isArray(l)?l:[])).catch(()=>setListe([])); },[]);
   // Radyo sürüm/senkron anahtarları (bu ekranda doğrudan görünsün diye) — sistem_ayar'a yazar, ANINDA etki eder
   const [surum,setSurum]=useState(null); const [yayin,setYayin]=useState(null);
@@ -13636,7 +13643,7 @@ function RadyoYonetim({T, oturum}){
   };
   const kayitBitir=()=>{ try{ if(mrRef.current&&mrRef.current.state!=="inactive") mrRef.current.stop(); }catch(e){} setKayit(false); };
   const ikon=(p)=> p&&p.tur==="anons"?"📣":p&&p.tur==="ses"?"🎙️":"🎵";
-  return <div>
+  return <div style={{paddingBottom:"calc(150px + env(safe-area-inset-bottom))"}}>
     {/* 🆕 RADYO SÜRÜM ANAHTARI — bu ekranda doğrudan görünür (tek tuş, anında) */}
     {(()=>{ const v2=surum==="v2"; const senk=!!(yayin&&yayin.mod==="senkron");
       const sw=(on)=>({width:40,height:23,borderRadius:12,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
@@ -13656,7 +13663,7 @@ function RadyoYonetim({T, oturum}){
       </div>;
     })()}
     {/* 🔴 CANLI MİKROFON — Süper Admin konuşur, Radyo V2 açık dinleyiciler canlı duyar */}
-    <div style={{background:canli?"linear-gradient(160deg,"+T.danger+"26,"+T.bg1+")":"linear-gradient(160deg,"+T.danger+"12,"+T.bg1+")",border:"1px solid "+T.danger+(canli?"99":"44"),borderRadius:12,padding:"13px 14px",marginBottom:12}}>
+    <div style={{background:canli?"linear-gradient(160deg,"+T.danger+"26,"+T.bg1+")":"linear-gradient(160deg,"+T.danger+"12,"+T.bg1+")",border:"1px solid "+T.danger+(canli?"99":"44"),borderRadius:12,padding:"13px 14px",marginBottom:12,userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
         <span style={{fontSize:15}}>🎙️</span>
         <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Canlı Mikrofon</div>
@@ -13667,6 +13674,12 @@ function RadyoYonetim({T, oturum}){
         ? <button onClick={canliBasla} className="tap" style={{width:"100%",background:"linear-gradient(135deg,"+T.danger+",#c0392b)",color:"#fff",border:0,borderRadius:12,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer"}}>🔴 Canlıya Başla</button>
         : <>
             <button onClick={canliBitir} className="tap" style={{width:"100%",background:T.bg2,color:T.text,border:"1px solid "+T.danger,borderRadius:12,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer"}}>⏹ Yayını Bitir</button>
+            {/* 🎤 VU METRE — konuşunca çubuk oynar → çalıştığını anlarsın */}
+            <div style={{marginTop:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:T.textMut,marginBottom:5,fontWeight:700}}><span>🎤 Mikrofon seviyesi</span><span>👥 {dinleyici} dinleyici</span></div>
+              <div style={{height:11,borderRadius:6,background:T.bg2,overflow:"hidden"}}><div ref={meterRef} style={{height:"100%",width:"0%",background:"linear-gradient(90deg,"+T.accent+",#f2c24e,"+T.danger+")"}}/></div>
+              <div style={{fontSize:10,color:T.textMut,marginTop:6,lineHeight:1.55}}>Konuş → çubuk oynuyorsa mikrofon <b style={{color:T.accent}}>çalışıyor</b> demektir. Sesi <b style={{color:T.textSoft}}>BAŞKA cihazda</b> (Radyo V2 açık) duyarsın — aynı cihazda kendini duymazsın (normal).</div>
+            </div>
             <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+T.line}}>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.textSoft,marginBottom:6,fontWeight:700}}><span>🎵 Müzik kısık</span><span>🎵 Müzik açık</span></div>
               <input type="range" min="0" max="0.8" step="0.02" value={muzikSev} onChange={e=>muzikSevCevir(parseFloat(e.target.value))} style={{width:"100%",accentColor:T.accent}}/>
@@ -13703,7 +13716,7 @@ function RadyoYonetim({T, oturum}){
 
     <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:.6,margin:"6px 2px 8px"}}>ÇALMA LİSTESİ {liste?"· "+liste.length:""}</div>
     {liste===null && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Yükleniyor…</div>}
-    {liste&&liste.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16,background:T.bg1,border:"0.5px dashed "+T.line,borderRadius:11}}>Henüz ses yok. Yukarıdan bas-konuş kaydet ya da bir ses dosyası yükle.</div>}
+    {liste&&liste.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16,background:T.bg1,border:"0.5px dashed "+T.line,borderRadius:11}}>Henüz ses yok. Yukarıdan klip kaydet, ses dosyası yükle ya da ses linki yapıştır.</div>}
     {liste&&liste.map((p,i)=><div key={p.id||i} style={{display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"9px 11px",marginBottom:6}}>
       <span style={{fontSize:16,width:24,textAlign:"center",flexShrink:0}}>{ikon(p)}</span>
       <div style={{flex:1,minWidth:0}}>
