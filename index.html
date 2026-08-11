@@ -13723,8 +13723,9 @@ function RadyoYonetim({T, oturum}){
     Object.keys(pcMapRef.current).forEach(k=>{ try{pcMapRef.current[k].close();}catch(e){} }); pcMapRef.current={}; setDinleyici(0);
     try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} yayinStreamRef.current=null;
     try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} canalRef.current=null;
-    await Db.ayarYaz("radyo_yayin",JSON.stringify({mod:"kapali"}));
-    try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e){}   // yayıncı cihaz: normale dön + dinleyici kanalı geri kurulur (DB artık 'kapali')
+    // Radyo AÇIK ise (tek anahtar) yayın bitince ortak müzik (senkron) devam etsin; kapalıysa sustur.
+    await Db.ayarYaz("radyo_yayin",JSON.stringify(surum==="v2"?{mod:"senkron",ref:Date.now(),slot:210}:{mod:"kapali"}));
+    try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e){}   // yayıncı cihaz: normale dön + dinleyici kanalı geri kurulur
     try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
     setCanli(false); setMesaj("Yayın bitti — müzik moduna dönüldü");
   };
@@ -13743,6 +13744,16 @@ function RadyoYonetim({T, oturum}){
   useEffect(()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; setSurum(ay.radyo_surum||"v1"); try{ setYayin(ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null); }catch(e){ setYayin(null); } }); },[]);
   const surumCevir=async(v)=>{ setSurum(v); const r=await Db.ayarYaz("radyo_surum",v); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj("✓ Radyo "+(v==="v2"?"V2 açıldı":"V1'e döndü")); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
   const senkronCevir=async()=>{ const on=!!(yayin&&yayin.mod==="senkron"); const y=on?{mod:"kapali"}:{mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); const r=await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj(on?"✓ Senkron kapandı":"✓ Senkron açıldı — herkes aynı yayında"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
+  // TEK ANAHTAR (redesign ①): kullanıcı V1/V2/senkron bilmez. Tek "FORZALİG RADYO" aç/kapat.
+  //  AÇIK → yeni radyo (v2) + ortak/senkron yayın OTOMATİK (canlı mikrofon yoksa). KAPALI → radyo kapalı.
+  const radyoMasterCevir=async()=>{
+    const acik = surum==="v2";
+    if(acik){ setSurum("v1"); await Db.ayarYaz("radyo_surum","v1"); const y={mod:"kapali"}; setYayin(y); await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); setMesaj("📻 ForzaLig Radyo kapatıldı"); }
+    else { setSurum("v2"); await Db.ayarYaz("radyo_surum","v2");
+      if(!(yayin&&yayin.mod==="canli")){ const y={mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); }
+      setMesaj("📻 ForzaLig Radyo açıldı — herkes aynı yayını dinliyor"); }
+    try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
+  };
   const kaydet=async(yeni)=>{ setListe(yeni); const r=await Db.radyoYaz(yeni); if(r&&r.ok){ try{ window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj("✓ Kaydedildi"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")+" — sistem ayar yazma izni gerekir (bakım-modu anahtarıyla aynı yer)."); };
   const ekle=(url,adx,tur)=>{ const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,7); const yeni=[...(liste||[]),{id, ad:(adx||("Parça "+((liste||[]).length+1))), url, tur:tur||"klip"}]; kaydet(yeni); setAd(""); };
   const sil=(id)=>{ if(!confirm("Bu parça listeden çıkarılsın mı?")) return; kaydet((liste||[]).filter(x=>x.id!==id)); };
@@ -13761,21 +13772,18 @@ function RadyoYonetim({T, oturum}){
   const ikon=(p)=> p&&p.tur==="anons"?"📣":p&&p.tur==="ses"?"🎙️":"🎵";
   return <div style={{paddingBottom:"calc(150px + env(safe-area-inset-bottom))"}}>
     {/* 🆕 RADYO SÜRÜM ANAHTARI — bu ekranda doğrudan görünür (tek tuş, anında) */}
-    {(()=>{ const v2=surum==="v2"; const senk=!!(yayin&&yayin.mod==="senkron");
-      const sw=(on)=>({width:40,height:23,borderRadius:12,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
-      const knob=(on)=>({position:"absolute",top:2,left:on?19:2,width:17,height:17,borderRadius:"50%",background:"#fff",transition:"left .2s"});
-      return <div style={{background:"linear-gradient(160deg,"+T.accent+"16,"+T.bg1+")",border:"1px solid "+T.accent+"55",borderRadius:12,padding:"13px 14px",marginBottom:12}}>
-        <div style={{fontSize:13.5,fontWeight:800,color:T.text,marginBottom:2}}>🆕 Radyo Sürümü — tek tuş</div>
-        <div style={{fontSize:11,color:T.textMut,marginBottom:8,lineHeight:1.5}}>V2 = senkron canlı yayın + ses seviyesi + ilerleme çubuğu + beğeni + uyku. Anında etki eder; kapatınca <b style={{color:T.textSoft}}>eski radyoya</b> döner.</div>
-        <div onClick={()=>surumCevir(v2?"v1":"v2")} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderTop:"1px solid "+T.line,cursor:"pointer"}}>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,color:T.text,fontWeight:700}}>📻 Radyo V2'yi kullan</div><div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>{v2?"Açık — yeni radyo görünüyor":"Kapalı — şu an eski radyo (V1)"}</div></div>
-          <span style={sw(v2)}><span style={knob(v2)}/></span>
+    {(()=>{ const acik=surum==="v2"; const yukleniyor=surum===null;
+      const sw=(on)=>({width:48,height:27,borderRadius:15,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
+      const knob=(on)=>({position:"absolute",top:2,left:on?23:2,width:21,height:21,borderRadius:"50%",background:"#fff",transition:"left .2s"});
+      return <div style={{background:acik?"linear-gradient(160deg,"+T.accent+"1c,"+T.bg1+")":"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+(acik?T.accent+"55":T.line),borderRadius:14,padding:"15px 16px",marginBottom:12}}>
+        <div onClick={yukleniyor?null:radyoMasterCevir} className="tap" style={{display:"flex",alignItems:"center",gap:13,cursor:yukleniyor?"default":"pointer"}}>
+          <span style={{fontSize:24}}>📻</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:16,fontWeight:800,color:T.text,letterSpacing:.2}}>FORZALİG RADYO</div>
+            <div style={{fontSize:11.5,color:acik?T.accent:T.textMut,marginTop:3,fontWeight:600}}>{yukleniyor?"yükleniyor…":acik?"🟢 Açık — herkes aynı yayını dinliyor":"⚪ Kapalı — dinleyicilerde radyo görünmez"}</div>
+          </div>
+          <span style={sw(acik)}><span style={knob(acik)}/></span>
         </div>
-        {v2 && <div onClick={senkronCevir} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderTop:"1px solid "+T.line,cursor:"pointer"}}>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,color:T.text,fontWeight:700}}>📡 Senkron canlı yayın</div><div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>{senk?"Açık — herkes aynı anda aynı şarkı":"Kapalı — herkes serbest dinliyor"}</div></div>
-          <span style={sw(senk)}><span style={knob(senk)}/></span>
-        </div>}
-        {surum===null && <div style={{fontSize:10.5,color:T.textMut,paddingTop:8}}>yükleniyor…</div>}
       </div>;
     })()}
     {/* 🔴 CANLI MİKROFON — Süper Admin konuşur, Radyo V2 açık dinleyiciler canlı duyar */}
@@ -13785,7 +13793,7 @@ function RadyoYonetim({T, oturum}){
         <div style={{fontSize:13.5,fontWeight:800,color:canli?T.accent:T.text}}>{canli?"🟢 YAYINDASIN":"Canlı Mikrofon"}</div>
         {canli && <span style={{marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:6,fontSize:11,fontWeight:800,color:T.accent}}><span style={{width:8,height:8,borderRadius:"50%",background:T.accent}} className="fz-nabiz"/>{dinleyici} dinleyici</span>}
       </div>
-      <div style={{fontSize:11,color:T.textMut,marginBottom:10,lineHeight:1.5}}>Sen konuşursun, <b style={{color:T.textSoft}}>Radyo V2 açık tüm dinleyiciler</b> canlı duyar. Yayın başlayınca dinleyicide müzik durur; bitince geri gelir.{surum!=="v2"&&<span style={{color:T.gold}}> (Önce yukarıdan Radyo V2'yi aç ki dinleyiciler duyabilsin.)</span>}</div>
+      <div style={{fontSize:11,color:T.textMut,marginBottom:10,lineHeight:1.5}}>Sen konuşursun, <b style={{color:T.textSoft}}>tüm dinleyiciler</b> canlı duyar. Sen konuşurken müzik arkada kısılır (durmaz), bitince yumuşakça geri gelir.{surum!=="v2"&&<span style={{color:T.gold}}> (Önce yukarıdan <b>ForzaLig Radyo</b>'yu aç ki dinleyiciler duyabilsin.)</span>}</div>
       {!canli
         ? <button onClick={canliBasla} className="tap" style={{width:"100%",background:"linear-gradient(135deg,"+T.danger+",#c0392b)",color:"#fff",border:0,borderRadius:12,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer"}}>🎙 Mikrofonu Aç (canlı yayına başla)</button>
         : <>
