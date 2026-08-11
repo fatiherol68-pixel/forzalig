@@ -13591,7 +13591,7 @@ function RadyoYonetim({T, oturum}){
     const low=u.toLowerCase();
     if(/youtube\.com|youtu\.be|soundcloud\.com|spotify\.com|open\.spotify|deezer\.com/.test(low)){ setMesaj("⚠️ YouTube/SoundCloud/Spotify sesini yasal olarak yayınlayamayız (telif). Telifsiz MP3 linki veya 'Ses dosyası yükle' ile ekle."); return; }
     if(/^https?:\/\//.test(low) && (/\.(mp3|m4a|aac|ogg|oga|wav|webm|flac)(\?|#|$)/.test(low) || /supabase\.co\/storage|\.r2\.dev|r2\.cloudflarestorage|\.mp3|\/audio/.test(low))){ ekle(u, (ad.trim()||"Bağlantı"), "klip"); setUrlIn(""); setMesaj("✓ Bağlantı eklendi"); return; }
-    setMesaj("Bu bağlantı çalınabilir bir ses değil — mp3/m4a/ogg gibi doğrudan ses linki gerekir.");
+    setMesaj("⚠️ Bu bir web SAYFASI linki, ses DOSYASI değil. Gereken: '.mp3' ile biten doğrudan ses linki (ör. .../sarki.mp3). Site/YouTube linkleri çalınamaz — 'Ses dosyası yükle' ile kendi dosyanı ekle.");
   };
   // ===== CANLI MİKROFON (WebRTC yayıncı — sadece Süper Admin) — P2P mesh + Supabase Realtime sinyalleşme =====
   const [canli,setCanli]=useState(false);
@@ -16398,7 +16398,9 @@ function RadyoCalarV2({T, barGizle}){
   const senkronAktif = !!(yayin && yayin.mod==="senkron" && yayin.ref && n);
   // Senkron konum: her cihaz aynı formül → aynı parça + aynı saniye
   const senkronKonum=()=>{ if(!senkronAktif) return null; const el=(Date.now()-yayin.ref)/1000; if(el<0) return null; const top=n*SLOT; const pos=((el%top)+top)%top; return {i:Math.floor(pos/SLOT)%n, off:pos%SLOT}; };
-  const oynatDurdur=(zorla)=>{ const a=audioRef.current; if(!a||!parca) return;
+  const oynatDurdur=(zorla)=>{
+    try{ const _l=canliAudioRef.current; if(_l&&_l.srcObject) _l.play().catch(()=>{}); }catch(e){}   // canlı yayın sesini de aç (autoplay kilidi kırılır)
+    const a=audioRef.current; if(!a||!parca) return;
     const hedef=(typeof zorla==="boolean")?zorla:!calisiyor;
     if(hedef){ if(a.src!==parca.url){ a.src=parca.url; } a.volume=ses; a.play().then(()=>setCalisiyor(true)).catch(()=>setCalisiyor(false)); }
     else { a.pause(); setCalisiyor(false); }
@@ -16452,9 +16454,15 @@ function RadyoCalarV2({T, barGizle}){
     kanal.subscribe((st)=>{ if(st==="SUBSCRIBED"){ Db.ayarlarOku().then(ay=>{ try{ const y=ay&&ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; if(y&&y.mod==="canli"){ if(y.duck!=null) setDuckSev(y.duck); hello(); } }catch(e){} }); } });
     return ()=>{ aktif=false; dinleTemizle(); try{ sb.removeChannel(kanal); }catch(e){} };
   },[]);
-  // canlı yayın gelince: sesi bağla (tam ses) + müziği KISMA (durdurma değil → sesin üstte), bitince müzik geri
+  // canlı yayın gelince: sesi bağla (tam ses) + müziği arkada OTOMATİK başlat & KIS (sesin üstte), bitince müzik geri
   useEffect(()=>{ const la=canliAudioRef.current;
-    if(canliDinle){ if(la&&liveStreamRef.current){ try{ la.srcObject=liveStreamRef.current; la.volume=1; la.play().catch(()=>{}); }catch(e){} } const a=audioRef.current; if(a){ try{ a.volume=Math.max(0,Math.min(1,duckSev*ses)); }catch(e){} } }
+    if(canliDinle){
+      if(la&&liveStreamRef.current){ try{ la.srcObject=liveStreamRef.current; la.volume=1; la.play().catch(()=>{}); }catch(e){} }
+      const a=audioRef.current;
+      if(a){ try{ a.volume=Math.max(0,Math.min(1,duckSev*ses));
+        if(duckSev>0.02 && parca){ if(a.src!==parca.url) a.src=parca.url; a.play().then(()=>setCalisiyor(true)).catch(()=>{}); }   // arka müzik otomatik başlar (kısık)
+      }catch(e){} }
+    }
     else { const a=audioRef.current; if(a){ try{ a.volume=ses; }catch(e){} } }
   },[canliDinle,duckSev,ses]);
   if(!n && !canliDinle) return null;
