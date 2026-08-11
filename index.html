@@ -5481,6 +5481,42 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
       })()}
     </div>
 
+    {/* ===== CANLI AKIŞ — TÜM liglerden son hareketler (platform yaşıyor: goller/maçlar) ===== */}
+    {(()=>{
+      const akis=[];
+      (turnuvalar||[]).forEach(t=>{ (t.maclar||[]).forEach(m=>{
+        if(m.oynandi===false || (m.skorA==null&&m.skorB==null)) return;
+        const d=parseT(m.tarih); const ts=d?d.getTime():((m.hafta||0)*3600000);
+        akis.push({t, m, lig:t.ad, ts, gol:(m.skorA||0)+(m.skorB||0)});
+      }); });
+      akis.sort((a,b)=>b.ts-a.ts);
+      const list=akis.slice(0,7);
+      if(list.length<2) return null;
+      return <div style={{padding:"22px 14px 0"}}>
+        <V5Eyebrow T={T}>Canlı Akış <span style={{fontSize:9,fontWeight:800,color:T.danger,background:T.danger+"16",border:"0.5px solid "+T.danger+"44",borderRadius:20,padding:"2px 8px",marginLeft:6,display:"inline-flex",alignItems:"center",gap:4,verticalAlign:"middle"}}><span style={{width:5,height:5,borderRadius:"50%",background:T.danger}} className="fz-nabiz"/>tüm ligler</span></V5Eyebrow>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {list.map((it,i)=>{ const m=it.m; const d=parseT(m.tarih); const atesli=it.gol>=5; const bitmis=m.skorA!=null&&m.skorB!=null;
+            const kazA=bitmis&&m.skorA>m.skorB, kazB=bitmis&&m.skorB>m.skorA;
+            return <div key={i} onClick={()=>git&&git({sayfa:"mac",mac:m,turnuva:it.t})} className="tap" style={{display:"flex",alignItems:"center",gap:10,background:atesli?"linear-gradient(120deg,"+T.danger+"14,"+T.bg1+" 60%)":T.bg1,border:"0.5px solid "+(atesli?T.danger+"33":T.line),borderRadius:12,padding:"9px 11px"}}>
+              <span style={{fontSize:16,width:26,textAlign:"center",flexShrink:0}}>{atesli?"🔥":"⚽"}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
+                  <Logo renk={m.renkA} ad={m.takimA} boy={17}/>
+                  <span style={{fontSize:12.5,color:T.text,fontWeight:kazA?800:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:90}}>{m.takimA}</span>
+                  <span style={{fontSize:13,fontWeight:900,fontFamily:T.fontDisplay,color:T.text,flexShrink:0}}>{m.skorA}-{m.skorB}</span>
+                  <span style={{fontSize:12.5,color:T.text,fontWeight:kazB?800:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:90}}>{m.takimB}</span>
+                  <Logo renk={m.renkB} ad={m.takimB} boy={17}/>
+                </div>
+                <div style={{fontSize:9.5,color:T.textMut,marginTop:3,display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                  <span style={{width:4,height:4,borderRadius:"50%",background:T.accent,flexShrink:0}}/>{it.lig}{d?" · "+d.toLocaleDateString("tr-TR",{day:"numeric",month:"short"}):(m.hafta?" · Hafta "+m.hafta:"")}{m.mvp?" · ⭐ "+m.mvp:""}</div>
+              </div>
+              <span style={{color:T.textMut,fontSize:15,flexShrink:0}}>›</span>
+            </div>;
+          })}
+        </div>
+      </div>;
+    })()}
+
     {yildizFull && <div style={{padding:"22px 14px 0"}}>
       <V5Eyebrow T={T}>Haftanın Kartı</V5Eyebrow>
       <VitrinFifa oyuncu={yildizFull} T={T} etiket={"⚽ "+tk.ad}/>
