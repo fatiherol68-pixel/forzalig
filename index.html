@@ -1702,7 +1702,7 @@ const Db = {
   // SUNUCU KOKPİT ÖZETİ (stat_ozet) — hesaplanmış anlık görüntüyü OKU/YAZ.
   // Kokpit bunu okur → 276 maçı indirmeden ~0.5sn'de dolu açılır (her cihazda, ilk açılışta).
   async statOzetGetir(ligId){ if(!sb||!ligId) return null; try{ const {data}=await sb.from('ligler').select('stat_ozet').eq('id',ligId).maybeSingle(); return (data&&data.stat_ozet)||null; }catch(e){ return null; } },
-  async statOzetYaz(ligId, veri){ if(!sb||!ligId||!veri) return; try{ await sb.rpc('stat_ozet_yaz',{p_lig:ligId, p_data:veri}); }catch(e){} },
+  async statOzetYaz(ligId, veri){ if(!sb||!ligId||!veri) return; try{ let d; try{ d=JSON.parse(JSON.stringify(veri)); }catch(_){ return; } await sb.rpc('stat_ozet_yaz',{p_lig:ligId, p_data:d}); }catch(e){} },
   // Test verisini temizle: kullanıcının tüm ligleri + öksüz oyuncular (admin)
   async testVerisiSil(yoneticiId){
     if(!sb) return {hata:"bağlantı yok"};
@@ -1825,6 +1825,14 @@ const Db = {
   // RADYO (Faz 1) — playlist sistem_ayar kv'de JSON; ses mevcut 'fotolar' deposunda (sesYukle). Yeni tablo/depo YOK.
   async radyoOku(){ if(!sb) return []; try{ const {data,error}=await sb.from('sistem_ayar').select('deger').eq('anahtar','radyo_liste').maybeSingle(); if(error||!data||!data.deger) return []; try{ const a=JSON.parse(data.deger); return Array.isArray(a)?a:[]; }catch(e){ return []; } }catch(e){ return []; } },
   async radyoYaz(liste){ return await this.ayarYaz('radyo_liste', JSON.stringify(Array.isArray(liste)?liste:[])); },
+  // RADYO PARÇA İSTEKLERİ (redesign) — sistem_ayar 'radyo_istek' JSON dizisi. Yeni tablo YOK.
+  async radyoIstekOku(){ if(!sb) return []; try{ const {data,error}=await sb.from('sistem_ayar').select('deger').eq('anahtar','radyo_istek').maybeSingle(); if(error||!data||!data.deger) return []; try{ const a=JSON.parse(data.deger); return Array.isArray(a)?a:[]; }catch(e){ return []; } }catch(e){ return []; } },
+  async radyoIstekYaz(liste){ return await this.ayarYaz('radyo_istek', JSON.stringify(Array.isArray(liste)?liste.slice(-40):[])); },
+  async radyoIstekEkle(istek){ try{ const l=await this.radyoIstekOku(); l.push(istek); const r=await this.radyoIstekYaz(l); return r; }catch(e){ return {hata:String(e)}; } },
+  // DEPOLAMA KOTASI — güvenli: storage boyutu SECURITY DEFINER SQL fonksiyonundan (service-role sırrı FRONTEND'DE YOK).
+  async radyoDepoStat(){ if(!sb) return null; try{ const {data,error}=await sb.rpc('radyo_depo_stat'); if(error) return {hata:error.message}; return data||null; }catch(e){ return {hata:String(e)}; } },
+  // EGRESS (aylık trafik) — SADECE opsiyonel Edge Function varsa (Management API PAT server-side secret). Yoksa null döner, UI '—' gösterir.
+  async radyoEgress(){ if(!sb||!sb.functions) return null; try{ const {data,error}=await sb.functions.invoke('radyo-egress',{body:{}}); if(error) return null; return data||null; }catch(e){ return null; } },
   // FİDAN (Faz 1) — TÜM liglerde oynanmış maçlardaki toplam gol (ev_skor+dep_skor). Yeni tablo/SQL YOK.
   // Sayfalı okur (1000'lik Supabase tavanını aşar) → binlerce maçta bile doğru toplam. Sadece 2 int kolon çeker → hafif.
   async fidanGolToplam(){ if(!sb) return 0; try{
@@ -5217,6 +5225,467 @@ function AnaSayfaV5({turnuvalar, T, git}){
     </div>
 
     {/* İLETİŞİM */}
+    <div style={{padding:"20px 14px 10px"}}>
+      <V5Eyebrow T={T}>İletişim</V5Eyebrow>
+      <IletisimBar iletisim={icerik.iletisim} T={T}/>
+    </div>
+  </div>;
+}
+/* ===== ANASAYFA V6 (Faz 1) — paralel yeni anasayfa. Süper Admin 'anasayfa_surum=v6' ile açar; varsayılan=eski (V5).
+   V5'in kanıtlı veri mantığı + yardımcıları AYNEN kullanılır; üstüne Faz-1 eklentileri:
+   (A8) Maç Merkezi (Bugün/Yaklaşan/Son), (A1) hero 'bu hafta' nabzı, (A2) Enler SPOTLIGHT, (A6) 'AI'→'Özet'.
+   Eskiye (V5) HİÇ dokunulmaz; sorun olursa tek tuşla V5'e dönülür. */
+function AnaSayfaV6({turnuvalar, T, git, oturum}){
+  const aktifTurnuva = useMemo(()=>{
+    const dolu = turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0);
+    if(!dolu.length) return null;
+    return [...dolu].sort((a,b)=>b.maclar.length-a.maclar.length)[0];
+  },[turnuvalar]);
+  const yukselenTakim = useMemo(()=>{
+    if(!aktifTurnuva || !aktifTurnuva.takimlar) return null;
+    const puanla=(t)=>(t.form||[]).slice(-5).reduce((s,f)=>s+(f==="G"?3:f==="B"?1:0),0);
+    return [...aktifTurnuva.takimlar].map(t=>({t,p:puanla(t)})).sort((a,b)=>b.p-a.p)[0];
+  },[aktifTurnuva]);
+  const [icerik,setIcerik]=useState({sponsorlar:[],haberler:[],iletisim:null});
+  useEffect(()=>{ let a=true; Db.ayarlarOku().then(ay=>{ if(!a||!ay)return;
+    const jl=(k)=>{ try{ const v=JSON.parse(ay[k]||"[]"); return Array.isArray(v)?v:[]; }catch(e){ return []; } };
+    let ilet=null; try{ ilet=ay.iletisim?JSON.parse(ay.iletisim):null; }catch(e){}
+    setIcerik({sponsorlar:jl('sponsorlar'), haberler:jl('haberler'), iletisim:ilet});
+  }); return ()=>{a=false;}; },[]);
+  const tumO = Motor.tumOyuncular(turnuvalar);
+  const topTakim = turnuvalar.reduce((s,t)=>s+(t.takimSay!=null?t.takimSay:(t.takimlar?t.takimlar.length:0)),0);
+  const topMac = turnuvalar.reduce((s,t)=>s+(t.macSay!=null?t.macSay:(t.maclar?t.maclar.length:0)),0);
+  const topOyuncu = turnuvalar.reduce((s,t)=>s+(t.oyuncuSay!=null?t.oyuncuSay:(t.takimlar?t.takimlar.reduce((a,tk)=>a+((tk.oyuncular&&tk.oyuncular.length)||0),0):0)),0) || tumO.length;
+  const saat = new Date().getHours();
+  const selam = saat<5?"İyi geceler":saat<12?"Günaydın":saat<18?"Merhaba":saat<23?"İyi akşamlar":"İyi geceler";
+  const bugun = new Date().toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric",weekday:"long"});
+
+  if(!aktifTurnuva) return <div className="fade-in" style={{padding:"34px 20px 80px",maxWidth:460,margin:"0 auto"}}>
+    <div style={{textAlign:"center",marginBottom:22}}>
+      <div style={{fontSize:44,marginBottom:10}}>⚽</div>
+      <div style={{fontSize:20,color:T.text,fontWeight:800,fontFamily:T.fontDisplay}}>Hoş geldin!</div>
+      <div style={{fontSize:13,color:T.textMut,lineHeight:1.6,marginTop:6}}>Ne yapmak istersin? İstediğini seç — sonradan değişir.</div>
+    </div>
+    {[
+      {ik:"🔍",bas:"Ligleri keşfet",alt:"Açık ligleri gez, bir takıma katıl",go:()=>git&&git({sayfa:"ligler"}),vurgu:true},
+      {ik:"🛡️",bas:"Takımını kur",alt:"Kalıcı takım — her ligde tekrar kullan",go:()=>git&&git({sayfa:"kuluplerim"})},
+      {ik:"🏆",bas:"Lig aç",alt:"Kendi ligini veya turnuvanı düzenle",go:()=>git&&git({sayfa:"ligkur"})},
+    ].map((a,i)=><div key={i} onClick={a.go} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:13,background:T.bg1,border:"1px solid "+(a.vurgu?T.accent+"55":T.line),borderRadius:16,padding:"15px",marginBottom:10,cursor:"pointer"}}>
+      <div style={{width:46,height:46,borderRadius:13,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,background:(a.vurgu?T.accent:T.gold)+"22",color:a.vurgu?T.accent:T.gold}}>{a.ik}</div>
+      <div style={{flex:1,minWidth:0}}><div style={{fontSize:15.5,fontWeight:800,color:T.text}}>{a.bas}</div><div style={{fontSize:11.5,color:T.textMut,marginTop:2}}>{a.alt}</div></div>
+      <span style={{color:T.textMut,fontSize:20}}>›</span>
+    </div>)}
+  </div>;
+
+  const tk = aktifTurnuva;
+  const lider = tk.takimlar[0];
+  const ikinci = tk.takimlar[1]||lider;
+  const fark = lider.puan-ikinci.puan;
+  // TÜM-LİG: gol kralı/asist/kaleci + son maçlar + en iyi takımlar bütün liglerden toplanır (tek lig değil)
+  const golK = Motor.golKrallari(turnuvalar,3);       // TÜM-LİG (bütün liglerden)
+  const asistK = Motor.asistKrallari(turnuvalar,3);   // TÜM-LİG
+  const kurtarisK = Motor.kurtarisKrallari(turnuvalar,2); // TÜM-LİG
+  const ilk5 = tk.takimlar.slice(0,5);                // puan durumu: öne çıkan ligin tablosu (combined tablo anlamsız olur)
+  const sonMaclar = [...tk.maclar].filter(m=>m.oynandi!==false).reverse().slice(0,5);
+  const enGolluMac = [...tk.maclar].sort((a,b)=>(b.skorA+b.skorB)-(a.skorA+a.skorB))[0];
+  const enFarkliMac = [...tk.maclar].sort((a,b)=>Math.abs(b.skorA-b.skorB)-Math.abs(a.skorA-a.skorB))[0];
+  const topGolLig = tk.maclar.reduce((s,m)=>s+(m.skorA||0)+(m.skorB||0),0);
+  const ortGolLig = (topGolLig/Math.max(1,tk.maclar.length)).toFixed(1);
+  const enCokGolTakim = [...tk.takimlar].sort((a,b)=>b.ag-a.ag)[0];
+  const enCokYiyen = [...tk.takimlar].sort((a,b)=>b.yg-a.yg)[0];
+  // ── MAÇ MERKEZİ + BU HAFTA NABZI (V6 yeni) ──
+  const parseT=(s)=>{ if(!s) return null; try{ const d=new Date(s); return isNaN(d.getTime())?null:d; }catch(e){ return null; } };
+  const bugunStr = (()=>{ try{ return new Date().toISOString().slice(0,10); }catch(e){ return ""; } })();
+  const yaklasan = tk.maclar.filter(m=>m.oynandi===false).sort((a,b)=>((a.hafta||0)-(b.hafta||0))).slice(0,4);
+  const bugunMac = tk.maclar.filter(m=>m.tarih && String(m.tarih).slice(0,10)===bugunStr);
+  const haftaOnce = Date.now()-7*864e5;
+  const buHaftaMac = tk.maclar.filter(m=>{ const d=parseT(m.tarih); return (m.oynandi!==false) && d && d.getTime()>=haftaOnce; });
+  const buHaftaGol = buHaftaMac.reduce((s,m)=>s+(m.skorA||0)+(m.skorB||0),0);
+  const oynananlar = [...tk.maclar].filter(m=>m.oynandi!==false).reverse();
+  // Maç Merkezi HER ZAMAN dolu: bugün > yaklaşan > son sonuçlar
+  let macMerkez, macMerkezTip;
+  if(bugunMac.length>0){ macMerkez=bugunMac.slice(0,3); macMerkezTip="bugun"; }
+  else if(yaklasan.length>0){ macMerkez=yaklasan.slice(0,3); macMerkezTip="yaklasan"; }
+  else { macMerkez=oynananlar.slice(0,3); macMerkezTip="oynanan"; }
+  const ozet = [
+    {ik:"🏆", t: fark>0?`${lider.ad} liderlikte — ikinci sıraya ${fark} puan fark var.`:`${lider.ad} liderlikte — ikinci ile eşit puanda.`},
+    golK[0] && {ik:"⚽", t:`Gol kralı: ${golK[0].ad} (${golK[0].gol} gol) — maç başı ${(golK[0].gol/Math.max(1,golK[0].mac)).toFixed(1)} ortalama.`},
+    {ik:"💥", t:`En golcü takım ${enCokGolTakim.ad} — ${enCokGolTakim.ag} gol attı.`},
+    {ik:"⚠️", t:`${enCokYiyen.ad} savunmada zorlanıyor — ${enCokYiyen.yg} gol yedi.`},
+  ].filter(Boolean);
+  const vitrin = Motor.enlerVitrin(turnuvalar);
+  const oyuncuGit=(o)=>{ if(o&&git)git({sayfa:"oyuncu",oyuncu:{...o}}); };
+  const takimGit=(tkm)=>{ if(tkm&&git){ const t=turnuvalar.find(x=>x.ad===tkm.turnuva); git({sayfa:"takim",takim:tkm,turnuva:t}); } };
+  const haftaninOyuncusu = golK[0] || asistK[0] || null;
+  const yildizFull = haftaninOyuncusu ? (tumO.find(p=>p.id===haftaninOyuncusu.id)||haftaninOyuncusu) : null;
+  const bantItems = [
+    {ik:"🏆", a:lider.ad+" lider", b:fark>0?("+"+fark+" puan"):"eşit"},
+    golK[0] && {ik:"⚽", a:"Gol kralı "+golK[0].ad, b:golK[0].gol+" gol"},
+    enGolluMac && {ik:"🔥", a:enGolluMac.takimA+" "+enGolluMac.skorA+"-"+enGolluMac.skorB+" "+enGolluMac.takimB},
+    {ik:"📊", a:topMac+" maç oynandı", b:topGolLig+" gol"},
+    vitrin.kaleci && {ik:"🧤", a:"En iyi kaleci "+vitrin.kaleci.ad, b:vitrin.kaleci.kurtaris+" kurtarış"},
+    vitrin.mvp && {ik:"⭐", a:"En çok MVP "+vitrin.mvp.ad, b:vitrin.mvp.mvp+" kez"},
+    enCokGolTakim && {ik:"💥", a:"En golcü "+enCokGolTakim.ad, b:enCokGolTakim.ag+" gol"},
+  ].filter(Boolean);
+  const otoHaber = [
+    {tip:"haber", baslik:lider.ad+" zirvede", metin:lider.o+" maçta "+lider.g+" galibiyet."+(fark>0?(" İkinciye "+fark+" puan fark."):""), tarih:"bugün"},
+    golK[0] && {tip:"haber", baslik:"Gol kralı: "+golK[0].ad, metin:golK[0].gol+" gol ile listenin zirvesinde.", tarih:"bugün"},
+    {tip:"haber", baslik:"Ligde tempo yüksek", metin:tk.maclar.length+" maçta "+topGolLig+" gol · maç başı "+ortGolLig+" ortalama.", tarih:"bu hafta"},
+  ].filter(Boolean);
+  const haberlerListe = [...(icerik.haberler||[]), ...otoHaber].slice(0,6);
+  // Enler spotlight adayı (en yüksek etkili tekil isim)
+  const spotAday = vitrin.gol || vitrin.asist || vitrin.formEn || vitrin.mvp || null;
+  const spotFull = spotAday ? (tumO.find(p=>p.id===spotAday.id)||spotAday) : null;
+  const cip=(renk)=>({flexShrink:0,display:"inline-flex",alignItems:"center",gap:5,fontSize:10.5,fontWeight:800,color:renk,background:renk+"18",border:"0.5px solid "+renk+"44",borderRadius:20,padding:"5px 11px",whiteSpace:"nowrap"});
+  // ── KİŞİSEL ŞERİT (giriş yapana) — kullanıcının oyuncusu + sıradaki maçı ──
+  let benimO=null, benimTk=null, benimTkT=null; const bakUid=oturum&&oturum.id;
+  if(bakUid){ for(const t of (turnuvalar||[])){ for(const tkm of (t.takimlar||[])){ const f=(tkm.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===bakUid); if(f){benimO=f;benimTk=tkm;benimTkT=t;break;} } if(benimO)break; } }
+  const benimSonraki = (benimO&&benimTk&&benimTkT)? (benimTkT.maclar||[]).find(m=>m.oynandi===false && (m.takimA===benimTk.ad||m.takimB===benimTk.ad)) : null;
+
+  return <div className="fade-in main-area" style={{paddingBottom:90}}>
+    <CanliBant items={bantItems} T={T}/>
+
+    {/* ===== KİŞİSEL ŞERİT (giriş yapana özel) ===== */}
+    {oturum && benimO && <div style={{padding:"14px 14px 0"}}>
+      <div onClick={()=>oyuncuGit({...benimO,turnuva:benimTkT&&benimTkT.ad})} className="tap prem-tap" style={{display:"flex",alignItems:"center",gap:13,background:"linear-gradient(120deg,"+T.accent+"22,"+T.bg1+" 55%)",border:"1px solid "+T.accent+"44",borderRadius:16,padding:"13px 14px"}}>
+        <Avatar o={benimO} boy={50} T={T}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:10,color:T.accent,fontWeight:800,letterSpacing:.4}}>{selam.toUpperCase()} 👋</div>
+          <div style={{fontSize:17,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimO.ad}</div>
+          <div style={{fontSize:11,color:T.textSoft,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimTk?benimTk.ad+" · ":""}<b style={{color:T.text}}>{benimO.gol||0}</b> gol · <b style={{color:T.text}}>{benimO.asist||0}</b> asist · <b style={{color:T.text}}>{benimO.mac||0}</b> maç</div>
+        </div>
+        {benimO.ovr!=null && <div style={{flexShrink:0,textAlign:"center",background:T.accent+"1e",borderRadius:12,padding:"8px 12px",border:"0.5px solid "+T.accent+"44"}}><div style={{fontSize:22,fontWeight:900,fontFamily:T.fontDisplay,color:T.accent,lineHeight:1}}>{benimO.ovr}</div><div style={{fontSize:8,color:T.textMut,letterSpacing:.5,marginTop:2}}>OVR</div></div>}
+      </div>
+      {benimSonraki && <div onClick={()=>git&&git({sayfa:"mac",mac:benimSonraki,turnuva:benimTkT})} className="tap" style={{display:"flex",alignItems:"center",gap:10,marginTop:8,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 12px"}}>
+        <span style={{fontSize:16}}>📅</span>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800,letterSpacing:.3}}>SIRADAKİ MAÇIN</div><div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimSonraki.takimA} vs {benimSonraki.takimB}{benimSonraki.hafta?" · Hafta "+benimSonraki.hafta:""}</div></div>
+        <span style={{color:T.textMut,fontSize:16}}>›</span>
+      </div>}
+    </div>}
+
+    {/* ===== V6 HERO (V5 + bu hafta nabzı) ===== */}
+    <div style={{position:"relative",overflow:"hidden",padding:"30px 20px 22px",borderBottom:"1px solid "+T.line,
+      background:"radial-gradient(90% 120% at 88% -12%,"+T.accent+"36,transparent 56%), linear-gradient(180deg,"+T.bg1+" 0%,"+T.bg0+" 84%)"}}>
+      <div style={{position:"absolute",inset:0,opacity:.05,pointerEvents:"none",backgroundImage:"repeating-linear-gradient(90deg,transparent 0 58px,"+T.accent+" 58px 59px)"}}/>
+      <div style={{position:"absolute",right:-46,top:-54,width:230,height:230,borderRadius:"50%",pointerEvents:"none",background:"radial-gradient(circle at 40% 40%,"+T.accent+",transparent 62%)",opacity:.22,filter:"blur(10px)"}}/>
+      <span style={{position:"relative",display:"inline-flex",alignItems:"center",gap:8,fontSize:10.5,fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",color:T.accent,background:T.accent+"14",border:"1px solid "+T.accent+"3a",borderRadius:30,padding:"5px 12px"}}>
+        <span style={{width:7,height:7,borderRadius:"50%",background:T.accent,boxShadow:"0 0 10px "+T.accent}} className="fz-nabiz"/>CANLI · {tk.ad}
+      </span>
+      <div style={{position:"relative",fontSize:15,fontWeight:600,color:T.textSoft,marginTop:16,letterSpacing:.4}}>{selam},</div>
+      <div style={{position:"relative",fontSize:44,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:.98,letterSpacing:-1.4,textTransform:"uppercase"}}>Hoş geldin</div>
+      <div style={{position:"relative",fontSize:12,color:T.textMut,marginTop:10}}>{bugun}</div>
+      <div style={{position:"relative",display:"flex",marginTop:20}}>
+        {[[topTakim,"takım"],[topOyuncu,"oyuncu"],[topMac,"maç"]].map((s,i)=>
+          <div key={i} style={{flex:1,paddingLeft:i?16:0,borderLeft:i?"1px solid "+T.line:"none"}}>
+            <div style={{fontSize:27,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1}}>{s[0]}</div>
+            <div style={{fontSize:10,color:T.textMut,marginTop:4,textTransform:"uppercase",letterSpacing:.5}}>{s[1]}</div>
+          </div>
+        )}
+      </div>
+      <div style={{position:"relative",marginTop:14,display:"inline-flex",alignItems:"center",gap:8,background:T.accent+"14",border:"0.5px solid "+T.accent+"33",borderRadius:20,padding:"6px 12px"}}>
+        <span style={{width:6,height:6,borderRadius:"50%",background:T.accent}} className="fz-nabiz"/>
+        {buHaftaMac.length>0
+          ? <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu hafta <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaMac.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaGol}</b> gol</span>
+          : <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu sezon <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{oynananlar.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{topGolLig}</b> gol</span>}
+      </div>
+    </div>
+
+    {/* ===== MAÇ MERKEZİ (V6 yeni) ===== */}
+    {macMerkez.length>0 && <div style={{padding:"18px 14px 0"}}>
+      <V5Eyebrow T={T} more={git?"Tümü ›":null} onMore={()=>git&&git({sayfa:"turnuva",turnuva:tk})}>Maç Merkezi</V5Eyebrow>
+      <div style={{display:"flex",gap:7,marginBottom:11,overflowX:"auto",paddingBottom:2}}>
+        {bugunMac.length>0 && <span style={cip(T.danger)}><span style={{width:6,height:6,borderRadius:"50%",background:T.danger}} className="fz-nabiz"/>BUGÜN · {bugunMac.length}</span>}
+        {yaklasan.length>0 && <span style={cip(T.accent)}>📅 YAKLAŞAN · {yaklasan.length}</span>}
+        <span style={cip(T.textMut)}>✓ OYNANAN · {tk.maclar.filter(m=>m.oynandi!==false).length}</span>
+      </div>
+      {macMerkez.map((m,i)=>{
+        const oynanmis = m.oynandi!==false;
+        return <div key={m.id||i} onClick={()=>git&&git({sayfa:"mac",mac:m,turnuva:tk})} className="tap" style={{display:"flex",alignItems:"center",gap:9,background:"linear-gradient(120deg,"+(macMerkezTip==="bugun"?T.danger:T.accent)+"14,"+T.bg1+" 55%)",border:"0.5px solid "+(macMerkezTip==="bugun"?T.danger:T.accent)+"33",borderRadius:12,padding:"11px 12px",marginBottom:6}}>
+          <div style={{width:52,flexShrink:0,textAlign:"center"}}>
+            <div style={{fontSize:9,color:macMerkezTip==="bugun"?T.danger:T.accent,fontWeight:800,letterSpacing:.3}}>{macMerkezTip==="bugun"?(m.saat||"BUGÜN"):("HAFTA "+(m.hafta||"-"))}</div>
+            {m.tarih && <div style={{fontSize:9,color:T.textMut,marginTop:2}}>{String(m.tarih).slice(5,10).replace("-",".")}</div>}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={m.renkA} ad={m.takimA} boy={20}/><span style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.takimA}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0,marginTop:4}}><Logo renk={m.renkB} ad={m.takimB} boy={20}/><span style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.takimB}</span></div>
+          </div>
+          {oynanmis
+            ? <div style={{flexShrink:0,fontSize:16,fontWeight:900,fontFamily:T.fontDisplay,color:T.text,textAlign:"center",lineHeight:1.25}}><div>{m.skorA}</div><div>{m.skorB}</div></div>
+            : <div style={{flexShrink:0,fontSize:10,fontWeight:800,color:T.accent,background:T.accent+"18",borderRadius:8,padding:"5px 9px"}}>VS</div>}
+        </div>;
+      })}
+    </div>}
+
+    <FidanKart T={T}/>
+
+    {turnuvalar.length>1 && git && <div style={{padding:"10px 0 2px"}}>
+      <div style={{display:"flex",gap:8,overflowX:"auto",padding:"4px 14px 8px",WebkitOverflowScrolling:"touch"}}>
+        {turnuvalar.map(lg=>{
+          const enAktif=lg.id===tk.id;
+          return <button key={lg.id} onClick={()=>git({sayfa:"turnuva",turnuva:lg})} className="tap" style={{flexShrink:0,display:"flex",alignItems:"center",gap:7,background:enAktif?T.accent+"1c":T.bg1,border:"0.5px solid "+(enAktif?T.accent+"66":T.line),borderRadius:20,padding:"6px 12px 6px 6px",cursor:"pointer"}}>
+            <Logo renk={lg.renk} ad={lg.ad} logo={lg.logo} renk2={lg.renk2} boy={24}/>
+            <span style={{fontSize:12,fontWeight:enAktif?800:600,color:enAktif?T.accent:T.textSoft,whiteSpace:"nowrap",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis"}}>{lg.ad}</span>
+          </button>;
+        })}
+      </div>
+    </div>}
+
+    {/* ===== LİGLERİN ENLERİ — V6 SPOTLIGHT + grid ===== */}
+    <div style={{padding:"20px 14px 0"}}>
+      <V5Eyebrow T={T} more={git?"Tüm Enler →":null} onMore={()=>git&&git({sayfa:"tumenler"})}>Liglerin Enleri</V5Eyebrow>
+      {spotFull && <div onClick={()=>oyuncuGit(spotFull)} className="tap prem-tap" style={{position:"relative",overflow:"hidden",display:"flex",alignItems:"center",gap:14,background:"linear-gradient(120deg,"+T.gold+"2e,"+T.bg1+" 52%)",border:"1px solid "+T.gold+"55",borderRadius:16,padding:"14px 15px",marginBottom:10}}>
+        <div style={{position:"absolute",right:-30,top:-30,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,"+T.gold+"33,transparent 65%)",pointerEvents:"none"}}/>
+        <Avatar o={spotFull} boy={54} T={T}/>
+        <div style={{flex:1,minWidth:0,position:"relative"}}>
+          <div style={{fontSize:9.5,color:T.gold,fontWeight:800,letterSpacing:.4,marginBottom:3}}>👑 HAFTANIN YILDIZI · {tk.ad}</div>
+          <div style={{fontSize:17,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{spotFull.ad}</div>
+          <div style={{fontSize:11.5,color:T.textSoft,marginTop:3}}>{(spotFull.gol!=null?spotFull.gol+" gol":"")}{(spotFull.asist?" · "+spotFull.asist+" asist":"")}{(spotFull.ovr?" · OVR "+spotFull.ovr:"")}</div>
+        </div>
+        {spotFull.ovr!=null && <div style={{flexShrink:0,textAlign:"center",background:T.gold+"1e",borderRadius:12,padding:"8px 12px",border:"0.5px solid "+T.gold+"44"}}>
+          <div style={{fontSize:22,fontWeight:900,fontFamily:T.fontDisplay,color:T.gold,lineHeight:1}}>{spotFull.ovr}</div>
+          <div style={{fontSize:8,color:T.textMut,letterSpacing:.5,marginTop:2}}>OVR</div>
+        </div>}
+      </div>}
+      {(()=>{
+        // Kategori bestleri — TÜM liglerden (tüm-lig). Her biri AKAN bir FIFA/KPI kartı; başlık/yazı değil, kartın kendisi akar.
+        const kartlar=[
+          {et:"Gol Kralı", ik:"⚽", o:vitrin.gol, deg:vitrin.gol&&vitrin.gol.gol, br:"gol", renk:T.accent, tur:"o"},
+          {et:"Asist Kralı", ik:"🎯", o:vitrin.asist, deg:vitrin.asist&&vitrin.asist.asist, br:"asist", renk:"#38BDF8", tur:"o"},
+          {et:"En İyi Kaleci", ik:"🧤", o:vitrin.kaleci, deg:vitrin.kaleci&&vitrin.kaleci.kurtaris, br:"kurtarış", renk:"#a78bfa", tur:"o"},
+          {et:"En Çok MVP", ik:"⭐", o:vitrin.mvp, deg:vitrin.mvp&&vitrin.mvp.mvp, br:"kez", renk:T.gold, tur:"o"},
+          {et:"En Formda", ik:"📈", o:vitrin.formEn, deg:vitrin.formEn&&vitrin.formEn.ovr, br:"OVR", renk:"#27ae60", tur:"o"},
+          {et:"En Golcü Takım", ik:"🏆", o:vitrin.golcuTakim, deg:vitrin.golcuTakim&&vitrin.golcuTakim.ag, br:"gol", renk:"#f59e0b", tur:"t"},
+        ].filter(x=>x.o&&x.deg!=null);
+        if(!kartlar.length) return <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:"16px 0"}}>Enler yükleniyor… (lig istatistikleri gelince akan kartlar görünür)</div>;
+        const KartYuz=(x,i)=>{
+          const p=x.tur==="o"?((tumO.find(q=>q.id===(x.o&&x.o.id)))||x.o):x.o;
+          const ovr=x.tur==="o"?((p&&p.ovr)||x.o.ovr):null;
+          const lig=x.o.turnuva||"";
+          return <div key={i} onClick={()=> x.tur==="o"?oyuncuGit(x.o):takimGit(x.o)} className="tap prem-tap" style={{flexShrink:0,width:142,borderRadius:16,overflow:"hidden",position:"relative",background:"linear-gradient(165deg,"+x.renk+"3a,"+T.bg1+" 60%)",border:"1px solid "+x.renk+"66",padding:"11px 11px 12px",textAlign:"center",cursor:"pointer"}}>
+            <div style={{position:"absolute",inset:0,background:"radial-gradient(circle at 50% 0%,"+x.renk+"2a,transparent 62%)",pointerEvents:"none"}}/>
+            <div style={{position:"absolute",top:9,left:11,fontSize:14}}>{x.ik}</div>
+            {ovr!=null && <div style={{position:"absolute",top:8,right:11,textAlign:"center"}}><div style={{fontSize:17,fontWeight:900,fontFamily:T.fontDisplay,color:x.renk,lineHeight:1}}>{ovr}</div><div style={{fontSize:6,color:T.textMut,letterSpacing:.5}}>OVR</div></div>}
+            <div style={{margin:"18px auto 7px",position:"relative",display:"flex",justifyContent:"center"}}>{x.tur==="o"?<Avatar o={x.o} boy={54} T={T}/>:<Logo renk={x.o.renk} ad={x.o.ad} logo={x.o.logo} renk2={x.o.renk2} boy={54}/>}</div>
+            <div style={{fontSize:12.5,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",position:"relative"}}>{x.o.ad}</div>
+            <div style={{fontSize:8,color:x.renk,textTransform:"uppercase",letterSpacing:.4,marginTop:2,fontWeight:800,position:"relative"}}>{x.et}</div>
+            <div style={{fontSize:23,fontWeight:900,fontFamily:T.fontDisplay,color:x.renk,marginTop:4,lineHeight:1,position:"relative"}}>{x.deg}<span style={{fontSize:8.5,color:T.textMut,fontWeight:700}}>{x.br==="OVR"?"":(" "+x.br)}</span></div>
+            {lig && <div style={{fontSize:8.5,color:T.textMut,marginTop:6,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}><span style={{width:4,height:4,borderRadius:"50%",background:x.renk,flexShrink:0}}/>{lig}</div>}
+          </div>;
+        };
+        const sure=Math.max(20,kartlar.length*6);   // kart sayısına göre akış hızı
+        return <>
+          {/* AKAN FIFA/KPI KARTLARI — kartların kendisi soldan sağa akar (ticker gibi), kenarlarda yumuşak solma, üstüne gelince durur */}
+          <style>{"@keyframes flenakis{from{transform:translateX(0)}to{transform:translateX(-50%)}}.fl-enakis-sar{overflow:hidden;position:relative;-webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}.fl-enakis{display:inline-flex;gap:10px;padding:3px 0 12px;animation:flenakis "+sure+"s linear infinite;will-change:transform}.fl-enakis-sar:hover .fl-enakis,.fl-enakis-sar:active .fl-enakis{animation-play-state:paused}"}</style>
+          <div className="fl-enakis-sar">
+            <div className="fl-enakis">
+              {kartlar.map((x,i)=>KartYuz(x,i))}
+              {kartlar.map((x,i)=>KartYuz(x,i+100))}
+            </div>
+          </div>
+          {git && <div onClick={()=>git({sayfa:"tumenler"})} className="tap" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,background:T.bg1,border:"1px dashed "+T.line,borderRadius:12,padding:"9px",marginTop:2,color:T.textSoft,cursor:"pointer"}}>
+            <span style={{fontSize:14}}>➕</span><span style={{fontSize:12,fontWeight:800}}>Tüm Enler</span><span style={{fontSize:10,color:T.textMut}}>· 40+ kategori</span>
+          </div>}
+        </>;
+      })()}
+    </div>
+
+    {/* ===== CANLI AKIŞ — TÜM liglerden son hareketler (platform yaşıyor: goller/maçlar) ===== */}
+    {(()=>{
+      const akis=[];
+      (turnuvalar||[]).forEach(t=>{ (t.maclar||[]).forEach(m=>{
+        if(m.oynandi===false || (m.skorA==null&&m.skorB==null)) return;
+        const d=parseT(m.tarih); const ts=d?d.getTime():((m.hafta||0)*3600000);
+        akis.push({t, m, lig:t.ad, ts, gol:(m.skorA||0)+(m.skorB||0)});
+      }); });
+      akis.sort((a,b)=>b.ts-a.ts);
+      const list=akis.slice(0,7);
+      if(list.length<2) return null;
+      return <div style={{padding:"22px 14px 0"}}>
+        <V5Eyebrow T={T}>Canlı Akış <span style={{fontSize:9,fontWeight:800,color:T.danger,background:T.danger+"16",border:"0.5px solid "+T.danger+"44",borderRadius:20,padding:"2px 8px",marginLeft:6,display:"inline-flex",alignItems:"center",gap:4,verticalAlign:"middle"}}><span style={{width:5,height:5,borderRadius:"50%",background:T.danger}} className="fz-nabiz"/>tüm ligler</span></V5Eyebrow>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {list.map((it,i)=>{ const m=it.m; const d=parseT(m.tarih); const atesli=it.gol>=5; const bitmis=m.skorA!=null&&m.skorB!=null;
+            const kazA=bitmis&&m.skorA>m.skorB, kazB=bitmis&&m.skorB>m.skorA;
+            return <div key={i} onClick={()=>git&&git({sayfa:"mac",mac:m,turnuva:it.t})} className="tap" style={{display:"flex",alignItems:"center",gap:10,background:atesli?"linear-gradient(120deg,"+T.danger+"14,"+T.bg1+" 60%)":T.bg1,border:"0.5px solid "+(atesli?T.danger+"33":T.line),borderRadius:12,padding:"9px 11px"}}>
+              <span style={{fontSize:16,width:26,textAlign:"center",flexShrink:0}}>{atesli?"🔥":"⚽"}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
+                  <Logo renk={m.renkA} ad={m.takimA} boy={17}/>
+                  <span style={{fontSize:12.5,color:T.text,fontWeight:kazA?800:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:90}}>{m.takimA}</span>
+                  <span style={{fontSize:13,fontWeight:900,fontFamily:T.fontDisplay,color:T.text,flexShrink:0}}>{m.skorA}-{m.skorB}</span>
+                  <span style={{fontSize:12.5,color:T.text,fontWeight:kazB?800:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:90}}>{m.takimB}</span>
+                  <Logo renk={m.renkB} ad={m.takimB} boy={17}/>
+                </div>
+                <div style={{fontSize:9.5,color:T.textMut,marginTop:3,display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                  <span style={{width:4,height:4,borderRadius:"50%",background:T.accent,flexShrink:0}}/>{it.lig}{d?" · "+d.toLocaleDateString("tr-TR",{day:"numeric",month:"short"}):(m.hafta?" · Hafta "+m.hafta:"")}{m.mvp?" · ⭐ "+m.mvp:""}</div>
+              </div>
+              <span style={{color:T.textMut,fontSize:15,flexShrink:0}}>›</span>
+            </div>;
+          })}
+        </div>
+      </div>;
+    })()}
+
+    {yildizFull && <div style={{padding:"22px 14px 0"}}>
+      <V5Eyebrow T={T}>Haftanın Kartı</V5Eyebrow>
+      <VitrinFifa oyuncu={yildizFull} T={T} etiket={"⚽ "+tk.ad}/>
+    </div>}
+
+    <div style={{padding:"22px 14px 0"}}>
+      <V5Eyebrow T={T}>Haftanın Öne Çıkanı</V5Eyebrow>
+      <div onClick={()=>git({sayfa:"takim",takim:lider,turnuva:tk})} className="tap"
+        style={{position:"relative",overflow:"hidden",background:"linear-gradient(135deg,"+T.accent+"22,"+T.bg1+")",borderRadius:16,padding:"18px 18px 16px",border:"1px solid "+T.accent+"44"}}>
+        <div style={{fontSize:10,color:T.accent,fontWeight:800,letterSpacing:.6,marginBottom:9,display:"inline-block",background:T.accent+"22",padding:"3px 9px",borderRadius:20}}>ZİRVEDE</div>
+        <div style={{display:"flex",alignItems:"center",gap:14}}>
+          <Logo renk={lider.renk} ad={lider.ad} logo={lider.logo} renk2={lider.renk2} boy={56}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:21,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.08,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{lider.ad} zirvede!</div>
+            <div style={{fontSize:12,color:T.textSoft,marginTop:4}}>{lider.o} maçta {lider.g} galibiyet. {fark>0?`2. sıraya ${fark} puan fark.`:"Liderlik eşit puanda."}</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:14,marginTop:14,paddingTop:12,borderTop:"1px solid "+T.line}}>
+          <MiniIstatBanner buyuk={lider.puan} etiket="puan" renk={T.gold} T={T}/>
+          <MiniIstatBanner buyuk={lider.ag} etiket="attı" renk={T.accent} T={T}/>
+          <MiniIstatBanner buyuk={lider.yg} etiket="yedi" renk={T.danger} T={T}/>
+          <MiniIstatBanner buyuk={(lider.ag-lider.yg>=0?"+":"")+(lider.ag-lider.yg)} etiket="averaj" renk={T.accent2} T={T}/>
+        </div>
+      </div>
+    </div>
+
+    {(haftaninOyuncusu || (yukselenTakim&&yukselenTakim.t)) && <div style={{padding:"18px 14px 0"}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+        {haftaninOyuncusu && <div onClick={()=>oyuncuGit({...haftaninOyuncusu,turnuva:tk.ad})} className="tap prem-tap" style={{position:"relative",overflow:"hidden",background:"linear-gradient(120deg,"+T.gold+"3a,"+T.bg1+" 42%)",border:"1px solid "+T.gold+"55",borderRadius:15,padding:13}}>
+          <div style={{fontSize:9,color:T.gold,fontWeight:800,marginBottom:9,letterSpacing:.3}}>👑 ÖNE ÇIKAN OYUNCU</div>
+          <div style={{display:"flex",alignItems:"center",gap:9}}>
+            <Avatar o={haftaninOyuncusu} boy={36} T={T}/>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{haftaninOyuncusu.ad}</div>
+              <div style={{fontSize:9.5,color:T.gold}}><b style={{fontSize:12,fontFamily:T.fontDisplay}}>{haftaninOyuncusu.gol||0}</b> gol · <b style={{fontSize:12,fontFamily:T.fontDisplay}}>{haftaninOyuncusu.asist||0}</b> asist</div>
+            </div>
+          </div>
+        </div>}
+        {yukselenTakim && yukselenTakim.t && <div onClick={()=>takimGit({...yukselenTakim.t,turnuva:tk.ad})} className="tap prem-tap" style={{position:"relative",overflow:"hidden",background:"linear-gradient(120deg,#34D3993a,"+T.bg1+" 42%)",border:"1px solid #34D39955",borderRadius:15,padding:13}}>
+          <div style={{fontSize:9,color:"#34D399",fontWeight:800,marginBottom:9,letterSpacing:.3}}>📈 YÜKSELEN TAKIM</div>
+          <div style={{display:"flex",alignItems:"center",gap:9}}>
+            <Logo renk={yukselenTakim.t.renk} ad={yukselenTakim.t.ad} logo={yukselenTakim.t.logo} renk2={yukselenTakim.t.renk2} boy={34}/>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{yukselenTakim.t.ad}</div>
+              <div style={{fontSize:9.5,color:"#34D399"}}>son 5 maçta <b style={{fontSize:12,fontFamily:T.fontDisplay}}>{yukselenTakim.p}</b> puan</div>
+            </div>
+          </div>
+        </div>}
+      </div>
+    </div>}
+
+    <div className="ana-grid" style={{padding:"20px 14px 6px"}}>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <div>
+          <V5Eyebrow T={T}>Bu Hafta</V5Eyebrow>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+            <OneCikan ik="⚽" et="EN GOLLÜ" ana={enGolluMac?`${enGolluMac.takimA} ${enGolluMac.skorA}-${enGolluMac.skorB} ${enGolluMac.takimB}`:"-"} alt={enGolluMac?(enGolluMac.skorA+enGolluMac.skorB)+" gol":""} T={T} onClick={enGolluMac&&git?()=>git({sayfa:"mac",mac:enGolluMac,turnuva:tk}):null}/>
+            <OneCikan ik="🎯" et="EN FARKLI" ana={enFarkliMac?`${enFarkliMac.takimA} ${enFarkliMac.skorA}-${enFarkliMac.skorB} ${enFarkliMac.takimB}`:"-"} alt={enFarkliMac?Math.abs(enFarkliMac.skorA-enFarkliMac.skorB)+" fark":""} T={T} onClick={enFarkliMac&&git?()=>git({sayfa:"mac",mac:enFarkliMac,turnuva:tk}):null}/>
+            <OneCikan ik="📊" et="LİG TEMPOSU" ana={tk.maclar.length+" maç"} alt={topGolLig+" gol · ort "+ortGolLig} T={T}/>
+          </div>
+        </div>
+
+        <div>
+          <V5Eyebrow T={T} more="Tüm Liste ›" onMore={()=>git({sayfa:"turnuva",turnuva:tk})}>Puan Durumu</V5Eyebrow>
+          <div style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,padding:"0 10px 6px",fontSize:9,color:T.textMut,fontWeight:700}}>
+            <span>#</span><span>TAKIM</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
+          </div>
+          {ilk5.map(t=>
+            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12}}>
+              <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
+              <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
+              <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
+              <span style={{textAlign:"center",color:(t.ag-t.yg)>=0?T.accent:T.danger}}>{(t.ag-t.yg)>=0?"+":""}{t.ag-t.yg}</span>
+              <span style={{textAlign:"center",color:T.gold,fontWeight:800,fontFamily:T.fontDisplay,background:T.gold+"18",borderRadius:6,padding:"3px 0"}}>{t.puan}</span>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <V5Eyebrow T={T} more="Tüm Liste ›" onMore={()=>git({sayfa:"turnuva",turnuva:tk})}>Gol Kralı</V5Eyebrow>
+          {golK.map((o,i)=>
+            <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:o})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:i===0?T.accent+"12":T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:4,border:i===0?"1px solid "+T.accent+"33":"1px solid "+T.line}}>
+              <span style={{width:14,color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:13}}>{i+1}</span>
+              <Avatar o={o} boy={i===0?38:30} T={T}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
+                <div style={{display:"flex",alignItems:"center",gap:5,marginTop:1}}><span style={{width:6,height:6,borderRadius:"50%",background:o.takimRenk||T.textMut}}/><span style={{fontSize:11,color:T.textMut}}>{o.takimAd}</span></div>
+              </div>
+              <span style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>{o.gol}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <div className="kpi-2x2">
+          <KpiMini ik="🏟️" buyuk={topMac} et="maç oynandı" renk={T.accent} T={T}/>
+          <KpiMini ik="👥" buyuk={tumO.length} et="aktif oyuncu" renk={T.accent2} T={T}/>
+          <KpiMini ik="🏅" buyuk={topTakim} et="takım sayısı" renk={T.gold} T={T}/>
+          <KpiMini ik="⚽" buyuk={topGolLig} et={"toplam gol · ort "+ortGolLig} renk={T.danger} T={T}/>
+        </div>
+
+        <div style={{background:"linear-gradient(160deg,"+T.bg1+","+T.bg2+")",borderRadius:14,padding:"14px",border:"1px solid "+T.line}}>
+          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
+            <span style={{fontSize:14}}>✨</span>
+            <span style={{fontSize:12,fontWeight:700,color:T.text}}>Haftanın Özeti</span>
+            <span style={{fontSize:8,color:T.textMut,background:T.bg2,fontWeight:800,padding:"2px 6px",borderRadius:5,letterSpacing:.5,border:"0.5px solid "+T.line}}>OTOMATİK</span>
+          </div>
+          {ozet.map((o,i)=>
+            <div key={i} style={{display:"flex",gap:9,padding:"8px 0",borderTop:i>0?"1px solid "+T.line:"none"}}>
+              <span style={{fontSize:14,flexShrink:0}}>{o.ik}</span>
+              <span style={{fontSize:12,color:T.textSoft,lineHeight:1.4}}>{o.t}</span>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <V5Eyebrow T={T} more="Tüm Maçlar ›" onMore={()=>git({sayfa:"turnuva",turnuva:tk})}>Son Maçlar</V5Eyebrow>
+          {sonMaclar.map(m=>{
+            const aG=m.skorA>m.skorB, bG=m.skorB>m.skorA;
+            return <div key={m.id} onClick={()=>git({sayfa:"mac",mac:m,turnuva:tk})} className="tap" style={{display:"flex",alignItems:"center",gap:8,background:T.bg1,borderRadius:10,padding:"9px 11px",marginBottom:4,border:"1px solid "+T.line}}>
+              <Logo renk={m.renkA} ad={m.takimA} boy={20}/>
+              <span style={{flex:1,fontSize:12,color:aG?T.text:T.textSoft,fontWeight:aG?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"right"}}>{m.takimA}</span>
+              <span style={{fontSize:13,fontWeight:800,fontFamily:T.fontDisplay,color:T.text,background:T.bg2,borderRadius:6,padding:"2px 8px",whiteSpace:"nowrap"}}>{m.skorA}-{m.skorB}</span>
+              <span style={{flex:1,fontSize:12,color:bG?T.text:T.textSoft,fontWeight:bG?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.takimB}</span>
+              <Logo renk={m.renkB} ad={m.takimB} boy={20}/>
+            </div>;
+          })}
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10}}>
+          {asistK[0] && <LiderMiniKart ik="🎯" et="ASİST KRALI" o={asistK[0]} alan="asist" birim="asist" renk={T.accent2} T={T} git={git}/>}
+          {kurtarisK[0] && <LiderMiniKart ik="🧤" et="EN İYİ KALECİ" o={kurtarisK[0]} alan="kurtaris" birim="kurtarış" renk={T.gold} T={T} git={git}/>}
+        </div>
+      </div>
+    </div>
+
+    {turnuvalar.length>1 && <div style={{padding:"20px 14px 6px"}}>
+      <V5Eyebrow T={T}>Diğer Turnuvalar</V5Eyebrow>
+      {turnuvalar.filter(t=>t.id!==tk.id).map(t=>
+        <div key={t.id} onClick={()=>git({sayfa:"turnuva",turnuva:t})} className="tap" style={{display:"flex",alignItems:"center",gap:12,background:T.bg1,borderRadius:12,padding:"12px 14px",marginBottom:8,border:"1px solid "+T.line}}>
+          <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={40}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
+            <div style={{fontSize:11,color:T.textMut}}>{t.sehir} · {(t.takimSay!=null?t.takimSay:t.takimlar.length)} takım · {(t.macSay!=null?t.macSay:t.maclar.length)} maç</div>
+          </div>
+          <span style={{color:T.textMut,fontSize:18}}>›</span>
+        </div>
+      )}
+    </div>}
+
+    {haberlerListe.length>0 && <div style={{padding:"20px 14px 6px"}}>
+      <V5Eyebrow T={T}>Haberler & Duyurular</V5Eyebrow>
+      <HaberVitrin haberler={haberlerListe} T={T}/>
+    </div>}
+
+    <div style={{padding:"20px 14px 6px"}}>
+      <V5Eyebrow T={T}>Sponsorlar</V5Eyebrow>
+      <SponsorSerit sponsorlar={icerik.sponsorlar} T={T}/>
+    </div>
+
     <div style={{padding:"20px 14px 10px"}}>
       <V5Eyebrow T={T}>İletişim</V5Eyebrow>
       <IletisimBar iletisim={icerik.iletisim} T={T}/>
@@ -13163,13 +13632,153 @@ function RadyoYonetim({T, oturum}){
   const [yuklyor,setYuklyor]=useState(false);
   const [kayit,setKayit]=useState(false);
   const [ad,setAd]=useState("");
+  const [urlIn,setUrlIn]=useState("");
   const mrRef=useRef(null); const parcaRef=useRef([]); const streamRef=useRef(null); const onaRef=useRef(null);
+  // Tek-URL akıllı ekleme: mp3/m4a/ogg → ekle · YouTube/SoundCloud/Spotify → dürüst red · diğer → uyarı
+  const urlEkle=()=>{ const u=(urlIn||"").trim(); if(!u){ setMesaj("Önce bir bağlantı yapıştır."); return; }
+    const low=u.toLowerCase();
+    if(/youtube\.com|youtu\.be|soundcloud\.com|spotify\.com|open\.spotify|deezer\.com/.test(low)){ setMesaj("⚠️ YouTube/SoundCloud/Spotify sesini yasal olarak yayınlayamayız (telif). Telifsiz MP3 linki veya 'Ses dosyası yükle' ile ekle."); return; }
+    if(/^https?:\/\//.test(low) && (/\.(mp3|m4a|aac|ogg|oga|wav|webm|flac)(\?|#|$)/.test(low) || /supabase\.co\/storage|\.r2\.dev|r2\.cloudflarestorage|\.mp3|\/audio/.test(low))){ ekle(u, (ad.trim()||"Bağlantı"), "klip"); setUrlIn(""); setMesaj("✓ Bağlantı eklendi"); return; }
+    setMesaj("⚠️ Bu bir web SAYFASI linki, ses DOSYASI değil. Gereken: '.mp3' ile biten doğrudan ses linki (ör. .../sarki.mp3). Site/YouTube linkleri çalınamaz — 'Ses dosyası yükle' ile kendi dosyanı ekle.");
+  };
+  // ===== CANLI MİKROFON (WebRTC yayıncı — sadece Süper Admin) — P2P mesh + Supabase Realtime sinyalleşme =====
+  const [canli,setCanli]=useState(false);
+  const [dinleyici,setDinleyici]=useState(0);
+  const [muzikSev,setMuzikSev]=useState(0.18);          // dinleyicide canlı yayında ARKA müzik seviyesi (0=kapalı, 1=tam) — mikser
+  const muzikSevRef=useRef(0.18);
+  const muzikSevCevir=(v)=>{ setMuzikSev(v); muzikSevRef.current=v; sgonder("duck",{level:v}); };
+  const canalRef=useRef(null); const pcMapRef=useRef({}); const yayinStreamRef=useRef(null);
+  const acRef=useRef(null); const rafRef=useRef(null); const barsRef=useRef([]);   // ses dalgası (equalizer çubukları)
+  const myIdRef=useRef((window.crypto&&crypto.randomUUID)?crypto.randomUUID():"b"+Date.now()+Math.random().toString(36).slice(2,6));
+  const NB=22;
+  // ===== CANLI YAYIN TEKNİK DURUM (teşhis paneli) — hata hangi aşamada koparsa NET görülür (körlemesine yama yok) =====
+  const [teknik,setTeknik]=useState(null);   // null = henüz yayın denenmedi
+  const tekRef=useRef({}); const sesPeakRef=useRef(0);
+  const tset=(k,v)=>{ tekRef.current={...tekRef.current,[k]:v}; setTeknik({...tekRef.current}); };
+  const tlog=(e)=>{ try{ console.log("[FZ-RADYO] "+e); }catch(_){} };
+  const meterBasla=(stream)=>{ try{ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; let ac=acRef.current; if(!ac||ac.state==="closed"){ ac=new AC(); acRef.current=ac; } if(ac.state==="suspended"){ try{ ac.resume(); }catch(e){} } const src=ac.createMediaStreamSource(stream); const an=ac.createAnalyser(); an.fftSize=128; src.connect(an); const buf=new Uint8Array(an.frequencyBinCount); const step=Math.max(1,Math.floor(buf.length/NB));
+    const tik=()=>{ an.getByteFrequencyData(buf); let mx=0; for(let i=0;i<NB;i++){ const v=buf[i*step]||0; if(v>mx)mx=v; const h=Math.max(6,Math.round((v/255)*100)); const el=barsRef.current[i]; if(el) el.style.height=h+"%"; } if(mx>16 && !sesPeakRef.current){ sesPeakRef.current=1; tset("ses","algılandı ✓"); tlog("MIC_AUDIO_DETECTED"); } rafRef.current=requestAnimationFrame(tik); }; tik();
+  }catch(e){} };
+  const meterDur=()=>{ try{ if(rafRef.current) cancelAnimationFrame(rafRef.current); }catch(e){} rafRef.current=null; try{ acRef.current&&acRef.current.close(); }catch(e){} acRef.current=null; try{ (barsRef.current||[]).forEach(el=>{ if(el) el.style.height="6%"; }); }catch(e){} };
+  const ICE={iceServers:[
+    {urls:["stun:stun.l.google.com:19302","stun:global.stun.twilio.com:3478"]},
+    {urls:["turn:openrelay.metered.ca:80","turn:openrelay.metered.ca:443","turn:openrelay.metered.ca:443?transport=tcp"],username:"openrelayproject",credential:"openrelayproject"}
+  ],iceCandidatePoolSize:6};   // TURN röle → NAT/güvenlik duvarı arkasındaki PC↔mobil yönsüz bağlanır (sadece STUN'da bir yön başarısız olabiliyordu)
+  // Realtime gönderimi: payload'ı ÖNCE düz JSON'a çevir (dairesel/getter'lı WebRTC nesnesi supabase'in ASENKRON stringify'ında "Maximum call stack" çökmesine yol açıyordu). Dairesel ise sessizce atla.
+  const sgonder=(ev,payload)=>{ try{ let p; try{ p=JSON.parse(JSON.stringify(payload)); }catch(_){ return; } canalRef.current&&canalRef.current.send({type:"broadcast",event:ev,payload:p}); }catch(e){} };
+  const yeniListenerPC=(lid)=>{ let pc=pcMapRef.current[lid]; if(pc) return pc;
+    pc=new RTCPeerConnection(ICE); pcMapRef.current[lid]=pc;
+    try{ (yayinStreamRef.current.getTracks()||[]).forEach(t=>pc.addTrack(t,yayinStreamRef.current)); }catch(e){}
+    pc.onicecandidate=e=>{ if(e.candidate){ const c=e.candidate; sgonder("ice",{to:lid,from:myIdRef.current,cand:(c.toJSON?c.toJSON():{candidate:c.candidate,sdpMid:c.sdpMid,sdpMLineIndex:c.sdpMLineIndex})}); } };
+    pc.oniceconnectionstatechange=()=>{ try{ tset("peer", pc.iceConnectionState+" / "+pc.connectionState); tlog("ICE_STATE_"+pc.iceConnectionState); }catch(e){} };
+    pc.onconnectionstatechange=()=>{ const st=pc.connectionState; try{ tset("peer", pc.iceConnectionState+" / "+st); tlog("PEER_"+st); }catch(e){} if(["failed","closed","disconnected"].indexOf(st)>-1){ try{pc.close();}catch(e){} delete pcMapRef.current[lid]; }
+      setDinleyici(Object.keys(pcMapRef.current).filter(k=>pcMapRef.current[k].connectionState==="connected").length); };
+    return pc; };
+  const canliBasla=async()=>{ if(canli) return;
+    if(typeof RTCPeerConnection==="undefined"||!navigator.mediaDevices||!sb){ setMesaj("Tarayıcı/bağlantı canlı yayını desteklemiyor."); return; }
+    try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:true}})); }catch(e){}   // yayıncı cihaz: kendi müziğini sustur + kendini dinleme (mobil ses oturumu mikrofon için serbest kalsın)
+    // iOS/tarayıcı SES KİLİDİNİ kullanıcı jesti içinde (await'ten ÖNCE, senkron) aç → player'a basmadan çalışır
+    try{ const AC=window.AudioContext||window.webkitAudioContext; if(AC){ if(!acRef.current||acRef.current.state==="closed") acRef.current=new AC(); if(acRef.current.state==="suspended") acRef.current.resume(); } }catch(e){}
+    try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){}   // önceki denemeden kalan mikrofonu bırak
+    tekRef.current={}; sesPeakRef.current=0; setTeknik({}); tlog("BASLADI");
+    setMesaj("① Mikrofon açılıyor…");
+    try{
+      // getUserMedia'yı AYRI yakala + 8sn zaman aşımı → izin verilse bile takılıyorsa/rejects ise SEBEBİ panelde görünür (cihaz meşgul, mikrofon yok, vb.)
+      tset("izin","🎤 izin isteniyor…");
+      let stream, gumTO;
+      try{ stream=await Promise.race([ navigator.mediaDevices.getUserMedia({audio:true}), new Promise((_,rej)=>{ gumTO=setTimeout(()=>rej(new Error("zaman aşımı (8sn) — mikrofon yanıt vermedi; başka uygulama/sekme mikrofonu kullanıyor olabilir")),8000); }) ]); clearTimeout(gumTO); }
+      catch(ge){ clearTimeout(gumTO); const gm=String((ge&&(ge.name?(ge.name+": "+ge.message):ge.message))||ge); tset("izin","❌ "+gm);
+        try{ const devs=await navigator.mediaDevices.enumerateDevices(); const mics=(devs||[]).filter(d=>d.kind==="audioinput"); tset("track","🎚 "+mics.length+" mikrofon aygıtı"+(mics.length?(mics[0].label?(" · "+mics[0].label.slice(0,20)):" · etiket gizli (izin yok)"):" — AYGIT YOK")); }catch(e){}
+        tlog("GUM_HATA "+gm); throw ge; }
+      yayinStreamRef.current=stream;
+      const tr=(stream.getAudioTracks&&stream.getAudioTracks()[0])||null;
+      tset("izin","verildi ✓"); tlog("MIC_PERMISSION_OK");
+      tset("track", tr?((tr.readyState||"?")+" · "+(tr.enabled?"açık":"KAPALI")+(tr.muted?" · MUTED":"")+(tr.label?" · "+tr.label.slice(0,18):"")):"track YOK"); tlog("MIC_TRACK_OK");
+      meterBasla(stream);
+      setMesaj("② Yayın kanalına bağlanılıyor…");
+      // KÖK ÇÖZÜM (PC yayıncı hatası): aynı 'fz-radyo-canli' topraktaki ESKİ kanalları (bu cihazın dinleyici kanalı dahil) yayıncı abone olmadan ÖNCE kapat ve BEKLE.
+      //  PC'de mikrofon izni hazır → getUserMedia ANINDA döner; dinleyici kanalının async kaldırılması bitmeden yayıncı aynı topic'e abone oluyordu → Supabase CHANNEL_ERROR → PC'de yayın hiç başlamıyordu.
+      //  Mobilde getUserMedia daha yavaş olduğu için kaldırma önce bitiyordu → "mobil yayıncı çalışıyor, PC çalışmıyor" tutarsızlığı buradan geliyordu.
+      try{ const eski=(sb.getChannels?sb.getChannels():[]).filter(c=>((c.topic||"").indexOf("fz-radyo-canli")>-1)); for(const c of eski){ try{ await sb.removeChannel(c); }catch(_){} } if(eski.length) tlog("TOPIC_CLEARED_"+eski.length); }catch(_){}
+      const kanal=sb.channel("fz-radyo-canli",{config:{broadcast:{self:false}}}); canalRef.current=kanal;
+      kanal.on("broadcast",{event:"hello"},async({payload})=>{ const lid=payload&&payload.from; if(!lid) return;
+        tset("hello","geldi ✓"); tlog("HELLO_RECEIVED "+String(lid).slice(0,6));
+        const pc=yeniListenerPC(lid);
+        try{ const offer=await pc.createOffer(); await pc.setLocalDescription(offer); sgonder("offer",{to:lid,from:myIdRef.current,sdp:{type:offer.type,sdp:offer.sdp}}); sgonder("duck",{level:muzikSevRef.current}); tset("offer","gönderildi ✓"); tlog("OFFER_SENT"); setDinleyici(Object.keys(pcMapRef.current).length); }catch(e){ tlog("OFFER_HATA "+((e&&e.message)||e)); } });
+      kanal.on("broadcast",{event:"answer"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.sdp){ try{ await pc.setRemoteDescription(payload.sdp); tset("answer","alındı ✓"); tlog("ANSWER_RECEIVED"); }catch(e){ tlog("ANSWER_HATA "+((e&&e.message)||e)); } } });
+      kanal.on("broadcast",{event:"ice"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.cand){ try{ await pc.addIceCandidate(payload.cand); tset("ice","akıyor ✓"); }catch(e){} } });
+      kanal.subscribe(async(st)=>{
+        if(st==="SUBSCRIBED"){
+          tset("kanal","bağlı ✓"); tlog("CHANNEL_SUBSCRIBED");
+          await Db.ayarYaz("radyo_yayin",JSON.stringify({mod:"canli",ref:Date.now(),by:oturum?oturum.id:null,duck:muzikSevRef.current}));
+          try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
+          sgonder("live-start",{from:myIdRef.current,duck:muzikSevRef.current}); setCanli(true); setMesaj("🔴 CANLIDASIN — bas konuş, istediğin kadar. Bitince ⏹ Yayını Bitir.");
+        } else if(st==="CHANNEL_ERROR"||st==="TIMED_OUT"||st==="CLOSED"){
+          tset("kanal","HATA: "+st); tlog("CHANNEL_"+st);
+          setMesaj("⚠️ Yayın kanalı bağlanamadı ("+st+"). Sayfayı YENİLE ve tekrar dene. (Realtime/bağlantı sorunu)");
+          try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e){} meterDur();
+          try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} yayinStreamRef.current=null;
+          try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} canalRef.current=null;
+        }
+      });
+    }catch(e){ try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e2){} meterDur();
+      const msj=String((e&&e.message)||e); const izin=/permission|denied|notallowed|not allowed/i.test(msj);
+      setMesaj(izin?"🎤 Mikrofon İZNİ gerekli — adres çubuğundaki 🎤/🔒 simgesine tıkla → 'İzin ver' → tekrar 'Mikrofonu Aç'.":("Mikrofon açılamadı: "+msj)); }
+  };
+  const canliBitir=async()=>{
+    try{ sgonder("live-end",{from:myIdRef.current}); }catch(e){}   // önce uzak dinleyicilere haber
+    meterDur();
+    Object.keys(pcMapRef.current).forEach(k=>{ try{pcMapRef.current[k].close();}catch(e){} }); pcMapRef.current={}; setDinleyici(0);
+    try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} yayinStreamRef.current=null;
+    try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} canalRef.current=null;
+    // Radyo AÇIK ise (tek anahtar) yayın bitince ortak müzik (senkron) devam etsin; kapalıysa sustur.
+    await Db.ayarYaz("radyo_yayin",JSON.stringify(surum==="v2"?{mod:"senkron",ref:Date.now(),slot:210}:{mod:"kapali"}));
+    try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e){}   // yayıncı cihaz: normale dön + dinleyici kanalı geri kurulur
+    try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
+    setCanli(false); setMesaj("Yayın bitti — müzik moduna dönüldü");
+  };
+  // Canlı yayında outbound RTP izle → "ses PC'den ÇIKIYOR mu" kesin görülür (paket artıyorsa ses çıkıyor demektir)
+  useEffect(()=>{ if(!canli) return; let alive=true;
+    const t=setInterval(async()=>{ try{ let paket=0,bayt=0; const pcs=Object.keys(pcMapRef.current).map(k=>pcMapRef.current[k]);
+      for(const pc of pcs){ try{ const rep=await pc.getStats(); rep.forEach(s=>{ if(s.type==="outbound-rtp" && (s.kind==="audio"||s.mediaType==="audio")){ paket+=s.packetsSent||0; bayt+=s.bytesSent||0; } }); }catch(e){} }
+      if(alive) tset("rtp", paket>0?(paket+" paket · "+Math.round(bayt/1024)+" KB çıktı"):"henüz paket yok — bağlantı kurulmadı");
+    }catch(e){} },2000);
+    return ()=>{ alive=false; clearInterval(t); };
+  },[canli]);
+  useEffect(()=>()=>{ meterDur(); try{ Object.keys(pcMapRef.current).forEach(k=>pcMapRef.current[k].close()); }catch(e){} try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} },[]);
   useEffect(()=>{ Db.radyoOku().then(l=>setListe(Array.isArray(l)?l:[])).catch(()=>setListe([])); },[]);
+  // Radyo sürüm/senkron anahtarları (bu ekranda doğrudan görünsün diye) — sistem_ayar'a yazar, ANINDA etki eder
+  const [surum,setSurum]=useState(null); const [yayin,setYayin]=useState(null);
+  useEffect(()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; setSurum(ay.radyo_surum||"v1"); try{ setYayin(ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null); }catch(e){ setYayin(null); } }); },[]);
+  const surumCevir=async(v)=>{ setSurum(v); const r=await Db.ayarYaz("radyo_surum",v); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj("✓ Radyo "+(v==="v2"?"V2 açıldı":"V1'e döndü")); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
+  const senkronCevir=async()=>{ const on=!!(yayin&&yayin.mod==="senkron"); const y=on?{mod:"kapali"}:{mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); const r=await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj(on?"✓ Senkron kapandı":"✓ Senkron açıldı — herkes aynı yayında"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
+  // TEK ANAHTAR (redesign ①): kullanıcı V1/V2/senkron bilmez. Tek "FORZALİG RADYO" aç/kapat.
+  //  AÇIK → yeni radyo (v2) + ortak/senkron yayın OTOMATİK (canlı mikrofon yoksa). KAPALI → radyo kapalı.
+  const radyoMasterCevir=async()=>{
+    const acik = surum==="v2";
+    if(acik){ setSurum("v1"); await Db.ayarYaz("radyo_surum","v1"); const y={mod:"kapali"}; setYayin(y); await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); setMesaj("📻 ForzaLig Radyo kapatıldı"); }
+    else { setSurum("v2"); await Db.ayarYaz("radyo_surum","v2");
+      if(!(yayin&&yayin.mod==="canli")){ const y={mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); }
+      setMesaj("📻 ForzaLig Radyo açıldı — herkes aynı yayını dinliyor"); }
+    try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
+  };
   const kaydet=async(yeni)=>{ setListe(yeni); const r=await Db.radyoYaz(yeni); if(r&&r.ok){ try{ window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj("✓ Kaydedildi"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")+" — sistem ayar yazma izni gerekir (bakım-modu anahtarıyla aynı yer)."); };
-  const ekle=(url,adx,tur)=>{ const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,7); const yeni=[...(liste||[]),{id, ad:(adx||("Parça "+((liste||[]).length+1))), url, tur:tur||"klip"}]; kaydet(yeni); setAd(""); };
+  const ekle=(url,adx,tur,boyut)=>{ const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,7); const yeni=[...(liste||[]),{id, ad:(adx||("Parça "+((liste||[]).length+1))), url, tur:tur||"klip", ...(boyut?{boyut:boyut}:{})}]; kaydet(yeni); setAd(""); };
   const sil=(id)=>{ if(!confirm("Bu parça listeden çıkarılsın mı?")) return; kaydet((liste||[]).filter(x=>x.id!==id)); };
   const tasi=(i,yon)=>{ const a=[...(liste||[])]; const j=i+yon; if(j<0||j>=a.length) return; const t=a[i]; a[i]=a[j]; a[j]=t; kaydet(a); };
-  const dosyaSec=async(e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; e.target.value=""; if(!/^audio\//.test(f.type||"")){ setMesaj("Lütfen bir ses dosyası seç (mp3/m4a/ogg)."); return; } setYuklyor(true); setMesaj("Yükleniyor…"); const r=await sesYukle(f); setYuklyor(false); if(r&&r.url){ ekle(r.url, (ad.trim()||f.name.replace(/\.[^.]+$/,"")), "klip"); } else setMesaj("Yüklenemedi: "+((r&&r.hata)||"")); };
+  // ===== DİNLEYİCİLER (presence, RadyoCalarV2'den window olayıyla) + PARÇA İSTEKLERİ + KASA İSTATİSTİĞİ =====
+  const [dinleyiciler,setDinleyiciler]=useState(()=>{ try{ return window.__fzDinleyiciler||[]; }catch(e){ return []; } });
+  useEffect(()=>{ const h=(e)=>{ try{ setDinleyiciler((e&&e.detail)||window.__fzDinleyiciler||[]); }catch(x){} }; window.addEventListener("fz-dinleyici",h); return ()=>window.removeEventListener("fz-dinleyici",h); },[]);
+  const dinlBenzersiz=(()=>{ const m={}; (dinleyiciler||[]).forEach(d=>{ if(d&&d.uid&&!m[d.uid]) m[d.uid]=d; }); return Object.keys(m).map(k=>m[k]); })();
+  const takimDagilim=(()=>{ const m={}; dinlBenzersiz.forEach(d=>{ const t=(d.takim||"Takımsız"); if(!m[t]) m[t]={takim:t,adet:0,renk:d.renk}; m[t].adet++; }); return Object.keys(m).map(k=>m[k]).sort((a,b)=>b.adet-a.adet); })();
+  const [istekler,setIstekler]=useState([]);
+  useEffect(()=>{ let a=true; const yu=()=>Db.radyoIstekOku().then(l=>{ if(a) setIstekler(Array.isArray(l)?l:[]); }).catch(()=>{}); yu(); const id=setInterval(yu,15000); return ()=>{ a=false; clearInterval(id); }; },[]);
+  const istekOnayla=async(it)=>{ const yeni=[...(liste||[]),{id:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now()), ad:it.sarki||"Parça", url:it.url, tur:"klip"}]; await kaydet(yeni); const kalan=(istekler||[]).filter(x=>x.id!==it.id); setIstekler(kalan); await Db.radyoIstekYaz(kalan); setMesaj("✓ '"+(it.sarki||"Parça")+"' sıraya eklendi"); };
+  const istekReddet=async(it)=>{ const kalan=(istekler||[]).filter(x=>x.id!==it.id); setIstekler(kalan); await Db.radyoIstekYaz(kalan); };
+  const kasaStat=(()=>{ let b=0,bilinen=0; (liste||[]).forEach(p=>{ if(p&&p.boyut){ b+=p.boyut; bilinen++; } }); return {mb:b/1048576, bilinen:bilinen, toplam:(liste||[]).length}; })();
+  const [depo,setDepo]=useState(null); const [egress,setEgress]=useState(null);
+  useEffect(()=>{ let a=true; Db.radyoDepoStat().then(d=>{ if(a) setDepo(d); }).catch(()=>{}); Db.radyoEgress().then(e=>{ if(a) setEgress(e); }).catch(()=>{}); return ()=>{a=false;}; },[]);
+  const dosyaSec=async(e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; e.target.value=""; if(!/^audio\//.test(f.type||"")){ setMesaj("Lütfen bir ses dosyası seç (mp3/m4a/ogg)."); return; } setYuklyor(true); setMesaj("Yükleniyor…"); const r=await sesYukle(f); setYuklyor(false); if(r&&r.url){ ekle(r.url, (ad.trim()||f.name.replace(/\.[^.]+$/,"")), "klip", f.size||0); } else setMesaj("Yüklenemedi: "+((r&&r.hata)||"")); };
   const kayitBasla=async()=>{
     if(kayit) return;
     if(typeof MediaRecorder==="undefined"||!navigator.mediaDevices){ setMesaj("Tarayıcı ses kaydını desteklemiyor — 'Ses dosyası yükle' ile ekleyebilirsin."); return; }
@@ -13181,7 +13790,118 @@ function RadyoYonetim({T, oturum}){
   };
   const kayitBitir=()=>{ try{ if(mrRef.current&&mrRef.current.state!=="inactive") mrRef.current.stop(); }catch(e){} setKayit(false); };
   const ikon=(p)=> p&&p.tur==="anons"?"📣":p&&p.tur==="ses"?"🎙️":"🎵";
-  return <div>
+  return <div style={{paddingBottom:"calc(150px + env(safe-area-inset-bottom))"}}>
+    {/* 🆕 RADYO SÜRÜM ANAHTARI — bu ekranda doğrudan görünür (tek tuş, anında) */}
+    {(()=>{ const acik=surum==="v2"; const yukleniyor=surum===null;
+      const sw=(on)=>({width:48,height:27,borderRadius:15,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
+      const knob=(on)=>({position:"absolute",top:2,left:on?23:2,width:21,height:21,borderRadius:"50%",background:"#fff",transition:"left .2s"});
+      return <div style={{background:acik?"linear-gradient(160deg,"+T.accent+"1c,"+T.bg1+")":"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+(acik?T.accent+"55":T.line),borderRadius:14,padding:"15px 16px",marginBottom:12}}>
+        <div onClick={yukleniyor?null:radyoMasterCevir} className="tap" style={{display:"flex",alignItems:"center",gap:13,cursor:yukleniyor?"default":"pointer"}}>
+          <span style={{fontSize:24}}>📻</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:16,fontWeight:800,color:T.text,letterSpacing:.2}}>FORZALİG RADYO</div>
+            <div style={{fontSize:11.5,color:acik?T.accent:T.textMut,marginTop:3,fontWeight:600}}>{yukleniyor?"yükleniyor…":acik?"🟢 Açık — herkes aynı yayını dinliyor":"⚪ Kapalı — dinleyicilerde radyo görünmez"}</div>
+          </div>
+          <span style={sw(acik)}><span style={knob(acik)}/></span>
+        </div>
+      </div>;
+    })()}
+    {/* 🔴 CANLI MİKROFON — Süper Admin konuşur, Radyo V2 açık dinleyiciler canlı duyar */}
+    <div style={{background:canli?"linear-gradient(160deg,"+T.accent+"26,"+T.bg1+")":"linear-gradient(160deg,"+T.danger+"12,"+T.bg1+")",border:"1.5px solid "+(canli?T.accent:T.danger)+(canli?"":"44"),borderRadius:12,padding:"13px 14px",marginBottom:12,userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none",boxShadow:canli?"0 0 0 3px "+T.accent+"22":"none"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+        <span style={{fontSize:15}}>🎙️</span>
+        <div style={{fontSize:13.5,fontWeight:800,color:canli?T.accent:T.text}}>{canli?"🟢 YAYINDASIN":"Canlı Mikrofon"}</div>
+        {canli && <span style={{marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:6,fontSize:11,fontWeight:800,color:T.accent}}><span style={{width:8,height:8,borderRadius:"50%",background:T.accent}} className="fz-nabiz"/>{dinleyici} dinleyici</span>}
+      </div>
+      <div style={{fontSize:11,color:T.textMut,marginBottom:10,lineHeight:1.5}}>Sen konuşursun, <b style={{color:T.textSoft}}>tüm dinleyiciler</b> canlı duyar. Sen konuşurken müzik arkada kısılır (durmaz), bitince yumuşakça geri gelir.{surum!=="v2"&&<span style={{color:T.gold}}> (Önce yukarıdan <b>ForzaLig Radyo</b>'yu aç ki dinleyiciler duyabilsin.)</span>}</div>
+      {!canli
+        ? <button onClick={canliBasla} className="tap" style={{width:"100%",background:"linear-gradient(135deg,"+T.danger+",#c0392b)",color:"#fff",border:0,borderRadius:12,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer"}}>🎙 Mikrofonu Aç (canlı yayına başla)</button>
+        : <>
+            <button onClick={canliBitir} className="tap" style={{width:"100%",background:T.bg2,color:T.text,border:"1px solid "+T.danger,borderRadius:12,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer"}}>⏹ Yayını Bitir</button>
+            {/* 🎤 SES DALGASI (equalizer) — konuşunca çubuklar oynar → çalıştığını anlarsın */}
+            <div style={{marginTop:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:T.textMut,marginBottom:6,fontWeight:700}}><span>🎤 Ses dalgan — konuşunca oynar</span><span>👥 {dinleyici} dinleyici</span></div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:2,height:48,padding:"6px 6px",background:T.bg2,borderRadius:9,overflow:"hidden"}}>
+                {Array.from({length:22}).map((_,i)=><div key={i} ref={el=>{barsRef.current[i]=el;}} style={{flex:1,height:"6%",minHeight:2,background:"linear-gradient(180deg,"+T.danger+","+T.gold+" 55%,"+T.accent+")",borderRadius:2,transition:"height .06s ease-out"}}/>)}
+              </div>
+              <div style={{fontSize:11,fontWeight:700,color:dinleyici>0?T.accent:T.gold,marginTop:7}}>{dinleyici>0?("✅ "+dinleyici+" kişi bağlandı ve seni dinliyor"):"⏳ Bağlı dinleyici bekleniyor — başka bir cihaz uygulamayı açık tutup radyoyu dinlemeli"}</div>
+              <div style={{fontSize:10,color:T.textMut,marginTop:4,lineHeight:1.55}}>Çubuklar oynuyorsa mikrofon <b style={{color:T.accent}}>çalışıyor</b>. Sesi <b style={{color:T.textSoft}}>BAŞKA cihazda</b> duyarsın — aynı cihazda kendini duymazsın (normal).</div>
+            </div>
+            <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+T.line}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.textSoft,marginBottom:6,fontWeight:700}}><span>🎵 Müzik kısık</span><span>🎵 Müzik açık</span></div>
+              <input type="range" min="0" max="0.8" step="0.02" value={muzikSev} onChange={e=>muzikSevCevir(parseFloat(e.target.value))} style={{width:"100%",accentColor:T.accent}}/>
+              <div style={{fontSize:10.5,color:T.textMut,marginTop:5,lineHeight:1.5}}>{muzikSev<0.03?"🔇 Arka müzik kapalı — dinleyici sadece SENİ duyar":("🎚️ Dinleyicide müzik arkada %"+Math.round(muzikSev*100)+" çalar, senin sesin üstte. Kaydırarak dengeyi ayarla.")}</div>
+            </div>
+          </>}
+      {teknik && <div style={{marginTop:12,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:12,padding:"11px 12px"}}>
+        <div style={{fontSize:10.5,fontWeight:800,color:T.textMut,letterSpacing:.4,marginBottom:8,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>🔧 CANLI YAYIN — TEKNİK DURUM <span style={{fontSize:8.5,color:T.textMut,fontWeight:600}}>(teşhis · hata nerede koparsa görünür)</span></div>
+        {[["Mikrofon izni","izin"],["Mikrofon track","track"],["Ses algılanıyor (konuş)","ses"],["Yayın kanalı","kanal"],["Dinleyici 'merhaba'","hello"],["Offer gönderildi","offer"],["Answer alındı","answer"],["ICE adayları","ice"],["Peer bağlantısı","peer"],["Gönderilen ses (RTP)","rtp"]].map(([et,k])=>{
+          const v=teknik[k]; const kotu=v && /HATA|YOK|KAPALI|MUTED|kurulmad|yok/i.test(String(v));
+          return <div key={k} style={{display:"flex",alignItems:"center",gap:8,fontSize:11,padding:"2.5px 0"}}>
+            <span style={{width:16,flexShrink:0,textAlign:"center"}}>{v==null?"⏳":kotu?"❌":"✅"}</span>
+            <span style={{color:T.textSoft,flex:1,whiteSpace:"nowrap"}}>{et}</span>
+            <span style={{color:kotu?T.danger:(v==null?T.textMut:T.accent),fontWeight:600,fontSize:9.5,maxWidth:158,textAlign:"right",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v==null?"—":String(v)}</span>
+          </div>;
+        })}
+        <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,padding:"5px 0 0",marginTop:4,borderTop:"1px solid "+T.line}}>
+          <span style={{width:16,textAlign:"center"}}>👥</span><span style={{color:T.textSoft,flex:1}}>Bağlı dinleyici</span><span style={{color:T.accent,fontWeight:800}}>{dinleyici}</span>
+        </div>
+        <div style={{fontSize:9,color:T.textMut,marginTop:8,lineHeight:1.55}}>PC'de başla, <b style={{color:T.textSoft}}>BAŞKA</b> cihazda (telefon) dinle. <b style={{color:T.textSoft}}>"Gönderilen ses (RTP)"</b> paketi ARTIYORSA ses PC'den çıkıyordur; <b style={{color:T.textSoft}}>"Peer bağlantısı"</b> <b style={{color:T.accent}}>connected</b> olmalı. Derin analiz: <b style={{color:T.textSoft}}>chrome://webrtc-internals</b> → outbound-rtp audio · packetsSent.</div>
+      </div>}
+    </div>
+    {/* 👥 DİNLEYİCİLER — mevcut presence + takım verisiyle (yeni sistem yok) */}
+    <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"13px 14px",marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:dinlBenzersiz.length?10:0}}>
+        <span style={{fontSize:15}}>👥</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>{dinlBenzersiz.length} kişi dinliyor</div>
+        <span style={{marginLeft:"auto",width:8,height:8,borderRadius:"50%",background:dinlBenzersiz.length?T.accent:T.line}} className={dinlBenzersiz.length?"fz-nabiz":""}/>
+      </div>
+      {takimDagilim.length>0 && <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+        {takimDagilim.slice(0,6).map((t,i)=><span key={i} style={{fontSize:10.5,fontWeight:700,color:T.textSoft,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:20,padding:"3px 9px"}}>{t.takim} · <b style={{color:T.accent}}>{t.adet}</b></span>)}
+      </div>}
+      {dinlBenzersiz.slice(0,15).map((d,i)=><div key={d.uid||i} style={{display:"flex",alignItems:"center",gap:9,padding:"5px 0"}}>
+        <span style={{width:28,height:28,borderRadius:8,flexShrink:0,display:"grid",placeItems:"center",fontSize:10.5,fontWeight:800,color:"#04140c",background:d.renk||T.accent}}>{String(d.ad||"?").slice(0,2).toUpperCase()}</span>
+        <span style={{flex:1,minWidth:0,fontSize:12.5,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.ad||"Dinleyici"}</span>
+        {d.takim && <span style={{fontSize:10,color:T.textMut,whiteSpace:"nowrap"}}>{d.takim}</span>}
+      </div>)}
+      {dinlBenzersiz.length>15 && <div style={{fontSize:10,color:T.textMut,textAlign:"center",marginTop:6}}>+ {dinlBenzersiz.length-15} kişi daha</div>}
+      {dinlBenzersiz.length===0 && <div style={{fontSize:11,color:T.textMut,paddingTop:2}}>Şu an aktif dinleyici yok — uygulaması açık kullanıcılar burada görünür.</div>}
+    </div>
+    {/* 🎵 PARÇA İSTEKLERİ — kullanıcı kasadan ister, sen sıraya ekle/reddet */}
+    {istekler.length>0 && <div style={{background:"linear-gradient(160deg,"+T.gold+"12,"+T.bg1+")",border:"0.5px solid "+T.gold+"44",borderRadius:12,padding:"13px 14px",marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:15}}>🎵</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Parça İstekleri</div><span style={{marginLeft:"auto",fontSize:10,fontWeight:800,color:T.gold,background:T.gold+"1e",borderRadius:20,padding:"2px 8px"}}>{istekler.length} yeni</span></div>
+      {istekler.slice().reverse().map((it,i)=><div key={it.id||i} style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"10px 11px",marginBottom:7}}>
+        <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:9}}>
+          <span style={{width:30,height:30,borderRadius:8,flexShrink:0,display:"grid",placeItems:"center",fontSize:11,fontWeight:800,color:"#04140c",background:it.renk||T.accent2}}>{String(it.ad||"?").slice(0,2).toUpperCase()}</span>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.ad||"Dinleyici"}{it.takim?" · "+it.takim:""}</div><div style={{fontSize:12,color:T.accent,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>🎵 {it.sarki||"Parça"}</div></div>
+        </div>
+        <div style={{display:"flex",gap:7}}>
+          <button onClick={()=>istekOnayla(it)} className="tap" style={{flex:1,background:T.accent,color:"#04140c",border:0,borderRadius:9,padding:"8px",fontSize:12,fontWeight:800,cursor:"pointer"}}>＋ Sıraya Ekle</button>
+          <button onClick={()=>istekReddet(it)} className="tap" style={{flex:1,background:T.bg2,color:T.textSoft,border:"0.5px solid "+T.line,borderRadius:9,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Reddet</button>
+        </div>
+      </div>)}
+    </div>}
+    {/* 💾 DEPOLAMA / KOTA — güvenli SQL fonksiyonu (service-role sırrı frontend'de yok) */}
+    {(()=>{ const hazir=depo&&!depo.hata&&depo.bytes!=null; const toplamMB=hazir?depo.bytes/1048576:null; const radyoMB=kasaStat.mb; const digerMB=hazir?Math.max(0,toplamMB-radyoMB):null;
+      const LIMIT=1024; const yuz=hazir?Math.min(100,(toplamMB/LIMIT)*100):0; const uyRenk=yuz>=95?T.danger:yuz>=85?T.gold:yuz>=70?T.accent2:T.accent;
+      const egB=egress&&egress.egressBytes!=null?egress.egressBytes:null; const egGB=egB!=null?(egB/1073741824):null;
+      return <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"13px 14px",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:11}}><span style={{fontSize:15}}>💾</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Depolama & Trafik</div>{hazir&&<span style={{marginLeft:"auto",fontSize:10,fontWeight:800,color:uyRenk,background:uyRenk+"1a",borderRadius:20,padding:"2px 9px"}}>%{Math.round(yuz)}</span>}</div>
+        {!depo && <div style={{fontSize:11,color:T.textMut}}>Yükleniyor…</div>}
+        {depo&&depo.hata && <div style={{fontSize:10.5,color:T.gold,lineHeight:1.55}}>⚠ Depolama okunamıyor — <b style={{color:T.textSoft}}>radyo_depo_stat</b> SQL fonksiyonu henüz kurulmamış olabilir. (Aşağıdaki adımı uygula.)</div>}
+        {hazir && <>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11.5,color:T.textSoft,marginBottom:6}}><span>🎵 Radyo müziği <b style={{color:T.accent}}>{radyoMB.toFixed(radyoMB<10?1:0)} MB</b></span><span>🗂 Diğer <b style={{color:T.text}}>{digerMB.toFixed(digerMB<10?1:0)} MB</b></span></div>
+          <div style={{height:9,borderRadius:6,background:T.bg0,overflow:"hidden",display:"flex"}}>
+            <div style={{width:Math.min(100,(radyoMB/LIMIT)*100)+"%",background:T.accent}}/>
+            <div style={{width:Math.min(100,(digerMB/LIMIT)*100)+"%",background:T.accent2}}/>
+          </div>
+          <div style={{fontSize:10.5,color:T.textMut,marginTop:7}}>Toplam <b style={{color:T.text}}>{toplamMB.toFixed(0)} MB</b> / ~{LIMIT} MB · {depo.objeler} dosya {yuz>=70&&<span style={{color:uyRenk,fontWeight:700}}>· {yuz>=95?"kritik":yuz>=85?"yüksek":"dikkat"}</span>}</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:11,paddingTop:10,borderTop:"1px solid "+T.line,fontSize:11.5,color:T.textSoft}}>
+            <span>🌐 Aylık trafik (egress)</span><span style={{fontWeight:800,color:egGB!=null?T.text:T.textMut}}>{egGB!=null?egGB.toFixed(1)+" GB":"—"}</span>
+          </div>
+          {egGB==null && <div style={{fontSize:9.5,color:T.textMut,marginTop:5}}>Egress için opsiyonel <b style={{color:T.textSoft}}>radyo-egress</b> Edge Function gerekir (Management API).</div>}
+        </>}
+      </div>;
+    })()}
     <div style={{background:"linear-gradient(120deg,"+T.accent2+"14,"+T.bg1+")",border:"0.5px solid "+T.accent2+"44",borderRadius:12,padding:"13px 14px",marginBottom:12}}>
       <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:4}}>📻 ForzaLig Radyo</div>
       <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.55}}>Buraya eklediğin kısa sesler, tüm kullanıcıların uygulamasında alt menünün üstünde <b style={{color:T.textSoft}}>mini-çalar</b> olarak çıkar. Liste boşken çalar görünmez. Yeni tablo/depo yok — ses mevcut depona, liste sistem ayarına kaydedilir.</div>
@@ -13189,12 +13909,19 @@ function RadyoYonetim({T, oturum}){
 
     <input value={ad} onChange={e=>setAd(e.target.value)} placeholder="🏷️ Parça adı (opsiyonel) — örn. Haftanın Oyuncusu" style={{width:"100%",boxSizing:"border-box",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:12.5,outline:"none",fontFamily:"inherit",marginBottom:10}}/>
 
+    {/* 🔗 TEK-URL AKILLI EKLEME — mp3/m4a/ogg ekler, YouTube/SoundCloud'u dürüstçe reddeder */}
+    <div style={{display:"flex",gap:8,marginBottom:6}}>
+      <input value={urlIn} onChange={e=>setUrlIn(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") urlEkle(); }} placeholder="🔗 Ses linki yapıştır (mp3/m4a/ogg)" style={{flex:1,minWidth:0,boxSizing:"border-box",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:12.5,outline:"none",fontFamily:"inherit"}}/>
+      <button onClick={urlEkle} className="tap" style={{flexShrink:0,background:T.accent2||T.accent,color:"#04140c",border:0,borderRadius:10,padding:"9px 16px",fontSize:12.5,fontWeight:800,cursor:"pointer"}}>Ekle</button>
+    </div>
+    <div style={{fontSize:10,color:T.textMut,marginBottom:10,lineHeight:1.5}}>Telifsiz MP3 linki (Pixabay, Free Music Archive, kendi sunucun) veya doğrudan ses dosyası. YouTube/SoundCloud <b style={{color:T.textSoft}}>çalınamaz</b> (telif).</div>
+
     <div style={{display:"flex",gap:9,marginBottom:6,flexWrap:"wrap"}}>
       <button
         onPointerDown={e=>{ e.preventDefault(); kayitBasla(); }}
         onPointerUp={kayitBitir} onPointerLeave={()=>{ if(kayit) kayitBitir(); }} onPointerCancel={kayitBitir}
         className="tap" style={{flex:"1 1 150px",userSelect:"none",touchAction:"none",background:kayit?T.danger:"linear-gradient(135deg,"+T.accent+","+(T.accent2||T.accent)+")",color:kayit?"#fff":"#04140c",border:0,borderRadius:12,padding:"14px 12px",fontSize:13,fontWeight:800,boxShadow:kayit?"0 0 0 4px "+T.danger+"33":"none"}}>
-        {kayit?"● Konuş… (bırak = yayınla)":"🎙️ Bas-konuş kaydet"}
+        {kayit?"● Kaydediliyor… (bırak = listeye ekle)":"🎤 Klip kaydet (listeye ekle · canlı DEĞİL)"}
       </button>
       <label className="tap" style={{flex:"1 1 150px",display:"flex",alignItems:"center",justifyContent:"center",gap:7,background:T.bg1,border:"0.5px solid "+T.line,color:T.textSoft,borderRadius:12,padding:"14px 12px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
         📂 Ses dosyası yükle<input type="file" accept="audio/*" onChange={dosyaSec} style={{display:"none"}}/>
@@ -13202,9 +13929,12 @@ function RadyoYonetim({T, oturum}){
     </div>
     {(mesaj||yuklyor) && <div style={{fontSize:11.5,color:yuklyor?T.textMut:(mesaj.indexOf("✓")>-1?T.accent:mesaj.indexOf("●")>-1?T.danger:T.gold),textAlign:"center",padding:"6px 0 10px"}}>{yuklyor?"⏳ "+mesaj:mesaj}</div>}
 
-    <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:.6,margin:"6px 2px 8px"}}>ÇALMA LİSTESİ {liste?"· "+liste.length:""}</div>
+    <div style={{display:"flex",alignItems:"center",gap:8,margin:"6px 2px 8px"}}>
+      <span style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:.6}}>🎵 MÜZİK KASASI {liste?"· "+kasaStat.toplam+" şarkı":""}</span>
+      {kasaStat.bilinen>0 && <span style={{marginLeft:"auto",fontSize:10,fontWeight:800,color:T.accent,background:T.accent+"14",border:"0.5px solid "+T.accent+"33",borderRadius:20,padding:"2px 9px"}}>{kasaStat.mb.toFixed(kasaStat.mb<10?1:0)} MB{kasaStat.bilinen<kasaStat.toplam?" (+"+(kasaStat.toplam-kasaStat.bilinen)+" bilinmiyor)":""}</span>}
+    </div>
     {liste===null && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Yükleniyor…</div>}
-    {liste&&liste.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16,background:T.bg1,border:"0.5px dashed "+T.line,borderRadius:11}}>Henüz ses yok. Yukarıdan bas-konuş kaydet ya da bir ses dosyası yükle.</div>}
+    {liste&&liste.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16,background:T.bg1,border:"0.5px dashed "+T.line,borderRadius:11}}>Henüz ses yok. Yukarıdan klip kaydet, ses dosyası yükle ya da ses linki yapıştır.</div>}
     {liste&&liste.map((p,i)=><div key={p.id||i} style={{display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"9px 11px",marginBottom:6}}>
       <span style={{fontSize:16,width:24,textAlign:"center",flexShrink:0}}>{ikon(p)}</span>
       <div style={{flex:1,minWidth:0}}>
@@ -14169,6 +14899,27 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
               <span style={sw(on)}><span style={knob(on)}/></span>
             </div>)}
             <div style={{fontSize:10.5,color:T.textMut,marginTop:9,lineHeight:1.5}}>Kapalı = kullanıcı görmez/etkilenmez · Bakım modu açıkken sadece sen düzenleyebilirsin. Anında etki eder, güncelleme beklemez.</div>
+          </div>;
+        })()}
+        {/* ===== 🆕 SÜRÜM & RADYO — tek tuş geri dönüş (paralel yeni tasarımları aç/kapat, ANINDA) ===== */}
+        {(()=>{ const A=anahtarlar||{};
+          const sw=(on)=>({width:36,height:20,borderRadius:11,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
+          const knob=(on)=>({position:"absolute",top:2,left:on?18:2,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"});
+          const anaV6=A.anasayfa_surum!=="v5"; const radyoV2=A.radyo_surum!=="v1";  // V6 + Radyo V2 artık VARSAYILAN (sadece açıkça v5/v1 seçilirse eski)
+          let yayin=null; try{ yayin=A.radyo_yayin?JSON.parse(A.radyo_yayin):null; }catch(e){}
+          const senkOn=!!(yayin&&yayin.mod==="senkron");
+          const cevir=async(k,v)=>{ await anahtarCevir(k,v); try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} };
+          const senkronCevir=()=> cevir("radyo_yayin", senkOn?JSON.stringify({mod:"kapali"}):JSON.stringify({mod:"senkron",ref:Date.now(),slot:210}));
+          const satir=(et,alt,on,onClick)=><div onClick={onClick} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderBottom:"1px solid "+T.line,cursor:"pointer"}}>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,color:T.text,fontWeight:600}}>{et}</div>{alt&&<div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>{alt}</div>}</div>
+            <span style={sw(on)}><span style={knob(on)}/></span>
+          </div>;
+          return <div style={{background:"linear-gradient(160deg,"+T.accent+"12,"+T.bg1+")",border:"1px solid "+T.accent+"33",borderRadius:14,padding:"14px 15px",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>🆕</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Sürüm & Radyo — tek tuşla geri dönüş</div></div>
+            <div style={{fontSize:10.5,color:T.textMut,marginBottom:8,lineHeight:1.5}}>Yeni tasarımlar ESKİSİNE dokunmadan paralel durur. İstediğin an aç/kapat — <b>anında</b>, güncelleme beklemeden. Sorun olursa kapat, eskiye dönersin.</div>
+            {satir("📻 Radyo V2 (senkron · ses seviyesi · beğeni · uyku)", radyoV2?"Açık — yeni radyo görünüyor":"Kapalı — eski radyo (V1) çalışıyor", radyoV2, ()=>cevir("radyo_surum",radyoV2?"v1":"v2"))}
+            {radyoV2 && satir("📡 Senkron canlı yayın (herkes aynı anda aynı şarkı)", senkOn?"Açık — dinleyiciler tek yayında, sıra otomatik":"Kapalı — herkes serbest dinliyor", senkOn, senkronCevir)}
+            {satir("🏠 Yeni anasayfa (V6 · Maç Merkezi + spotlight)", anaV6?"Açık — yeni anasayfa görünüyor":"Kapalı — eski anasayfa (V5) çalışıyor", anaV6, ()=>cevir("anasayfa_surum",anaV6?"v5":"v6"))}
           </div>;
         })()}
         {/* ===== FİDAN SAYACI AYARI — kaç golde kaç fidan (tüm liglere göre) ===== */}
@@ -15816,6 +16567,231 @@ function RadyoCalar({T, barGizle}){
     </div>}
   </>;
 }
+/* ===== RADYO V2 (Faz 1) — senkron + cila + failover. Süper Admin 'radyo_surum=v2' ile açar; varsayılan eski (V1).
+   Senkron: sunucusuz + deterministik. sistem_ayar.radyo_yayin = {mod:"senkron"|"kapali", ref:<epoch ms>, slot:<sn>}.
+   mod=senkron iken her cihaz aynı formülle aynı parçanın aynı saniyesini bulur → "herkes aynı anda aynı şarkı".
+   Yeni tablo/depo YOK: liste=radyo_liste, ses=mevcut 'fotolar' deposu. Beğeni/ses/uyku LOKAL (localStorage). */
+function RadyoCalarV2({T, barGizle, kimlik}){
+  const [liste,setListe]=useState([]);
+  const [idx,setIdx]=useState(0);
+  const [calisiyor,setCalisiyor]=useState(false);
+  const [acik,setAcik]=useState(false);
+  const [ses,setSes]=useState(()=>{ try{ const v=parseFloat(localStorage.getItem("fz_radyo_ses")); return isNaN(v)?0.9:Math.min(1,Math.max(0,v)); }catch(e){ return 0.9; } });
+  const [sure,setSure]=useState(0);
+  const [toplam,setToplam]=useState(0);
+  const [begeni,setBegeni]=useState(()=>{ try{ const a=JSON.parse(localStorage.getItem("fz_radyo_begeni")||"[]"); return new Set(Array.isArray(a)?a:[]); }catch(e){ return new Set(); } });
+  const [uyku,setUyku]=useState(0);            // kalan dk (0=kapalı)
+  const [yayin,setYayin]=useState(null);        // {mod,ref,slot} senkron config
+  const audioRef=useRef(null);
+  const uykuRef=useRef(null);
+  const SLOT=(yayin&&yayin.slot)||210;          // senkron dilim (sn)
+  const yukle=()=>{ Db.radyoOku().then(l=>{ setListe(Array.isArray(l)?l.filter(x=>x&&x.url):[]); }).catch(()=>{}); };
+  const yayinOku=()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; try{ const y=ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; setYayin(y&&y.mod?y:null); }catch(e){ setYayin(null); } }).catch(()=>{}); };
+  useEffect(()=>{ yukle(); yayinOku(); const h=()=>{ yukle(); yayinOku(); }; window.addEventListener("radyo-guncelle",h); return ()=>window.removeEventListener("radyo-guncelle",h); },[]);
+  // ===== DİNLEYİCİ PRESENCE (kim dinliyor) — mevcut kimlikle, AYRI kanal, yeni tablo YOK =====
+  const [dinleyiciler,setDinleyiciler]=useState([]);
+  const presCanalRef=useRef(null);
+  const presIdRef=useRef((window.crypto&&crypto.randomUUID)?crypto.randomUUID():"d"+Date.now()+Math.random().toString(36).slice(2,6));
+  const kimlikRef=useRef(kimlik);
+  const presKayit=()=>{ const k=kimlikRef.current; return k?{uid:k.uid,ad:k.ad,takim:k.takim,renk:k.renk,t:Date.now()}:{uid:presIdRef.current,ad:"Misafir",takim:null,renk:null,t:Date.now()}; };
+  useEffect(()=>{ if(!sb) return; let aktif=true;
+    const kanal=sb.channel("fz-radyo-dinleyici",{config:{presence:{key:presIdRef.current}}}); presCanalRef.current=kanal;
+    const topla=()=>{ try{ const st=kanal.presenceState()||{}; const arr=[]; Object.keys(st).forEach(k=>{ const m=(st[k]&&st[k][0])||null; if(m&&m.uid) arr.push(m); }); if(aktif) setDinleyiciler(arr); try{ window.__fzDinleyiciler=arr; window.dispatchEvent(new CustomEvent("fz-dinleyici",{detail:arr})); }catch(e){} }catch(e){} };
+    kanal.on("presence",{event:"sync"},topla).on("presence",{event:"join"},topla).on("presence",{event:"leave"},topla);
+    kanal.subscribe((st)=>{ if(st==="SUBSCRIBED"){ try{ kanal.track(presKayit()); }catch(e){} } });
+    return ()=>{ aktif=false; try{ kanal.untrack(); }catch(e){} try{ sb.removeChannel(kanal); }catch(e){} };
+  },[]);
+  useEffect(()=>{ kimlikRef.current=kimlik; try{ presCanalRef.current&&presCanalRef.current.track(presKayit()); }catch(e){} },[kimlik]);
+  const dinleyiciBenzersiz = (()=>{ const m={}; (dinleyiciler||[]).forEach(d=>{ if(d&&d.uid&&!m[d.uid]) m[d.uid]=d; }); return Object.keys(m).map(k=>m[k]); })();
+  const dinleyiciSayi = dinleyiciBenzersiz.length;
+  const [dinlAcik,setDinlAcik]=useState(false); const [istekAcik,setIstekAcik]=useState(false); const [istekMesaj,setIstekMesaj]=useState("");
+  const parcaIste=async(p)=>{ if(!p) return;
+    try{ const son=parseInt(localStorage.getItem("fz_radyo_istek_ts")||"0"); if(Date.now()-son<60000){ setIstekMesaj("⏳ Dakikada 1 istek — birazdan tekrar dene."); return; } }catch(e){}
+    const k=kimlik; const istek={id:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now()), uid:(k&&k.uid)||presIdRef.current, ad:(k&&k.ad)||"Dinleyici", takim:(k&&k.takim)||null, renk:(k&&k.renk)||null, sarki:p.ad||"Parça", url:p.url, ts:Date.now()};
+    const r=await Db.radyoIstekEkle(istek); if(r&&r.ok){ try{ localStorage.setItem("fz_radyo_istek_ts",String(Date.now())); }catch(e){} setIstekMesaj("✅ İsteğin spikere iletildi!"); setTimeout(()=>{ setIstekAcik(false); setIstekMesaj(""); },1500); } else setIstekMesaj("Gönderilemedi — tekrar dene."); };
+  const n=liste.length;
+  const gerIdx = n? ((idx%n)+n)%n : 0;
+  const parca = n? liste[gerIdx] : null;
+  const senkronAktif = !!(yayin && yayin.mod==="senkron" && yayin.ref && n);
+  // Senkron konum: her cihaz aynı formül → aynı parça + aynı saniye
+  const senkronKonum=()=>{ if(!senkronAktif) return null; const el=(Date.now()-yayin.ref)/1000; if(el<0) return null; const top=n*SLOT; const pos=((el%top)+top)%top; return {i:Math.floor(pos/SLOT)%n, off:pos%SLOT}; };
+  const oynatDurdur=(zorla)=>{
+    try{ const _l=canliAudioRef.current; if(_l&&_l.srcObject) _l.play().catch(()=>{}); }catch(e){}   // canlı yayın sesini de aç (autoplay kilidi kırılır)
+    const a=audioRef.current; if(!a||!parca) return;
+    const hedef=(typeof zorla==="boolean")?zorla:!calisiyor;
+    if(hedef){ if(a.src!==parca.url){ a.src=parca.url; } a.volume = canliDinle ? Math.max(0,Math.min(1,duckSev*ses)) : ses; a.play().then(()=>setCalisiyor(true)).catch(()=>setCalisiyor(false)); }
+    else { a.pause(); setCalisiyor(false); }
+  };
+  const sonraki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i+1); setCalisiyor(true); };
+  const onceki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i-1); setCalisiyor(true); };
+  // parça değişince çalıyorsa yeni kaynağı çal
+  useEffect(()=>{ const a=audioRef.current; if(!a||!parca) return; if(calisiyor){ a.src=parca.url; a.volume=ses; a.play().catch(()=>{}); } },[idx]);
+  // ses seviyesi (canlı yayında müzik duck efekti kontrol eder → ezme)
+  useEffect(()=>{ const a=audioRef.current; if(a && !canliDinle) a.volume=ses; try{ localStorage.setItem("fz_radyo_ses",String(ses)); }catch(e){} },[ses]);
+  // SENKRON tik: her 2 sn idx/offset düzelt (herkesi aynı yerde tut)
+  useEffect(()=>{ if(!senkronAktif) return; const tik=()=>{ const k=senkronKonum(); if(!k) return; if(k.i!==gerIdx){ setIdx(k.i); return; } const a=audioRef.current; if(a&&calisiyor&&isFinite(k.off)){ if(Math.abs((a.currentTime||0)-k.off)>2.5){ try{ a.currentTime=k.off; }catch(e){} } } };
+    tik(); const id=setInterval(tik,2000); return ()=>clearInterval(id);
+  },[senkronAktif, yayin&&yayin.ref, gerIdx, calisiyor]);
+  // uyku sayacı
+  useEffect(()=>{ if(uykuRef.current){ clearTimeout(uykuRef.current); uykuRef.current=null; } if(uyku>0){ uykuRef.current=setTimeout(()=>{ oynatDurdur(false); setUyku(0); }, uyku*60000); } return ()=>{ if(uykuRef.current) clearTimeout(uykuRef.current); }; },[uyku]);
+  // MediaSession — kilit ekranı
+  useEffect(()=>{ try{
+    if(typeof navigator==="undefined" || !("mediaSession" in navigator)) return;
+    if(parca && window.MediaMetadata){ navigator.mediaSession.metadata=new window.MediaMetadata({title:(parca.ad||"ForzaLig Radyo"), artist:(senkronAktif?"📡 Canlı Yayın":"ForzaLig Radyo"), album:"halı saha ligin cebinde"}); }
+    const set=(a,f)=>{ try{ navigator.mediaSession.setActionHandler(a,f); }catch(e){} };
+    set("play",()=>oynatDurdur(true)); set("pause",()=>oynatDurdur(false));
+    set("nexttrack",senkronAktif?null:sonraki); set("previoustrack",senkronAktif?null:onceki);
+    try{ navigator.mediaSession.playbackState=calisiyor?"playing":"paused"; }catch(e){}
+  }catch(e){} },[parca&&parca.url,calisiyor,senkronAktif]);
+  const begeniyeCevir=(p)=>{ if(!p) return; const id=p.id||p.url; setBegeni(s=>{ const y=new Set(s); if(y.has(id)) y.delete(id); else y.add(id); try{ localStorage.setItem("fz_radyo_begeni",JSON.stringify([...y])); }catch(e){} return y; }); };
+  // ===== CANLI MİKROFON DİNLEYİCİ (WebRTC) — yayıncı konuşunca canlı duy, müziği kıs =====
+  const [canliDinle,setCanliDinle]=useState(false);     // gerçekten canlı sesi DUYUYOR (bağlandı)
+  const [canliVar,setCanliVar]=useState(false);         // bir canlı yayın AKTİF (bağlanılıyor olabilir)
+  const [duckSev,setDuckSev]=useState(0.18);            // canlı yayında arka müzik seviyesi (yayıncı mikserinden gelir)
+  const dinleCanalRef=useRef(null); const dinlePcRef=useRef(null); const canliAudioRef=useRef(null); const liveStreamRef=useRef(null);
+  const benYayinciRef=useRef(false);   // bu cihaz yayıncı mı (öyleyse kendini dinleme + müziği sustur)
+  const dinleIdRef=useRef((window.crypto&&crypto.randomUUID)?crypto.randomUUID():"l"+Date.now()+Math.random().toString(36).slice(2,6));
+  const DICE={iceServers:[
+    {urls:["stun:stun.l.google.com:19302","stun:global.stun.twilio.com:3478"]},
+    {urls:["turn:openrelay.metered.ca:80","turn:openrelay.metered.ca:443","turn:openrelay.metered.ca:443?transport=tcp"],username:"openrelayproject",credential:"openrelayproject"}
+  ],iceCandidatePoolSize:6};   // TURN röle → yayıncı hangi cihaz olursa olsun dinleyici bağlanır
+  const dgonder=(ev,payload)=>{ try{ let p; try{ p=JSON.parse(JSON.stringify(payload)); }catch(_){ return; } dinleCanalRef.current&&dinleCanalRef.current.send({type:"broadcast",event:ev,payload:p}); }catch(e){} };
+  const dinleTemizle=()=>{ try{ dinlePcRef.current&&dinlePcRef.current.close(); }catch(e){} dinlePcRef.current=null; liveStreamRef.current=null; try{ if(canliAudioRef.current) canliAudioRef.current.srcObject=null; }catch(e){} setCanliDinle(false); };
+  const teklifIsle=async(payload)=>{ if(!payload||payload.to!==dinleIdRef.current||!payload.sdp||benYayinciRef.current) return;
+    setCanliVar(true);
+    let pc=dinlePcRef.current; if(pc){ try{pc.close();}catch(e){} }
+    pc=new RTCPeerConnection(DICE); dinlePcRef.current=pc;
+    pc.onicecandidate=e=>{ if(e.candidate){ const c=e.candidate; dgonder("ice",{to:payload.from,from:dinleIdRef.current,cand:(c.toJSON?c.toJSON():{candidate:c.candidate,sdpMid:c.sdpMid,sdpMLineIndex:c.sdpMLineIndex})}); } };
+    pc.ontrack=e=>{ liveStreamRef.current=(e.streams&&e.streams[0])||null; setCanliDinle(true); };
+    pc.onconnectionstatechange=()=>{ const st=pc.connectionState; if(st==="connected") setCanliDinle(true); if(["failed","closed","disconnected"].indexOf(st)>-1) dinleTemizle(); };
+    try{ await pc.setRemoteDescription(payload.sdp); const ans=await pc.createAnswer(); await pc.setLocalDescription(ans); dgonder("answer",{to:payload.from,from:dinleIdRef.current,sdp:{type:ans.type,sdp:ans.sdp}}); }catch(e){}
+  };
+  const aktifRef=useRef(false);
+  const dinleyiciKur=()=>{ if(!sb||dinleCanalRef.current) return; aktifRef.current=true;
+    const kanal=sb.channel("fz-radyo-canli",{config:{broadcast:{self:false}}}); dinleCanalRef.current=kanal;
+    const hello=()=>dgonder("hello",{from:dinleIdRef.current});
+    kanal.on("broadcast",{event:"live-start"},({payload})=>{ if(!aktifRef.current||benYayinciRef.current) return; setCanliVar(true); if(payload&&payload.duck!=null) setDuckSev(payload.duck); hello(); });
+    kanal.on("broadcast",{event:"duck"},({payload})=>{ if(aktifRef.current&&payload&&payload.level!=null) setDuckSev(payload.level); });
+    kanal.on("broadcast",{event:"offer"},({payload})=>{ if(aktifRef.current&&!benYayinciRef.current) teklifIsle(payload); });
+    kanal.on("broadcast",{event:"ice"},({payload})=>{ if(!aktifRef.current||!payload||payload.to!==dinleIdRef.current) return; const pc=dinlePcRef.current; if(pc&&payload.cand){ try{ pc.addIceCandidate(payload.cand); }catch(e){} } });
+    kanal.on("broadcast",{event:"live-end"},()=>{ if(aktifRef.current){ setCanliVar(false); dinleTemizle(); } });
+    kanal.subscribe((st)=>{ if(st==="SUBSCRIBED"){ Db.ayarlarOku().then(ay=>{ try{ const y=ay&&ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; if(y&&y.mod==="canli"&&!benYayinciRef.current){ setCanliVar(true); if(y.duck!=null) setDuckSev(y.duck); hello(); } }catch(e){} }); } });
+  };
+  const dinleyiciKapat=()=>{ aktifRef.current=false; dinleTemizle(); const k=dinleCanalRef.current; dinleCanalRef.current=null; try{ k&&sb.removeChannel(k); }catch(e){} };
+  useEffect(()=>{ dinleyiciKur(); return ()=>dinleyiciKapat(); },[]);
+  // Bu cihaz yayıncı olduğunda: kendi müziğini sustur + kendi yayınını DİNLEME + kendi dinleyici kanalını KAPAT
+  // (aynı cihazda aynı topic'e iki kanal abone olunca Realtime çakışıyordu → mobil↔pc tutarsızlığı buradan geliyordu; yayında dinleyici kanalı tamamen kalkar, yayın bitince geri kurulur)
+  useEffect(()=>{ const h=(e)=>{ const on=!!(e&&e.detail&&e.detail.aktif); benYayinciRef.current=on;
+      if(on){ try{ const a=audioRef.current; if(a){ a.pause(); } setCalisiyor(false); }catch(err){} dinleyiciKapat(); setCanliVar(false); }
+      else { setCanliVar(false); dinleyiciKur(); }
+    }; window.addEventListener("radyo-yayinci",h); return ()=>window.removeEventListener("radyo-yayinci",h); },[]);
+  // Dinleyici autoplay kilidi: canlı yayın varken kullanıcının HERHANGİ bir dokunuşu sesi açsın (tarayıcı kuralı → tek dokunuş yeter)
+  useEffect(()=>{ if(!canliVar || benYayinciRef.current) return;
+    const unlock=()=>{ try{ const la=canliAudioRef.current; if(la&&la.srcObject){ la.volume=1; la.play().catch(()=>{}); } }catch(e){}
+      try{ const a=audioRef.current; if(a&&parca&&duckSev>0.02){ if(a.src!==parca.url) a.src=parca.url; a.volume=Math.max(0,Math.min(1,duckSev*ses)); a.play().then(()=>setCalisiyor(true)).catch(()=>{}); } }catch(e){} };
+    document.addEventListener("pointerdown",unlock,{once:true,passive:true});
+    return ()=>{ try{ document.removeEventListener("pointerdown",unlock); }catch(e){} };
+  },[canliVar]);
+  // canlı yayın gelince: sesi bağla (tam ses) + müziği arkada OTOMATİK başlat & KIS (sesin üstte), bitince müzik geri
+  useEffect(()=>{ const la=canliAudioRef.current;
+    if(canliDinle){
+      if(la&&liveStreamRef.current){ try{ la.srcObject=liveStreamRef.current; la.volume=1; la.play().catch(()=>{}); }catch(e){} }
+      const a=audioRef.current;
+      if(a){ try{ a.volume=Math.max(0,Math.min(1,duckSev*ses));
+        if(duckSev>0.02 && parca){ if(a.src!==parca.url) a.src=parca.url; a.play().then(()=>setCalisiyor(true)).catch(()=>{}); }   // arka müzik otomatik başlar (kısık)
+      }catch(e){} }
+    }
+    else { const a=audioRef.current; if(a){ try{ a.volume=ses; }catch(e){} } }
+  },[canliDinle,duckSev,ses]);
+  if(!n && !canliDinle && !canliVar) return null;
+  const ikon=(p)=> p&&p.tur==="anons"?"📣":p&&p.tur==="ses"?"🎙️":"🎵";
+  const fmt=(s)=>{ s=Math.max(0,Math.floor(s||0)); const m=Math.floor(s/60); const k=s%60; return m+":"+(k<10?"0":"")+k; };
+  const yuzde = toplam>0 ? Math.min(100,(sure/toplam)*100) : 0;
+  const parcaBegenili = parca && begeni.has(parca.id||parca.url);
+  return <>
+    <audio ref={audioRef} preload="none" playsInline
+      onEnded={()=>{ if(senkronAktif){ const k=senkronKonum(); if(k){ setIdx(k.i); } } else { sonraki(); } }}
+      onError={()=>{ if(!senkronAktif && n>1){ setIdx(i=>i+1); } }}
+      onTimeUpdate={e=>{ setSure(e.target.currentTime||0); }}
+      onLoadedMetadata={e=>{ setToplam(e.target.duration||0); if(senkronAktif){ const k=senkronKonum(); if(k&&isFinite(k.off)){ try{ e.target.currentTime=k.off; }catch(err){} } } }}/>
+    <audio ref={canliAudioRef} playsInline autoPlay style={{display:"none"}}/>
+    {!barGizle && acik && <div onClick={()=>setAcik(false)} style={{position:"fixed",inset:0,zIndex:906,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:480,background:T.bg0,borderTopLeftRadius:20,borderTopRightRadius:20,border:"0.5px solid "+T.line,padding:"10px 14px calc(18px + env(safe-area-inset-bottom))",maxHeight:"78vh",overflowY:"auto"}}>
+        <div style={{width:40,height:4,borderRadius:3,background:T.line,margin:"6px auto 12px"}}/>
+        <div style={{display:"flex",alignItems:"center",gap:8,margin:"0 2px 12px"}}>
+          <div style={{fontSize:11,color:T.textMut,fontWeight:800,letterSpacing:1}}>📻 FORZALIG RADYO</div>
+          {senkronAktif && <span style={{fontSize:9,fontWeight:800,color:T.danger,background:T.danger+"18",border:"0.5px solid "+T.danger+"55",borderRadius:20,padding:"2px 8px",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,borderRadius:"50%",background:T.danger}} className="fz-nabiz"/>CANLI · herkes aynı yayında</span>}
+          <span onClick={()=>setDinlAcik(v=>!v)} className="tap" style={{marginLeft:"auto",fontSize:9.5,fontWeight:800,color:T.accent,background:T.accent+"14",border:"0.5px solid "+T.accent+"44",borderRadius:20,padding:"3px 9px",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:T.accent}} className="fz-nabiz"/>👥 {dinleyiciSayi} dinliyor</span>
+        </div>
+        {/* Kim dinliyor — mevcut kimlik/takım verisiyle */}
+        {dinlAcik && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px",marginBottom:12}}>
+          <div style={{fontSize:10,color:T.textMut,fontWeight:800,letterSpacing:.5,marginBottom:8}}>ŞU AN DİNLEYENLER · {dinleyiciSayi}</div>
+          {dinleyiciBenzersiz.slice(0,20).map((d,i)=><div key={d.uid||i} style={{display:"flex",alignItems:"center",gap:9,padding:"5px 0"}}>
+            <span style={{width:28,height:28,borderRadius:8,flexShrink:0,display:"grid",placeItems:"center",fontSize:10.5,fontWeight:800,color:"#04140c",background:d.renk||T.accent}}>{String(d.ad||"?").slice(0,2).toUpperCase()}</span>
+            <span style={{flex:1,minWidth:0,fontSize:12.5,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.ad||"Dinleyici"}</span>
+            {d.takim && <span style={{fontSize:10,color:T.textMut,whiteSpace:"nowrap"}}>{d.takim}</span>}
+          </div>)}
+          {dinleyiciSayi>20 && <div style={{fontSize:10,color:T.textMut,textAlign:"center",marginTop:6}}>+ {dinleyiciSayi-20} kişi daha</div>}
+          {dinleyiciSayi===0 && <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:"4px 0"}}>Henüz kimse yok — ilk dinleyen sen ol 🎧</div>}
+        </div>}
+        {/* Şu an çalan + beğeni */}
+        {parca && <div style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:13,padding:"11px 12px",marginBottom:12}}>
+          <span style={{fontSize:26,width:40,height:40,display:"grid",placeItems:"center",background:T.accent+"18",borderRadius:11}}>{ikon(parca)}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{parca.ad||"Yayın"}</div>
+            <div style={{fontSize:11,color:T.textMut,marginTop:2}}>{fmt(sure)} / {toplam?fmt(toplam):"--:--"}</div>
+          </div>
+          <button onClick={()=>begeniyeCevir(parca)} className="tap" aria-label="Beğen" style={{width:38,height:38,borderRadius:11,border:0,cursor:"pointer",background:parcaBegenili?T.danger+"1e":T.bg2,color:parcaBegenili?T.danger:T.textMut,fontSize:17}}>{parcaBegenili?"❤️":"🤍"}</button>
+        </div>}
+        {/* Ses + uyku */}
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,padding:"0 2px"}}>
+          <span style={{fontSize:15}}>🔊</span>
+          <input type="range" min="0" max="1" step="0.02" value={ses} onChange={e=>setSes(parseFloat(e.target.value))} style={{flex:1,accentColor:T.accent,height:4}}/>
+          <select value={uyku} onChange={e=>setUyku(parseInt(e.target.value)||0)} style={{fontSize:11,background:T.bg1,color:uyku?T.accent:T.textSoft,border:"0.5px solid "+T.line,borderRadius:9,padding:"6px 8px",fontWeight:700}}>
+            <option value="0">😴 Uyku</option><option value="15">15 dk</option><option value="30">30 dk</option><option value="60">60 dk</option>
+          </select>
+        </div>
+        {/* Parça İste — kasadan seç, spikere iletilir (ortak listeye admin ekler) */}
+        {n>0 && <><button onClick={()=>setIstekAcik(v=>!v)} className="tap" style={{width:"100%",background:istekAcik?T.bg2:T.accent+"18",color:T.accent,border:"0.5px solid "+T.accent+"44",borderRadius:12,padding:"11px",fontSize:13.5,fontWeight:800,marginBottom:12,cursor:"pointer"}}>🎵 Parça İste</button>
+        {istekAcik && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px",marginBottom:12}}>
+          <div style={{fontSize:10,color:T.textMut,fontWeight:800,marginBottom:8}}>KASADAN SEÇ — spikere iletilir</div>
+          {liste.slice(0,30).map((p,i)=><div key={p.id||i} onClick={()=>parcaIste(p)} className="tap" style={{display:"flex",alignItems:"center",gap:9,padding:"7px 6px",borderRadius:9}}>
+            <span style={{fontSize:14,width:22,textAlign:"center"}}>{ikon(p)}</span>
+            <span style={{flex:1,minWidth:0,fontSize:12.5,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.ad||("Parça "+(i+1))}</span>
+            <span style={{fontSize:11,color:T.accent,fontWeight:800}}>İste ›</span>
+          </div>)}
+          {istekMesaj && <div style={{fontSize:11.5,color:/✅/.test(istekMesaj)?T.accent:T.gold,textAlign:"center",marginTop:8,fontWeight:700}}>{istekMesaj}</div>}
+        </div>}</>}
+        <div style={{fontSize:10,color:T.textMut,fontWeight:800,letterSpacing:.5,margin:"2px 2px 6px"}}>ÇALMA LİSTESİ {senkronAktif && <span style={{color:T.textMut,fontWeight:600}}>(canlı yayında sıra otomatik)</span>}</div>
+        {liste.map((p,i)=>{ const bg=begeni.has(p.id||p.url); return <div key={p.id||i} onClick={()=>{ if(senkronAktif) return; setIdx(i); setCalisiyor(true); setAcik(false); }} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 8px",borderRadius:11,background:i===gerIdx?T.accent+"14":"transparent",marginBottom:2,opacity:senkronAktif&&i!==gerIdx?.5:1}}>
+          <span style={{fontSize:16,width:26,textAlign:"center"}}>{ikon(p)}</span>
+          <span style={{flex:1,minWidth:0,fontSize:13,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.ad||("Parça "+(i+1))}</span>
+          {bg && <span style={{fontSize:11}}>❤️</span>}
+          {i===gerIdx && calisiyor && <span style={{fontSize:10,color:T.accent,fontWeight:800}}>çalıyor</span>}
+        </div>; })}
+      </div>
+    </div>}
+    {!barGizle && <div style={{position:"fixed",bottom:"calc(60px + env(safe-area-inset-bottom))",left:0,right:0,maxWidth:480,margin:"0 auto",zIndex:899,background:"linear-gradient(90deg,"+T.bg2+"F5,"+T.bg1+"F5)",borderTop:"0.5px solid "+T.line,backdropFilter:"blur(8px)",boxShadow:"0 -3px 14px rgba(0,0,0,.28)"}}>
+      {/* ilerleme çubuğu */}
+      <div style={{height:3,background:T.line,position:"relative"}}><div style={{position:"absolute",left:0,top:0,bottom:0,width:yuzde+"%",background:senkronAktif?T.danger:T.accent,transition:"width .3s linear"}}/></div>
+      <div style={{display:"flex",alignItems:"center",padding:"7px 12px"}}>
+        <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>oynatDurdur()} className="tap" aria-label="Oynat/Duraklat" style={{width:38,height:38,flexShrink:0,borderRadius:"50%",border:0,cursor:"pointer",background:"linear-gradient(135deg,"+T.accent+","+(T.accent2||T.accent)+")",color:"#04140c",fontSize:16,display:"grid",placeItems:"center"}}>{calisiyor?"⏸":"▶"}</button>
+          <div onClick={()=>setAcik(true)} className="tap" style={{minWidth:0,cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,borderRadius:"50%",background:T.danger,flexShrink:0}} className={(senkronAktif||canliDinle||canliVar)?"fz-nabiz":""}/><span style={{fontSize:8.5,fontWeight:800,color:T.danger,letterSpacing:.3,whiteSpace:"nowrap"}}>{canliDinle?"🔴 CANLI MİKROFON":canliVar?"🔴 BAĞLANILIYOR…":senkronAktif?"CANLI YAYIN":"ForzaLig Radyo"}</span></div>
+            <div style={{fontSize:12,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>{canliDinle?"🎙️ Spiker konuşuyor…":canliVar?"Canlı yayına bağlanılıyor — dokun":((ikon(parca))+" "+(parca?(parca.ad||"Yayın"):"Yayın"))}</div>
+          </div>
+        </div>
+        <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
+          {dinleyiciSayi>0 && <span onClick={()=>{setAcik(true);setDinlAcik(true);}} className="tap" style={{fontSize:9.5,fontWeight:800,color:T.accent,display:"flex",alignItems:"center",gap:3,cursor:"pointer"}}><span style={{width:5,height:5,borderRadius:"50%",background:T.accent}} className="fz-nabiz"/>👥 {dinleyiciSayi}</span>}
+          {parca && <button onClick={()=>begeniyeCevir(parca)} className="tap" aria-label="Beğen" style={{width:32,height:32,borderRadius:9,border:0,background:"transparent",color:parcaBegenili?T.danger:T.textMut,fontSize:15}}>{parcaBegenili?"❤️":"🤍"}</button>}
+          {!senkronAktif && <button onClick={onceki} className="tap" aria-label="Önceki" style={{width:30,height:32,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏮</button>}
+          {!senkronAktif && <button onClick={sonraki} className="tap" aria-label="Sonraki" style={{width:30,height:32,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏭</button>}
+        </div>
+      </div>
+    </div>}
+  </>;
+}
 function App(){
   // ⏱️ AÇILIŞ ÖLÇÜMÜ (geçici teşhis — sadece admin görür): boot fazlarını damgala
   try{ if(!window.__FLB){ const n=(performance.getEntriesByType&&performance.getEntriesByType('navigation')[0])||{};
@@ -15922,9 +16898,27 @@ function App(){
   const [saltOkunurBase]=useState(()=> !!PAYLASIM_SLUG);
   // FAZ 3 — sistem anahtarları (bakım modu). Açılışta tek hafif okuma; kullanıcıyı yavaşlatmaz.
   const [sistemBayrak,setSistemBayrak]=useState({});
-  useEffect(()=>{ let a=true; Db.ayarlarOku().then(x=>{ if(a) setSistemBayrak(x||{}); }); return ()=>{a=false;}; },[]);
+  useEffect(()=>{ let a=true; const oku=()=>Db.ayarlarOku().then(x=>{ if(a) setSistemBayrak(x||{}); });
+    oku(); const h=()=>oku(); window.addEventListener("surum-guncelle",h);   // Süper Admin sürüm/senkron değiştirince ANINDA yeniden oku (deploy beklemeden)
+    return ()=>{a=false; window.removeEventListener("surum-guncelle",h);}; },[]);
   const bakimModu = (sistemBayrak.bakim==="1"||sistemBayrak.bakim===true) && !adminMi;  // admin hariç herkes salt-okunur
   const saltOkunur = saltOkunurBase || !!destek || bakimModu;  // destek/bakım = global salt-okunur (yazma/yetki otomatik kapanır)
+  // ===== SÜRÜM SEÇİMİ (tek tuş geri dönüş) — Süper Admin sistem_ayar'dan seçer; varsayılan=ESKİ (v5/v1). Eskiye sıfır etki.
+  const AnaComp = (sistemBayrak && sistemBayrak.anasayfa_surum==="v5") ? AnaSayfaV5 : AnaSayfaV6;  // V6 artık VARSAYILAN (Maç Merkezi + akan FIFA/KPI Enler + tüm-lig); sadece açıkça 'v5' seçilirse eski anasayfa
+  const RadyoComp = (sistemBayrak && sistemBayrak.radyo_surum==="v1") ? RadyoCalar : RadyoCalarV2;  // V2 artık VARSAYILAN (canlı mikrofon dinleyicisi hep devrede); sadece açıkça 'v1' seçilirse eski
+  // Radyo dinleyici kimliği (presence için) — mevcut oturum + profil + takım verisinden türetilir (yeni tablo yok)
+  const radyoKimlik = useMemo(()=>{ if(!oturum||!oturum.id) return null;
+    let ad=(profil&&(profil.ad||profil.isim||profil.gorunen_ad))||(oturum.email?String(oturum.email).split("@")[0]:"")||"Dinleyici"; let takim=null, renk=null;
+    try{ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ if((tk.oyuncular||[]).some(o=>o.sahip_user_id===oturum.id)){ takim=tk.ad; renk=tk.renk||tk.renk1; break; } } if(takim)break; } }catch(e){}
+    return {uid:oturum.id, ad:String(ad).slice(0,28), takim:takim?String(takim).slice(0,24):null, renk:renk||null};
+  },[oturum&&oturum.id, profil, turnuvalar]);
+  // ===== SÜPER ADMIN — TÜM platform liglerini TAM yükle (Enler/Keşfet/anasayfa hepsini görsün, oyuncular+takımlar dahil).
+  //   Arka planda çalışır → boot hızını etkilemez. Yeni/sonradan eklenen ligler de otomatik gelir. =====
+  useEffect(()=>{ if(!adminMi || !oturum || destek) return; let aktif=true;
+    // 4 sn geciktir → Realtime/radyo kanalı önce kurulsun (ağır yükleme bağlantıyı boğmasın)
+    const t=setTimeout(()=>{ Db.liglerYukle(null, true).then(hepsi=>{ if(!aktif || !Array.isArray(hepsi) || !hepsi.length) return; hepsi.forEach(x=>{ try{ turnuvaHesapla(x); }catch(e){} }); setTurnuvalar(hepsi); }).catch(()=>{}); }, 4000);
+    return ()=>{ aktif=false; clearTimeout(t); };
+  },[adminMi, oturum && oturum.id, destek]);
   // 👁 DESTEK MODU — kullanıcı gözünden görüntüle. Oturum DEVRALINMAZ (admin kendi oturumunda kalır).
   const destekBaslat=async(u)=>{
     if(!u||!u.user_id) return;
@@ -16859,7 +17853,7 @@ function App(){
     // Yetkisiz kişi düzenleme ekranına gelirse: kaydetmeyi engelle (sunucu RLS de engeller, bu arayüz kapısı)
     const kilitliKaydet=()=>{ alert("Bu maçı yalnızca ligin yöneticisi düzenleyebilir."); return Promise.resolve({hata:"yetki yok"}); };
     switch(nav.sayfa){
-      case "ana": icerik=<AnaSayfaV5 turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} yukleniyor={liglerYuk}/>; break;
+      case "ana": icerik=<AnaComp turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} oturum={oturum} yukleniyor={liglerYuk}/>; break;
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} ligKurYetki={etkinLigKurYetkim} saltOkunur={saltOkunur} yukleniyor={liglerYuk} oturum={oturum} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
@@ -16887,7 +17881,7 @@ function App(){
       case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} baslangicSekme={nav.adminSekme} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
       case "ayar": icerik = destek ? destekKapali : <Ayarlar T={T} stilKey={stilKey} setStilKey={setStilKey} renkKey={renkKey} setRenkKey={setRenkKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
-      default: icerik=<AnaSayfaV5 turnuvalar={turnuvalar} T={T} git={git}/>;
+      default: icerik=<AnaComp turnuvalar={turnuvalar} T={T} git={git} oturum={oturum}/>;
     }
   }
 
@@ -17113,7 +18107,7 @@ function App(){
     </div>}
 
     {/* RADYO — global mini-çalar (içerik varken görünür; sayfa değişince ses kesilmez). Kendi hata kalkanında → asla tüm uygulamayı düşürmez. */}
-    <HataSiniri sayfa="radyo" gomulu><RadyoCalar T={T} barGizle={(nav.sayfa==="sohbet"&&nav.turnuva) || ["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa)}/></HataSiniri>
+    <HataSiniri sayfa="radyo" gomulu><RadyoComp T={T} kimlik={radyoKimlik} barGizle={(nav.sayfa==="sohbet"&&nav.turnuva) || ["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa)}/></HataSiniri>
 
     {/* mobil alt menü — giriş yapmış kullanıcıda salt-okunur (demo evren/destek) modda da görünür ki mahsur kalmasın */}
     {(oturum || !saltOkunur) && !(nav.sayfa==="sohbet"&&nav.turnuva) && !["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa) && <div className="mobile-bottom" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>

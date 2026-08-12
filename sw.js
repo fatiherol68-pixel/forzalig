@@ -64,9 +64,20 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(
       fetch(e.request, { cache: "no-store" })
         .then((r) => {
-          const kopya = r.clone();
-          caches.open(KABUK).then((c) => c.put("/", kopya)).catch(() => {});
-          return r;
+          // 🎙️ İZİN POLİTİKASI KALICI DÜZELTMESİ: bazı CDN/host belge yanıtına
+          // 'Permissions-Policy: microphone=()' koyup canlı mikrofonu BELGE düzeyinde
+          // engelliyor (getUserMedia → NotAllowedError, tüm tarayıcılarda). SW belge
+          // yanıtını burada yeniden kurup mikrofon/kamera/autoplay'i (self) açık yapar
+          // → hiçbir tarayıcı/Windows ayarı gerektirmeden, kalıcı çalışır.
+          let yanit = r;
+          try {
+            const h = new Headers(r.headers);
+            h.set("Permissions-Policy", "microphone=(self), camera=(self), autoplay=(self), display-capture=(self), fullscreen=(self)");
+            h.delete("Feature-Policy");
+            yanit = new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
+          } catch (x) { yanit = r; }
+          try { const kopya = yanit.clone(); caches.open(KABUK).then((c) => c.put("/", kopya)).catch(() => {}); } catch (x) {}
+          return yanit;
         })
         .catch(() => caches.match("/"))
     );

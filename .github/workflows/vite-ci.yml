@@ -9,8 +9,8 @@ name: ForzaLig Vite CI (gerçek backend testi + gated deploy)
 
 on:
   push:
-    branches: [claude/forzalig-modularization]
-    paths: ['vite-app/**', 'index.html', 'src/**', '.github/workflows/vite-ci.yml']
+    branches: [claude/forzalig-modularization, claude/forzalig-durum-karti-uel9ed]
+    paths: ['vite-app/**', 'index.html', 'src/**', 'sw.js', '.github/workflows/vite-ci.yml']
   workflow_dispatch:
     inputs:
       deploy:
