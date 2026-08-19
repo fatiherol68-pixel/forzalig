@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ForzaLig Orbital Alive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg0:#04060A; --bg1:#080C12; --bg2:#0D131C; --pnl:rgba(255,255,255,.03);
+  --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.13);
+  --tx:#EAF2FA; --soft:#9AA7B6; --mut:#5E6B7A;
+  --acc:#FF7A1A; --acc2:#37E0FF; --gold:#F2C24E; --grn:#3DE08A;
+  --fd:'Sora',system-ui,sans-serif; --fb:'Inter',system-ui,sans-serif; --fm:'JetBrains Mono',ui-monospace,monospace;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+  --navh:60px; --radyoh:0px; --kb:0px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg0);color:var(--tx);font-family:var(--fb);-webkit-font-smoothing:antialiased;overflow-x:hidden;font-variant-numeric:tabular-nums}
+body.radyo-on{--radyoh:56px}
+h1,h2,h3{margin:0;font-family:var(--fd);font-weight:700;letter-spacing:-.01em}
+button{font-family:inherit;cursor:pointer}a{color:inherit;text-decoration:none}
+::selection{background:var(--acc2);color:#04060A}
+[data-i]{display:inline-flex;align-items:center;justify-content:center}[data-i] svg{display:block}
+/* orbital ambient */
+.amb{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(45% 32% at 82% 6%,rgba(55,224,255,.10),transparent 60%),radial-gradient(42% 30% at 12% 2%,rgba(255,122,26,.09),transparent 60%),radial-gradient(60% 50% at 50% 108%,rgba(55,224,255,.05),transparent 60%)}
+.grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+  background:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px) 0 0/100% 46px,linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px) 0 0/46px 100%;
+  -webkit-mask:radial-gradient(120% 80% at 50% 0%,#000,transparent 78%);mask:radial-gradient(120% 80% at 50% 0%,#000,transparent 78%)}
+
+.wrap{position:relative;z-index:1;max-width:1720px;margin:0 auto}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 300px;gap:22px;padding:0 26px 130px;align-items:start}
+
+/* left rail (desktop) */
+.side{position:sticky;top:0;height:100vh;padding:20px 0;display:flex;flex-direction:column;gap:5px}
+.brand{display:flex;align-items:center;gap:11px;padding:6px 12px 20px}
+.brand .mk{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:19px;background:linear-gradient(140deg,var(--acc),#E24A00);color:#150800;box-shadow:0 0 22px -6px var(--acc)}
+.brand .nm{font-family:var(--fd);font-weight:800;font-size:18px}.brand .nm b{color:var(--acc)}
+.brand .u{display:block;font-size:8.5px;letter-spacing:.22em;color:var(--acc2);font-weight:600;margin-top:2px}
+.nav a{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;color:var(--soft);font-weight:500;font-size:14px;position:relative}
+.nav a .ic{width:20px;height:20px}.nav a.on{background:linear-gradient(100deg,rgba(55,224,255,.12),transparent);color:#fff}
+.nav a.on::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;border-radius:2px;background:var(--acc2);box-shadow:0 0 10px var(--acc2)}
+.nav a .bd{margin-left:auto;font-size:10px;font-weight:700;color:var(--acc2);background:rgba(55,224,255,.12);border:1px solid rgba(55,224,255,.25);border-radius:20px;padding:1px 7px}
+.side .soc{display:flex;gap:7px;padding:8px 12px;flex-wrap:wrap;margin-top:auto}
+.side .soc a{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;border:1px solid var(--line)}
+.side .soc a svg{width:16px;height:16px}
+.side .me{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--pnl)}
+.side .me .av{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#1a2430,#0b1017);display:grid;place-items:center;font-family:var(--fd);font-weight:800}
+.side .me .t{font-size:13px;font-weight:700}.side .me .s{font-size:10.5px;color:var(--mut)}
+
+.main{min-width:0;padding-top:20px;display:flex;flex-direction:column;gap:30px}
+.rail{position:sticky;top:20px;padding-top:20px;display:flex;flex-direction:column;gap:14px}
+
+/* section index label */
+.sx{display:flex;align-items:baseline;gap:10px;margin-bottom:13px}
+.sx .ix{font-family:var(--fm);font-size:11px;color:var(--acc2);letter-spacing:.1em}
+.sx h2{font-size:17px;font-weight:700;letter-spacing:.01em}
+.sx .d{font-size:11.5px;color:var(--mut);font-family:var(--fm)}
+.sx .mo{margin-left:auto;font-size:11px;color:var(--acc2);font-family:var(--fm)}
+.reveal{opacity:0;transform:translateY(14px);transition:.7s cubic-bezier(.2,.7,.2,1)}.reveal.in{opacity:1;transform:none}
+
+/* HERO — telemetry */
+.hero{position:relative;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:linear-gradient(150deg,#070B11,#05080D);padding:26px}
+.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(50% 80% at 85% 10%,rgba(55,224,255,.13),transparent 62%),radial-gradient(40% 70% at 6% 100%,rgba(255,122,26,.10),transparent 60%)}
+.hero-g{position:relative;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center}
+.hero .kick{display:inline-flex;align-items:center;gap:8px;font-family:var(--fm);font-size:11px;color:var(--acc2);border:1px solid rgba(55,224,255,.25);border-radius:20px;padding:5px 11px;letter-spacing:.05em}
+.hero .kick .dot{width:6px;height:6px;border-radius:50%;background:var(--acc2);box-shadow:0 0 8px var(--acc2);animation:bl 1.8s infinite}
+@keyframes bl{50%{opacity:.35}}
+.hero .greet{font-size:14px;color:var(--soft);margin-top:16px}.hero .greet b{color:#fff}
+.hero h1{font-size:38px;line-height:1.0;margin:6px 0 0;letter-spacing:-.03em;font-weight:800}
+.hero h1 .g{color:var(--acc2)}
+.hero .lede{font-size:13px;color:var(--soft);max-width:400px;margin-top:12px;line-height:1.55}
+.hero .cta{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.btn{border:0;border-radius:11px;padding:12px 18px;font-weight:700;font-size:13.5px}
+.btn.p{background:linear-gradient(120deg,var(--acc),#E24A00);color:#160800;box-shadow:0 0 24px -8px var(--acc)}
+.btn.g{background:transparent;color:var(--tx);border:1px solid var(--line2)}
+/* orbit */
+.orbit{position:relative;width:250px;height:290px;display:grid;place-items:center;flex-shrink:0}
+.orbit .ring{position:absolute;border:1px solid rgba(55,224,255,.16);border-radius:50%}
+.orbit .r1{width:260px;height:260px;animation:spin 26s linear infinite}
+.orbit .r2{width:210px;height:210px;border-color:rgba(255,122,26,.16);animation:spin 20s linear infinite reverse}
+.orbit .r1::after,.orbit .r2::before{content:"";position:absolute;width:7px;height:7px;border-radius:50%;top:-4px;left:50%;margin-left:-3px}
+.orbit .r1::after{background:var(--acc2);box-shadow:0 0 10px var(--acc2)}
+.orbit .r2::before{background:var(--acc);box-shadow:0 0 10px var(--acc)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* FIFA card port */
+.fifa{display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0}
+.fifa-persp{perspective:1300px}
+.fifa-in{position:relative;width:100%;aspect-ratio:100/140;transform-style:preserve-3d;transition:transform .8s cubic-bezier(.2,.85,.25,1);cursor:pointer}
+.fifa.flip .fifa-in{transform:rotateY(180deg)}.fifa.active .fifa-persp{transform:translateY(-5px) scale(1.03)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:16px;overflow:hidden;background:#0a0d12}
+.face.bk{transform:rotateY(180deg)}
+.face .foto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 18%}
+.face .ini{position:absolute;inset:0;background:linear-gradient(160deg,#1a2732,#080d14 72%);display:flex;align-items:center;justify-content:center}
+.face .ini span{font-family:var(--fd);font-weight:800;color:rgba(255,255,255,.06)}
+.face .rim{position:absolute;inset:0;border-radius:16px;pointer-events:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.13),inset 0 0 0 4px rgba(6,10,16,.5)}
+.face .ov{font-family:var(--fd);font-weight:800;color:#fff;line-height:.85;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+.face .ps{display:inline-block;font-weight:700;color:#fff;text-transform:uppercase;background:rgba(6,12,20,.55);border:1px solid rgba(255,255,255,.2)}
+.face .nm{font-family:var(--fd);font-weight:800;color:#fff;text-shadow:0 3px 12px rgba(0,0,0,.75)}
+.face .no{font-family:var(--fd);font-weight:800;color:#0a0d12}
+.face .st .v{font-family:var(--fd);font-weight:700;color:#fff}
+.fkm{position:absolute;inset:0;z-index:20;background:#05070a;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:16px}
+.fkm .fl,.fkm .lgw,.fkm .nmw{opacity:0}
+.fkm svg rect{fill:none;stroke:rgba(180,240,255,.8);stroke-width:2.5;stroke-dasharray:1300;stroke-dashoffset:1300}
+.fkm .fl{position:absolute;inset:0;background:radial-gradient(50% 40% at 30% 0%,rgba(55,224,255,.35),transparent 55%),radial-gradient(50% 40% at 72% 0%,rgba(255,244,222,.4),transparent 55%)}
+.fkm .lgw{position:absolute;font-family:var(--fd);font-weight:800;font-style:italic;color:#fff}
+.fkm .nmw{position:absolute;font-family:var(--fd);font-weight:800;color:#fff}
+.fkm.go .fl{animation:fkmFlood 2.4s ease forwards}
+.fkm.go svg rect{animation:fkmDraw 1.1s .2s ease forwards}
+.fkm.go .lgw{animation:fkmLogo 2.4s ease forwards}
+.fkm.go .nmw{animation:fkmNum 2.4s ease forwards}
+.fkm.done{opacity:0;pointer-events:none;transition:opacity .45s}
+@keyframes fkmFlood{0%{opacity:0}12%{opacity:1}22%{opacity:.7}45%{opacity:.5}100%{opacity:0}}
+@keyframes fkmDraw{to{stroke-dashoffset:0}}
+@keyframes fkmLogo{0%,8%{opacity:0;transform:scale(.9)}18%{opacity:1;transform:scale(1)}34%{opacity:1}46%{opacity:0;transform:scale(1.15)}100%{opacity:0}}
+@keyframes fkmNum{0%,44%{opacity:0}58%{opacity:1}88%{opacity:1}100%{opacity:0}}
+.fifa .hint{font-size:10px;color:var(--mut);font-family:var(--fm)}
+.fifa.gold .fifa-in{box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 0 1.4px var(--gold),0 0 20px -8px var(--gold)}
+.fifa.silver .fifa-in{box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 0 1.4px #C7D0DA,0 0 18px -8px rgba(199,208,218,.6)}
+.fifa .pl{font-family:var(--fm);font-size:9.5px;color:var(--soft);letter-spacing:.08em}
+.fifa.gold .pl{color:var(--gold)}.fifa.silver .pl{color:#C7D0DA}
+
+/* KPI telemetry ribbon */
+.tele{position:relative;border:1px solid var(--line);border-radius:14px;background:linear-gradient(90deg,var(--bg1),#070C13);overflow:hidden}
+.tele::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(var(--acc),var(--acc2))}
+.tele .lbl{position:absolute;top:8px;left:16px;font-family:var(--fm);font-size:9px;letter-spacing:.2em;color:var(--mut)}
+.tele-row{display:flex;gap:0;padding:20px 8px 12px;overflow-x:auto;scrollbar-width:none}.tele-row::-webkit-scrollbar{display:none}
+.tele .c{flex:1;min-width:110px;padding:2px 14px;border-right:1px solid var(--line);white-space:nowrap}
+.tele .c:last-child{border-right:0}
+.tele .n{font-family:var(--fd);font-weight:800;font-size:23px;letter-spacing:-.02em}
+.tele .n small{font-size:12px;color:var(--acc2);margin-left:4px;font-weight:700}
+.tele .k{font-family:var(--fm);font-size:9.5px;color:var(--mut);letter-spacing:.14em;text-transform:uppercase;margin-top:2px}
+
+/* chips */
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.chips::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:10px;background:var(--pnl);border:1px solid var(--line);color:var(--soft);font-weight:600;font-size:12.5px;white-space:nowrap;font-family:var(--fm)}
+.chip .cd{width:7px;height:7px;border-radius:50%}
+.chip.on{border-color:var(--acc2);color:#fff;background:rgba(55,224,255,.08);box-shadow:0 0 14px -8px var(--acc2)}
+
+/* ENLER — flowing data chips */
+.flow{display:flex;gap:11px;overflow-x:auto;scrollbar-width:none;padding:2px}.flow::-webkit-scrollbar{display:none}
+.ecard{flex-shrink:0;display:flex;align-items:center;gap:13px;padding:12px 16px 12px 13px;border-radius:14px;background:linear-gradient(120deg,var(--pnl),#080c12);border:1px solid var(--line);min-width:258px;position:relative;overflow:hidden}
+.ecard .bar{position:absolute;left:0;top:0;bottom:0;width:3px}
+.ecard .av{width:56px;height:56px;border-radius:14px;display:grid;place-items:center;font-size:22px;flex-shrink:0;overflow:hidden;position:relative}
+.ecard .tl{width:20px;height:20px;border-radius:50%;overflow:hidden;position:absolute;right:-4px;bottom:-4px;border:2px solid var(--bg1)}
+.ecard .ei{min-width:0;flex:1}
+.ecard .cat{font-family:var(--fm);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px;font-weight:500}
+.ecard .nm{font-family:var(--fd);font-weight:800;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ecard .tm{font-size:11px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.ecard .mt{margin-left:auto;text-align:right;flex-shrink:0}
+.ecard .mv{font-family:var(--fd);font-weight:800;font-size:24px;line-height:1}
+.ecard .un{font-family:var(--fm);font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-top:3px}
+
+/* İlk 11 */
+.seg{display:inline-flex;background:var(--pnl);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px;font-family:var(--fm)}
+.seg button{border:0;background:transparent;color:var(--soft);font-weight:600;font-size:12px;padding:9px 18px;border-radius:8px;min-height:40px}
+.seg button.on{background:rgba(55,224,255,.12);color:var(--acc2);box-shadow:inset 0 0 0 1px rgba(55,224,255,.3)}
+.xihd{display:flex;align-items:center;gap:9px;margin:12px 0 6px}
+.xihd .pill{font-family:var(--fm);font-size:10.5px;letter-spacing:.05em;padding:4px 10px;border-radius:8px}
+.pg{background:rgba(242,194,78,.12);color:var(--gold);border:1px solid rgba(242,194,78,.3)}
+.ps2{background:rgba(199,208,218,.1);color:#C7D0DA;border:1px solid rgba(199,208,218,.25)}
+.xihd .n{font-family:var(--fm);font-size:10.5px;color:var(--mut)}
+.xi{display:flex;gap:14px;overflow-x:auto;scrollbar-width:none;padding:4px 2px 8px}.xi::-webkit-scrollbar{display:none}
+.xi>.fifa{scroll-snap-align:center}
+
+/* rating vitrin */
+.vit{display:flex;gap:16px;overflow-x:auto;scrollbar-width:none;padding:4px 2px 10px}.vit::-webkit-scrollbar{display:none}
+
+/* haftanın vitrini — compact band */
+.wk{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.wk .b{display:flex;align-items:center;gap:12px;padding:13px;border-radius:13px;border:1px solid var(--line);background:var(--pnl);position:relative;overflow:hidden}
+.wk .b .tag{position:absolute;top:9px;right:12px;font-family:var(--fm);font-size:8.5px;letter-spacing:.1em;color:var(--mut)}
+.wk .av{width:50px;height:50px;border-radius:12px;display:grid;place-items:center;font-family:var(--fd);font-weight:800;font-size:20px;color:#fff;flex-shrink:0;overflow:hidden}
+.wk .nm{font-family:var(--fd);font-weight:700;font-size:15px}
+.wk .mt{font-size:11.5px;color:var(--soft);margin-top:3px}
+.wk .mt b{color:var(--acc2)}
+
+/* nedir + amac */
+.about{border:1px solid var(--line);border-radius:18px;padding:24px;background:linear-gradient(150deg,#070C13,#05080D);position:relative;overflow:hidden}
+.about::before{content:"";position:absolute;top:-1px;left:24px;right:24px;height:1px;background:linear-gradient(90deg,transparent,var(--acc2),transparent)}
+.about .mf{font-family:var(--fd);font-weight:800;font-size:23px;line-height:1.15;letter-spacing:-.02em;max-width:640px}
+.about .mf .g{color:var(--acc2)}
+.about p{font-size:13.5px;color:var(--soft);line-height:1.65;max-width:620px;margin:14px 0 0}
+.about p b{color:var(--tx)}
+
+/* kimler için */
+.who{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.wc{border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--pnl);position:relative;overflow:hidden;transition:.25s}
+.wc:hover{border-color:var(--line2)}
+.wc .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;margin-bottom:12px}
+.wc .ic svg{width:19px;height:19px}
+.wc h3{font-size:14.5px;font-weight:700}
+.wc p{font-size:11.5px;color:var(--soft);line-height:1.5;margin-top:6px}
+.wc .li{position:absolute;top:0;left:0;right:0;height:2px;opacity:.7}
+
+/* journey rail */
+.jr{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;padding:2px}.jr::-webkit-scrollbar{display:none}
+.js{flex-shrink:0;width:150px;padding:14px 14px 14px 0;position:relative}
+.js .dot{width:12px;height:12px;border-radius:50%;background:var(--acc2);box-shadow:0 0 10px var(--acc2)}
+.js .ln{position:absolute;top:19px;left:12px;right:0;height:1px;background:linear-gradient(90deg,rgba(55,224,255,.4),rgba(55,224,255,.08))}
+.js .st{font-family:var(--fm);font-size:9px;color:var(--mut);margin-top:12px;letter-spacing:.1em}
+.js .t{font-family:var(--fd);font-weight:700;font-size:14px;margin-top:4px}
+.js .d{font-size:11px;color:var(--soft);margin-top:5px;line-height:1.45}
+
+/* features — gerçek mini önizlemeler */
+.feat{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;padding:2px}.feat::-webkit-scrollbar{display:none}
+.fc{flex-shrink:0;width:218px;height:150px;border-radius:14px;border:1px solid var(--line);background:var(--pnl);display:flex;flex-direction:column;position:relative;overflow:hidden}
+.fc .pv{flex:1;padding:13px;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
+.fc .cap{padding:8px 12px;border-top:1px solid var(--line)}
+.fc .cap .t{font-family:var(--fd);font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px}
+.fc .cap .t .ci{width:14px;height:14px;color:var(--acc2)}.fc .cap .t .ci svg{width:14px;height:14px}
+.fc .cap .d{font-size:10px;color:var(--mut);margin-top:2px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fc .mini-card{align-self:center;width:66px;aspect-ratio:100/140;border-radius:9px;background:radial-gradient(120% 90% at 50% 0%,#16303a,#080d14 70%);border:1px solid rgba(55,224,255,.25);position:relative;overflow:hidden;box-shadow:0 6px 16px -8px var(--acc2)}
+.fc .mini-card .o{position:absolute;top:6px;left:7px;font-family:var(--fd);font-weight:800;font-size:15px;color:#fff}
+.fc .mini-card .p{position:absolute;top:24px;left:7px;font-family:var(--fm);font-size:6.5px;letter-spacing:.06em;color:var(--acc2)}
+.fc .mini-card .n{position:absolute;left:5px;right:5px;bottom:14px;font-family:var(--fd);font-weight:800;font-size:8px;color:#fff;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fc .mini-card .st{position:absolute;left:5px;right:5px;bottom:4px;display:flex;justify-content:space-around;font-family:var(--fd);font-size:6.5px;color:#cfe0ef}
+.fc .gz{background:#f3efe4;color:#1a1712;border-radius:7px;padding:7px 8px}
+.fc .gz .mh{font-family:Georgia,serif;font-weight:900;font-size:9px;text-align:center;border-bottom:1px solid #1a1712;padding-bottom:2px;margin-bottom:3px}
+.fc .gz .hl{font-family:Georgia,serif;font-weight:900;font-size:10.5px;line-height:1.12}
+.fc .oz{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:9px;padding:9px}
+.fc .oz .sc{display:flex;align-items:center;justify-content:center;gap:8px;font-family:var(--fd);font-weight:800;font-size:17px}.fc .oz .sc .lgm{width:18px;height:18px;border-radius:50%;overflow:hidden}
+.fc .oz .mvp{text-align:center;font-size:8.5px;color:var(--soft);margin-top:5px}.fc .oz .mvp b{color:var(--gold)}
+.fc .oz .tg{position:absolute;top:9px;right:9px;font-family:var(--fm);font-size:7px;color:var(--acc2);border:1px solid rgba(55,224,255,.3);border-radius:5px;padding:2px 5px}
+.fc .rd{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:9px}
+.fc .rd .pb{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--acc),#E24A00);display:grid;place-items:center;color:#160800;flex-shrink:0}.fc .rd .pb svg{width:13px;height:13px}
+.fc .rd .live{font-family:var(--fm);font-size:8px;color:var(--grn);letter-spacing:.06em}
+.fc .rd .wv{display:flex;align-items:flex-end;gap:2px;height:16px;flex:1;margin-top:3px}.fc .rd .wv i{flex:1;background:linear-gradient(var(--acc),var(--acc2));border-radius:1px;animation:wave 1.1s ease-in-out infinite}
+@keyframes wave{0%,100%{height:25%}50%{height:100%}}
+.fc .hk{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:9px}
+.fc .hk .bd{width:30px;height:30px;border-radius:8px;background:rgba(55,224,255,.12);border:1px solid rgba(55,224,255,.28);display:grid;place-items:center;color:var(--acc2);flex-shrink:0}.fc .hk .bd svg{width:15px;height:15px}
+.fc .hk .stars{color:var(--gold);font-size:11px;letter-spacing:1px}.fc .hk .stars .o{color:rgba(255,255,255,.2)}
+.fc .hk .rn{font-family:var(--fd);font-weight:800;font-size:15px;margin-left:auto}
+.fc .is .bar{margin-bottom:6px}.fc .is .bl{display:flex;justify-content:space-between;font-size:8.5px;color:var(--soft);margin-bottom:3px}.fc .is .bl b{font-family:var(--fd);color:#fff}
+.fc .is .tr{height:5px;border-radius:4px;overflow:hidden;display:flex;background:rgba(255,255,255,.05)}.fc .is .tr .a{background:var(--acc)}.fc .is .tr .b{background:var(--acc2)}
+.fc .aw{display:flex;flex-wrap:wrap;gap:5px;align-content:center;justify-content:center}
+.fc .aw .b{display:inline-flex;align-items:center;gap:4px;font-size:8.5px;font-weight:600;padding:4px 7px;border-radius:7px;background:rgba(255,255,255,.03);border:1px solid var(--line);color:var(--soft)}
+.fc .aw .b .d{width:7px;height:7px;border-radius:50%}
+
+/* orman */
+.orm{display:flex;align-items:center;gap:18px;border:1px solid rgba(61,224,138,.22);border-radius:16px;padding:18px 20px;background:linear-gradient(120deg,#06120C,#05080D);position:relative;overflow:hidden}
+.orm::before{content:"";position:absolute;inset:0;background:radial-gradient(50% 120% at 10% 100%,rgba(61,224,138,.14),transparent 60%)}
+.orm .tr{width:70px;height:70px;border-radius:16px;border:1px solid rgba(61,224,138,.25);display:grid;place-items:center;flex-shrink:0;position:relative;z-index:1;font-size:30px}
+.orm .cv{position:relative;z-index:1;display:flex;align-items:center;gap:14px}
+.orm .cv .n{font-family:var(--fd);font-weight:800;font-size:24px}
+.orm .cv .ar{color:var(--grn);font-size:18px}
+.orm .cv .f{font-family:var(--fd);font-weight:800;font-size:24px;color:var(--grn)}
+.orm .cv small{display:block;font-family:var(--fm);font-size:9px;color:var(--mut);letter-spacing:.1em;margin-top:2px}
+.orm .tx{position:relative;z-index:1;margin-left:auto;max-width:230px}
+.orm .tx .h{font-family:var(--fd);font-weight:700;font-size:14px}
+.orm .tx p{font-size:11px;color:var(--soft);margin-top:4px;line-height:1.5}
+
+/* CTA */
+.cta{border:1px solid rgba(255,122,26,.28);border-radius:20px;padding:34px;text-align:center;position:relative;overflow:hidden;background:linear-gradient(120deg,#10070A,#05080D)}
+.cta::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 130% at 50% 0%,rgba(255,122,26,.2),transparent 60%)}
+.cta>*{position:relative}.cta h2{font-size:25px;font-weight:800;letter-spacing:-.02em}
+.cta p{color:var(--soft);font-size:13px;margin:10px auto 0;max-width:480px;line-height:1.55}
+.cta .b{display:flex;gap:10px;justify-content:center;margin-top:20px;flex-wrap:wrap}
+
+/* rail cards */
+.rc{border:1px solid var(--line);border-radius:14px;background:var(--pnl);padding:14px}
+.rc .h{display:flex;align-items:center;gap:7px;font-family:var(--fm);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-bottom:11px}
+.rc .h .i{width:16px;height:16px;color:var(--acc2)}
+.rrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
+.rrow .tm{display:flex;align-items:center;gap:8px;min-width:0}.rrow .lg{width:20px;height:20px;border-radius:50%;overflow:hidden;flex-shrink:0}
+.rrow .nm{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rrow .sc{font-family:var(--fd);font-weight:800;font-size:14px}
+.rcd{margin-top:9px;text-align:center;font-family:var(--fm);font-size:11px;color:var(--acc2);border:1px solid rgba(55,224,255,.2);border-radius:9px;padding:7px}
+.rrad{display:flex;align-items:center;gap:10px}.rrad .pb{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--acc),#E24A00);display:grid;place-items:center;color:#160800;flex-shrink:0}
+.rrad .pb svg{width:15px;height:15px}.rrad .wv{display:flex;align-items:flex-end;gap:2px;height:18px;flex:1}
+.rrad .wv i{flex:1;background:linear-gradient(var(--acc),var(--acc2));border-radius:1px;animation:wave 1.1s ease-in-out infinite}
+
+/* ribbon */
+.rib{position:relative;z-index:40;display:flex;align-items:center;justify-content:center;gap:9px;padding:calc(7px + var(--sat)) 14px 7px;font-size:11.5px;color:var(--soft);background:linear-gradient(90deg,rgba(55,224,255,.08),rgba(255,122,26,.08));border-bottom:1px solid var(--line);font-family:var(--fm)}
+.rib .p{font-size:9px;font-weight:700;letter-spacing:.08em;color:var(--acc2);border:1px solid rgba(55,224,255,.3);border-radius:20px;padding:2px 8px}
+.rib b{color:var(--tx)}.rib .tg{margin-left:12px;font-size:10px;color:var(--acc);border:1px solid rgba(255,122,26,.3);border-radius:7px;padding:3px 9px;background:transparent}
+.demotag{position:absolute;top:8px;left:8px;z-index:5;font-family:var(--fm);font-size:7.5px;letter-spacing:.06em;color:rgba(255,255,255,.5);background:rgba(6,10,16,.55);border:1px solid rgba(255,255,255,.13);padding:2px 6px;border-radius:5px}
+body.real .demotag,body.real .rib{display:none}
+
+.mtop{display:none}.bnav{display:none}.mradyo{display:none}
+.mq{scroll-snap-type:none!important}.mq.grab{cursor:grabbing}.mq [data-mqc]{pointer-events:none}
+.anim-paused i{animation-play-state:paused!important}
+/* Kimler için — kanal kartı (override) */
+.wc{position:relative;border:1px solid var(--line);border-radius:14px;padding:16px;overflow:hidden;background:var(--pnl)}
+.wc::before{content:"";position:absolute;inset:0;background:var(--wc);opacity:.08}
+.wc::after{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--wc);opacity:.8}
+.wc .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;margin-bottom:11px;background:rgba(0,0,0,.28);color:var(--wc);position:relative;z-index:1}
+.wc h3{font-size:14.5px;font-weight:700;position:relative;z-index:1}
+.wc p{font-size:11.5px;color:var(--soft);line-height:1.5;margin-top:6px;position:relative;z-index:1}
+.wc .wm{font-family:var(--fm);font-size:10.5px;color:var(--wc);margin-top:10px;letter-spacing:.05em;position:relative;z-index:1;font-weight:500}
+/* Maç Merkezi (mobil ana akış) */
+.maconly{display:none}
+.macx{display:flex;gap:11px;overflow-x:auto;scrollbar-width:none;padding:2px}.macx::-webkit-scrollbar{display:none}
+.mcx{flex-shrink:0;width:82%;max-width:300px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(120deg,var(--pnl),#080c12);padding:13px}
+.mcx .tg{font-family:var(--fm);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--acc2);margin-bottom:9px;display:block}
+.mcx .rw{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
+.mcx .tm{display:flex;align-items:center;gap:8px;min-width:0}.mcx .lg{width:22px;height:22px;border-radius:50%;overflow:hidden;flex-shrink:0}
+.mcx .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcx .sc{font-family:var(--fd);font-weight:800;font-size:16px}.mcx .vs{font-family:var(--fm);font-size:11px;color:var(--mut)}
+.mcx .ft{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-family:var(--fm);font-size:9.5px;letter-spacing:.04em;color:var(--mut);display:flex;justify-content:space-between}.mcx .ft b{color:var(--acc2)}
+/* Lig seçici (50+ ölçek) */
+.ligbtn{display:inline-flex;align-items:center;gap:9px;padding:11px 16px;border-radius:12px;background:var(--pnl);border:1px solid var(--line2);color:var(--tx);font-family:var(--fm);font-size:13px;font-weight:500}
+.ligbtn .cd{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.ligbtn .chev{color:var(--acc2);margin-left:2px}
+.ligback{position:fixed;inset:0;z-index:1300;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.2s}.ligback.on{opacity:1;pointer-events:auto}
+.ligsheet{position:fixed;z-index:1301;left:50%;top:50%;transform:translate(-50%,-46%);width:380px;max-width:calc(100vw - 28px);max-height:72vh;display:flex;flex-direction:column;border:1px solid var(--line2);border-radius:16px;background:var(--bg1);box-shadow:0 24px 60px -14px rgba(0,0,0,.8);opacity:0;pointer-events:none;transition:.2s;overflow:hidden}
+.ligsheet.on{opacity:1;transform:translate(-50%,-50%);pointer-events:auto}
+.ls-bar{display:flex;align-items:center;gap:9px;padding:13px 14px;border-bottom:1px solid var(--line)}
+.ls-bar .si{color:var(--mut)}.ls-bar .si svg{width:18px;height:18px}
+.ls-bar input{flex:1;background:transparent;border:0;outline:0;color:var(--tx);font-size:16px;font-family:inherit;min-width:0}
+.ls-bar .x{width:32px;height:32px;border-radius:8px;background:var(--bg2);border:0;color:var(--soft);font-size:18px}
+.ls-list{overflow-y:auto;padding:8px}
+.ls-item{display:flex;align-items:center;gap:11px;padding:11px;border-radius:10px;min-height:48px;cursor:pointer}
+.ls-item .cd{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.ls-item .nm{font-weight:600;font-size:13.5px}.ls-item .ss{font-family:var(--fm);font-size:10px;color:var(--mut);margin-top:1px}
+.ls-item.on{background:rgba(55,224,255,.09);box-shadow:inset 0 0 0 1px rgba(55,224,255,.25)}
+.js .st{font-size:10.5px}
+/* A1 CANLI AKIŞ ticker */
+.ticker{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:12px;background:linear-gradient(90deg,var(--bg1),#070c13);padding-left:13px;height:44px;overflow:hidden;position:relative}
+.ticker .tk-live{display:inline-flex;align-items:center;gap:6px;font-family:var(--fm);font-size:10px;letter-spacing:.14em;color:var(--grn);flex-shrink:0;padding-right:13px;margin-right:2px;border-right:1px solid var(--line)}
+.ticker .tk-live .d{width:6px;height:6px;border-radius:50%;background:var(--grn);box-shadow:0 0 8px var(--grn);animation:bl 1.6s infinite}
+.tk-track{display:flex;overflow-x:auto;scrollbar-width:none;flex:1;height:100%;align-items:center;-webkit-mask:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);mask:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+.tk-track::-webkit-scrollbar{display:none}
+.tk-item{flex-shrink:0;display:inline-flex;align-items:center;gap:8px;padding:0 20px;font-size:12.5px;color:var(--soft);white-space:nowrap}
+.tk-item b{color:var(--tx);font-weight:600}.tk-item::before{content:"→";color:var(--acc2);opacity:.7}
+/* A2 hero dönen etiket */
+.hcap{position:absolute;top:-8px;left:50%;transform:translateX(-50%);z-index:6;text-align:center;transition:opacity .5s,transform .5s;pointer-events:none;white-space:nowrap}
+.hcap.fade{opacity:0;transform:translateX(-50%) scale(.96)}
+.hcap .k{font-family:var(--fm);font-size:9.5px;letter-spacing:.16em;color:var(--acc2)}
+.hcap .v{font-family:var(--fd);font-weight:800;font-size:12.5px;color:var(--tx);margin-top:1px}
+#heroCard{transition:opacity .45s}#heroCard.fade{opacity:0}
+/* A4 saha gündemi segment */
+.sgseg{display:inline-flex;background:var(--pnl);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px;margin-bottom:14px;font-family:var(--fm);max-width:100%;overflow-x:auto;scrollbar-width:none}.sgseg::-webkit-scrollbar{display:none}
+.sgseg button{border:0;background:transparent;color:var(--soft);font-weight:600;font-size:11.5px;letter-spacing:.04em;padding:9px 15px;border-radius:8px;min-height:40px;white-space:nowrap;flex-shrink:0}
+.sgseg button.on{background:rgba(255,122,26,.14);color:var(--acc2);box-shadow:inset 0 0 0 1px rgba(255,122,26,.3)}
+/* A6 telemetry sweep */
+.tele::after{content:"";position:absolute;top:0;bottom:0;width:90px;background:linear-gradient(90deg,transparent,rgba(55,224,255,.13),transparent);animation:sweep 11s ease-in-out infinite;pointer-events:none;z-index:2}
+@keyframes sweep{0%,100%{left:-90px;opacity:0}8%{opacity:1}22%{left:100%;opacity:0}}
+/* A7 orman canlı */
+.orm .prog{position:relative;z-index:1;margin-left:auto;max-width:240px;flex-shrink:0}
+.orm .prog .lb{font-family:var(--fm);font-size:9px;letter-spacing:.12em;color:var(--mut);text-transform:uppercase}
+.orm .prog .val{font-family:var(--fd);font-weight:800;font-size:15px;margin:3px 0 7px}.orm .prog .val b{color:var(--grn)}
+.orm .prog .track{height:8px;border-radius:5px;background:rgba(255,255,255,.06);overflow:hidden}
+.orm .prog .track>div{height:100%;background:linear-gradient(90deg,var(--grn),#12B45F);border-radius:5px;width:0;transition:width 1.1s cubic-bezier(.2,.8,.3,1)}
+.orm .prog .nx{font-size:10.5px;color:var(--soft);margin-top:7px}.orm .prog .nx b{color:var(--tx)}
+.orm .tr.grow{animation:fgrow 1.2s cubic-bezier(.2,.8,.3,1)}
+@keyframes fgrow{0%{transform:scale(.6);opacity:.4}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+@media (max-width:720px){
+  .maconly{display:block}
+  .orm{flex-wrap:wrap}.orm .prog{margin-left:0;max-width:none;width:100%}
+  .ligsheet{top:auto;bottom:0;left:0;transform:translateY(16px);width:100%;max-width:none;border-radius:16px 16px 0 0;max-height:80vh}.ligsheet.on{transform:none}
+}
+
+/* ---- social/search overlay ---- */
+.sob{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.2s}.sob.on{opacity:1;pointer-events:auto}
+.sop{position:fixed;z-index:1201;top:calc(var(--sat) + 58px);right:12px;width:230px;max-width:calc(100vw - 24px);border:1px solid var(--line2);border-radius:15px;background:var(--bg1);padding:12px;box-shadow:0 20px 50px -12px rgba(0,0,0,.7);opacity:0;transform:translateY(-8px);pointer-events:none;transition:.2s}.sop.on{opacity:1;transform:none;pointer-events:auto}
+.sop .hd{font-family:var(--fm);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:2px 4px 9px}
+.sop a{display:flex;align-items:center;gap:11px;padding:9px;border-radius:10px;border:1px solid var(--line);margin-bottom:6px;min-height:44px}
+.sop a .ci{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex-shrink:0}.sop a .ci svg{width:17px;height:17px}
+.sop a .t{font-size:12.5px;font-weight:700}.sop a .s{font-size:10.5px;color:var(--mut)}
+.srch{position:fixed;inset:0;z-index:1400;background:var(--bg0);display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:.2s}.srch.on{opacity:1;pointer-events:auto}
+.srch .bar{display:flex;align-items:center;gap:10px;padding:calc(12px + var(--sat)) 14px 12px;border-bottom:1px solid var(--line);background:var(--bg1)}
+.srch .bar input{flex:1;background:transparent;border:0;outline:0;color:var(--tx);font-size:16px;font-family:inherit;min-width:0}
+.srch .bar .x{width:36px;height:36px;border-radius:9px;background:var(--bg2);border:0;color:var(--soft);font-size:20px}
+.srch .bd{flex:1;overflow-y:auto;padding:14px}.srch .hint{color:var(--mut);font-size:13px;text-align:center;margin-top:34px;line-height:1.6;font-family:var(--fm)}
+.sres{display:flex;align-items:center;gap:11px;padding:11px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;min-height:54px}
+.sres .av{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-family:var(--fd);font-weight:800;color:#fff;flex-shrink:0;overflow:hidden}
+.sres .nm{font-weight:700;font-size:13.5px}.sres .ss{font-size:11px;color:var(--mut)}
+
+/* ===== TABLET ===== */
+@media (max-width:1160px){
+  .shell{grid-template-columns:70px minmax(0,1fr);gap:16px;padding:0 18px 130px}
+  .rail{display:none}
+  .brand .nm,.brand .u,.nav a span.lb,.nav a .bd,.side .me .t,.side .me .s,.side .soc{display:none}
+  .brand{justify-content:center;padding:6px 0 16px}.nav a{justify-content:center;padding:12px 0}.nav a.on::before{display:none}
+  .side .me{justify-content:center;padding:9px 0;border:0;background:transparent}
+  .hero h1{font-size:30px}.hero-g{grid-template-columns:1fr}.orbit{margin-top:8px}
+  .who{grid-template-columns:1fr 1fr}
+}
+/* ===== MOBILE ===== */
+@media (max-width:720px){
+  .amb{opacity:.7}.grid-bg{display:none}
+  .shell{grid-template-columns:1fr;gap:0;padding:0 0 calc(var(--navh) + var(--radyoh) + var(--sab) + 20px)}
+  .side{display:none}
+  .mtop{display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:35;padding:calc(9px + var(--sat)) 14px 9px;background:rgba(4,6,10,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  .mtop .brand{padding:0}.mtop .brand .mk{width:32px;height:32px;font-size:16px}.mtop .brand .nm{font-size:16px}.mtop .brand .u{display:block}
+  .tact{display:flex;gap:8px}.tbtn{width:37px;height:37px;border-radius:10px;border:1px solid var(--line);background:var(--pnl);display:grid;place-items:center;color:var(--soft)}.tbtn svg{width:18px;height:18px}.tbtn.wa{color:#25d366;border-color:rgba(37,211,102,.3);background:rgba(37,211,102,.12)}
+  .main{padding:14px 14px;gap:24px}
+  .hero{padding:18px}.hero h1{font-size:27px}.orbit{width:210px;height:230px;justify-self:center;margin-top:14px}.orbit .r1{width:210px;height:210px}.orbit .r2{width:168px;height:168px}
+  .hero .lede{font-size:12px}.btn{padding:11px 15px;font-size:12.5px}
+  .tele-row{padding:20px 4px 12px}.tele .c{min-width:96px;padding:2px 12px}.tele .n{font-size:20px}
+  .wk{grid-template-columns:1fr;gap:10px}
+  .who{grid-template-columns:1fr 1fr;gap:10px}
+  .about{padding:18px}.about .mf{font-size:19px}.about p{font-size:12.5px}
+  .cta{padding:26px 18px}.cta h2{font-size:21px}
+  .sx h2{font-size:15px}.sx .mo{display:none}
+  /* mobil sağ panel içeriği alta enjekte edilmez; sadece ana akış */
+  .bnav{display:flex;position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;z-index:900;background:rgba(6,9,14,.96);backdrop-filter:blur(16px);border-top:1px solid var(--line);padding:6px 6px calc(6px + var(--sab))}
+  .bnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;color:var(--mut);font-size:9.5px;font-weight:600;min-height:52px;justify-content:flex-end;font-family:var(--fm)}
+  .bnav a .ic{width:22px;height:22px}.bnav a.on{color:var(--acc2)}
+  .bnav a.add .ic{width:44px;height:44px;border-radius:14px;margin-top:-22px;background:linear-gradient(135deg,var(--acc),#E24A00);color:#160800;box-shadow:0 0 20px -4px var(--acc)}.bnav a.add .ic svg{width:24px;height:24px}.bnav a.add span{color:var(--acc)}
+  body.radyo-on .mradyo{display:flex;position:fixed;left:8px;right:8px;max-width:464px;margin:0 auto;bottom:calc(var(--navh) + var(--sab) + 8px);z-index:898;align-items:center;gap:10px;padding:8px 10px;border-radius:13px;background:rgba(10,14,20,.96);backdrop-filter:blur(14px);border:1px solid rgba(55,224,255,.28);box-shadow:0 10px 26px -10px rgba(0,0,0,.7)}
+  .mradyo .pb{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--acc),#E24A00);display:grid;place-items:center;color:#160800;flex-shrink:0}.mradyo .pb svg{width:15px;height:15px}
+  .mradyo .tx{min-width:0;flex:1}.mradyo .a{font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mradyo .b{font-size:9.5px;color:var(--grn);font-weight:700;font-family:var(--fm)}
+  .mradyo .wv{display:flex;align-items:flex-end;gap:2px;height:16px;width:24px;flex-shrink:0}.mradyo .wv i{flex:1;background:linear-gradient(var(--acc),var(--acc2));border-radius:1px;animation:wave 1.1s ease-in-out infinite}
+  .mradyo .x{color:var(--mut);font-size:19px;padding:4px;min-width:30px;min-height:30px;display:grid;place-items:center}
+  .sop{top:auto;bottom:0;right:0;left:0;width:100%;max-width:none;border-radius:16px 16px 0 0;transform:translateY(12px);padding:12px 14px calc(16px + var(--sab))}
+  .seg{display:flex;width:100%}.seg button{flex:1;padding:11px 0}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001s!important;animation-iteration-count:1!important;transition-duration:.001s!important}.amb,.orbit .r1,.orbit .r2,.fc .wv i,.rrad .wv i,.mradyo .wv i{animation:none!important}}
+</style>
+</head>
+<body class="radyo-on">
+<div class="amb"></div><div class="grid-bg"></div>
+
+<div class="rib" id="rib"><span class="p">FORZALİG EVRENİ · DEMO</span><span>gerçek lig yok — <b>örnek veri</b> · lig kurunca <b>senin verilerin</b></span><button class="tg" id="realTg">gerçek veri ▸</button></div>
+
+<div class="wrap"><div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mk">⚽</div><div><span class="nm">Forza<b>Lig</b></span><span class="u">ORBITAL OS</span></div></div>
+    <nav class="nav">
+      <a class="on"><span class="ic" data-i="home"></span><span class="lb">Ana</span></a>
+      <a><span class="ic" data-i="compass"></span><span class="lb">Keşfet</span></a>
+      <a><span class="ic" data-i="chat"></span><span class="lb">Sohbet</span><span class="bd">3</span></a>
+      <a><span class="ic" data-i="user"></span><span class="lb">Profil</span></a>
+      <a><span class="ic" data-i="plus"></span><span class="lb">Ekle</span></a>
+    </nav>
+    <div class="soc" id="navSoc"></div>
+    <div class="me"><div class="av">F</div><div><div class="t">Fatih</div><div class="s">Lig Yöneticisi</div></div></div>
+  </aside>
+
+  <main class="main">
+    <div class="mtop">
+      <div class="brand"><div class="mk">⚽</div><div><span class="nm">Forza<b>Lig</b></span><span class="u">ORBITAL</span></div></div>
+      <div class="tact"><a class="tbtn wa" id="waBtn"><span data-i="wa"></span></a><button class="tbtn" id="socBtn"><span data-i="share"></span></button><button class="tbtn" id="srchBtn"><span data-i="search"></span></button></div>
+    </div>
+
+    <!-- HERO -->
+    <section class="hero reveal">
+      <div class="hero-g">
+        <div>
+          <span class="kick" id="heroKick"><span class="dot"></span> <span id="heroKickTx"></span></span>
+          <div class="greet" id="greet">İyi akşamlar, <b>Fatih</b></div>
+          <h1><span class="g">Ligin,</span><br>tek ekranda yaşıyor.</h1>
+          <p class="lede">Halı sahadan kurumsala — maçlar, oyuncular, kartlar ve Enler; kendiliğinden çalışan bir lig işletim sistemi.</p>
+          <div class="cta"><button class="btn p">Ligimi Aç</button><button class="btn g">Evreni Keşfet</button></div>
+        </div>
+        <div class="orbit"><div class="ring r1"></div><div class="ring r2"></div><div class="hcap" id="hcap"></div><div id="heroCard"></div></div>
+      </div>
+    </section>
+
+    <!-- A1 — CANLI AKIŞ -->
+    <section class="reveal" style="margin-top:-10px"><div class="ticker"><span class="tk-live"><span class="d"></span>CANLI</span><div class="tk-track mq" id="tkTrack"></div></div></section>
+
+    <!-- KPI telemetry -->
+    <section class="reveal"><div class="tele"><div class="lbl">FORZALİG // TELEMETRİ</div><div class="tele-row mq" id="tele"></div></div></section>
+
+    <!-- FORZALİG NEDİR -->
+    <section class="reveal"><div class="about">
+      <div class="mf">Halı saha, veteran & master, şirketler ve turnuva futbolunu <span class="g">profesyonel bir dijital lig deneyimine</span> dönüştürür.</div>
+      <p><b>Takımını kur, maçını oyna;</b> istatistiklerin, FIFA kartın, ödüllerin, maç gazeten ve lig hikâyen kendiliğinden oluşsun. Oyuncu, kaptan ya da lig yöneticisi — hepsi tek yerde.</p>
+      <p style="margin-top:10px;color:var(--acc2);font-family:var(--fm);font-size:12px;letter-spacing:.02em">// amaç — mahalle maçını profesyonel lig deneyimine dönüştürmek.</p>
+    </div></section>
+
+    <!-- lig seç -->
+    <section class="reveal"><div class="sx"><span class="ix">01</span><h2>Lig Kanalı</h2><span class="d">// enler ve kadro seçili lige göre</span></div><button class="ligbtn" id="ligBtn"><span class="cd" id="ligCd" style="background:linear-gradient(135deg,#FF7A1A,#37E0FF)"></span><span id="ligCur">Tüm Ligler</span><span class="chev">▾</span></button></section>
+
+    <!-- MAÇ MERKEZİ (mobil ana akış) -->
+    <section class="reveal maconly"><div class="sx"><span class="ix">02</span><h2>Maç Merkezi</h2><span class="d">// bugün · sonuç · yaklaşan</span></div><div class="macx mq" id="mac"></div></section>
+
+    <!-- SAHA GÜNDEMİ (Enler + Haftanın Vitrini + Rating) -->
+    <section class="reveal"><div class="sx"><span class="ix">03</span><h2>Saha Gündemi</h2><span class="d" id="enlerD">// tüm ligler</span></div>
+      <div class="sgseg" id="sgSeg"><button class="on" data-t="enler">ENLER</button><button data-t="vitrin">HAFTANIN VİTRİNİ</button><button data-t="rating">RATING</button></div>
+      <div class="flow mq" id="enler"></div>
+      <div class="wk" id="wk" style="display:none"></div>
+      <div class="vit mq" id="vit" style="display:none"></div>
+    </section>
+
+    <!-- İLK 11 MERKEZİ -->
+    <section class="reveal">
+      <div class="sx"><span class="ix">04</span><h2 id="xiT">Haftanın İlk 11'i</h2><span class="d" id="xiD">// kadıköy · performans</span></div>
+      <div class="seg" id="seg"><button class="on" data-p="hafta">HAFTA</button><button data-p="ay">AY</button><button data-p="sezon">SEZON</button></div>
+      <div class="xihd"><span class="pill pg">🥇 ALTIN 11</span><span class="n" id="goldN">// en yüksek performans</span></div>
+      <div class="xi mq" id="gold"></div>
+      <div class="xihd"><span class="pill ps2">🥈 GÜMÜŞ 11</span><span class="n" id="silN">// ikinci kademe</span></div>
+      <div class="xi mq" id="silver"></div>
+    </section>
+
+    <!-- kimler için -->
+    <section class="reveal"><div class="sx"><span class="ix">06</span><h2>Kimler İçin?</h2></div><div class="who" id="who"></div></section>
+
+    <!-- üye olunca -->
+    <section class="reveal"><div class="sx"><span class="ix">07</span><h2>Üye Olunca</h2><span class="d">// yolculuk</span></div><div class="jr mq" id="jr"></div></section>
+
+    <!-- neler yapıyor -->
+    <section class="reveal"><div class="sx"><span class="ix">08</span><h2>ForzaLig Neler Yapıyor</h2><span class="d">// gerçek özellikler</span></div><div class="feat mq" id="feat"></div></section>
+
+    <!-- orman -->
+    <section class="reveal"><div class="sx"><span class="ix">09</span><h2>ForzaLig Ormanı</h2></div><div class="orm" id="orm"></div></section>
+
+    <!-- CTA -->
+    <section class="reveal"><div class="cta"><h2>Üye ol — sistemi başlat.</h2><p>Takımın olur, maç oynarsın, istatistiklerin işlenir, FIFA kartın gelişir, ödüller ve İlk 11 seni bekler.</p><div class="b"><button class="btn p">Ligimi Kur</button><button class="btn g">Nasıl Çalışır?</button></div></div></section>
+  </main>
+
+  <aside class="rail" id="rail"></aside>
+</div></div>
+
+<div class="mradyo" id="mradyo"><div class="pb" data-i="play" id="mrPlay"></div><div class="tx"><div class="a">Devre Arası Sohbeti</div><div class="b">● YAYINDA · Spiker Kaan</div></div><div class="wv" data-anim><i></i><i style="animation-delay:.15s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.1s"></i></div><div class="x" id="mrClose">×</div></div>
+
+<nav class="bnav"><a class="on"><span class="ic" data-i="home"></span>Ana</a><a><span class="ic" data-i="compass"></span>Keşfet</a><a class="add"><span class="ic" data-i="plus"></span><span>Ekle</span></a><a><span class="ic" data-i="chat"></span>Sohbet</a><a><span class="ic" data-i="user"></span>Profil</a></nav>
+
+<div class="sob" id="sob"></div>
+<div class="sop" id="sop"><div class="hd">ForzaLig'i takip et</div><div id="socList"></div></div>
+<div class="srch" id="srch"><div class="bar"><span data-i="search" style="color:var(--mut)"></span><input id="srchIn" type="search" placeholder="Oyuncu, takım, lig ara…" autocomplete="off"><button class="x" id="srchX">×</button></div><div class="bd" id="srchBd"></div></div>
+<div class="ligback" id="ligBack"></div>
+<div class="ligsheet" id="ligSheet"><div class="ls-bar"><span class="si" data-i="search"></span><input id="ligIn" type="search" placeholder="Lig ara…" autocomplete="off"><button class="x" id="ligX">×</button></div><div class="ls-list" id="ligList"></div></div>
+
+<script>
+/* ================= ENGINE (ortak) ================= */
+"use strict";
+var RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
+var TILT=matchMedia("(hover:hover) and (pointer:fine)").matches&&innerWidth>=1000;
+var MOB=innerWidth<=720;
+var IC={
+ home:'<path d="M4 11l8-7 8 7M6 10v9h12v-9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+ compass:'<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15.5 8.5l-2 5-5 2 2-5z" fill="currentColor"/>',
+ chat:'<path d="M4 5h16v11H9l-4 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>',
+ user:'<circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c1-4 4.5-5 7-5s6 1 7 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+ plus:'<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>',
+ search:'<circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+ play:'<path d="M8 5l11 7-11 7z" fill="currentColor"/>',
+ ball:'<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><polygon points="12,7.6 15.5,10.2 14.2,14.4 9.8,14.4 8.5,10.2" fill="currentColor"/>',
+ boot:'<path d="M4 12h11.5M12 7.5l5.5 4.5-5.5 4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+ glove:'<path d="M17.5 4v16M4 8l7 4-7 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+ star:'<path d="M12 3.4l2.7 5.4 6 .9-4.35 4.2 1.05 5.9-5.4-2.85-5.4 2.85 1.05-5.9L5.3 9.7l6-.9z" fill="currentColor"/>',
+ shield:'<path d="M12 3l7 3v5c0 4.6-3 7.7-7 9-4-1.3-7-4.4-7-9V6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+ trophy:'<path d="M7 4h10v3a5 5 0 0 1-10 0zM7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3M9 16h6l1 4H8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+ pitch:'<rect x="3" y="5" width="18" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 5v14M3 9h3v6H3M21 9h-3v6h3" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+ building:'<path d="M5 21V4h9v17M14 8h5v13M8 8h3M8 12h3M8 16h3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+ whistle:'<path d="M13 9a4 4 0 1 0 0 4h7V9zM11 5v3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+ card:'<rect x="5" y="3" width="14" height="18" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="9" r="2.4" fill="currentColor"/><path d="M8 15h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+ news:'<path d="M4 5h13v14H4zM17 9h3v8a2 2 0 0 1-2 2M7 8h7M7 11h7M7 14h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>',
+ doc:'<path d="M7 3h7l4 4v14H7zM14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+ radio:'<rect x="3" y="8" width="18" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16" cy="14" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 4l8 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+ chart:'<path d="M4 20V4M4 20h16M8 17v-5M12 17V8M16 17v-8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+ medal:'<circle cx="12" cy="14" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 3l3 6 3-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+ wa:'<path d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.5-1.3A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 8.5c0 3.5 3 6.5 6.5 6.5.6 0 1-.6.8-1.1l-.5-1.1a.7.7 0 0 0-.8-.4l-1 .3-1.8-1.8.3-1a.7.7 0 0 0-.4-.8l-1.1-.5c-.5-.2-1.1.2-1.1.8z" fill="currentColor"/>',
+ share:'<circle cx="6" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.1 10.8l6.8-3.6M8.1 13.2l6.8 3.6" stroke="currentColor" stroke-width="1.6"/>',
+ mail:'<rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 7l8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+ insta:'<rect x="4" y="4" width="16" height="16" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3.6" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16.6" cy="7.4" r="1.1" fill="currentColor"/>',
+ yt:'<rect x="3" y="6" width="18" height="12" rx="3.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 9.3l4.2 2.7-4.2 2.7z" fill="currentColor"/>',
+ fb:'<path d="M14 8h2V5h-2.2C11.7 5 11 6.3 11 7.7V9H9v3h2v7h3v-7h2.2l.3-3H14z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+ tiktok:'<path d="M14 4c.4 2.2 1.8 3.6 4 3.9v2.7c-1.4 0-2.8-.4-4-1.1V15a4.8 4.8 0 1 1-4.8-4.8c.3 0 .6 0 .9.1v2.8a2.1 2.1 0 1 0 1.4 2V4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+ tree:'<path d="M12 3c3.5 0 6 2.6 6 5.6 0 2.2-1.3 3.6-2.6 4.4 1.6.5 2.6 1.7 2.6 3.2 0 2.1-2.7 3.8-6 3.8s-6-1.7-6-3.8c0-1.5 1-2.7 2.6-3.2C7.3 12.2 6 10.8 6 8.6 6 5.6 8.5 3 12 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'
+};
+function icon(el){var n=el.getAttribute("data-i");if(IC[n])el.innerHTML='<svg viewBox="0 0 24 24" width="100%" height="100%">'+IC[n]+'</svg>';}
+function icons(r){(r||document).querySelectorAll("[data-i]").forEach(icon);}
+function svgI(n,c,b){b=b||18;return '<svg viewBox="0 0 24 24" width="'+b+'" height="'+b+'" style="color:'+(c||'currentColor')+'">'+(IC[n]||'')+'</svg>';}
+function hash(s){s=""+s;var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h);}
+function svgAmblem(ad,renk,boy,logo){if(logo){var f=String(logo).replace(/["'<>`\\]/g,"");if(/^(https?:|data:image\/)/i.test(f))return '<img src="'+f+'" width="'+boy+'" height="'+boy+'" style="width:'+boy+'px;height:'+boy+'px;object-fit:cover;display:block;border-radius:50%">';}
+  var h=hash(ad),tip=h%3,harf=(ad.replace(/[^A-Za-zÇĞİÖŞÜçğıöşü]/g,"")[0]||"F"),sekil;
+  if(tip===0)sekil='<path d="M50 6 L88 20 V52 Q88 82 50 96 Q12 82 12 52 V20Z" fill="'+renk+'" stroke="#fff" stroke-width="3"/>';
+  else if(tip===1)sekil='<circle cx="50" cy="50" r="44" fill="'+renk+'" stroke="#fff" stroke-width="3"/>';
+  else sekil='<path d="M50 6 L94 50 L50 94 L6 50Z" fill="'+renk+'" stroke="#fff" stroke-width="3"/>';
+  return '<svg width="'+boy+'" height="'+boy+'" viewBox="0 0 100 100">'+sekil+'<text x="50" y="50" font-size="40" font-weight="800" fill="#fff" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">'+harf+'</text></svg>';}
+function fmtEuro(n){n=Math.round(n||0);var g=n<0,s;n=Math.abs(n);if(n<1000)s=n+" €";else if(n<1e6)s=Math.round(n/1000)+" Bin €";else{var m=Math.round(n/1e5)/10;s=(""+m).replace(".",",")+" Milyon €";}return (g?"−":"")+s;}
+function posAd(p){var r=(p==null?"":(""+p)).trim(),M={FOR:"Forvet",OS:"Orta Saha",DEF:"Defans",KL:"Kaleci",FORVET:"Forvet",DEFANS:"Defans",ORTASAHA:"Orta Saha",KALECI:"Kaleci"};return M[r]||M[r.toUpperCase()]||r||"Oyuncu";}
+function posGrup(p){var a=posAd(p);return a==="Kaleci"?"Kaleci":a==="Defans"?"Defans":a==="Orta Saha"?"OrtaSaha":"Forvet";}
+function rozGlyph(a,c){var st='fill="none" stroke="'+c+'" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"';if(a==="ball")return '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="8.5" '+st+'/><polygon points="12,7.6 15.5,10.2 14.2,14.4 9.8,14.4 8.5,10.2" fill="'+c+'"/></svg>';if(a==="boot")return '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 12h11.5M12 7.5l5.5 4.5-5.5 4.5" '+st+'/></svg>';if(a==="glove")return '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M17.5 4v16M4 8l7 4-7 4" '+st+'/></svg>';if(a==="star")return '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3.4l2.7 5.4 6 .9-4.35 4.2 1.05 5.9-5.4-2.85-5.4 2.85 1.05-5.9L5.3 9.7l6-.9z" fill="'+c+'"/></svg>';return '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l7 3v5c0 4.6-3 7.7-7 9-4-1.3-7-4.4-7-9V6z" '+st+'/></svg>';}
+function rozetUret(o){var g=o.gol||0,a=o.asist||0,k=o.kurtaris||0,m=o.mac||0,mv=o.mvp||0,r=[];
+  if(g>=25)r.push({t:"Gol Kralı",s:g+" gol",tier:3,g:"ball"});else if(g>=10)r.push({t:"Golcü",s:g+" gol",tier:2,g:"ball"});else if(g>=1)r.push({t:"İlk Gol",s:g+" gol",tier:1,g:"ball"});
+  if(a>=15)r.push({t:"Asist Ustası",s:a+" asist",tier:3,g:"boot"});else if(a>=5)r.push({t:"Pas Dağıtıcı",s:a+" asist",tier:2,g:"boot"});
+  if(k>=25)r.push({t:"Eldiven",s:k+" kurtarış",tier:3,g:"glove"});else if(k>=10)r.push({t:"Refleks",s:k+" kurtarış",tier:2,g:"glove"});
+  if(mv>=3)r.push({t:"Maçın Adamı",s:mv+"× MVP",tier:3,g:"star"});else if(mv>=1)r.push({t:"Maçın Adamı",s:mv+"× MVP",tier:2,g:"star"});
+  if(m>=25)r.push({t:"Kadro",s:m+" maç",tier:2,g:"shield"});else if(m>=10)r.push({t:"Formalı",s:m+" maç",tier:1,g:"shield"});
+  r.sort(function(x,y){return y.tier-x.tier;});return r.slice(0,3);}
+function rozTierRenk(t,acc){return t>=4?"#F2C24E":t>=3?"#B98CFF":t>=2?(acc||"#FF7A1A"):"#C9885A";}
+function accRenk(sp){return sp>=90?"#F2C24E":sp>=82?"#8AB4FF":sp>=74?"#FF7A1A":"#C9885A";}
+var _seq=0;
+function fifaKart(o,w,opts){opts=opts||{};w=w||236;var s=w/272,acc=accRenk(o.ovr||0),no=(o.no!=null?o.no:null);
+  var yz=(o.yildizManuel&&o.yildizManuel>0)?o.yildizManuel:(o.ovr>=85?5:o.ovr>=78?4:o.ovr>=68?3:o.ovr>=58?2:1);
+  var stats=[["HIZ",o.pac],["ŞUT",o.sho],["PAS",o.pas],["DRİ",o.dri],["SAV",o.def],["FİZ",o.phy]],arka=[["Gol",o.gol||0],["Asist",o.asist||0],["Kurtarış",o.kurtaris||0],["Maç",o.mac||0]],roz=rozetUret(o);
+  function px(v){return Math.round(v*s);}
+  var foto=o.foto?'<img class="foto" src="'+o.foto+'">':'<div class="ini" style="background:radial-gradient(120% 90% at 50% 0%,'+(o.renk||"#1a2732")+'2e,#080d14 68%)"><span style="font-size:'+px(130)+'px">'+(no!=null?no:(o.ad||"?").charAt(0).toUpperCase())+'</span></div>';
+  var flag='<svg viewBox="0 0 30 20" style="width:'+px(28)+'px;height:'+px(19)+'px;border-radius:3px"><rect width="30" height="20" fill="#e30a17"/><circle cx="11" cy="10" r="5" fill="#fff"/><circle cx="12.5" cy="10" r="4" fill="#e30a17"/><path d="M17 10l4.7-1.5-2.9 4 0-5 2.9 4Z" fill="#fff"/></svg>';
+  var front='<div class="face">'+foto+'<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,10,14,.42),transparent 22%,transparent 40%,rgba(6,8,11,.92) 88%)"></div><div class="rim"></div>'
+   +'<div style="position:absolute;top:'+px(13)+'px;left:'+px(13)+'px;right:'+px(13)+'px;display:flex;justify-content:space-between;align-items:flex-start">'
+   +'<div><div class="ov" style="font-size:'+px(31)+'px">'+o.ovr+'</div><span class="ps" style="font-size:'+px(9.5)+'px;margin-top:'+px(4)+'px;border-radius:'+px(6)+'px;padding:'+px(3)+'px '+px(8)+'px">'+posAd(o.poz)+'</span><div style="margin-top:'+px(4)+'px;font-size:'+px(10.5)+'px;letter-spacing:1.3px;white-space:nowrap;line-height:1"><span style="color:#F2C24E">'+"★".repeat(yz)+'</span><span style="color:rgba(255,255,255,.25)">'+"★".repeat(5-yz)+'</span></div></div>'
+   +'<div style="text-align:right">'+flag+'</div></div>'
+   +'<div style="position:absolute;left:0;right:0;bottom:0;padding:'+px(13)+'px '+px(16)+'px '+px(14)+'px">'
+   +'<div style="display:flex;align-items:baseline;gap:'+px(7)+'px;flex-wrap:wrap"><span class="nm" style="font-size:'+px(20)+'px">'+o.ad+'</span>'+(no!=null?'<span class="no" style="font-size:'+px(12)+'px;background:'+acc+';border-radius:'+px(5)+'px;padding:1px '+px(7)+'px">#'+no+'</span>':'')+'</div>'
+   +(o.takimAd?'<div style="display:flex;align-items:center;gap:'+px(6)+'px;margin-top:'+px(5)+'px"><div style="width:'+px(18)+'px;height:'+px(18)+'px;border-radius:50%;overflow:hidden;flex-shrink:0">'+svgAmblem(o.takimAd,o.renk||"#888",px(18))+'</div><span style="font-size:'+px(10.5)+'px;font-weight:600;color:#cfd6df;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+o.takimAd+'</span></div>':'')
+   +((o.degerG!=null)?'<div style="margin-top:'+px(8)+'px;padding-top:'+px(7)+'px;border-top:1px solid rgba(255,255,255,.1);text-align:right"><span style="font-family:var(--fd);font-weight:800;font-size:'+px(15)+'px;color:#fff">'+fmtEuro(o.degerG)+'</span></div>':'')
+   +'<div class="st" style="display:flex;margin-top:'+px(10)+'px;border-top:1px solid rgba(255,255,255,.15);padding-top:'+px(8)+'px">'+stats.map(function(kv,i){return '<div style="flex:1;text-align:center;'+(i<5?'border-right:1px solid rgba(255,255,255,.08)':'')+'"><div class="v" style="font-size:'+px(14)+'px">'+kv[1]+'</div><div style="font-size:'+px(7)+'px;color:#aab3c0">'+kv[0]+'</div></div>';}).join('')+'</div></div>';
+  if(!opts.noIntro)front+='<div class="fkm"><div class="fl"></div><svg viewBox="0 0 272 380" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%"><rect x="10" y="10" width="252" height="360" rx="16"/></svg><div class="nmw" style="font-size:'+px(70)+'px">'+o.ovr+'</div><div class="lgw" style="font-size:'+px(26)+'px">FORZA<b style="color:'+acc+'">LİG</b></div></div>';
+  front+='</div>';
+  var rH=roz.length?roz.map(function(b){var c=rozTierRenk(b.tier,acc);return '<div style="flex:0 1 '+px(80)+'px;text-align:center"><div style="width:'+px(42)+'px;height:'+px(42)+'px;margin:0 auto;border-radius:50%;background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.12),rgba(10,14,20,.7));border:1.4px solid '+c+';display:flex;align-items:center;justify-content:center">'+rozGlyph(b.g,c)+'</div><div style="font-size:'+px(8)+'px;font-weight:700;color:#fff;margin-top:'+px(4)+'px">'+b.t+'</div></div>';}).join(''):'<div style="text-align:center;font-size:'+px(9.5)+'px;color:#aab3c0;padding:'+px(12)+'px">Henüz rozet yok.</div>';
+  var back='<div class="face bk">'+foto+'<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,8,11,.82),rgba(6,8,11,.66) 34%,rgba(6,8,11,.93))"></div><div class="rim"></div>'
+   +'<div style="position:absolute;top:'+px(14)+'px;left:'+px(15)+'px;right:'+px(15)+'px;display:flex;justify-content:space-between;align-items:center;z-index:3"><span style="font-size:'+px(9)+'px;letter-spacing:1px;text-transform:uppercase;color:#cfe0ef;font-weight:800">Ödüller</span><span style="font-family:var(--fd);font-weight:800;font-size:'+px(22)+'px;color:'+acc+'">'+o.ovr+'</span></div>'
+   +'<div style="position:absolute;top:'+px(60)+'px;left:'+px(12)+'px;right:'+px(12)+'px;z-index:3;display:flex;justify-content:center;gap:'+px(7)+'px">'+rH+'</div>'
+   +'<div style="position:absolute;left:'+px(13)+'px;right:'+px(13)+'px;bottom:'+px(13)+'px;z-index:3;background:rgba(10,14,20,.6);border:1px solid rgba(255,255,255,.13);border-radius:'+px(12)+'px;padding:'+px(10)+'px"><div style="display:flex">'+arka.map(function(kv,i){return '<div style="flex:1;text-align:center"><div style="font-family:var(--fd);font-weight:800;font-size:'+px(18)+'px;color:'+((i===0||i===3)?acc:"#fff")+'">'+kv[1]+'</div><div style="font-size:'+px(7.5)+'px;text-transform:uppercase;color:#aab3c0">'+kv[0]+'</div></div>';}).join('')+'</div></div></div>';
+  var id="fk"+(_seq++),tc=opts.tier==="gold"?" gold":opts.tier==="silver"?" silver":"";
+  var demo=document.body.classList.contains("demo")?'<div class="demotag">DEMO</div>':'';
+  var pl=opts.pl?'<div class="pl">'+opts.pl+'</div>':'';var hint=opts.noHint?'':'<div class="hint">dokun → çevir</div>';
+  return '<div class="fifa'+tc+'" id="'+id+'">'+demo+'<div class="fifa-persp" style="width:'+w+'px;max-width:86vw"><div class="fifa-in" style="box-shadow:0 18px 44px rgba(0,0,0,.5),0 0 30px -14px '+acc+'">'+front+back+'</div></div>'+pl+hint+'</div>';}
+function bindCard(el,intro){var inr=el.querySelector(".fifa-in"),pe=el.querySelector(".fifa-persp"),fk=el.querySelector(".fkm");
+  inr.addEventListener("click",function(){if(fk&&!fk.classList.contains("done")){fk.classList.add("done");return;}el.classList.toggle("flip");el.classList.toggle("active");});
+  if(TILT){pe.addEventListener("pointermove",function(e){var r=pe.getBoundingClientRect(),rx=Math.max(-5,Math.min(5,((e.clientY-r.top)/r.height-.5)*-10)),ry=Math.max(-5,Math.min(5,((e.clientX-r.left)/r.width-.5)*10));pe.style.transform="rotateX("+rx+"deg) rotateY("+ry+"deg)";});pe.addEventListener("pointerleave",function(){pe.style.transform="";});}
+  if(intro!==false&&fk)cardObs.observe(el);}
+var cardObs=new IntersectionObserver(function(es){es.forEach(function(en){if(!en.isIntersecting)return;var fk=en.target.querySelector(".fkm");if(fk&&!fk.dataset.p){fk.dataset.p="1";if(RM){fk.classList.add("done");}else{fk.classList.add("go");setTimeout(function(){fk.classList.add("done");},2500);}}cardObs.unobserve(en.target);});},{threshold:.4});
+
+/* ---- veri ---- */
+var LIGLER=[
+ {id:"kadikoy",ad:"Kadıköy Halı Saha Ligi",kat:"Halı Saha",renk:"#E4572E",takimlar:[{id:"t1",ad:"Moda Spor",renk:"#E4572E",ag:38,o:12,puan:28,kadro:11},{id:"t2",ad:"Fenerbahçe Cd.",renk:"#1B4F9C",ag:34,o:12,puan:25,kadro:11},{id:"t3",ad:"Yeldeğirmeni",renk:"#159A56",ag:29,o:12,puan:21,kadro:10},{id:"t4",ad:"Rıhtım United",renk:"#8E44AD",ag:24,o:12,puan:17,kadro:11},{id:"t5",ad:"Bahariye FK",renk:"#F39C12",ag:19,o:12,puan:12,kadro:10},{id:"t6",ad:"Söğütlüçeşme",renk:"#2C3E50",ag:15,o:12,puan:8,kadro:11}],
+  oyuncular:[{id:"p1",ad:"Demir Yıldırım",no:9,poz:"FOR",ovr:91,pac:88,sho:93,pas:79,dri:90,def:34,phy:82,gol:24,asist:9,kurtaris:0,mac:12,mvp:6,deger:2400000,takimId:"t1",yildizManuel:5},{id:"p2",ad:"Kerem Aslan",no:10,poz:"OS",ovr:87,pac:82,sho:80,pas:89,dri:88,def:58,phy:74,gol:11,asist:16,kurtaris:0,mac:12,mvp:4,deger:1500000,takimId:"t2"},{id:"p3",ad:"Barış Kaya",no:1,poz:"KL",ovr:85,pac:60,sho:24,pas:70,dri:52,def:86,phy:83,gol:0,asist:0,kurtaris:58,mac:12,mvp:3,deger:900000,takimId:"t3"},{id:"p4",ad:"Onur Şahin",no:7,poz:"FOR",ovr:83,pac:90,sho:82,pas:71,dri:84,def:40,phy:70,gol:15,asist:7,kurtaris:0,mac:11,mvp:2,deger:820000,takimId:"t4"},{id:"p5",ad:"Emre Doğan",no:4,poz:"DEF",ovr:80,pac:74,sho:48,pas:76,dri:68,def:85,phy:82,gol:3,asist:5,kurtaris:0,mac:12,mvp:1,deger:560000,takimId:"t1"}]},
+ {id:"veteran",ad:"İstanbul Veteranlar Ligi",kat:"Veteran & Master",renk:"#C9A227",takimlar:[{id:"v1",ad:"Ustalar SK",renk:"#C9A227",ag:31,o:10,puan:23,kadro:12},{id:"v2",ad:"Emektar FK",renk:"#7F8C8D",ag:27,o:10,puan:20,kadro:11},{id:"v3",ad:"Efsaneler",renk:"#16A085",ag:24,o:10,puan:16,kadro:12},{id:"v4",ad:"Kıdem United",renk:"#2980B9",ag:20,o:10,puan:12,kadro:11},{id:"v5",ad:"Tecrübe Spor",renk:"#C0392B",ag:16,o:10,puan:9,kadro:10},{id:"v6",ad:"Maestro FK",renk:"#34495E",ag:14,o:10,puan:7,kadro:11}],
+  oyuncular:[{id:"vp1",ad:"Serkan Usta",no:11,poz:"FOR",ovr:86,pac:70,sho:88,pas:80,dri:82,def:44,phy:78,gol:19,asist:8,kurtaris:0,mac:10,mvp:5,deger:640000,takimId:"v1",yildizManuel:5},{id:"vp2",ad:"Hakan Deniz",no:8,poz:"OS",ovr:82,pac:66,sho:74,pas:87,dri:80,def:62,phy:75,gol:7,asist:14,kurtaris:0,mac:10,mvp:3,deger:430000,takimId:"v2"},{id:"vp3",ad:"Levent Ak",no:1,poz:"KL",ovr:80,pac:52,sho:20,pas:64,dri:48,def:82,phy:80,gol:0,asist:0,kurtaris:44,mac:10,mvp:2,deger:300000,takimId:"v3"},{id:"vp4",ad:"Cengiz Tan",no:9,poz:"FOR",ovr:78,pac:64,sho:80,pas:70,dri:74,def:42,phy:76,gol:12,asist:5,kurtaris:0,mac:9,mvp:1,deger:260000,takimId:"v4"}]},
+ {id:"kurumsal",ad:"Kurumsal Cup — Teknoloji",kat:"Şirketler & Kurumlar",renk:"#2E86DE",takimlar:[{id:"k1",ad:"ByteFC",renk:"#2E86DE",ag:26,o:9,puan:21,kadro:10},{id:"k2",ad:"Data United",renk:"#8E44AD",ag:22,o:9,puan:18,kadro:10},{id:"k3",ad:"Cloud SK",renk:"#16A085",ag:19,o:9,puan:14,kadro:9},{id:"k4",ad:"PixelFK",renk:"#E67E22",ag:15,o:9,puan:10,kadro:10},{id:"k5",ad:"Server Spor",renk:"#C0392B",ag:12,o:9,puan:6,kadro:9},{id:"k6",ad:"Kernel FC",renk:"#2C3E50",ag:10,o:9,puan:5,kadro:10}],
+  oyuncular:[{id:"kp1",ad:"Arda Çelik",no:10,poz:"OS",ovr:84,pac:80,sho:78,pas:86,dri:85,def:55,phy:72,gol:9,asist:13,kurtaris:0,mac:9,mvp:4,deger:520000,takimId:"k1",yildizManuel:4},{id:"kp2",ad:"Mert Yalın",no:9,poz:"FOR",ovr:82,pac:86,sho:83,pas:70,dri:81,def:38,phy:69,gol:14,asist:6,kurtaris:0,mac:9,mvp:3,deger:470000,takimId:"k2"},{id:"kp3",ad:"Can Ateş",no:1,poz:"KL",ovr:79,pac:58,sho:22,pas:66,dri:50,def:80,phy:79,gol:0,asist:0,kurtaris:39,mac:9,mvp:2,deger:250000,takimId:"k3"},{id:"kp4",ad:"Tolga Er",no:5,poz:"DEF",ovr:77,pac:72,sho:44,pas:74,dri:66,def:83,phy:80,gol:2,asist:4,kurtaris:0,mac:9,mvp:1,deger:210000,takimId:"k1"}]},
+ {id:"turnuva",ad:"ForzaLig Kış Turnuvası",kat:"Turnuvalar",renk:"#9B59B6",takimlar:[{id:"u1",ad:"Kar Kartalları",renk:"#9B59B6",ag:18,o:6,puan:15,kadro:12},{id:"u2",ad:"Buz FK",renk:"#3498DB",ag:15,o:6,puan:12,kadro:11},{id:"u3",ad:"Ateş Spor",renk:"#E74C3C",ag:13,o:6,puan:9,kadro:12},{id:"u4",ad:"Fırtına United",renk:"#1ABC9C",ag:11,o:6,puan:7,kadro:11},{id:"u5",ad:"Şimşek FC",renk:"#F1C40F",ag:8,o:6,puan:4,kadro:10},{id:"u6",ad:"Yıldırım SK",renk:"#34495E",ag:6,o:6,puan:3,kadro:11}],
+  oyuncular:[{id:"up1",ad:"Yusuf Kar",no:7,poz:"FOR",ovr:85,pac:89,sho:86,pas:74,dri:87,def:36,phy:71,gol:11,asist:4,kurtaris:0,mac:6,mvp:4,deger:700000,takimId:"u1",yildizManuel:5},{id:"up2",ad:"Deniz Buz",no:10,poz:"OS",ovr:81,pac:78,sho:75,pas:84,dri:83,def:52,phy:70,gol:5,asist:9,kurtaris:0,mac:6,mvp:2,deger:390000,takimId:"u2"},{id:"up3",ad:"Kaan Fırat",no:1,poz:"KL",ovr:78,pac:56,sho:20,pas:62,dri:48,def:79,phy:78,gol:0,asist:0,kurtaris:26,mac:6,mvp:2,deger:190000,takimId:"u3"}]}
+];
+var TUMTAKIM=[];LIGLER.forEach(function(L){L.takimlar.forEach(function(t){TUMTAKIM.push(t);});});
+var TAKIM={};LIGLER.forEach(function(L){L.takimlar.forEach(function(t){TAKIM[t.id]={ad:t.ad,renk:t.renk,ligAd:L.ad,ligId:L.id};});});
+function enrich(o){var t=TAKIM[o.takimId]||{};return Object.assign({},o,{takimAd:t.ad,renk:t.renk,ligAd:t.ligAd,degerG:o.deger});}
+var STATE={lig:null,period:"hafta"};var GERCEK_LIG=0;
+function demoUygula(){document.body.classList.toggle("demo",GERCEK_LIG===0);document.body.classList.toggle("real",GERCEK_LIG>0);}
+function dataFor(id){var ls=id?LIGLER.filter(function(L){return L.id===id;}):LIGLER,oy=[],tk=[];ls.forEach(function(L){L.oyuncular.forEach(function(o){oy.push(enrich(o));});L.takimlar.forEach(function(t){tk.push(Object.assign({ligAd:L.ad},t));});});
+  var kpi={lig:ls.length,takim:tk.length,oyuncu:tk.reduce(function(s,t){return s+(t.kadro||0);},0),mac:Math.round(tk.reduce(function(s,t){return s+(t.o||0);},0)/2),gol:tk.reduce(function(s,t){return s+(t.ag||0);},0)};kpi.fidan=Math.floor(kpi.gol/20);return {ligler:ls,oyuncular:oy,takimlar:tk,kpi:kpi};}
+function topN(a,f,k,n){return a.filter(f).sort(function(x,y){return k(y)-k(x);}).slice(0,n||6);}
+var AD_KL=["Barış Kaya","Levent Ak","Can Ateş","Kaan Fırat","Umut Sağlam","Ali Vural","Ozan Kale","Deniz Sağ"],AD_DEF=["Emre Doğan","Tolga Er","Sinan Yüce","Murat Bal","Okan Taş","Volkan Ay","Berk Su","Deniz Koç","Ege Var","Kaya Demir","Sarp Ok","Bora Tuna","Onat Sağ","Arif Bek","Tuna Er","Efe Kaya"],AD_OS=["Kerem Aslan","Hakan Deniz","Arda Çelik","Deniz Buz","Ozan Gür","Efe Nal","Yiğit Kor","Baran Uz","Mert Can","Kaan Ege","Doruk As","Emir Han","Alp Er","Bora Nal","Can Öz","Sarp Yıl"],AD_FOR=["Demir Yıldırım","Onur Şahin","Serkan Usta","Cengiz Tan","Mert Yalın","Yusuf Kar","Umut Al","Kaan Gol","Ediz Fırat","Poyraz Ay","Tuncay Er","Berkay Ok"];
+function havuzLig(id){var L=LIGLER.find(function(x){return x.id===id;})||LIGLER[0],tk=L.takimlar,off=hash(id);function pick(a,i){return a[(off+i)%a.length];}
+  var spec=[["KL",2,84],["DEF",9,82],["OS",8,86],["FOR",6,90]],out=[],gi=0;
+  spec.forEach(function(s){var poz=s[0],n=s[1],top=s[2];for(var i=0;i<n;i++){var ovr=Math.max(66,top-i*2-(off%3)),arr=poz==="KL"?AD_KL:poz==="DEF"?AD_DEF:poz==="OS"?AD_OS:AD_FOR,ad=pick(arr,gi),t=tk[gi%tk.length];
+    var gol=poz==="FOR"?(ovr-64):poz==="OS"?(ovr-73):poz==="DEF"?Math.max(0,ovr-78):0,asist=poz==="OS"?(ovr-71):poz==="FOR"?Math.round((ovr-70)/2):poz==="DEF"?3:0,kurt=poz==="KL"?(ovr-30):0,mvp=Math.max(0,Math.round((ovr-76)/3)),mac=6+(gi%6),wp=poz==="FOR"?5:poz==="OS"?6:poz==="DEF"?8:12,perf=gol*wp+asist*4+kurt+mvp*6+Math.round(ovr/4);
+    out.push({id:id+"-"+gi,ad:ad,poz:poz,ovr:ovr,pac:ovr-4,sho:poz==="FOR"?ovr:ovr-8,pas:poz==="OS"?ovr:ovr-6,dri:ovr-3,def:(poz==="DEF"||poz==="KL")?ovr:ovr-20,phy:ovr-6,gol:gol,asist:asist,kurtaris:kurt,mac:mac,mvp:mvp,deger:(ovr-60)*40000+2e5,degerG:(ovr-60)*40000+2e5,no:(gi%11)+1,takimId:t.id,takimAd:t.ad,renk:t.renk,perf:perf});gi++;}});return out;}
+var HC={};function havuzFor(id){if(!HC[id])HC[id]=havuzLig(id);return HC[id];}
+function xiLig(){return STATE.lig||LIGLER[0].id;}
+function perfFor(r,p){var w=(hash(r.id+"|"+p)%100)/100;if(p==="sezon")return r.perf+w*4;if(p==="ay")return Math.round(r.perf*0.7)+w*22;return Math.round(r.perf*0.35)+w*42;}
+function kadroSec(kd){var p=STATE.period||"hafta",hv=havuzFor(xiLig()),diz=[["Kaleci",1],["Defans",4],["OrtaSaha",3],["Forvet",3]],out=[];
+  diz.forEach(function(l){var poz=l[0],ad=l[1],g=hv.filter(function(r){return posGrup(r.poz)===poz;}).sort(function(a,b){return perfFor(b,p)-perfFor(a,p)||b.ovr-a.ovr;}),bas=kd===1?ad:0;g.slice(bas,bas+ad).forEach(function(r){out.push(r);});});return out;}
+var PER={hafta:{b:"Haftanın İlk 11'i",d:"bu hafta"},ay:{b:"Ayın İlk 11'i",d:"bu ay"},sezon:{b:"Sezonun İlk 11'i",d:"bu sezon"}};
+/* sosyal */
+var ILETISIM={whatsapp:"+90 555 123 45 67",instagram:"forzalig",mail:"iletisim@forzalig.com",youtube:"",facebook:"",tiktok:""};
+var SOS=[{k:"whatsapp",ad:"WhatsApp",i:"wa",renk:"#25D366",url:function(v){return "https://wa.me/"+String(v).replace(/[^0-9]/g,"");},alt:function(v){return v;}},{k:"instagram",ad:"Instagram",i:"insta",renk:"#E1306C",grad:"linear-gradient(135deg,#F58529,#DD2A7B 45%,#8134AF 75%,#515BD4)",url:function(v){return "https://instagram.com/"+String(v).replace(/^@/,"");},alt:function(v){return "@"+String(v).replace(/^@/,"");}},{k:"youtube",ad:"YouTube",i:"yt",renk:"#FF0000",url:function(v){return v;},alt:function(){return "Kanal";}},{k:"facebook",ad:"Facebook",i:"fb",renk:"#1877F2",url:function(v){return v;},alt:function(){return "Sayfa";}},{k:"tiktok",ad:"TikTok",i:"tiktok",renk:"#25F4EE",grad:"linear-gradient(135deg,#25F4EE,#0b0b0b 45%,#0b0b0b 55%,#FE2C55)",url:function(v){return v;},alt:function(){return "Profil";}},{k:"mail",ad:"E-posta",i:"mail",renk:"#8ab4ff",url:function(v){return "mailto:"+v;},alt:function(v){return v;}}];
+function sosAktif(){return SOS.filter(function(s){return (ILETISIM[s.k]||"").trim();});}
+/* marquee */
+function perfNow(){return (window.performance&&performance.now)?performance.now():Date.now();}
+function marquee(el){if(el._mq){el._mq.rebuild();return;}var st={paused:false,resumeAt:0,half:0,vis:false,down:false,touch:false,sx:0,sl:0};
+  function rebuild(){el.querySelectorAll('[data-mqc]').forEach(function(c){c.remove();});if(el.scrollWidth<=el.clientWidth+4){st.half=0;return;}Array.prototype.slice.call(el.children).forEach(function(k){var c=k.cloneNode(true);c.setAttribute('data-mqc','1');c.setAttribute('aria-hidden','true');c.querySelectorAll('.fkm').forEach(function(f){f.style.opacity='0';});el.appendChild(c);});st.half=el.scrollWidth/2;}
+  rebuild();new IntersectionObserver(function(es){es.forEach(function(en){st.vis=en.isIntersecting;});},{threshold:0}).observe(el);
+  /* A3: hover DURDURMAZ — sadece gerçek etkileşim (drag/touch/swipe) durdurur, bırakınca ~2.6sn sonra devam */
+  el.addEventListener('pointerdown',function(e){st.down=true;st.touch=(e.pointerType==='touch');st.paused=true;st.sx=e.clientX;st.sl=el.scrollLeft;if(!st.touch)el.classList.add('grab');});
+  el.addEventListener('pointermove',function(e){if(st.down&&!st.touch)el.scrollLeft=st.sl-(e.clientX-st.sx);});
+  var up=function(){if(st.down){st.down=false;el.classList.remove('grab');st.resumeAt=perfNow()+2600;}};el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);el.addEventListener('touchend',function(){st.resumeAt=perfNow()+2600;});
+  (function tick(now){if(!RM&&st.vis&&st.half>0){if(st.paused&&st.resumeAt&&now>=st.resumeAt){st.paused=false;st.resumeAt=0;}if(!st.paused){el.scrollLeft+=0.3;if(el.scrollLeft>=st.half)el.scrollLeft-=st.half;}}requestAnimationFrame(tick);})(perfNow());el._mq={rebuild:rebuild};}
+function armFlows(){document.querySelectorAll('.mq').forEach(function(el){marquee(el);});}
+var animObs=new IntersectionObserver(function(es){es.forEach(function(en){en.target.classList.toggle("anim-paused",!en.isIntersecting);});},{threshold:0});
+function armAnim(){document.querySelectorAll("[data-anim]").forEach(function(el){animObs.observe(el);});}
+/* ================= /ENGINE ================= */
+
+/* ---------- ORBITAL render ---------- */
+/* Premium nötr fallback: takım-renk radial monogram (sahte yüz YOK). Gerçek foto varsa her zaman öncelikli. */
+function avatarHTML(o,cls,logoBoy){var r=o.renk||"#3a4653";
+  var bg=o.foto?("url("+o.foto+") center/cover"):("radial-gradient(120% 120% at 30% 12%,"+r+"cc,"+r+"40 58%,#0a0f16)");
+  var inner=o.foto?"":'<span style="font-family:var(--fd);font-weight:800;color:rgba(255,255,255,.94)">'+(o.ad||"?").charAt(0).toLocaleUpperCase("tr")+'</span>';
+  var tl=logoBoy?'<div class="tl">'+svgAmblem(o.takimAd||"F",r,logoBoy)+'</div>':'';
+  return '<div class="'+cls+'" style="background:'+bg+'">'+inner+tl+'</div>';}
+function lg(t,b){return svgAmblem(t.ad,t.renk||"#888",b);}
+/* Canlıda: bugünkü fikstürden gelir. Demo: sabit; 0 ise kick gizlenir. */
+var BUGUN_MAC=3;
+var heroSet=[],heroIdx=0,heroTimer=null;
+function heroShow(i,intro){var s=heroSet[i];if(!s)return;var box=document.getElementById("heroCard"),hc=document.getElementById("hcap");
+  box.innerHTML=fifaKart(s.o,MOB?168:196,{noHint:MOB,noIntro:!intro});box.querySelectorAll(".fifa").forEach(function(el){bindCard(el,intro);});
+  hc.innerHTML='<div class="k">'+s.k+'</div><div class="v">'+s.v+' · '+s.o.ad+'</div>';}
+function renderHero(){var D=dataFor(STATE.lig).oyuncular;
+  var r=D.slice().sort(function(a,b){return b.ovr-a.ovr;})[0],g=D.slice().filter(function(o){return o.gol>0;}).sort(function(a,b){return b.gol-a.gol;})[0],m=D.slice().filter(function(o){return o.mvp>0;}).sort(function(a,b){return b.mvp-a.mvp;})[0];
+  heroSet=[];if(r)heroSet.push({k:"EN YÜKSEK RATING",v:r.ovr+" OVR",o:r});if(g)heroSet.push({k:"GOL KRALI",v:g.gol+" GOL",o:g});if(m)heroSet.push({k:"EN ÇOK MVP",v:m.mvp+"× MVP",o:m});
+  heroIdx=0;heroShow(0,true);
+  if(heroTimer)clearInterval(heroTimer);
+  if(!RM&&heroSet.length>1)heroTimer=setInterval(function(){var box=document.getElementById("heroCard"),hc=document.getElementById("hcap");box.classList.add("fade");hc.classList.add("fade");setTimeout(function(){heroIdx=(heroIdx+1)%heroSet.length;heroShow(heroIdx,false);box.classList.remove("fade");hc.classList.remove("fade");},470);},7000);
+  var hk=document.getElementById("heroKick");if(BUGUN_MAC>0){hk.style.display="";document.getElementById("heroKickTx").textContent="BUGÜN SAHADA · "+BUGUN_MAC+" MAÇ";}else hk.style.display="none";}
+function renderTicker(){var D=dataFor(STATE.lig),O=D.oyuncular,TK=D.takimlar,kpi=D.kpi;
+  var g=O.slice().filter(function(o){return o.gol>0;}).sort(function(a,b){return b.gol-a.gol;})[0],a=O.slice().filter(function(o){return o.asist>0;}).sort(function(a,b){return b.asist-a.asist;})[0],tk=TK.slice().sort(function(a,b){return b.puan-a.puan;})[0];
+  var m=[];if(BUGUN_MAC>0)m.push("Bugün <b>"+BUGUN_MAC+" maç</b> sahada");if(g)m.push("<b>"+g.ad+"</b> "+g.gol+" golle lider");m.push("Haftanın <b>Altın 11</b>'i açıklandı");if(tk)m.push("<b>"+tk.ad+"</b> haftanın takımı");m.push("ForzaLig Ormanı <b>"+kpi.fidan+" fidana</b> ulaştı");m.push("ForzaLig <b>Radyo</b> yayında");if(a)m.push("<b>"+a.ad+"</b> "+a.asist+" asist");if(TK.length>3)m.push("Bu akşam 21:00 <b>"+TK[0].ad+"</b> — "+TK[3].ad);
+  var tc=document.querySelector(".ticker");if(!m.length){tc.style.display="none";return;}tc.style.display="";
+  document.getElementById("tkTrack").innerHTML=m.map(function(x){return '<span class="tk-item">'+x+'</span>';}).join('');}
+function renderTele(){var d=dataFor(STATE.lig).kpi;var items=[["LİG",d.lig,""],["TAKIM",d.takim,""],["OYUNCU",d.oyuncu,""],["MAÇ",d.mac,""],["GOL",d.gol,""],["FİDAN",d.fidan,"🌱"]];
+  document.getElementById("tele").innerHTML=items.map(function(it){return '<div class="c"><div class="n"><span data-cu="'+it[1]+'">'+(RM?it[1]:0)+'</span>'+(it[2]?'<small>'+it[2]+'</small>':'')+'</div><div class="k">'+it[0]+'</div></div>';}).join('');}
+var teleDone=false;
+function teleCount(){document.querySelectorAll("#tele [data-cu]").forEach(function(el){var h=+el.getAttribute("data-cu")||0;if(RM){el.textContent=h;return;}var c=0,st=Math.max(1,Math.ceil(h/26));var id=setInterval(function(){c+=st;if(c>=h){c=h;clearInterval(id);}el.textContent=c;},26);});}
+var teleObs=new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting&&!teleDone){teleDone=true;teleCount();}});},{threshold:.4});
+function renderLigSel(){var cur=STATE.lig?LIGLER.find(function(L){return L.id===STATE.lig;}):null;
+  document.getElementById("ligCur").textContent=cur?cur.ad:"Tüm Ligler";
+  document.getElementById("ligCd").style.background=cur?cur.renk:"linear-gradient(135deg,#FF7A1A,#37E0FF)";}
+function ligListBuild(q){q=(q||"").toLocaleLowerCase("tr").trim();
+  var items=[{id:null,ad:"Tüm Ligler",ss:LIGLER.length+" lig · birleşik",cd:"linear-gradient(135deg,#FF7A1A,#37E0FF)"}].concat(LIGLER.map(function(L){return {id:L.id,ad:L.ad,ss:L.kat+" · "+L.takimlar.length+" takım",cd:L.renk};}));
+  if(q)items=items.filter(function(x){return x.ad.toLocaleLowerCase("tr").indexOf(q)>=0;});
+  document.getElementById("ligList").innerHTML=items.length?items.map(function(x){return '<div class="ls-item'+((STATE.lig||null)===(x.id||null)?" on":"")+'" data-l="'+(x.id||"")+'"><span class="cd" style="background:'+x.cd+'"></span><div><div class="nm">'+x.ad+'</div><div class="ss">'+x.ss+'</div></div></div>';}).join(''):'<div style="padding:20px;text-align:center;color:var(--mut);font-size:13px">Sonuç yok.</div>';
+  document.querySelectorAll("#ligList .ls-item").forEach(function(it){it.addEventListener("click",function(){STATE.lig=it.getAttribute("data-l")||null;ligKapat();renderLigSel();refresh();});});}
+function renderMac(){var TK=dataFor(STATE.lig).takimlar,top=dataFor(STATE.lig).oyuncular[0];function t(i){return TK[i%TK.length];}
+  document.getElementById("mac").innerHTML=
+   '<div class="mcx"><span class="tg">BUGÜN · 21:00</span><div class="rw"><div class="tm"><div class="lg">'+lg(t(0),22)+'</div><div class="nm">'+t(0).ad+'</div></div><span class="vs">vs</span></div><div class="rw"><div class="tm"><div class="lg">'+lg(t(1),22)+'</div><div class="nm">'+t(1).ad+'</div></div></div><div class="ft"><span>'+t(0).ligAd+'</span><b>BUGÜN</b></div></div>'
+   +'<div class="mcx"><span class="tg">SON SONUÇ</span><div class="rw"><div class="tm"><div class="lg">'+lg(t(0),22)+'</div><div class="nm">'+t(0).ad+'</div></div><span class="sc">3</span></div><div class="rw"><div class="tm"><div class="lg">'+lg(t(4),22)+'</div><div class="nm">'+t(4).ad+'</div></div><span class="sc">1</span></div><div class="ft"><span>MVP</span><b>'+(top?top.ad:"—")+'</b></div></div>'
+   +'<div class="mcx"><span class="tg">YAKLAŞAN</span><div class="rw"><div class="tm"><div class="lg">'+lg(t(2),22)+'</div><div class="nm">'+t(2).ad+'</div></div><span class="vs">vs</span></div><div class="rw"><div class="tm"><div class="lg">'+lg(t(3),22)+'</div><div class="nm">'+t(3).ad+'</div></div></div><div class="ft"><span>'+t(2).ligAd+'</span><b>2 GÜN</b></div></div>';}
+function ecard(o,cat,mv,unit,col){return '<div class="ecard"><div class="bar" style="background:'+col+'"></div>'+avatarHTML(o,"av",20)+'<div class="ei"><div class="cat" style="color:'+col+'">'+cat+'</div><div class="nm">'+o.ad+'</div><div class="tm">'+o.takimAd+'</div></div><div class="mt"><div class="mv" style="color:'+col+'">'+mv+'</div><div class="un">'+unit+'</div></div></div>';}
+function tcard(t,cat,mv,unit,col){return '<div class="ecard"><div class="bar" style="background:'+col+'"></div><div class="av" style="background:radial-gradient(120% 120% at 30% 12%,'+(t.renk||col)+'cc,'+(t.renk||col)+'40 58%,#0a0f16)">'+lg(t,30)+'</div><div class="ei"><div class="cat" style="color:'+col+'">'+cat+'</div><div class="nm">'+t.ad+'</div><div class="tm">'+(t.ligAd||"")+'</div></div><div class="mt"><div class="mv" style="color:'+col+'">'+mv+'</div><div class="un">'+unit+'</div></div></div>';}
+function renderEnler(){var D=dataFor(STATE.lig),O=D.oyuncular,TK=D.takimlar;
+  var gol=topN(O,function(o){return o.gol>0;},function(o){return o.gol;},1)[0],as=topN(O,function(o){return o.asist>0;},function(o){return o.asist;},1)[0],kl=topN(O,function(o){return posAd(o.poz)==="Kaleci";},function(o){return o.kurtaris;},1)[0],mv=topN(O,function(o){return o.mvp>0;},function(o){return o.mvp;},1)[0],gt=topN(TK,function(){return true;},function(t){return t.ag;},1)[0];
+  var h='';if(gol)h+=ecard(gol,"GOL KRALI",gol.gol,"Gol",'#FF7A1A');if(as)h+=ecard(as,"ASİST KRALI",as.asist,"Asist",'#3DE08A');if(kl)h+=ecard(kl,"EN İYİ KALECİ",kl.kurtaris,"Kurtarış",'#37E0FF');if(mv)h+=ecard(mv,"EN ÇOK MVP",mv.mvp,"MVP",'#F2C24E');if(gt)h+=tcard(gt,"EN GOLCÜ TAKIM",gt.ag,"Gol",'#B98CFF');
+  document.getElementById("enler").innerHTML=h;document.getElementById("enlerD").textContent=STATE.lig?("// "+(LIGLER.find(function(L){return L.id===STATE.lig;}).ad)):"// tüm ligler";}
+function renderXI(){var g=kadroSec(0),s=kadroSec(1),w=MOB?150:130;
+  document.getElementById("gold").innerHTML=g.map(function(o){return fifaKart(o,w,{noIntro:true,noHint:true,tier:"gold",pl:posAd(o.poz).toUpperCase()});}).join('');
+  document.getElementById("silver").innerHTML=s.map(function(o){return fifaKart(o,w,{noIntro:true,noHint:true,tier:"silver",pl:posAd(o.poz).toUpperCase()});}).join('');
+  document.querySelectorAll("#gold .fifa,#silver .fifa").forEach(function(el){bindCard(el,false);});
+  var P=PER[STATE.period]||PER.hafta,la=(LIGLER.find(function(L){return L.id===xiLig();})||LIGLER[0]).ad;
+  document.getElementById("xiT").textContent=P.b;document.getElementById("xiD").textContent="// "+la.toLocaleLowerCase("tr")+" · "+P.d;
+  document.getElementById("goldN").textContent="// "+P.d;document.getElementById("silN").textContent="// ikinci kademe";armFlows();}
+function renderWk(){var D=dataFor(STATE.lig),oy=D.oyuncular.slice().sort(function(a,b){return (b.mvp*3+b.gol+b.asist)-(a.mvp*3+a.gol+a.asist);})[0],tk=D.takimlar.slice().sort(function(a,b){return b.puan-a.puan;})[0];
+  document.getElementById("wk").innerHTML='<div class="b"><span class="tag">HAFTANIN OYUNCUSU</span>'+avatarHTML(oy,"av").replace("av","av")+'<div style="min-width:0"><div class="nm">'+oy.ad+'</div><div class="mt">'+oy.takimAd+' · <b>'+oy.gol+' gol '+oy.asist+' asist</b></div></div></div><div class="b"><span class="tag">HAFTANIN TAKIMI</span><div class="av" style="background:'+tk.renk+'">'+lg(tk,50)+'</div><div style="min-width:0"><div class="nm">'+tk.ad+'</div><div class="mt"><b>'+tk.puan+' puan</b> · '+tk.ag+' gol</div></div></div>';}
+function renderVit(){var O=dataFor(STATE.lig).oyuncular.slice().sort(function(a,b){return b.ovr-a.ovr;}).slice(0,5),w=MOB?176:200;document.getElementById("vit").innerHTML=O.map(function(o){return fifaKart(o,w,{noIntro:true});}).join('');document.querySelectorAll("#vit .fifa").forEach(function(el){bindCard(el,false);});}
+function renderWho(){var d=[["pitch","Halı Saha Ligleri","Halı Saha","Mahalle takımını profesyonel bir lig deneyimine dönüştür.","#E4572E"],["star","Veteran & Master","Veteran & Master","35+ ve usta oyuncular için sezon, geçmiş ve rekabet.","#C9A227"],["building","Şirketler & Kurumlar","Şirketler & Kurumlar","Firmalar ve departmanlar arası kurumsal turnuvalar.","#2E86DE"],["trophy","Turnuvalar","Turnuvalar","Grup, eleme, final — kısa ve yoğun kupa formatı.","#9B59B6"]];
+  document.getElementById("who").innerHTML=d.map(function(x){
+    var ls=LIGLER.filter(function(L){return L.kat===x[2];}),tk=0;ls.forEach(function(L){tk+=L.takimlar.length;});
+    var micro=ls.length?('<div class="wm">'+ls.length+' lig · '+tk+' takım</div>'):'';
+    return '<div class="wc" style="--wc:'+x[4]+'"><div class="ic">'+svgI(x[0],"currentColor",19)+'</div><h3>'+x[1]+'</h3><p>'+x[3]+'</p>'+micro+'</div>';}).join('');}
+function renderJr(){var d=[["01","Oyuncu Ol","Profil + foto"],["02","Takımına Katıl","Kadroya gir"],["03","Maça Çık","Gol · asist · kurtarış"],["04","İstatistik","İşlenir + rating"],["05","FIFA Kartı","Gelişir"],["06","Ödül","MVP · Altın/Gümüş"],["07","Gazete/Özet","Otomatik"]];
+  document.getElementById("jr").innerHTML=d.map(function(x){return '<div class="js"><div class="ln"></div><div class="dot"></div><div class="st">'+x[0]+'</div><div class="t">'+x[1]+'</div><div class="d">'+x[2]+'</div></div>';}).join('');}
+function renderFeat(){var top=dataFor(null).oyuncular.slice().sort(function(a,b){return b.ovr-a.ovr;})[0],t0=LIGLER[0].takimlar[0],t1=LIGLER[0].takimlar[1];
+  var awc={MVP:"#F2C24E","Altın":"#F2C24E","Gümüş":"#C7D0DA","Kaleci":"#37E0FF","Forvet":"#FF7A1A","Centilmen":"#9ED0FF"};
+  var d=[
+   '<div class="fc"><div class="pv"><div class="mini-card"><div class="o">'+top.ovr+'</div><div class="p">'+posAd(top.poz).toUpperCase()+'</div><div class="n">'+top.ad+'</div><div class="st"><span>'+top.pac+'</span><span>'+top.sho+'</span><span>'+top.dri+'</span></div></div></div><div class="cap"><div class="t"><span class="ci" data-i="card"></span>FIFA Kartları</div><div class="d">OVR, değer, yıldız, rozet.</div></div></div>',
+   '<div class="fc"><div class="pv"><div class="gz"><div class="mh">FORZALİG GAZETE</div><div class="hl">'+top.ad+' derbiye damga vurdu</div></div></div><div class="cap"><div class="t"><span class="ci" data-i="news"></span>Maç Gazetesi</div><div class="d">Her maç manşete dönüşür.</div></div></div>',
+   '<div class="fc"><div class="pv"><div class="oz"><span class="tg">OTOMATİK</span><div class="sc"><div class="lgm">'+lg(t0,18)+'</div>3<span style="color:var(--mut);font-size:11px">—</span>2<div class="lgm">'+lg(t1,18)+'</div></div><div class="mvp">⭐ MVP: <b>'+top.ad+'</b></div></div></div><div class="cap"><div class="t"><span class="ci" data-i="doc"></span>Otomatik Özet</div><div class="d">Skor + MVP (AI değil).</div></div></div>',
+   '<div class="fc"><div class="pv"><div class="rd"><div class="pb" data-i="play"></div><div style="flex:1;min-width:0"><div class="live">● YAYINDA · 24 dinleyici</div><div class="wv" data-anim><i></i><i style="animation-delay:.15s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:.22s"></i></div></div></div></div><div class="cap"><div class="t"><span class="ci" data-i="radio"></span>ForzaLig Radyo</div><div class="d">Canlı yayın + müzik.</div></div></div>',
+   '<div class="fc"><div class="pv"><div class="hk"><div class="bd" data-i="whistle"></div><div><div style="font-size:10px;font-weight:700">Hakem · Uğur Şen</div><div class="stars">★★★★<span class="o">★</span></div></div><div class="rn">4.2</div></div></div><div class="cap"><div class="t"><span class="ci" data-i="whistle"></span>Hakem Sistemi</div><div class="d">Yıldızla puanlanır.</div></div></div>',
+   '<div class="fc"><div class="pv"><div class="is"><div class="bar"><div class="bl"><span>Şut</span><b>14–6</b></div><div class="tr"><div class="a" style="width:70%"></div><div class="b" style="width:30%"></div></div></div><div class="bar"><div class="bl"><span>İsabet</span><b>8–3</b></div><div class="tr"><div class="a" style="width:73%"></div><div class="b" style="width:27%"></div></div></div><div class="bar"><div class="bl"><span>Topla Oynama</span><b>%61–%39</b></div><div class="tr"><div class="a" style="width:61%"></div><div class="b" style="width:39%"></div></div></div></div></div><div class="cap"><div class="t"><span class="ci" data-i="chart"></span>Maç İstatistikleri</div><div class="d">Şut, isabet, oynama.</div></div></div>',
+   '<div class="fc"><div class="pv"><div class="aw">'+Object.keys(awc).map(function(n){return '<span class="b"><span class="d" style="background:'+awc[n]+'"></span>'+n+'</span>';}).join('')+'</div></div><div class="cap"><div class="t"><span class="ci" data-i="medal"></span>Maç Ödülleri</div><div class="d">MVP · Altın/Gümüş · mevki.</div></div></div>'
+  ];var f=document.getElementById("feat");f.innerHTML=d.join('');icons(f);}
+var ormDone=false;
+function ormRun(){var bar=document.getElementById("ormBar");if(bar)setTimeout(function(){bar.style.width=(bar.getAttribute("data-oran")||0)+"%";},120);
+  document.querySelectorAll("#orm [data-cu2]").forEach(function(el){var h=+el.getAttribute("data-cu2")||0;if(RM){el.textContent=h.toLocaleString("tr");return;}var c=0,s=Math.max(1,Math.ceil(h/26));var id=setInterval(function(){c+=s;if(c>=h){c=h;clearInterval(id);}el.textContent=c.toLocaleString("tr");},26);});
+  var t=document.getElementById("ormTree");if(t&&!RM){t.classList.remove("grow");void t.offsetWidth;t.classList.add("grow");}}
+var ormObs=new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting&&!ormDone){ormDone=true;ormRun();ormObs.unobserve(en.target);}});},{threshold:.4});
+function renderOrm(){var d=dataFor(STATE.lig).kpi,gol=d.gol,birim=20,fid=Math.floor(gol/birim),as=fid>=200?"🌳":fid>=50?"🌲":fid>=10?"🪴":"🌱",kalan=birim-(gol%birim),oran=Math.round(((gol%birim)/birim)*100);
+  document.getElementById("orm").innerHTML='<div class="tr" id="ormTree">'+as+'</div>'
+   +'<div class="cv"><div><div class="n" data-cu2="'+gol+'">0</div><small>TOPLAM GOL</small></div><div class="ar">→</div><div><div class="f" data-cu2="'+fid+'">0</div><small>FİDAN</small></div></div>'
+   +'<div class="prog"><div class="lb">SONRAKİ FİDAN</div><div class="val"><b style="color:var(--grn)">'+(gol%birim)+'</b> / '+birim+' gol</div><div class="track"><div id="ormBar" data-oran="'+oran+'"></div></div><div class="nx"><b>'+kalan+'</b> gol sonra yeni fidan 🌱 · her '+birim+' golde 1</div></div>';
+  ormDone=false;ormObs.observe(document.getElementById("orm"));}
+function renderRail(){var D=dataFor(STATE.lig),TK=D.takimlar,lig=STATE.lig?LIGLER.find(function(L){return L.id===STATE.lig;}):LIGLER[0];
+  document.getElementById("rail").innerHTML='<div class="rc"><div class="h"><span class="i">'+svgI("whistle","currentColor",16)+'</span> YAKLAŞAN</div><div class="rrow"><div class="tm"><div class="lg">'+lg(TK[2],20)+'</div><div class="nm">'+TK[2].ad+'</div></div></div><div class="rrow"><div class="tm"><div class="lg">'+lg(TK[3],20)+'</div><div class="nm">'+TK[3].ad+'</div></div></div><div class="rcd">2 gün 4 saat</div></div>'
+   +'<div class="rc"><div class="h"><span class="i">'+svgI("ball","currentColor",16)+'</span> SON MAÇ</div><div class="rrow"><div class="tm"><div class="lg">'+lg(TK[0],20)+'</div><div class="nm">'+TK[0].ad+'</div></div><span class="sc">3</span></div><div class="rrow"><div class="tm"><div class="lg">'+lg(TK[4],20)+'</div><div class="nm">'+TK[4].ad+'</div></div><span class="sc">1</span></div></div>'
+   +'<div class="rc"><div class="h"><span class="i">'+svgI("radio","currentColor",16)+'</span> RADYO</div><div class="rrad"><div class="pb">'+svgI("play","#160800",15)+'</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700">Devre Arası Sohbeti</div><div style="font-size:10px;color:var(--grn);font-family:var(--fm)">● YAYINDA · 24</div></div><div class="wv" data-anim><i></i><i style="animation-delay:.15s"></i><i style="animation-delay:.3s"></i></div></div></div>'
+   +'<div class="rc"><div class="h"><span class="i">'+svgI("trophy","currentColor",16)+'</span> BENİM LİGİM</div><div style="display:flex;align-items:center;gap:11px"><div class="lg" style="width:40px;height:40px;border-radius:10px;overflow:hidden">'+lg(lig.takimlar[0],40)+'</div><div><div style="font-family:var(--fd);font-weight:700;font-size:13.5px">'+lig.ad+'</div><div style="font-size:11px;color:var(--mut)">'+lig.takimlar.length+' takım</div></div></div></div>';}
+function renderSocial(){var akt=sosAktif(),wa=ILETISIM.whatsapp,wb=document.getElementById("waBtn");if(wa){wb.href="https://wa.me/"+String(wa).replace(/[^0-9]/g,"");wb.target="_blank";wb.style.display="";}else wb.style.display="none";
+  document.getElementById("socList").innerHTML=akt.map(function(s){var v=ILETISIM[s.k],bg=s.grad||(s.renk+"22"),c=s.grad?"#fff":s.renk;return '<a href="'+s.url(v)+'" target="_blank" rel="noopener"><span class="ci" style="background:'+bg+';color:'+c+'">'+svgI(s.i,"currentColor",17)+'</span><div><div class="t">'+s.ad+'</div><div class="s">'+s.alt(v)+'</div></div></a>';}).join('');
+  document.getElementById("navSoc").innerHTML=akt.map(function(s){var v=ILETISIM[s.k],bg=s.grad||(s.renk+"1e"),c=s.grad?"#fff":s.renk;return '<a href="'+s.url(v)+'" target="_blank" rel="noopener" title="'+s.ad+'" style="background:'+bg+';color:'+c+'">'+svgI(s.i,"currentColor",16)+'</a>';}).join('');}
+function refresh(){renderHero();renderTicker();renderTele();teleCount();renderMac();renderEnler();renderXI();renderWk();renderVit();renderOrm();renderRail();renderLigSel();armFlows();}
+function boot(){demoUygula();var h=(new Date()).getHours(),g=h<6?"İyi geceler":h<11?"Günaydın":h<18?"İyi günler":"İyi akşamlar";document.getElementById("greet").innerHTML=g+", <b>Fatih</b>";icons();
+  renderLigSel();renderHero();renderTicker();renderTele();renderMac();renderEnler();renderXI();renderWk();renderVit();renderWho();renderJr();renderFeat();renderOrm();renderRail();renderSocial();
+  teleObs.observe(document.getElementById("tele"));}
+/* A4 Saha Gündemi segment */
+document.querySelectorAll("#sgSeg button").forEach(function(b){b.addEventListener("click",function(){document.querySelectorAll("#sgSeg button").forEach(function(x){x.classList.remove("on");});b.classList.add("on");var t=b.getAttribute("data-t");document.getElementById("enler").style.display=t==="enler"?"":"none";document.getElementById("wk").style.display=t==="vitrin"?"":"none";document.getElementById("vit").style.display=t==="rating"?"":"none";armFlows();});});
+var revObs=new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting){en.target.classList.add("in");revObs.unobserve(en.target);}});},{threshold:.1});
+document.querySelectorAll(".reveal").forEach(function(el){revObs.observe(el);});
+document.querySelectorAll("#seg button").forEach(function(b){b.addEventListener("click",function(){document.querySelectorAll("#seg button").forEach(function(x){x.classList.remove("on");});b.classList.add("on");STATE.period=b.getAttribute("data-p");renderXI();});});
+document.querySelectorAll(".nav a,.bnav a").forEach(function(n){n.addEventListener("click",function(e){e.preventDefault();var s=n.parentElement.querySelectorAll("a");s.forEach(function(x){x.classList.remove("on");});n.classList.add("on");});});
+var sob=document.getElementById("sob"),sop=document.getElementById("sop");
+document.getElementById("socBtn").addEventListener("click",function(){sob.classList.add("on");sop.classList.add("on");});sob.addEventListener("click",function(){sob.classList.remove("on");sop.classList.remove("on");});
+var srch=document.getElementById("srch"),srIn=document.getElementById("srchIn"),srBd=document.getElementById("srchBd");
+function srRes(q){q=(q||"").toLocaleLowerCase("tr").trim();if(!q){srBd.innerHTML='<div class="hint">Oyuncu, takım veya lig ara.<br>örnek: Demir · Moda · Kadıköy</div>';return;}var r=[];dataFor(null).oyuncular.forEach(function(o){if(o.ad.toLocaleLowerCase("tr").indexOf(q)>=0)r.push({t:o.ad,s:o.takimAd+" · "+posAd(o.poz),c:o.renk,x:(o.ad||"?").charAt(0)});});TUMTAKIM.forEach(function(t){if(t.ad.toLocaleLowerCase("tr").indexOf(q)>=0)r.push({t:t.ad,s:"Takım",c:t.renk,lg:t});});LIGLER.forEach(function(L){if(L.ad.toLocaleLowerCase("tr").indexOf(q)>=0)r.push({t:L.ad,s:L.kat,c:L.renk,x:"⚽"});});if(!r.length){srBd.innerHTML='<div class="hint">"'+q+'" için sonuç yok.</div>';return;}srBd.innerHTML=r.slice(0,12).map(function(x){var a=x.lg?('<div class="av" style="background:'+x.c+'">'+svgAmblem(x.lg.ad,x.c,38)+'</div>'):('<div class="av" style="background:linear-gradient(150deg,'+x.c+'55,'+x.c+'22)">'+x.x+'</div>');return '<div class="sres">'+a+'<div><div class="nm">'+x.t+'</div><div class="ss">'+x.s+'</div></div></div>';}).join('');}
+document.getElementById("srchBtn").addEventListener("click",function(){srch.classList.add("on");srRes("");setTimeout(function(){try{srIn.focus();}catch(e){}},60);});
+document.getElementById("srchX").addEventListener("click",function(){srch.classList.remove("on");srIn.value="";});srIn.addEventListener("input",function(){srRes(this.value);});
+var ligBack=document.getElementById("ligBack"),ligSheet=document.getElementById("ligSheet"),ligIn=document.getElementById("ligIn");
+function ligKapat(){ligBack.classList.remove("on");ligSheet.classList.remove("on");ligIn.value="";}
+document.getElementById("ligBtn").addEventListener("click",function(){ligListBuild("");ligBack.classList.add("on");ligSheet.classList.add("on");setTimeout(function(){if(!MOB)try{ligIn.focus();}catch(e){}},60);});
+ligBack.addEventListener("click",ligKapat);document.getElementById("ligX").addEventListener("click",ligKapat);ligIn.addEventListener("input",function(){ligListBuild(this.value);});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"){sob.classList.remove("on");sop.classList.remove("on");srch.classList.remove("on");ligKapat();}});
+document.getElementById("mrClose").addEventListener("click",function(){document.body.classList.remove("radyo-on");});
+document.getElementById("realTg").addEventListener("click",function(){GERCEK_LIG=GERCEK_LIG>0?0:4;demoUygula();this.textContent=GERCEK_LIG>0?"◂ demo":"gerçek veri ▸";refresh();renderVit();armAnim();});
+if(window.visualViewport){var vv=window.visualViewport;var kb=function(){document.documentElement.style.setProperty("--kb",Math.round(Math.max(0,innerHeight-vv.height-vv.offsetTop))+"px");};vv.addEventListener("resize",kb);vv.addEventListener("scroll",kb);}
+boot();armFlows();armAnim();
+</script>
+
+<!-- ============ CANLI SUPABASE ENTEGRASYONU ============ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+/* Orbital anasayfası → forzalig canlı veritabanı (client-side, sadece herkese açık okuma).
+   Sayfa önce demo veriyle anında açılır; canlı veri gelince otomatik gerçek veriye geçer.
+   "gerçek veri ▸ / ◂ demo verisi" butonu ikisi arasında geçiş yapar. */
+(function(){
+  "use strict";
+  var SB_URL="https://crkestykdsnmfcmamxav.supabase.co";
+  var SB_KEY="sb_publishable_sjfSVp0CmfnB4g8GecB0eA_BCHZheFB";
+  var DEGER_CARP=1000; // oyuncular_acik.deger 'bin €' ölçeğinde → €
+  if(!window.supabase||!window.supabase.createClient){console.warn("[Orbital] supabase-js yüklenemedi — demo verisiyle devam.");return;}
+  var sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false}});
+
+  var DEMO_LIGLER=window.LIGLER;              // orijinal demo veri (fallback + toggle)
+  var REAL_LIGLER=null,REAL_HAVUZ={},useReal=false;
+  var origHavuzFor=window.havuzFor;
+
+  function calcPerf(o){var poz=window.posGrup(o.poz),wp=poz==="Forvet"?5:poz==="OrtaSaha"?6:poz==="Defans"?8:12;return o.gol*wp+o.asist*4+o.kurtaris+o.mvp*6+Math.round((o.ovr||0)/4);}
+
+  function rebuildIndex(){
+    window.TUMTAKIM=[];window.TAKIM={};
+    window.LIGLER.forEach(function(L){L.takimlar.forEach(function(t){window.TUMTAKIM.push(t);window.TAKIM[t.id]={ad:t.ad,renk:t.renk,ligAd:L.ad,ligId:L.id};});});
+    if(window.HC)for(var k in window.HC){delete window.HC[k];}
+  }
+  function applyDataset(real){
+    useReal=!!(real&&REAL_LIGLER&&REAL_LIGLER.length);
+    window.LIGLER=useReal?REAL_LIGLER:DEMO_LIGLER;
+    rebuildIndex();
+    window.GERCEK_LIG=useReal?window.LIGLER.length:0;
+    window.STATE.lig=null;
+    window.demoUygula&&window.demoUygula();
+    window.renderLigSel&&window.renderLigSel();
+    window.refresh&&window.refresh();
+    window.renderWho&&window.renderWho();
+    window.renderFeat&&window.renderFeat();
+    window.armAnim&&window.armAnim();
+    var tg=document.getElementById("realTg");if(tg)tg.textContent=useReal?"◂ demo verisi":"gerçek veri ▸";
+  }
+
+  /* İlk 11 havuzu: gerçek modda gerçek oyunculardan üret, demo modda orijinal sentetik */
+  window.havuzFor=function(id){
+    if(useReal){if(REAL_HAVUZ[id])return REAL_HAVUZ[id];var k=Object.keys(REAL_HAVUZ)[0];if(k)return REAL_HAVUZ[k];}
+    return origHavuzFor(id);
+  };
+
+  function build(d){
+    var ligR=d[0],takR=d[1],otR=d[2],oyR=d[3],olayR=d[4],odulR=d[5],macR=d[6];
+    if(!ligR||!ligR.length)throw new Error("aktif lig yok");
+    var oy={};(oyR||[]).forEach(function(p){oy[p.player_id]=p;});
+    var stat={};function st(id){return stat[id]||(stat[id]={gol:0,asist:0,kurtaris:0,mvp:0,mac:{}});}
+    (olayR||[]).forEach(function(e){var s=st(e.player_id),a=e.adet||1;if(e.tip==="gol")s.gol+=a;else if(e.tip==="asist")s.asist+=a;else if(e.tip==="kurtaris")s.kurtaris+=a;if(e.mac_id)s.mac[e.mac_id]=1;});
+    (odulR||[]).forEach(function(o){if(o.odul_tip==="mvp")st(o.player_id).mvp++;});
+    var ts={};function tt(id){return ts[id]||(ts[id]={o:0,ag:0,puan:0});}
+    (macR||[]).forEach(function(m){if(!m.oynandi)return;var h=tt(m.ev_takim_id),a=tt(m.dep_takim_id),es=m.ev_skor||0,ds=m.dep_skor||0;h.o++;a.o++;h.ag+=es;a.ag+=ds;if(es>ds)h.puan+=3;else if(es<ds)a.puan+=3;else{h.puan++;a.puan++;}});
+    var kad={};(otR||[]).forEach(function(r){kad[r.takim_id]=(kad[r.takim_id]||0)+1;});
+    var bugun=0,dn=new Date();(macR||[]).forEach(function(m){if(m.oynandi||!m.tarih)return;var x=new Date(m.tarih);if(x.getFullYear()===dn.getFullYear()&&x.getMonth()===dn.getMonth()&&x.getDate()===dn.getDate())bugun++;});
+    window.BUGUN_MAC=bugun;
+    REAL_HAVUZ={};
+    return ligR.map(function(L){
+      var tks=(takR||[]).filter(function(t){return t.lig_id===L.id;}).map(function(t){var s=ts[t.id]||{o:0,ag:0,puan:0};return {id:t.id,ad:t.ad||"Takım",renk:t.renk||"#888",o:s.o,ag:s.ag,puan:s.puan,kadro:kad[t.id]||0};});
+      var takSet={};tks.forEach(function(t){takSet[t.id]=t;});
+      var oys=(otR||[]).filter(function(r){return r.lig_id===L.id&&takSet[r.takim_id];}).map(function(r){
+        var p=oy[r.player_id];if(!p)return null;var s=stat[r.player_id]||{gol:0,asist:0,kurtaris:0,mvp:0,mac:{}},nit=p.nitelik||{};
+        return {id:r.player_id,ad:p.gorunen_ad||"Oyuncu",no:(p.forma_no!=null?p.forma_no:null),poz:p.poz||"",ovr:p.ovr||60,
+          pac:nit.pac||0,sho:nit.sho||0,pas:nit.pas||0,dri:nit.dri||0,def:nit.def||0,phy:nit.phy||0,
+          gol:s.gol,asist:s.asist,kurtaris:s.kurtaris,mvp:s.mvp,mac:Object.keys(s.mac).length,
+          deger:(p.deger||0)*DEGER_CARP,takimId:r.takim_id,foto:p.foto||null,renk:p.renk||(takSet[r.takim_id]||{}).renk||null};
+      }).filter(Boolean);
+      REAL_HAVUZ[L.id]=oys.map(function(o){var t=takSet[o.takimId]||{};return Object.assign({},o,{takimAd:t.ad,renk:o.renk||t.renk,degerG:o.deger,perf:calcPerf(o)});});
+      return {id:L.id,ad:L.ad||"Lig",kat:L.sehir||"Lig",renk:L.renk||"#37E0FF",takimlar:tks,oyuncular:oys};
+    });
+  }
+
+  function q(t,sel,mod){var b=sb.from(t).select(sel);if(mod)b=mod(b);return b.then(function(r){if(r.error)throw r.error;return r.data||[];});}
+
+  Promise.all([
+    q("ligler","id,ad,sehir,renk,format",function(b){return b.eq("durum","aktif");}),
+    q("takimlar","id,ad,renk,lig_id",null),
+    q("oyuncu_takim","player_id,takim_id,lig_id",function(b){return b.eq("aktif",true);}),
+    q("oyuncular_acik","player_id,gorunen_ad,forma_no,poz,ovr,nitelik,deger,foto,renk",null),
+    q("mac_olaylari","player_id,tip,adet,mac_id",null),
+    q("mac_odulleri","player_id,odul_tip",null),
+    q("maclar","lig_id,ev_takim_id,dep_takim_id,ev_skor,dep_skor,oynandi,tarih",null)
+  ]).then(function(data){
+    REAL_LIGLER=build(data);
+    if(!REAL_LIGLER.length){console.warn("[Orbital] gerçek lig bulunamadı — demo kalıyor.");return;}
+    applyDataset(true);
+    console.log("[Orbital] canlı veri yüklendi:",REAL_LIGLER.length,"lig,",window.TUMTAKIM.length,"takım");
+  }).catch(function(err){
+    console.warn("[Orbital] canlı veri yüklenemedi, demo ile devam:",(err&&err.message)||err);
+  });
+
+  /* gerçek/demo geçiş butonunu yeniden bağla (eski demo-only dinleyiciyi temizle) */
+  var tg0=document.getElementById("realTg");
+  if(tg0){var ntg=tg0.cloneNode(true);tg0.parentNode.replaceChild(ntg,tg0);ntg.addEventListener("click",function(){applyDataset(!useReal);});}
+})();
+</script>
+</body>
+</html>
