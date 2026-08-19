@@ -441,7 +441,7 @@ body.real .demotag,body.real .rib{display:none}
 
     <!-- KARŞILAMA -->
     <section class="reveal" id="karsilamaSec"><div style="border:1px solid var(--line);border-radius:16px;padding:13px 15px;background:linear-gradient(120deg,rgba(55,224,255,.09),var(--pnl));display:flex;align-items:center;gap:12px">
-      <div style="font-size:24px;flex-shrink:0">\ud83d\udc4b</div>
+      <div style="font-size:24px;flex-shrink:0">👋</div>
       <div style="min-width:0;flex:1"><div id="karsilamaBas" style="font-family:var(--fd);font-weight:800;font-size:16px">Hoş geldin</div><div id="karsilamaAlt" style="font-size:11px;color:var(--soft);font-family:var(--fm);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div></div>
       <button class="btn p" style="flex-shrink:0;padding:9px 14px;font-size:12px" onclick="var e=document.getElementById('enler');e&&e.scrollIntoView({behavior:'smooth',block:'start'})">Gündeme in</button>
     </div></section>
@@ -843,7 +843,7 @@ boot();armFlows();armAnim();
   function renderSonMac(){var el=document.getElementById("sonmac"),sec=document.getElementById("sonmacSec");if(!el)return;var list=useReal?REAL_SONMAC:demoSonMac();if(!list.length){if(sec)sec.style.display="none";return;}if(sec)sec.style.display="";
     el.innerHTML=list.map(function(m){var big=(m.sA+m.sB)>=5;return '<div class="ecard" style="min-width:232px"><div class="bar" style="background:'+(big?"var(--acc)":"var(--acc2)")+'"></div><div class="ei"><div class="cat" style="color:var(--acc2)">'+(big?"\ud83d\udd25 ":"")+(m.lig||"MAÇ")+'</div><div class="nm" style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:'+m.aRenk+';flex-shrink:0"></span>'+m.aAd+'</div><div class="tm" style="display:flex;align-items:center;gap:6px;margin-top:3px"><span style="width:8px;height:8px;border-radius:50%;background:'+m.bRenk+';flex-shrink:0"></span>'+m.bAd+'</div></div><div class="mt"><div class="mv">'+m.sA+"-"+m.sB+'</div><div class="un">'+(m.mvp?"\u2b50":"skor")+'</div></div></div>';}).join("");
     if(window.armFlows)window.armFlows();}
-  function renderKarsilama(){var b=document.getElementById("karsilamaBas"),a=document.getElementById("karsilamaAlt");if(!b)return;var h=new Date().getHours();var g=h<6?"İyi geceler":h<11?"Günaydın":h<18?"İyi günler":"İyi akşamlar";b.textContent=g+" \ud83d\udc4b";try{var d=window.dataFor(window.STATE.lig).kpi;var tar=new Date().toLocaleDateString("tr-TR",{day:"numeric",month:"long",weekday:"long"});if(a)a.textContent=tar+" · "+d.lig+" lig · "+d.takim+" takım · "+(window.BUGUN_MAC||0)+" maç bugün";}catch(e){}}
+  function renderKarsilama(){var b=document.getElementById("karsilamaBas"),a=document.getElementById("karsilamaAlt");if(!b)return;var h=new Date().getHours();var g=h<6?"İyi geceler":h<11?"Günaydın":h<18?"İyi günler":"İyi akşamlar";var _ad="";try{_ad=new URLSearchParams(location.search).get("ad")||"";}catch(e){}b.textContent=g+(_ad?(", "+_ad):"")+" 👋";try{var d=window.dataFor(window.STATE.lig).kpi;var tar=new Date().toLocaleDateString("tr-TR",{day:"numeric",month:"long",weekday:"long"});if(a)a.textContent=tar+" · "+d.lig+" lig · "+d.takim+" takım · "+(window.BUGUN_MAC||0)+" maç bugün";}catch(e){}}
 
   /* İlk 11 havuzu: gerçek modda gerçek oyunculardan üret, demo modda orijinal sentetik */
   window.havuzFor=function(id){
