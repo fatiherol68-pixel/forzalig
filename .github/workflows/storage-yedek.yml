@@ -1,0 +1,67 @@
+name: storage-yedek
+
+# ForzaLig Storage yedeği (ÜCRETSIZ).
+# Herkese açık 'fotolar' bucket'ındaki tüm dosyaları GitHub runner'ında
+# (internet erişimli) indirir, 90 gün saklanan bir artifact olarak yükler.
+# Sandbox'tan indirilemeyen dosya byte'larını böyle yedekleriz.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '30 6 1 * *'   # her ayın 1'i 06:30 UTC
+
+jobs:
+  yedek:
+    runs-on: ubuntu-latest
+    env:
+      SB: https://crkestykdsnmfcmamxav.supabase.co
+      # publishable key gizli değildir (sitede zaten gömülü, herkese açık okuma)
+      KEY: sb_publishable_sjfSVp0CmfnB4g8GecB0eA_BCHZheFB
+    steps:
+      - name: Bucket dosyalarını indir
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request
+          SB=os.environ['SB']; KEY=os.environ['KEY']
+          H={"apikey":KEY,"Authorization":f"Bearer {KEY}","Content-Type":"application/json"}
+          def ls(prefix):
+              req=urllib.request.Request(f"{SB}/storage/v1/object/list/fotolar",
+                  data=json.dumps({"prefix":prefix,"limit":1000,"sortBy":{"column":"name","order":"asc"}}).encode(), headers=H)
+              return json.load(urllib.request.urlopen(req))
+          def walk(prefix=""):
+              out=[]
+              for it in ls(prefix):
+                  nm=it.get("name")
+                  if nm is None: continue
+                  # klasörlerin id/metadata'sı yoktur
+                  if it.get("id") is None and it.get("metadata") is None:
+                      out+=walk(prefix+nm+"/")
+                  else:
+                      out.append(prefix+nm)
+              return out
+          files=walk("")
+          print("Bulunan dosya sayısı:", len(files))
+          os.makedirs("fotolar_yedek", exist_ok=True)
+          toplam=0
+          for f in files:
+              dest=os.path.join("fotolar_yedek", f)
+              os.makedirs(os.path.dirname(dest), exist_ok=True)
+              urllib.request.urlretrieve(f"{SB}/storage/v1/object/public/fotolar/{f}", dest)
+              toplam+=os.path.getsize(dest)
+          open("MANIFEST.txt","w").write("\n".join(files)+"\n")
+          print(f"İndirilen: {len(files)} dosya, {toplam} bayt")
+          # basit doğrulama: en az 1 dosya inmiş olmalı
+          import sys
+          if len(files)==0:
+              print("UYARI: hiç dosya bulunamadı"); sys.exit(1)
+          PY
+          echo "İndirilen dosya:"; find fotolar_yedek -type f | wc -l
+
+      - name: Yedeği artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: forzalig-storage-yedek
+          path: |
+            fotolar_yedek/**
+            MANIFEST.txt
+          retention-days: 90

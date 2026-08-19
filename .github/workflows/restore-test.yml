@@ -1,0 +1,85 @@
+name: restore-test
+
+# ForzaLig geri-yükleme testi (ÜCRETSIZ).
+# Boş bir Postgres 17'ye Supabase-taklit shim + canlı şemayı uygular,
+# sonra tablo/fonksiyon/policy/index sayar → PASS/FAIL.
+# "Yedeğim var" değil, "yedeğim GERÇEKTEN kurulabiliyor" kanıtı.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 6 * * 1'   # her Pazartesi 06:00 UTC
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: psql istemcisini kur
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Shim + canlı şemayı uygula
+        run: |
+          set +e
+          psql -v ON_ERROR_STOP=0 \
+            -c "SET check_function_bodies = off;" \
+            -f supabase/restore/supabase-shim.sql \
+            -f supabase/restore/_canli_schema_2026-08-19.sql \
+            2> apply-errors.log
+          echo "----- uygulama sırasında hata satırı sayısı -----"
+          grep -c "ERROR:" apply-errors.log || echo 0
+
+      - name: Doğrula (PASS/FAIL)
+        run: |
+          set -e
+          COUNTS=$(psql -Atq -F'|' -c "select \
+            (select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'), \
+            (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'), \
+            (select count(*) from pg_policies where schemaname='public'), \
+            (select count(*) from pg_indexes where schemaname='public');")
+          TBL=$(echo "$COUNTS" | cut -d'|' -f1)
+          FN=$(echo "$COUNTS"  | cut -d'|' -f2)
+          POL=$(echo "$COUNTS" | cut -d'|' -f3)
+          IDX=$(echo "$COUNTS" | cut -d'|' -f4)
+          echo "## Geri-yükleme sonucu" >> $GITHUB_STEP_SUMMARY
+          echo "| Nesne | Kurulan | Beklenen (min) |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Tablo | $TBL | 50 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Fonksiyon | $FN | 85 |" >> $GITHUB_STEP_SUMMARY
+          echo "| RLS Policy | $POL | 120 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Index | $IDX | 40 |" >> $GITHUB_STEP_SUMMARY
+          echo "Tablo=$TBL Fonksiyon=$FN Policy=$POL Index=$IDX"
+          if [ "$TBL" -ge 50 ] && [ "$FN" -ge 85 ] && [ "$POL" -ge 120 ] && [ "$IDX" -ge 40 ]; then
+            echo "### ✅ RESTORE TESTİ: PASS" >> $GITHUB_STEP_SUMMARY
+            echo "RESTORE TESTİ: PASS"
+          else
+            echo "### ❌ RESTORE TESTİ: FAIL" >> $GITHUB_STEP_SUMMARY
+            echo "RESTORE TESTİ: FAIL"; exit 1
+          fi
+
+      - name: Hata loglarını sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restore-loglari
+          path: apply-errors.log
+          retention-days: 30
