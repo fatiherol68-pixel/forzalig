@@ -439,6 +439,13 @@ body.real .demotag,body.real .rib{display:none}
       <div class="tact"><a class="tbtn wa" id="waBtn"><span data-i="wa"></span></a><button class="tbtn" id="socBtn"><span data-i="share"></span></button><button class="tbtn" id="srchBtn"><span data-i="search"></span></button></div>
     </div>
 
+    <!-- KARŞILAMA -->
+    <section class="reveal" id="karsilamaSec"><div style="border:1px solid var(--line);border-radius:16px;padding:13px 15px;background:linear-gradient(120deg,rgba(55,224,255,.09),var(--pnl));display:flex;align-items:center;gap:12px">
+      <div style="font-size:24px;flex-shrink:0">\ud83d\udc4b</div>
+      <div style="min-width:0;flex:1"><div id="karsilamaBas" style="font-family:var(--fd);font-weight:800;font-size:16px">Hoş geldin</div><div id="karsilamaAlt" style="font-size:11px;color:var(--soft);font-family:var(--fm);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div></div>
+      <button class="btn p" style="flex-shrink:0;padding:9px 14px;font-size:12px" onclick="var e=document.getElementById('enler');e&&e.scrollIntoView({behavior:'smooth',block:'start'})">Gündeme in</button>
+    </div></section>
+
     <!-- HERO -->
     <section class="hero reveal">
       <div class="hero-g">
@@ -455,6 +462,9 @@ body.real .demotag,body.real .rib{display:none}
 
     <!-- A1 — CANLI AKIŞ -->
     <section class="reveal" style="margin-top:-10px"><div class="ticker"><span class="tk-live"><span class="d"></span>CANLI</span><div class="tk-track mq" id="tkTrack"></div></div></section>
+
+    <!-- CANLI SON MAÇLAR -->
+    <section class="reveal" id="sonmacSec"><div class="sx"><span class="ix">•</span><h2>Canlı · Son Maçlar</h2><span class="d">// tüm liglerden</span></div><div class="flow mq" id="sonmac"></div></section>
 
     <!-- KPI telemetry -->
     <section class="reveal"><div class="tele"><div class="lbl">FORZALİG // TELEMETRİ</div><div class="tele-row mq" id="tele"></div></div></section>
@@ -797,11 +807,12 @@ boot();armFlows();armAnim();
   var SB_URL="https://crkestykdsnmfcmamxav.supabase.co";
   var SB_KEY="sb_publishable_sjfSVp0CmfnB4g8GecB0eA_BCHZheFB";
   var DEGER_CARP=1000; // oyuncular_acik.deger 'bin €' ölçeğinde → €
+  try{ renderKarsilama(); renderSonMac(); }catch(e){}   // demo/erken render (supabase yüklenmese de)
   if(!window.supabase||!window.supabase.createClient){console.warn("[Orbital] supabase-js yüklenemedi — demo verisiyle devam.");return;}
   var sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false}});
 
   var DEMO_LIGLER=window.LIGLER;              // orijinal demo veri (fallback + toggle)
-  var REAL_LIGLER=null,REAL_HAVUZ={},useReal=false;
+  var REAL_LIGLER=null,REAL_HAVUZ={},REAL_SONMAC=[],useReal=false;
   var origHavuzFor=window.havuzFor;
 
   function calcPerf(o){var poz=window.posGrup(o.poz),wp=poz==="Forvet"?5:poz==="OrtaSaha"?6:poz==="Defans"?8:12;return o.gol*wp+o.asist*4+o.kurtaris+o.mvp*6+Math.round((o.ovr||0)/4);}
@@ -823,8 +834,16 @@ boot();armFlows();armAnim();
     window.renderWho&&window.renderWho();
     window.renderFeat&&window.renderFeat();
     window.armAnim&&window.armAnim();
+    renderKarsilama();renderSonMac();
     var tg=document.getElementById("realTg");if(tg)tg.textContent=useReal?"◂ demo verisi":"gerçek veri ▸";
   }
+
+
+  function demoSonMac(){var L=window.LIGLER&&window.LIGLER[0];if(!L||!L.takimlar)return[];var t=L.takimlar,out=[];for(var i=0;i+1<t.length&&out.length<6;i+=2){out.push({aAd:t[i].ad,aRenk:t[i].renk,bAd:t[i+1].ad,bRenk:t[i+1].renk,sA:(t[i].ag||0)%5,sB:(t[i+1].ag||0)%4,lig:L.ad,mvp:null});}return out;}
+  function renderSonMac(){var el=document.getElementById("sonmac"),sec=document.getElementById("sonmacSec");if(!el)return;var list=useReal?REAL_SONMAC:demoSonMac();if(!list.length){if(sec)sec.style.display="none";return;}if(sec)sec.style.display="";
+    el.innerHTML=list.map(function(m){var big=(m.sA+m.sB)>=5;return '<div class="ecard" style="min-width:232px"><div class="bar" style="background:'+(big?"var(--acc)":"var(--acc2)")+'"></div><div class="ei"><div class="cat" style="color:var(--acc2)">'+(big?"\ud83d\udd25 ":"")+(m.lig||"MAÇ")+'</div><div class="nm" style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:'+m.aRenk+';flex-shrink:0"></span>'+m.aAd+'</div><div class="tm" style="display:flex;align-items:center;gap:6px;margin-top:3px"><span style="width:8px;height:8px;border-radius:50%;background:'+m.bRenk+';flex-shrink:0"></span>'+m.bAd+'</div></div><div class="mt"><div class="mv">'+m.sA+"-"+m.sB+'</div><div class="un">'+(m.mvp?"\u2b50":"skor")+'</div></div></div>';}).join("");
+    if(window.armFlows)window.armFlows();}
+  function renderKarsilama(){var b=document.getElementById("karsilamaBas"),a=document.getElementById("karsilamaAlt");if(!b)return;var h=new Date().getHours();var g=h<6?"İyi geceler":h<11?"Günaydın":h<18?"İyi günler":"İyi akşamlar";b.textContent=g+" \ud83d\udc4b";try{var d=window.dataFor(window.STATE.lig).kpi;var tar=new Date().toLocaleDateString("tr-TR",{day:"numeric",month:"long",weekday:"long"});if(a)a.textContent=tar+" · "+d.lig+" lig · "+d.takim+" takım · "+(window.BUGUN_MAC||0)+" maç bugün";}catch(e){}}
 
   /* İlk 11 havuzu: gerçek modda gerçek oyunculardan üret, demo modda orijinal sentetik */
   window.havuzFor=function(id){
@@ -844,6 +863,11 @@ boot();armFlows();armAnim();
     var kad={};(otR||[]).forEach(function(r){kad[r.takim_id]=(kad[r.takim_id]||0)+1;});
     var bugun=0,dn=new Date();(macR||[]).forEach(function(m){if(m.oynandi||!m.tarih)return;var x=new Date(m.tarih);if(x.getFullYear()===dn.getFullYear()&&x.getMonth()===dn.getMonth()&&x.getDate()===dn.getDate())bugun++;});
     window.BUGUN_MAC=bugun;
+    var takAd={};(takR||[]).forEach(function(t){takAd[t.id]={ad:t.ad,renk:t.renk||"#888"};});
+    var ligNm={};ligR.forEach(function(L){ligNm[L.id]=L.ad;});
+    REAL_SONMAC=(macR||[]).filter(function(m){return m.oynandi&&(m.ev_skor!=null||m.dep_skor!=null);})
+      .sort(function(a,b){return new Date(b.tarih||0)-new Date(a.tarih||0);}).slice(0,10)
+      .map(function(m){var A=takAd[m.ev_takim_id]||{},B=takAd[m.dep_takim_id]||{};return {aAd:A.ad||"?",aRenk:A.renk||"#888",bAd:B.ad||"?",bRenk:B.renk||"#888",sA:m.ev_skor||0,sB:m.dep_skor||0,lig:ligNm[m.lig_id]||"",mvp:m.mvp||null};});
     REAL_HAVUZ={};
     return ligR.map(function(L){
       var tks=(takR||[]).filter(function(t){return t.lig_id===L.id;}).map(function(t){var s=ts[t.id]||{o:0,ag:0,puan:0};return {id:t.id,ad:t.ad||"Takım",renk:t.renk||"#888",o:s.o,ag:s.ag,puan:s.puan,kadro:kad[t.id]||0};});
@@ -878,6 +902,8 @@ boot();armFlows();armAnim();
   }).catch(function(err){
     console.warn("[Orbital] canlı veri yüklenemedi, demo ile devam:",(err&&err.message)||err);
   });
+
+  try{ renderKarsilama(); renderSonMac(); }catch(e){}
 
   /* gerçek/demo geçiş butonunu yeniden bağla (eski demo-only dinleyiciyi temizle) */
   var tg0=document.getElementById("realTg");
