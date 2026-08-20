@@ -1,0 +1,86 @@
+<!doctype html><html lang="tr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sistem Sağlığı | ForzaLig</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0d763d"><link rel="icon" href="/favicon.ico">
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0a110d;color:#eaf3ee;line-height:1.6;-webkit-font-smoothing:antialiased}
+.w{max-width:760px;margin:0 auto;padding:0 20px}
+header{padding:20px 0;border-bottom:1px solid rgba(255,255,255,.08)}.logo{font-size:20px;font-weight:900;color:#22e07a;text-decoration:none;letter-spacing:-.5px}
+h1{font-size:clamp(22px,5vw,30px);font-weight:900;letter-spacing:-.6px;margin:28px 0 4px}
+.upd{color:#8ea298;font-size:13px;margin-bottom:20px}
+.kart{background:#111d16;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 16px;margin:12px 0;display:flex;align-items:center;gap:12px;justify-content:space-between}
+.sol{display:flex;align-items:center;gap:12px;min-width:0}
+.ad{font-weight:700;font-size:15px}.alt{color:#8ea298;font-size:12.5px;margin-top:2px}
+.rozet{font-weight:800;font-size:13px;padding:4px 11px;border-radius:999px;white-space:nowrap}
+.ok{background:#0d3a22;color:#4ade80;border:1px solid #1c6b41}
+.bad{background:#3a1414;color:#f87171;border:1px solid #6b1c1c}
+.wait{background:#2a2410;color:#facc15;border:1px solid #6b5a1c}
+.nokta{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+h2{font-size:15px;color:#8ea298;margin:26px 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+a.dis{color:#22e07a;text-decoration:none;font-size:14px}
+footer{padding:26px 0 46px;text-align:center;color:#5a6b78;font-size:13px;border-top:1px solid rgba(255,255,255,.07);margin-top:28px}
+.not{color:#6b7d72;font-size:12.5px;margin-top:10px}</style></head><body>
+<header><div class="w"><a href="/" class="logo">⚽ ForzaLig</a></div></header>
+<div class="w">
+<h1>Sistem Sağlığı</h1>
+<div class="upd" id="zaman">Yükleniyor…</div>
+
+<h2>Canlı</h2>
+<div class="kart"><div class="sol"><span class="nokta" id="db-nokta" style="background:#facc15"></span><div><div class="ad">Veritabanı (Supabase)</div><div class="alt" id="db-alt">kontrol ediliyor…</div></div></div><span class="rozet wait" id="db-rozet">…</span></div>
+<div class="kart"><div class="sol"><span class="nokta" id="site-nokta" style="background:#4ade80"></span><div><div class="ad">Web sitesi</div><div class="alt">Bu sayfa açıldıysa site ayakta</div></div></div><span class="rozet ok">ÇALIŞIYOR</span></div>
+
+<h2>Yedek & Test (otomatik)</h2>
+<div class="kart"><div class="sol"><span class="nokta" id="restore-nokta" style="background:#facc15"></span><div><div class="ad">Geri-yükleme testi</div><div class="alt" id="restore-alt">yedek gerçekten kurulabiliyor mu</div></div></div><span class="rozet wait" id="restore-rozet">…</span></div>
+<div class="kart"><div class="sol"><span class="nokta" id="storage-nokta" style="background:#facc15"></span><div><div class="ad">Depo/Foto yedeği</div><div class="alt" id="storage-alt">fotoğraf dosyaları yedekleniyor mu</div></div></div><span class="rozet wait" id="storage-rozet">…</span></div>
+<div class="kart"><div class="sol"><span class="nokta" id="smoke-nokta" style="background:#facc15"></span><div><div class="ad">Canlı duman testi</div><div class="alt" id="smoke-alt">anasayfa hatasız açılıyor mu</div></div></div><span class="rozet wait" id="smoke-rozet">…</span></div>
+
+<h2>Kısayollar</h2>
+<div class="kart"><div class="sol"><div><div class="ad">Supabase paneli</div><div class="alt">kota / kullanım / kayıtlar</div></div></div><a class="dis" href="https://supabase.com/dashboard/project/crkestykdsnmfcmamxav" target="_blank" rel="noopener">Aç →</a></div>
+<div class="kart"><div class="sol"><div><div class="ad">GitHub Actions</div><div class="alt">yedek/test çalıştırmaları</div></div></div><a class="dis" href="https://github.com/fatiherol68-pixel/forzalig/actions" target="_blank" rel="noopener">Aç →</a></div>
+
+<div class="not">Bu sayfa yalnız durum gösterir; hassas veri içermez. GitHub durumu saatlik sınırlı sorguyla okunur.</div>
+</div>
+<footer><div class="w">© ForzaLig · <a href="/" style="color:#8ea298">forzalig.com</a></div></footer>
+
+<script>
+(function(){
+  var SB="https://crkestykdsnmfcmamxav.supabase.co";
+  var KEY="sb_publishable_sjfSVp0CmfnB4g8GecB0eA_BCHZheFB";
+  var GH="https://api.github.com/repos/fatiherol68-pixel/forzalig/actions/workflows/";
+  document.getElementById("zaman").textContent="Kontrol zamanı: "+new Date().toLocaleString("tr-TR");
+
+  function rozet(id,durum,metin){
+    var r=document.getElementById(id+"-rozet"), n=document.getElementById(id+"-nokta");
+    r.className="rozet "+(durum==="ok"?"ok":durum==="bad"?"bad":"wait");
+    r.textContent=metin;
+    n.style.background=(durum==="ok"?"#4ade80":durum==="bad"?"#f87171":"#facc15");
+  }
+
+  // DB canlı mı
+  fetch(SB+"/rest/v1/ligler?select=id&limit=1",{headers:{apikey:KEY,Authorization:"Bearer "+KEY}})
+    .then(function(r){ if(r.ok){ rozet("db","ok","ÇEVRİMİÇİ"); document.getElementById("db-alt").textContent="bağlantı sağlıklı"; }
+      else { rozet("db","bad","HATA "+r.status); document.getElementById("db-alt").textContent="beklenmedik yanıt"; } })
+    .catch(function(){ rozet("db","bad","ERİŞİLEMEDİ"); document.getElementById("db-alt").textContent="bağlantı kurulamadı"; });
+
+  // GitHub Actions son çalıştırma durumu
+  function wf(dosya,id){
+    fetch(GH+dosya+"/runs?per_page=1",{headers:{Accept:"application/vnd.github+json"}})
+      .then(function(r){ return r.ok?r.json():Promise.reject(r.status); })
+      .then(function(j){
+        var run=(j.workflow_runs||[])[0];
+        if(!run){ rozet(id,"wait","KAYIT YOK"); return; }
+        var c=run.conclusion, s=run.status;
+        var t=run.updated_at?new Date(run.updated_at).toLocaleDateString("tr-TR"):"";
+        document.getElementById(id+"-alt").textContent="son: "+t;
+        if(s!=="completed") rozet(id,"wait","ÇALIŞIYOR");
+        else if(c==="success") rozet(id,"ok","BAŞARILI");
+        else rozet(id,"bad",(c||"BAŞARISIZ").toUpperCase());
+      })
+      .catch(function(){ rozet(id,"wait","OKUNAMADI"); });
+  }
+  wf("restore-test.yml","restore");
+  wf("storage-yedek.yml","storage");
+  wf("smoke-test.yml","smoke");
+})();
+</script>
+</body></html>

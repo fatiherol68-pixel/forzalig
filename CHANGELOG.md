@@ -10,6 +10,27 @@ Denetim planı fazları. Her faz: güvenli, geri alınabilir, ücretsiz.
 - Geri dönüş: 20260820_faz6_veri_butunlugu_rollback.sql
 - Puan: 87 → 88.
 
+## Faz 9 — Admin Sağlık Paneli + Gizlilik (2026-08-20)
+- /saglik/: ayrı, güvenli durum sayfası (DB canlı mı + restore-test/
+  storage-yedek/smoke-test son sonucu GitHub API'den + kısayollar).
+  Uygulama yeniden derlenmedi (risk yok).
+- /gizlilik/: saklama/silme bölümü gerçeğe göre güncellendi (silinen içerik
+  ~90 gün geri alınabilir, sonra kalıcı) + tarih.
+- Silme grace-period: ligler zaten yumuşak-sil + geri-al + 90 gün eşiği
+  (istenen 30 günden güvenli) → değiştirilmedi.
+- Puan: 88 → 90.
+
+## Faz 8 — Auth sertleştirme (kullanıcı aksiyonu)
+- Sızmış-parola koruması: Supabase Dashboard → Authentication → Passwords
+  → "Leaked password protection" AÇ (ücretsiz, tek tık, yalnız hesap sahibi
+  yapabilir).
+
+## Faz 7 — PWA Bildirim Düzeltmesi (2026-08-20)
+- sw.js notificationclick: bildirime tıklayınca PWA güvenilir öne gelir +
+  hedef iletilir; pencere yoksa kökten açılır (404 riski yok). SURUM bump.
+  Turnstile: kullanıcı seçmedi (atlandı).
+- Puan: 87 → 88.
+
 ## Faz 4 — Felaketten Kurtarma Kanıtı (kısmi, 2026-08-20)
 - `docs/FELAKET-KURTARMA.md`: dürüst DR durumu — şema+depo+kod KANITLI
   kurulabilir; veri öz-yedeği kullanıcı kararıyla şimdilik kapalı, ücretsiz
