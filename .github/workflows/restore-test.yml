@@ -9,6 +9,13 @@ on:
   workflow_dispatch: {}
   schedule:
     - cron: '0 6 * * 1'   # her Pazartesi 06:00 UTC
+  push:
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/restore-test.yml'
+  pull_request:
+    paths:
+      - 'supabase/**'
 
 jobs:
   restore:
@@ -47,6 +54,16 @@ jobs:
             2> apply-errors.log
           echo "----- uygulama sırasında hata satırı sayısı -----"
           grep -c "ERROR:" apply-errors.log || echo 0
+
+      - name: Migration'ları baseline üstüne uygula (ileri, rollback hariç)
+        run: |
+          set -e
+          shopt -s nullglob
+          for f in $(ls supabase/migrations/*.sql 2>/dev/null | grep -v '_rollback\.sql$' | sort); do
+            echo "→ migration uygulanıyor: $f"
+            psql -v ON_ERROR_STOP=1 -c "SET check_function_bodies = off;" -f "$f"
+          done
+          echo "Tüm ileri migration'lar temiz uygulandı."
 
       - name: Doğrula (PASS/FAIL)
         run: |
