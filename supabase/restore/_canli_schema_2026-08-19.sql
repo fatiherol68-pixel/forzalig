@@ -633,147 +633,147 @@ CREATE TABLE public.yetkiler (
 );
 
 -- ========== CONSTRAINTS (PK/FK/UNIQUE/CHECK) ==========
-ALTER TABLE adminler ADD CONSTRAINT adminler_ekleyen_fkey FOREIGN KEY (ekleyen) REFERENCES auth.users(id);
 ALTER TABLE adminler ADD CONSTRAINT adminler_pkey PRIMARY KEY (user_id);
-ALTER TABLE adminler ADD CONSTRAINT adminler_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE anket_hedef ADD CONSTRAINT anket_hedef_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
 ALTER TABLE anket_hedef ADD CONSTRAINT anket_hedef_pkey PRIMARY KEY (id);
-ALTER TABLE anket_katilim ADD CONSTRAINT anket_katilim_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
 ALTER TABLE anket_katilim ADD CONSTRAINT anket_katilim_pkey PRIMARY KEY (anket_id, user_id);
-ALTER TABLE anket_oy ADD CONSTRAINT anket_oy_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
 ALTER TABLE anket_oy ADD CONSTRAINT anket_oy_pkey PRIMARY KEY (id);
-ALTER TABLE anket_oy ADD CONSTRAINT anket_oy_secenek_id_fkey FOREIGN KEY (secenek_id) REFERENCES anket_secenek(id) ON DELETE CASCADE;
-ALTER TABLE anket_oy_sayac ADD CONSTRAINT anket_oy_sayac_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
 ALTER TABLE anket_oy_sayac ADD CONSTRAINT anket_oy_sayac_pkey PRIMARY KEY (anket_id, secenek_id);
-ALTER TABLE anket_oy_sayac ADD CONSTRAINT anket_oy_sayac_secenek_id_fkey FOREIGN KEY (secenek_id) REFERENCES anket_secenek(id) ON DELETE CASCADE;
-ALTER TABLE anket_secenek ADD CONSTRAINT anket_secenek_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
 ALTER TABLE anket_secenek ADD CONSTRAINT anket_secenek_pkey PRIMARY KEY (id);
-ALTER TABLE anket_yorum ADD CONSTRAINT anket_yorum_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
 ALTER TABLE anket_yorum ADD CONSTRAINT anket_yorum_pkey PRIMARY KEY (id);
 ALTER TABLE anketler ADD CONSTRAINT anketler_pkey PRIMARY KEY (id);
-ALTER TABLE bildirim_kuyruk ADD CONSTRAINT bildirim_kuyruk_hedef_lig_fkey FOREIGN KEY (hedef_lig) REFERENCES ligler(id) ON DELETE CASCADE;
-ALTER TABLE bildirim_kuyruk ADD CONSTRAINT bildirim_kuyruk_hedef_user_fkey FOREIGN KEY (hedef_user) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE bildirim_kuyruk ADD CONSTRAINT bildirim_kuyruk_pkey PRIMARY KEY (id);
 ALTER TABLE bildirimler ADD CONSTRAINT bildirimler_pkey PRIMARY KEY (id);
-ALTER TABLE bildirimler ADD CONSTRAINT bildirimler_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE davetler ADD CONSTRAINT davetler_kulup_id_fkey FOREIGN KEY (kulup_id) REFERENCES kulupler(id) ON DELETE CASCADE;
-ALTER TABLE davetler ADD CONSTRAINT davetler_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
-ALTER TABLE davetler ADD CONSTRAINT davetler_olusturan_fkey FOREIGN KEY (olusturan) REFERENCES auth.users(id);
 ALTER TABLE davetler ADD CONSTRAINT davetler_pkey PRIMARY KEY (token);
-ALTER TABLE davetler ADD CONSTRAINT davetler_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id) ON DELETE CASCADE;
 ALTER TABLE deger_gecmisi ADD CONSTRAINT deger_gecmisi_pkey PRIMARY KEY (id);
-ALTER TABLE deger_gecmisi ADD CONSTRAINT deger_gecmisi_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id) ON DELETE CASCADE;
 ALTER TABLE destek_talep ADD CONSTRAINT destek_talep_pkey PRIMARY KEY (id);
-ALTER TABLE destek_talep ADD CONSTRAINT destek_talep_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 ALTER TABLE hata_log ADD CONSTRAINT hata_log_pkey PRIMARY KEY (id);
-ALTER TABLE ilan_yanitlari ADD CONSTRAINT ilan_yanitlari_ilan_id_fkey FOREIGN KEY (ilan_id) REFERENCES pazar_ilanlari(id) ON DELETE CASCADE;
 ALTER TABLE ilan_yanitlari ADD CONSTRAINT ilan_yanitlari_ilan_id_user_id_key UNIQUE (ilan_id, user_id);
 ALTER TABLE ilan_yanitlari ADD CONSTRAINT ilan_yanitlari_pkey PRIMARY KEY (id);
-ALTER TABLE ilan_yanitlari ADD CONSTRAINT ilan_yanitlari_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE ilk11 ADD CONSTRAINT ilk11_mac_id_fkey FOREIGN KEY (mac_id) REFERENCES maclar(id) ON DELETE CASCADE;
 ALTER TABLE ilk11 ADD CONSTRAINT ilk11_pkey PRIMARY KEY (id);
-ALTER TABLE ilk11 ADD CONSTRAINT ilk11_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id);
-ALTER TABLE ilk11 ADD CONSTRAINT ilk11_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id);
 ALTER TABLE islem_log ADD CONSTRAINT islem_log_pkey PRIMARY KEY (id);
-ALTER TABLE islem_log ADD CONSTRAINT islem_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id);
-ALTER TABLE katilim ADD CONSTRAINT katilim_mac_id_fkey FOREIGN KEY (mac_id) REFERENCES maclar(id) ON DELETE CASCADE;
 ALTER TABLE katilim ADD CONSTRAINT katilim_pkey PRIMARY KEY (mac_id, player_id);
-ALTER TABLE katilim ADD CONSTRAINT katilim_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id) ON DELETE CASCADE;
 ALTER TABLE kullanici_veri ADD CONSTRAINT kullanici_veri_pkey PRIMARY KEY (user_id);
-ALTER TABLE kullanici_veri ADD CONSTRAINT kullanici_veri_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE kulup_oyuncu ADD CONSTRAINT kulup_oyuncu_kulup_id_fkey FOREIGN KEY (kulup_id) REFERENCES kulupler(id) ON DELETE CASCADE;
 ALTER TABLE kulup_oyuncu ADD CONSTRAINT kulup_oyuncu_pkey PRIMARY KEY (kulup_id, player_id);
-ALTER TABLE kulup_oyuncu ADD CONSTRAINT kulup_oyuncu_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id) ON DELETE CASCADE;
 ALTER TABLE kulupler ADD CONSTRAINT kulupler_pkey PRIMARY KEY (id);
-ALTER TABLE kulupler ADD CONSTRAINT kulupler_sahip_user_id_fkey FOREIGN KEY (sahip_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 ALTER TABLE lig_basvurulari ADD CONSTRAINT lig_basvurulari_pkey PRIMARY KEY (id);
-ALTER TABLE lig_basvurulari ADD CONSTRAINT lig_basvurulari_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 ALTER TABLE lig_haklari ADD CONSTRAINT lig_haklari_pkey PRIMARY KEY (user_id);
-ALTER TABLE lig_haklari ADD CONSTRAINT lig_haklari_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE lig_yardimci ADD CONSTRAINT lig_yardimci_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
 ALTER TABLE lig_yardimci ADD CONSTRAINT lig_yardimci_pkey PRIMARY KEY (lig_id, user_id);
 ALTER TABLE ligler ADD CONSTRAINT ligler_pkey PRIMARY KEY (id);
-ALTER TABLE ligler ADD CONSTRAINT ligler_yonetici_id_fkey FOREIGN KEY (yonetici_id) REFERENCES auth.users(id);
-ALTER TABLE mac_odulleri ADD CONSTRAINT mac_odulleri_mac_id_fkey FOREIGN KEY (mac_id) REFERENCES maclar(id) ON DELETE CASCADE;
 ALTER TABLE mac_odulleri ADD CONSTRAINT mac_odulleri_pkey PRIMARY KEY (id);
-ALTER TABLE mac_odulleri ADD CONSTRAINT mac_odulleri_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id);
-ALTER TABLE mac_olaylari ADD CONSTRAINT mac_olaylari_mac_id_fkey FOREIGN KEY (mac_id) REFERENCES maclar(id) ON DELETE CASCADE;
 ALTER TABLE mac_olaylari ADD CONSTRAINT mac_olaylari_pkey PRIMARY KEY (id);
-ALTER TABLE mac_olaylari ADD CONSTRAINT mac_olaylari_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id);
-ALTER TABLE mac_olaylari ADD CONSTRAINT mac_olaylari_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id);
-ALTER TABLE mac_oylari ADD CONSTRAINT mac_oylari_oyveren_id_fkey FOREIGN KEY (oyveren_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE mac_oylari ADD CONSTRAINT mac_oylari_pkey PRIMARY KEY (lig_slug, mac_id, oyveren_id);
-ALTER TABLE mac_sonuc_log ADD CONSTRAINT mac_sonuc_log_degistiren_fkey FOREIGN KEY (degistiren) REFERENCES auth.users(id);
-ALTER TABLE mac_sonuc_log ADD CONSTRAINT mac_sonuc_log_mac_id_fkey FOREIGN KEY (mac_id) REFERENCES maclar(id) ON DELETE CASCADE;
 ALTER TABLE mac_sonuc_log ADD CONSTRAINT mac_sonuc_log_pkey PRIMARY KEY (id);
 ALTER TABLE maclar ADD CONSTRAINT chk_mac_skor CHECK ((((ev_skor IS NULL) OR (ev_skor >= 0)) AND ((dep_skor IS NULL) OR (dep_skor >= 0)))) NOT VALID;
-ALTER TABLE maclar ADD CONSTRAINT maclar_dep_takim_id_fkey FOREIGN KEY (dep_takim_id) REFERENCES takimlar(id);
-ALTER TABLE maclar ADD CONSTRAINT maclar_ev_takim_id_fkey FOREIGN KEY (ev_takim_id) REFERENCES takimlar(id);
-ALTER TABLE maclar ADD CONSTRAINT maclar_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
-ALTER TABLE maclar ADD CONSTRAINT maclar_mvp_player_fkey FOREIGN KEY (mvp_player) REFERENCES oyuncular(player_id);
 ALTER TABLE maclar ADD CONSTRAINT maclar_pkey PRIMARY KEY (id);
 ALTER TABLE olay_log ADD CONSTRAINT olay_log_pkey PRIMARY KEY (id);
 ALTER TABLE oyuncu_kart_foto ADD CONSTRAINT oyuncu_kart_foto_pkey PRIMARY KEY (id);
-ALTER TABLE oyuncu_kart_foto ADD CONSTRAINT oyuncu_kart_foto_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id) ON DELETE CASCADE;
-ALTER TABLE oyuncu_takim ADD CONSTRAINT oyuncu_takim_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
 ALTER TABLE oyuncu_takim ADD CONSTRAINT oyuncu_takim_pkey PRIMARY KEY (id);
-ALTER TABLE oyuncu_takim ADD CONSTRAINT oyuncu_takim_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id) ON DELETE CASCADE;
-ALTER TABLE oyuncu_takim ADD CONSTRAINT oyuncu_takim_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id) ON DELETE CASCADE;
 ALTER TABLE oyuncular ADD CONSTRAINT chk_oyuncu_boy CHECK (((boy IS NULL) OR ((boy >= 100) AND (boy <= 250)))) NOT VALID;
 ALTER TABLE oyuncular ADD CONSTRAINT chk_oyuncu_kilo CHECK (((kilo IS NULL) OR ((kilo >= 30) AND (kilo <= 200)))) NOT VALID;
 ALTER TABLE oyuncular ADD CONSTRAINT oyuncular_pkey PRIMARY KEY (player_id);
-ALTER TABLE oyuncular ADD CONSTRAINT oyuncular_sahip_user_id_fkey FOREIGN KEY (sahip_user_id) REFERENCES auth.users(id);
 ALTER TABLE paylasilan_ligler ADD CONSTRAINT paylasilan_ligler_pkey PRIMARY KEY (slug);
-ALTER TABLE paylasilan_ligler ADD CONSTRAINT paylasilan_ligler_sahip_id_fkey FOREIGN KEY (sahip_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE pazar_ilanlari ADD CONSTRAINT pazar_ilanlari_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE SET NULL;
 ALTER TABLE pazar_ilanlari ADD CONSTRAINT pazar_ilanlari_pkey PRIMARY KEY (id);
-ALTER TABLE pazar_ilanlari ADD CONSTRAINT pazar_ilanlari_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id) ON DELETE SET NULL;
-ALTER TABLE pazar_ilanlari ADD CONSTRAINT pazar_ilanlari_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE profiller ADD CONSTRAINT chk_profil_boy CHECK (((boy IS NULL) OR ((boy >= 100) AND (boy <= 250)))) NOT VALID;
 ALTER TABLE profiller ADD CONSTRAINT chk_profil_kilo CHECK (((kilo IS NULL) OR ((kilo >= 30) AND (kilo <= 200)))) NOT VALID;
 ALTER TABLE profiller ADD CONSTRAINT profiller_pkey PRIMARY KEY (user_id);
-ALTER TABLE profiller ADD CONSTRAINT profiller_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE push_abonelikleri ADD CONSTRAINT push_abonelikleri_endpoint_key UNIQUE (endpoint);
 ALTER TABLE push_abonelikleri ADD CONSTRAINT push_abonelikleri_pkey PRIMARY KEY (id);
-ALTER TABLE push_abonelikleri ADD CONSTRAINT push_abonelikleri_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE sahiplenmeler ADD CONSTRAINT sahiplenmeler_pkey PRIMARY KEY (user_id);
-ALTER TABLE sahiplenmeler ADD CONSTRAINT sahiplenmeler_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE sistem_ayar ADD CONSTRAINT sistem_ayar_pkey PRIMARY KEY (anahtar);
 ALTER TABLE site_ayar ADD CONSTRAINT site_ayar_pkey PRIMARY KEY (id);
 ALTER TABLE site_ayar ADD CONSTRAINT site_ayar_tek_satir CHECK ((id = 1));
 ALTER TABLE sohbet_ayar ADD CONSTRAINT sohbet_ayar_pkey PRIMARY KEY (kapsam, kapsam_id);
 ALTER TABLE sohbet_cezalari ADD CONSTRAINT sohbet_cezalari_pkey PRIMARY KEY (id);
 ALTER TABLE sohbet_ihlal ADD CONSTRAINT sohbet_ihlal_pkey PRIMARY KEY (id);
+ALTER TABLE sohbet_mesajlari ADD CONSTRAINT sohbet_mesajlari_pkey PRIMARY KEY (id);
+ALTER TABLE sohbet_okuma ADD CONSTRAINT sohbet_okuma_pkey PRIMARY KEY (user_id, lig_id, kanal);
+ALTER TABLE sohbet_sikayet ADD CONSTRAINT sohbet_sikayet_pkey PRIMARY KEY (id);
+ALTER TABLE sohbet_tepkileri ADD CONSTRAINT sohbet_tepkileri_mesaj_id_user_id_emoji_key UNIQUE (mesaj_id, user_id, emoji);
+ALTER TABLE sohbet_tepkileri ADD CONSTRAINT sohbet_tepkileri_pkey PRIMARY KEY (id);
+ALTER TABLE takimlar ADD CONSTRAINT takimlar_pkey PRIMARY KEY (id);
+ALTER TABLE takipler ADD CONSTRAINT takipler_pkey PRIMARY KEY (user_id, tip, hedef_id);
+ALTER TABLE transferler ADD CONSTRAINT transferler_pkey PRIMARY KEY (id);
+ALTER TABLE yasaklilar ADD CONSTRAINT yasaklilar_pkey PRIMARY KEY (user_id);
+ALTER TABLE yetkiler ADD CONSTRAINT yetkiler_pkey PRIMARY KEY (email);
+ALTER TABLE adminler ADD CONSTRAINT adminler_ekleyen_fkey FOREIGN KEY (ekleyen) REFERENCES auth.users(id);
+ALTER TABLE adminler ADD CONSTRAINT adminler_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE anket_hedef ADD CONSTRAINT anket_hedef_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
+ALTER TABLE anket_katilim ADD CONSTRAINT anket_katilim_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
+ALTER TABLE anket_oy ADD CONSTRAINT anket_oy_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
+ALTER TABLE anket_oy ADD CONSTRAINT anket_oy_secenek_id_fkey FOREIGN KEY (secenek_id) REFERENCES anket_secenek(id) ON DELETE CASCADE;
+ALTER TABLE anket_oy_sayac ADD CONSTRAINT anket_oy_sayac_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
+ALTER TABLE anket_oy_sayac ADD CONSTRAINT anket_oy_sayac_secenek_id_fkey FOREIGN KEY (secenek_id) REFERENCES anket_secenek(id) ON DELETE CASCADE;
+ALTER TABLE anket_secenek ADD CONSTRAINT anket_secenek_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
+ALTER TABLE anket_yorum ADD CONSTRAINT anket_yorum_anket_id_fkey FOREIGN KEY (anket_id) REFERENCES anketler(id) ON DELETE CASCADE;
+ALTER TABLE bildirim_kuyruk ADD CONSTRAINT bildirim_kuyruk_hedef_lig_fkey FOREIGN KEY (hedef_lig) REFERENCES ligler(id) ON DELETE CASCADE;
+ALTER TABLE bildirim_kuyruk ADD CONSTRAINT bildirim_kuyruk_hedef_user_fkey FOREIGN KEY (hedef_user) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE bildirimler ADD CONSTRAINT bildirimler_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE davetler ADD CONSTRAINT davetler_kulup_id_fkey FOREIGN KEY (kulup_id) REFERENCES kulupler(id) ON DELETE CASCADE;
+ALTER TABLE davetler ADD CONSTRAINT davetler_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
+ALTER TABLE davetler ADD CONSTRAINT davetler_olusturan_fkey FOREIGN KEY (olusturan) REFERENCES auth.users(id);
+ALTER TABLE davetler ADD CONSTRAINT davetler_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id) ON DELETE CASCADE;
+ALTER TABLE deger_gecmisi ADD CONSTRAINT deger_gecmisi_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id) ON DELETE CASCADE;
+ALTER TABLE destek_talep ADD CONSTRAINT destek_talep_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE ilan_yanitlari ADD CONSTRAINT ilan_yanitlari_ilan_id_fkey FOREIGN KEY (ilan_id) REFERENCES pazar_ilanlari(id) ON DELETE CASCADE;
+ALTER TABLE ilan_yanitlari ADD CONSTRAINT ilan_yanitlari_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE ilk11 ADD CONSTRAINT ilk11_mac_id_fkey FOREIGN KEY (mac_id) REFERENCES maclar(id) ON DELETE CASCADE;
+ALTER TABLE ilk11 ADD CONSTRAINT ilk11_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id);
+ALTER TABLE ilk11 ADD CONSTRAINT ilk11_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id);
+ALTER TABLE islem_log ADD CONSTRAINT islem_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id);
+ALTER TABLE katilim ADD CONSTRAINT katilim_mac_id_fkey FOREIGN KEY (mac_id) REFERENCES maclar(id) ON DELETE CASCADE;
+ALTER TABLE katilim ADD CONSTRAINT katilim_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id) ON DELETE CASCADE;
+ALTER TABLE kullanici_veri ADD CONSTRAINT kullanici_veri_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE kulup_oyuncu ADD CONSTRAINT kulup_oyuncu_kulup_id_fkey FOREIGN KEY (kulup_id) REFERENCES kulupler(id) ON DELETE CASCADE;
+ALTER TABLE kulup_oyuncu ADD CONSTRAINT kulup_oyuncu_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id) ON DELETE CASCADE;
+ALTER TABLE kulupler ADD CONSTRAINT kulupler_sahip_user_id_fkey FOREIGN KEY (sahip_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE lig_basvurulari ADD CONSTRAINT lig_basvurulari_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE lig_haklari ADD CONSTRAINT lig_haklari_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE lig_yardimci ADD CONSTRAINT lig_yardimci_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
+ALTER TABLE ligler ADD CONSTRAINT ligler_yonetici_id_fkey FOREIGN KEY (yonetici_id) REFERENCES auth.users(id);
+ALTER TABLE mac_odulleri ADD CONSTRAINT mac_odulleri_mac_id_fkey FOREIGN KEY (mac_id) REFERENCES maclar(id) ON DELETE CASCADE;
+ALTER TABLE mac_odulleri ADD CONSTRAINT mac_odulleri_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id);
+ALTER TABLE mac_olaylari ADD CONSTRAINT mac_olaylari_mac_id_fkey FOREIGN KEY (mac_id) REFERENCES maclar(id) ON DELETE CASCADE;
+ALTER TABLE mac_olaylari ADD CONSTRAINT mac_olaylari_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id);
+ALTER TABLE mac_olaylari ADD CONSTRAINT mac_olaylari_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id);
+ALTER TABLE mac_oylari ADD CONSTRAINT mac_oylari_oyveren_id_fkey FOREIGN KEY (oyveren_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE mac_sonuc_log ADD CONSTRAINT mac_sonuc_log_degistiren_fkey FOREIGN KEY (degistiren) REFERENCES auth.users(id);
+ALTER TABLE mac_sonuc_log ADD CONSTRAINT mac_sonuc_log_mac_id_fkey FOREIGN KEY (mac_id) REFERENCES maclar(id) ON DELETE CASCADE;
+ALTER TABLE maclar ADD CONSTRAINT maclar_dep_takim_id_fkey FOREIGN KEY (dep_takim_id) REFERENCES takimlar(id);
+ALTER TABLE maclar ADD CONSTRAINT maclar_ev_takim_id_fkey FOREIGN KEY (ev_takim_id) REFERENCES takimlar(id);
+ALTER TABLE maclar ADD CONSTRAINT maclar_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
+ALTER TABLE maclar ADD CONSTRAINT maclar_mvp_player_fkey FOREIGN KEY (mvp_player) REFERENCES oyuncular(player_id);
+ALTER TABLE oyuncu_kart_foto ADD CONSTRAINT oyuncu_kart_foto_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id) ON DELETE CASCADE;
+ALTER TABLE oyuncu_takim ADD CONSTRAINT oyuncu_takim_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
+ALTER TABLE oyuncu_takim ADD CONSTRAINT oyuncu_takim_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id) ON DELETE CASCADE;
+ALTER TABLE oyuncu_takim ADD CONSTRAINT oyuncu_takim_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id) ON DELETE CASCADE;
+ALTER TABLE oyuncular ADD CONSTRAINT oyuncular_sahip_user_id_fkey FOREIGN KEY (sahip_user_id) REFERENCES auth.users(id);
+ALTER TABLE paylasilan_ligler ADD CONSTRAINT paylasilan_ligler_sahip_id_fkey FOREIGN KEY (sahip_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE pazar_ilanlari ADD CONSTRAINT pazar_ilanlari_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE SET NULL;
+ALTER TABLE pazar_ilanlari ADD CONSTRAINT pazar_ilanlari_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id) ON DELETE SET NULL;
+ALTER TABLE pazar_ilanlari ADD CONSTRAINT pazar_ilanlari_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE profiller ADD CONSTRAINT profiller_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE push_abonelikleri ADD CONSTRAINT push_abonelikleri_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE sahiplenmeler ADD CONSTRAINT sahiplenmeler_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE sohbet_mesajlari ADD CONSTRAINT sohbet_mesajlari_kulup_id_fkey FOREIGN KEY (kulup_id) REFERENCES kulupler(id) ON DELETE CASCADE;
 ALTER TABLE sohbet_mesajlari ADD CONSTRAINT sohbet_mesajlari_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
-ALTER TABLE sohbet_mesajlari ADD CONSTRAINT sohbet_mesajlari_pkey PRIMARY KEY (id);
 ALTER TABLE sohbet_mesajlari ADD CONSTRAINT sohbet_mesajlari_takim_id_fkey FOREIGN KEY (takim_id) REFERENCES takimlar(id) ON DELETE CASCADE;
 ALTER TABLE sohbet_mesajlari ADD CONSTRAINT sohbet_mesajlari_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE sohbet_mesajlari ADD CONSTRAINT sohbet_mesajlari_yanit_id_fkey FOREIGN KEY (yanit_id) REFERENCES sohbet_mesajlari(id) ON DELETE SET NULL;
 ALTER TABLE sohbet_okuma ADD CONSTRAINT sohbet_okuma_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
-ALTER TABLE sohbet_okuma ADD CONSTRAINT sohbet_okuma_pkey PRIMARY KEY (user_id, lig_id, kanal);
 ALTER TABLE sohbet_okuma ADD CONSTRAINT sohbet_okuma_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE sohbet_sikayet ADD CONSTRAINT sohbet_sikayet_mesaj_id_fkey FOREIGN KEY (mesaj_id) REFERENCES sohbet_mesajlari(id) ON DELETE SET NULL;
-ALTER TABLE sohbet_sikayet ADD CONSTRAINT sohbet_sikayet_pkey PRIMARY KEY (id);
 ALTER TABLE sohbet_sikayet ADD CONSTRAINT sohbet_sikayet_sikayet_eden_fkey FOREIGN KEY (sikayet_eden) REFERENCES auth.users(id);
 ALTER TABLE sohbet_tepkileri ADD CONSTRAINT sohbet_tepkileri_mesaj_id_fkey FOREIGN KEY (mesaj_id) REFERENCES sohbet_mesajlari(id) ON DELETE CASCADE;
-ALTER TABLE sohbet_tepkileri ADD CONSTRAINT sohbet_tepkileri_mesaj_id_user_id_emoji_key UNIQUE (mesaj_id, user_id, emoji);
-ALTER TABLE sohbet_tepkileri ADD CONSTRAINT sohbet_tepkileri_pkey PRIMARY KEY (id);
 ALTER TABLE sohbet_tepkileri ADD CONSTRAINT sohbet_tepkileri_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE takimlar ADD CONSTRAINT takimlar_kulup_id_fkey FOREIGN KEY (kulup_id) REFERENCES kulupler(id) ON DELETE SET NULL;
 ALTER TABLE takimlar ADD CONSTRAINT takimlar_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id) ON DELETE CASCADE;
-ALTER TABLE takimlar ADD CONSTRAINT takimlar_pkey PRIMARY KEY (id);
 ALTER TABLE takimlar ADD CONSTRAINT takimlar_yonetici_id_fkey FOREIGN KEY (yonetici_id) REFERENCES auth.users(id);
-ALTER TABLE takipler ADD CONSTRAINT takipler_pkey PRIMARY KEY (user_id, tip, hedef_id);
 ALTER TABLE takipler ADD CONSTRAINT takipler_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE transferler ADD CONSTRAINT transferler_eski_takim_id_fkey FOREIGN KEY (eski_takim_id) REFERENCES takimlar(id);
 ALTER TABLE transferler ADD CONSTRAINT transferler_lig_id_fkey FOREIGN KEY (lig_id) REFERENCES ligler(id);
-ALTER TABLE transferler ADD CONSTRAINT transferler_pkey PRIMARY KEY (id);
 ALTER TABLE transferler ADD CONSTRAINT transferler_player_id_fkey FOREIGN KEY (player_id) REFERENCES oyuncular(player_id);
 ALTER TABLE transferler ADD CONSTRAINT transferler_talep_eden_fkey FOREIGN KEY (talep_eden) REFERENCES auth.users(id);
 ALTER TABLE transferler ADD CONSTRAINT transferler_yeni_takim_id_fkey FOREIGN KEY (yeni_takim_id) REFERENCES takimlar(id);
-ALTER TABLE yasaklilar ADD CONSTRAINT yasaklilar_pkey PRIMARY KEY (user_id);
-ALTER TABLE yetkiler ADD CONSTRAINT yetkiler_pkey PRIMARY KEY (email);
 
 -- ========== INDEXES (kısıt-dışı) ==========
 CREATE INDEX ix_anket_hedef ON public.anket_hedef USING btree (anket_id);
@@ -859,7 +859,7 @@ begin
     limit 50;
 end;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.admin_mi()
  RETURNS boolean
@@ -869,7 +869,7 @@ CREATE OR REPLACE FUNCTION public.admin_mi()
 AS $function$
   select exists(select 1 from public.adminler a where a.user_id = auth.uid());
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.admin_toplu_bildirim(p_tip text, p_id uuid, p_baslik text, p_metin text)
  RETURNS integer
@@ -909,7 +909,7 @@ begin
   else raise exception 'Geçersiz hedef tipi.'; end if;
   return v_count;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_durum(p_id uuid, p_durum text)
  RETURNS void
@@ -921,7 +921,7 @@ begin
   if not public.admin_mi() then raise exception 'yetkisiz'; end if;
   update public.anketler set durum=p_durum where id=p_id;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_guncelle(p_id uuid, p_baslik text, p_aciklama text, p_biter timestamp with time zone, p_yorum boolean, p_sonuc text)
  RETURNS void
@@ -934,7 +934,7 @@ begin
   update public.anketler set baslik=coalesce(p_baslik,baslik), aciklama=p_aciklama, biter=p_biter,
     yorum_acik=coalesce(p_yorum,yorum_acik), sonuc_gorunur=coalesce(p_sonuc,sonuc_gorunur) where id=p_id;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_hedef_say(p_anket uuid)
  RETURNS integer
@@ -944,7 +944,7 @@ CREATE OR REPLACE FUNCTION public.anket_hedef_say(p_anket uuid)
 AS $function$
   select count(*)::int from public.anket_hedef_uid(p_anket);
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_hedef_uid(p_anket uuid)
  RETURNS SETOF uuid
@@ -975,7 +975,7 @@ begin
       where ot.aktif and exists(select 1 from public.anket_hedef h where h.anket_id=p_anket and h.kapsam='rol' and h.rol_filtre='aktif')
   ) q where u is not null;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_hedefte_mi(p_anket uuid)
  RETURNS boolean
@@ -997,7 +997,7 @@ AS $function$
     )
   );
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_olustur(p_baslik text, p_aciklama text DEFAULT NULL::text, p_gorsel text DEFAULT NULL::text, p_tip text DEFAULT 'tek'::text, p_max integer DEFAULT 1, p_yorum boolean DEFAULT true, p_gizli boolean DEFAULT false, p_oy_degistir boolean DEFAULT true, p_sonuc text DEFAULT 'oydan_sonra'::text, p_baslar timestamp with time zone DEFAULT NULL::timestamp with time zone, p_biter timestamp with time zone DEFAULT NULL::timestamp with time zone, p_durum text DEFAULT 'taslak'::text, p_secenekler text[] DEFAULT '{}'::text[], p_hedefler jsonb DEFAULT '[]'::jsonb)
  RETURNS uuid
@@ -1024,7 +1024,7 @@ begin
   end loop;
   return v_id;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_oy_ver(p_anket uuid, p_secenekler uuid[])
  RETURNS jsonb
@@ -1069,7 +1069,7 @@ begin
   end if;
   return jsonb_build_object('ok',true);
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_oy_vermeyenler(p_anket uuid)
  RETURNS SETOF uuid
@@ -1084,7 +1084,7 @@ begin
     where u not in (select user_id from public.anket_katilim where anket_id=p_anket)
       and u not in (select user_id from public.anket_oy where anket_id=p_anket);
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_sonuc(p_anket uuid)
  RETURNS TABLE(secenek_id uuid, metin text, sira integer, adet integer)
@@ -1097,7 +1097,7 @@ AS $function$
   left join public.anket_oy_sayac c on c.anket_id=s.anket_id and c.secenek_id=s.id
   where s.anket_id=p_anket order by s.sira;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_sonuc_kirilim(p_anket uuid, p_seviye text)
  RETURNS TABLE(grup_id uuid, adet integer)
@@ -1111,7 +1111,7 @@ begin
     select case when p_seviye='takim' then o.takim_id else o.lig_id end, count(*)::int
     from public.anket_oy o where o.anket_id=p_anket group by 1;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_yorum_sil(p_id uuid)
  RETURNS void
@@ -1124,7 +1124,7 @@ begin
     raise exception 'yetkisiz'; end if;
   update public.anket_yorum set silindi=true where id=p_id;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.anket_yorum_yaz(p_anket uuid, p_metin text)
  RETURNS uuid
@@ -1149,7 +1149,7 @@ begin
     values(p_anket,auth.uid(),coalesce(v_ad,'Kullanıcı'),v_takim,v_lig,trim(p_metin)) returning id into v_id;
   return v_id;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.ayrilma_onayla(p_ot uuid)
  RETURNS boolean
@@ -1170,7 +1170,7 @@ begin
   end if;
   return true;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.ayrilma_reddet(p_ot uuid)
  RETURNS boolean
@@ -1191,7 +1191,7 @@ begin
   end if;
   return true;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.ayrilma_talep_olustur(p_player uuid, p_lig uuid)
  RETURNS boolean
@@ -1214,7 +1214,7 @@ begin
   end if;
   return true;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.bekleyen_ayrilmalar(p_lig uuid)
  RETURNS TABLE(ot_id uuid, player_id uuid, ad_soyad text, foto text, poz text, forma_no integer, takim_id uuid, takim_ad text)
@@ -1229,7 +1229,7 @@ AS $function$
   where ot.lig_id = p_lig and ot.ayrilma_talep and ot.aktif and public.takim_yoneticim(ot.takim_id)
   order by ot.katilma desc;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.bekleyen_katilimlar(p_lig uuid)
  RETURNS TABLE(ot_id uuid, player_id uuid, ad_soyad text, foto text, poz text, forma_no integer, takim_id uuid, takim_ad text, olusma timestamp with time zone)
@@ -1245,7 +1245,7 @@ AS $function$
     and public.takim_yoneticim(ot.takim_id)
   order by ot.katilma desc;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.ben_buradayim()
  RETURNS void
@@ -1256,7 +1256,7 @@ AS $function$
 begin
   update public.profiller set son_gorulme = now() where user_id = auth.uid();
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.bildirim_yolla(p_user uuid, p_tip text, p_baslik text, p_metin text DEFAULT NULL::text, p_link_tip text DEFAULT NULL::text, p_link_id text DEFAULT NULL::text)
  RETURNS uuid
@@ -1269,7 +1269,7 @@ begin
   insert into public.bildirimler(user_id, tip, baslik, metin, link_tip, link_id) values (p_user, p_tip, p_baslik, p_metin, p_link_tip, p_link_id) returning id into v_id;
   return v_id;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.ceza_aktif(p_lig uuid, p_takim uuid, p_kulup uuid)
  RETURNS TABLE(tur text, biter timestamp with time zone, sebep text, aciklama text)
@@ -1287,7 +1287,7 @@ AS $function$
        or (c.kapsam='kulup' and c.kapsam_id=p_kulup) )
   order by c.biter desc nulls first limit 1;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.ceza_kaldir(p_id uuid, p_aciklama text)
  RETURNS void
@@ -1307,7 +1307,7 @@ begin
   perform public.bildirim_yolla(c.user_id,'moderasyon','ForzaLig Yönetimi — Kısıtlama kaldırıldı',
     coalesce(p_aciklama,'Sohbet mesajı gönderme kısıtlamanız kaldırıldı.'),'sohbet',c.kapsam_id::text);
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.ceza_ver(p_user uuid, p_tur text, p_lig uuid, p_takim uuid, p_kulup uuid, p_biter timestamp with time zone, p_sebep text, p_aciklama text, p_ic_not text, p_mesaj_id uuid)
  RETURNS uuid
@@ -1337,7 +1337,7 @@ begin
     return v_id;
   end if;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.depo_orphan_bul()
  RETURNS TABLE(yol text, boyut bigint, olusma timestamp with time zone, yas_gun integer)
@@ -1378,7 +1378,7 @@ begin
     and not exists (select 1 from kullanilan k where k.ad = o.name)
   order by o.created_at asc;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.evren_sil(p_evren text)
  RETURNS integer
@@ -1398,7 +1398,7 @@ begin
   end loop;
   return v_say;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.ihlal_ozet(p_user uuid, p_gun integer)
  RETURNS integer
@@ -1412,7 +1412,7 @@ AS $function$
     select created from public.sohbet_cezalari where user_id=p_user and created > now()-make_interval(days=>coalesce(p_gun,30))
   ) q;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.ilan_yanit_karar(p_yanit uuid, p_kabul boolean)
  RETURNS boolean
@@ -1434,7 +1434,7 @@ begin
     'pazar', v_ilan::text);
   return true;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.katilim_onayla(p_ot uuid)
  RETURNS boolean
@@ -1449,7 +1449,7 @@ begin
   update public.oyuncu_takim set aktif=true, onay='onayli' where id=p_ot;
   return true;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.katilim_reddet(p_ot uuid)
  RETURNS boolean
@@ -1467,7 +1467,7 @@ begin
   end if;
   return true;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.kulup_daveti_kullan(p_token text, p_ad text, p_no integer, p_poz text, p_foto text, p_dogum date, p_boy integer, p_kilo integer, p_uyruk text, p_ayak text)
  RETURNS uuid
@@ -1486,7 +1486,7 @@ begin
     values (v_kulup, v_pid, p_no, p_poz, true) on conflict (kulup_id, player_id) do nothing;
   return v_pid;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.kulup_kalici_sil(p_kulup uuid)
  RETURNS void
@@ -1512,7 +1512,7 @@ begin
   delete from public.kulup_oyuncu where kulup_id = p_kulup;
   delete from public.kulupler where id = p_kulup;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.kulup_lige_katil(p_kulup uuid, p_lig uuid, p_ad text DEFAULT NULL::text)
  RETURNS uuid
@@ -1538,7 +1538,7 @@ begin
   end loop;
   return v_takim;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.kulup_oyuncu_ekle(p_kulup uuid, p_ad text, p_mevki text DEFAULT NULL::text, p_forma integer DEFAULT NULL::integer)
  RETURNS uuid
@@ -1554,7 +1554,7 @@ begin
   insert into public.kulup_oyuncu(kulup_id, player_id, forma_no, mevki, aktif) values (p_kulup, v_pid, p_forma, p_mevki, true) on conflict (kulup_id, player_id) do nothing;
   return v_pid;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.kulup_oyuncu_serbest(p_kulup uuid, p_player uuid)
  RETURNS boolean
@@ -1579,7 +1579,7 @@ begin
   end if;
   return true;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.kulup_sohbet_erisim(k uuid)
  RETURNS boolean
@@ -1594,7 +1594,7 @@ AS $function$
       where ko.kulup_id = k and ko.aktif and o.sahip_user_id = auth.uid()
     );
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.kulup_toplu_sil(p_kulupler uuid[])
  RETURNS integer
@@ -1613,7 +1613,7 @@ begin
   end loop;
   return n;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.kulup_yoneticim(k uuid)
  RETURNS boolean
@@ -1623,7 +1623,7 @@ CREATE OR REPLACE FUNCTION public.kulup_yoneticim(k uuid)
 AS $function$
   select public.admin_mi() or exists(select 1 from public.kulupler c where c.id = k and c.sahip_user_id = auth.uid());
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.lig_bildirim(p_lig uuid, p_takim uuid, p_baslik text, p_metin text, p_link_id text)
  RETURNS integer
@@ -1662,7 +1662,7 @@ begin
   get diagnostics v_count = row_count;
   return v_count;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.lig_geri_al(p_lig uuid)
  RETURNS void
@@ -1674,7 +1674,7 @@ begin
   if not public.admin_mi() then raise exception 'yetkisiz'; end if;
   update public.ligler set silindi = false, silinme_t = null where id = p_lig;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.lig_kalici_sil(p_lig uuid)
  RETURNS void
@@ -1714,7 +1714,7 @@ begin
     end if;
   exception when others then null; end;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.lig_purge_eskiler()
  RETURNS integer
@@ -1744,7 +1744,7 @@ begin
   end loop;
   return v_say;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.lig_sil_admin(p_lig uuid)
  RETURNS void
@@ -1777,7 +1777,7 @@ begin
     null;
   end;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.lig_soft_sil(p_lig uuid)
  RETURNS void
@@ -1789,7 +1789,7 @@ begin
   if not public.admin_mi() then raise exception 'yetkisiz'; end if;
   update public.ligler set silindi = true, silinme_t = now() where id = p_lig;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.lig_uyesi(l uuid)
  RETURNS boolean
@@ -1806,7 +1806,7 @@ AS $function$
                  join public.oyuncular o on o.player_id = ot.player_id
                 where ot.lig_id = l and ot.aktif and o.sahip_user_id = auth.uid());
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.lig_yoneticim(l uuid)
  RETURNS boolean
@@ -1818,7 +1818,7 @@ AS $function$
       or exists(select 1 from public.ligler g where g.id = l and g.yonetici_id = auth.uid())
       or exists(select 1 from public.lig_yardimci y where y.lig_id = l and y.user_id = auth.uid());
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.ligler_ozet(p_user uuid)
  RETURNS TABLE(id uuid, ad text, yonetici_id uuid, evren text, durum text, sehir text, ilce text, logo text, renk text, renk2 text, format text, grup_sayi integer, kisi integer, sponsor_ad text, sponsor_emoji text, kurallar text, takim_say bigint, mac_say bigint, oyuncu_say bigint, sahiplik text)
@@ -1853,7 +1853,7 @@ AS $function$
     (case when p_user is not null and k.yonetici_id = p_user then 'benim' else 'acik' end)::text
   from kapsam k;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.mac_kart_ozet()
  RETURNS json
@@ -1869,7 +1869,7 @@ AS $function$
   from public.sohbet_mesajlari
   where sistem = true and sistem_tip = 'mac' and silindi = false;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.mac_kart_temizle(p_gun integer DEFAULT 14)
  RETURNS integer
@@ -1888,7 +1888,7 @@ begin
   get diagnostics v_count = row_count;
   return v_count;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.mesaj_moderasyon(p_mesaj_id uuid, p_islem text, p_sebep text)
  RETURNS void
@@ -1911,7 +1911,7 @@ begin
     update public.sohbet_mesajlari set gizli=false where id=p_mesaj_id;
   end if;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.moderasyon_gecmis(p_user uuid, p_tur text, p_durum text)
  RETURNS SETOF sohbet_cezalari
@@ -1928,7 +1928,7 @@ AS $function$
     and (p_durum is null or c.durum=p_durum)
   order by c.created desc limit 300;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.moderator_yetki(p_lig uuid, p_takim uuid, p_kulup uuid)
  RETURNS boolean
@@ -1941,7 +1941,7 @@ AS $function$
     or (p_takim is null and p_lig is not null and exists(select 1 from public.ligler l where l.id=p_lig and l.yonetici_id=auth.uid()))
     or (p_kulup is not null and exists(select 1 from public.kulupler k where k.id=p_kulup and k.sahip_user_id=auth.uid()));
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.oyuncu_cikar(p_player uuid, p_takim uuid)
  RETURNS boolean
@@ -1963,7 +1963,7 @@ begin
   end if;
   return true;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.oyuncu_daveti_kullan(p_token text, p_ad text, p_no integer, p_poz text, p_foto text, p_dogum date, p_boy integer, p_kilo integer, p_uyruk text, p_ayak text)
  RETURNS uuid
@@ -2000,7 +2000,7 @@ begin
     values (v_pid, v_takim, v_lig, false, 'bekliyor');
   return v_pid;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.oyuncu_musait_ayar(p_player_id uuid, p_musait boolean, p_sehir text DEFAULT NULL::text, p_not text DEFAULT NULL::text)
  RETURNS boolean
@@ -2030,7 +2030,7 @@ begin
     where player_id = p_player_id;
   return true;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.oyuncu_sahiplen(p_player_id uuid)
  RETURNS boolean
@@ -2042,7 +2042,7 @@ begin
   update public.oyuncular set sahip_user_id=auth.uid() where player_id=p_player_id and sahip_user_id is null;
   return found;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.panel_metrikler()
  RETURNS jsonb
@@ -2070,7 +2070,7 @@ begin
   ) into j;
   return j;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.paylasilan_sil_admin(p_slug text)
  RETURNS void
@@ -2084,7 +2084,7 @@ begin
   end if;
   delete from public.paylasilan_ligler where slug = p_slug;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.pazar_oyuncular(p_sehir text DEFAULT NULL::text)
  RETURNS TABLE(player_id uuid, ad_soyad text, poz text, forma_no integer, foto text, musait_sehir text, musait_not text, musait_t timestamp with time zone)
@@ -2097,7 +2097,7 @@ AS $function$
   where o.musait = true and (p_sehir is null or o.musait_sehir ilike '%'||p_sehir||'%')
   order by o.musait_t desc nulls last limit 100;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.radyo_depo_stat()
  RETURNS json
@@ -2123,7 +2123,7 @@ begin
   return json_build_object('bytes', v_bytes, 'objeler', v_count);
 end;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.rls_auto_enable()
  RETURNS event_trigger
@@ -2154,7 +2154,7 @@ BEGIN
   END LOOP;
 END;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.sohbet_anketleri(p_lig uuid, p_takim uuid, p_kulup uuid)
  RETURNS SETOF anketler
@@ -2176,7 +2176,7 @@ AS $function$
     ))
   order by a.created desc;
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.sohbet_arsiv_ac(p_lig uuid)
  RETURNS integer
@@ -2190,7 +2190,7 @@ begin
   update public.sohbet_mesajlari set arsiv = false where lig_id = p_lig and arsiv = true;
   get diagnostics v_say = row_count; return v_say;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.sohbet_arsivle()
  RETURNS integer
@@ -2211,7 +2211,7 @@ begin
   from sirali s where m.id = s.id and s.sira > 5000;
   get diagnostics v_say = row_count; return v_say;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.sohbet_ayar_guncelle(p_lig uuid, p_takim uuid, p_kulup uuid, p_yavas integer, p_sadece boolean)
  RETURNS void
@@ -2229,7 +2229,7 @@ begin
     values(v_kapsam,v_kid,greatest(0,coalesce(p_yavas,0)),coalesce(p_sadece,false),auth.uid())
     on conflict (kapsam,kapsam_id) do update set yavas_sn=excluded.yavas_sn, sadece_yonetici=excluded.sadece_yonetici, guncelleyen=auth.uid();
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.sohbet_medya_temizle(p_lig uuid DEFAULT NULL::uuid, p_takim uuid DEFAULT NULL::uuid, p_kulup uuid DEFAULT NULL::uuid, p_hepsi boolean DEFAULT false)
  RETURNS SETOF text
@@ -2262,7 +2262,7 @@ begin
 
   return query select unnest(v_yollar);
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.sohbet_uyeleri(p_lig uuid, p_takim uuid, p_kulup uuid)
  RETURNS TABLE(user_id uuid, player_id uuid, ad text, foto text, takim_ad text, rol text)
@@ -2308,7 +2308,7 @@ begin
   select distinct on (coalesce(uid,pid)) uid, pid, ad, foto, takim_ad, rol
   from uyeler where (uid is not null or pid is not null) order by coalesce(uid,pid), rol;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.sohbet_yazabilir(p_lig uuid, p_takim uuid, p_kulup uuid)
  RETURNS boolean
@@ -2346,7 +2346,7 @@ begin
   end if;
   return true;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.stat_ozet_yaz(p_lig uuid, p_data jsonb)
  RETURNS void
@@ -2365,7 +2365,7 @@ begin
   end if;
   update public.ligler set stat_ozet = p_data where id = p_lig;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.takim_daveti_kullan(p_token text, p_ad text, p_renk text, p_renk2 text, p_logo text)
  RETURNS jsonb
@@ -2385,7 +2385,7 @@ begin
     returning token into v_oy_token;
   return jsonb_build_object('takim_id', v_id, 'oyuncu_token', v_oy_token);
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.takim_kurabilir()
  RETURNS boolean
@@ -2400,7 +2400,7 @@ AS $function$
     or exists(select 1 from public.ligler l
                 where l.yonetici_id = auth.uid());
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.takim_sohbet_erisim(t uuid)
  RETURNS boolean
@@ -2416,7 +2416,7 @@ AS $function$
       where ot.takim_id = t and ot.aktif and o.sahip_user_id = auth.uid()
     );
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.takim_yoneticim(t uuid)
  RETURNS boolean
@@ -2431,7 +2431,7 @@ AS $function$
       and (public.admin_mi() or g.yonetici_id = auth.uid() or tk.yonetici_id = auth.uid())
   );
 $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_etiket_bildir()
  RETURNS trigger
@@ -2456,7 +2456,7 @@ begin
   end;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_hak_say()
  RETURNS trigger
@@ -2477,7 +2477,7 @@ begin
   end if;
   return coalesce(new, old);
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_ilan_yanit_bildirim()
  RETURNS trigger
@@ -2498,7 +2498,7 @@ begin
       'pazar', new.ilan_id::text);
   end if; return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_kart_foto_limit()
  RETURNS trigger
@@ -2510,7 +2510,7 @@ begin
   end if;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_katilim_bildirim()
  RETURNS trigger
@@ -2531,7 +2531,7 @@ begin
   end if;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_kilit_koru()
  RETURNS trigger
@@ -2549,7 +2549,7 @@ begin
   end if;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_kulup_yayilim()
  RETURNS trigger
@@ -2568,7 +2568,7 @@ begin
   end loop;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_lig_kilitle()
  RETURNS trigger
@@ -2583,7 +2583,7 @@ begin
   end if;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_mac_sohbet()
  RETURNS trigger
@@ -2601,7 +2601,7 @@ begin
         jsonb_build_object('takimA',v_a,'takimB',v_b,'skorA',new.ev_skor,'skorB',new.dep_skor,'logoA',v_la,'logoB',v_lb,'mac_id',new.id::text));
   end if; return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_ot_kulube_yaz()
  RETURNS trigger
@@ -2618,7 +2618,7 @@ begin
     on conflict (kulup_id, player_id) do nothing;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_skor_log()
  RETURNS trigger
@@ -2634,7 +2634,7 @@ begin
   end if;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_takim_kulup_bagla()
  RETURNS trigger
@@ -2652,7 +2652,7 @@ begin
   new.kulup_id := v_kulup;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_transfer_bildirim()
  RETURNS trigger
@@ -2671,7 +2671,7 @@ begin
   end if;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_transfer_sohbet()
  RETURNS trigger
@@ -2688,7 +2688,7 @@ begin
       values (new.lig_id, null, null, 'ForzaLig', coalesce(v_oyuncu,'Oyuncu')||', '||coalesce(v_takim,'yeni takım')||' takımına katıldı.', true, 'transfer');
   end if; return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_transfer_sonuc_bildirim()
  RETURNS trigger
@@ -2709,7 +2709,7 @@ begin
   end if;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_transfer_uygula()
  RETURNS trigger
@@ -2728,7 +2728,7 @@ begin
   end if;
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.trg_yeni_profil()
  RETURNS trigger
@@ -2749,7 +2749,7 @@ begin
         foto  = coalesce(public.profiller.foto, excluded.foto);
   return new;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.uye_sil_admin(p_user uuid)
  RETURNS void
@@ -2765,7 +2765,7 @@ begin
   end if;
   delete from auth.users where id = p_user;   -- CASCADE → tüm veri temizlenir
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.uyeler_temizle_admin()
  RETURNS integer
@@ -2799,7 +2799,7 @@ begin
 
   return v_auth + v_orphan;
 end $function$
-
+;
 
 CREATE OR REPLACE FUNCTION public.yeni_sezon_baslat(p_eski uuid)
  RETURNS uuid
@@ -2827,7 +2827,7 @@ begin
   update public.ligler set durum = 'arsiv' where id = p_eski;
   return v_yeni;
 end $function$
-
+;
 
 -- ========== TRIGGERS ==========
 CREATE TRIGGER push_bildirim AFTER INSERT ON public.bildirimler FOR EACH ROW EXECUTE FUNCTION supabase_functions.http_request('https://crkestykdsnmfcmamxav.supabase.co/functions/v1/push-gonder', 'POST', '{"Content-type":"application/json","x-push-secret":"6d5198408ac3f4527d1255ec74ae0e9f2ee902c066f2092b"}', '{}', '5000');
@@ -3138,6 +3138,28 @@ CREATE POLICY "admin yetki siler" ON public.yetkiler AS PERMISSIVE FOR DELETE TO
 CREATE POLICY "admin yetki yazar" ON public.yetkiler AS PERMISSIVE FOR INSERT TO public WITH CHECK (((auth.jwt() ->> 'email'::text) = 'fatiherol68@gmail.com'::text));
 
 -- ========== VIEWS ==========
+CREATE OR REPLACE VIEW public.oyuncular_acik AS  SELECT player_id,
+    COALESCE(NULLIF(takma_ad, ''::text), ad_soyad) AS gorunen_ad,
+    forma_no,
+    poz,
+    ovr,
+    ayak,
+    boy,
+    bolge,
+    renk,
+    deger,
+    saglik,
+    nitelik,
+    foto,
+        CASE
+            WHEN dogum IS NOT NULL THEN EXTRACT(year FROM age(dogum::timestamp with time zone))::integer
+            ELSE NULL::integer
+        END AS yas,
+    durum,
+    kart_rarity,
+    kart_konsept
+   FROM oyuncular;
+
 CREATE OR REPLACE VIEW public.hakem_havuzu AS  SELECT user_id,
     ad,
     sehir,
@@ -3183,28 +3205,6 @@ CREATE OR REPLACE VIEW public.oyuncu_kariyer AS  SELECT o.player_id,
      LEFT JOIN mac_olaylari mo ON mo.player_id = o.player_id
      LEFT JOIN maclar m ON m.id = mo.mac_id
   GROUP BY o.player_id, o.gorunen_ad;
-
-CREATE OR REPLACE VIEW public.oyuncular_acik AS  SELECT player_id,
-    COALESCE(NULLIF(takma_ad, ''::text), ad_soyad) AS gorunen_ad,
-    forma_no,
-    poz,
-    ovr,
-    ayak,
-    boy,
-    bolge,
-    renk,
-    deger,
-    saglik,
-    nitelik,
-    foto,
-        CASE
-            WHEN dogum IS NOT NULL THEN EXTRACT(year FROM age(dogum::timestamp with time zone))::integer
-            ELSE NULL::integer
-        END AS yas,
-    durum,
-    kart_rarity,
-    kart_konsept
-   FROM oyuncular;
 
 -- ========== GRANTS (anon/authenticated/service_role) ==========
 GRANT REFERENCES ON public.adminler TO anon;

@@ -31,6 +31,15 @@ $$ select coalesce(nullif(current_setting('request.jwt.claim.role', true),''),'a
 create or replace function auth.jwt()  returns jsonb language sql stable as
 $$ select coalesce(nullif(current_setting('request.jwt.claims', true),'')::jsonb,'{}'::jsonb) $$;
 
+-- auth.users stub
+create table if not exists auth.users(id uuid primary key default gen_random_uuid(), email text, created_at timestamptz default now());
+
+-- Supabase webhook/graphql/realtime stub
+create schema if not exists supabase_functions;
+create schema if not exists graphql;
+create schema if not exists _realtime;
+create or replace function supabase_functions.http_request() returns trigger language plpgsql as $$ begin return new; end $$;
+
 -- storage yardımcıları (güvenlik amaçlı; şema public'e referans verirse) --
 create table if not exists storage.buckets(id text primary key, name text, public boolean);
 create table if not exists storage.objects(
