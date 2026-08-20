@@ -1,0 +1,38 @@
+name: mirror-yedek
+
+# ForzaLig — ÜCRETSIZ off-site yedek (ayna).
+# Depoyu ikinci bir ücretsiz git barındırıcıya (GitLab/Codeberg) aynalar.
+# Böylece GitHub erişilemezse bile kodun tam kopyası başka yerde durur.
+# Etkinleşmesi için 2 secret gerekir (yoksa iş sessizce atlar, FAIL vermez):
+#   MIRROR_URL   = https://<host>/<kullanici>/forzalig.git
+#   MIRROR_TOKEN = o hesabın push token'ı  (URL'ye enjekte edilir)
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '40 6 * * 0'   # her Pazar 06:40 UTC
+
+jobs:
+  ayna:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Secret var mı?
+        id: kontrol
+        run: |
+          if [ -n "${{ secrets.MIRROR_URL }}" ] && [ -n "${{ secrets.MIRROR_TOKEN }}" ]; then
+            echo "hazir=evet" >> $GITHUB_OUTPUT
+          else
+            echo "hazir=hayir" >> $GITHUB_OUTPUT
+            echo "::notice::MIRROR_URL/MIRROR_TOKEN yok — ayna atlandı (kurulunca çalışır)."
+          fi
+      - name: Tam klon (mirror)
+        if: steps.kontrol.outputs.hazir == 'evet'
+        run: git clone --mirror https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git repo.git
+      - name: İkinci barındırıcıya push (mirror)
+        if: steps.kontrol.outputs.hazir == 'evet'
+        run: |
+          cd repo.git
+          URL="${{ secrets.MIRROR_URL }}"
+          AUTH_URL=$(echo "$URL" | sed -E "s#https://#https://oauth2:${{ secrets.MIRROR_TOKEN }}@#")
+          git push --mirror "$AUTH_URL"
+          echo "::notice::Off-site ayna güncellendi."

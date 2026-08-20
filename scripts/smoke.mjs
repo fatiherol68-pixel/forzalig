@@ -7,7 +7,7 @@
 import { chromium } from 'playwright';
 
 const BASE = process.env.SMOKE_BASE || 'https://forzalig.com';
-const YOLLAR = ['/', '/orbital/'];
+const YOLLAR = ['/', '/orbital/', '/gizlilik/', '/saglik/'];
 
 // Gürültü/3.taraf kaynaklarını FAIL saymayan filtre
 const YOKSAY = [/favicon/i, /manifest/i, /analytics/i, /gtag/i, /google/i];
