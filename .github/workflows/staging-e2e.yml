@@ -55,4 +55,7 @@ jobs:
           npm install --no-save playwright@1.48.0
           npx playwright install --with-deps chromium
           (cd /tmp/site && python3 -m http.server 8080 &) ; sleep 3
-          E2E_BASE=http://localhost:8080 node scripts/e2e.mjs
+          E2E_BASE=http://localhost:8080 \
+          STAGING_URL="${{ secrets.STAGING_URL }}" \
+          STAGING_ANON_KEY="${{ secrets.STAGING_ANON_KEY }}" \
+          node scripts/e2e.mjs
