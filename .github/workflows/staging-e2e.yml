@@ -1,0 +1,58 @@
+name: staging-e2e
+
+# ForzaLig — Staging şema+seed+E2E (ÜCRETSIZ, secret gelince çalışır).
+# Gerekli GitHub Secrets:
+#   STAGING_DB_URL   = postgresql://postgres:<sifre>@db.<ref>.supabase.co:5432/postgres
+#   STAGING_URL      = https://<ref>.supabase.co
+#   STAGING_ANON_KEY = sb_publishable_...
+# Bunlar yoksa iş sessizce atlar (FAIL vermez). Production'a DOKUNMAZ.
+
+on: { workflow_dispatch: {} }
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secret kontrolü
+        id: k
+        run: |
+          if [ -n "${{ secrets.STAGING_DB_URL }}" ] && [ -n "${{ secrets.STAGING_URL }}" ] && [ -n "${{ secrets.STAGING_ANON_KEY }}" ]; then
+            echo "hazir=evet" >> "$GITHUB_OUTPUT"
+          else
+            echo "hazir=hayir" >> "$GITHUB_OUTPUT"; echo "::notice::Staging secret'ları yok — atlandı."
+          fi
+      - name: psql kur
+        if: steps.k.outputs.hazir == 'evet'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+      - name: Staging'e şema + migration + seed uygula
+        if: steps.k.outputs.hazir == 'evet'
+        env: { PGURL: "${{ secrets.STAGING_DB_URL }}" }
+        run: |
+          set -e
+          psql "$PGURL" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f supabase/restore/_canli_schema_2026-08-19.sql 2> /tmp/s.log || true
+          for f in $(ls supabase/migrations/*.sql | grep -v _rollback | sort); do psql "$PGURL" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f "$f" 2>>/tmp/s.log || true; done
+          psql "$PGURL" -v ON_ERROR_STOP=0 -f supabase/restore/seed-staging.sql 2>>/tmp/s.log || true
+          echo "şema+seed uygulandı (hatalar /tmp/s.log)"
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Staging anahtarlı build (refactor dalı kaynağı)
+        if: steps.k.outputs.hazir == 'evet'
+        run: |
+          set -e
+          git fetch origin claude/faz5-8-refactor --depth=1
+          git worktree add /tmp/ref origin/claude/faz5-8-refactor
+          cd /tmp/ref
+          # prod anahtarlarını staging ile değiştir (yalnız build kopyasında)
+          sed -i "s#https://crkestykdsnmfcmamxav.supabase.co#${{ secrets.STAGING_URL }}#g" index.html
+          sed -i "s#sb_publishable_sjfSVp0CmfnB4g8GecB0eA_BCHZheFB#${{ secrets.STAGING_ANON_KEY }}#g" index.html
+          node vite-app/uret.mjs
+          cd vite-app && npm install --no-audit --no-fund && npm run build
+          cp -r dist /tmp/site
+      - name: Serve + E2E
+        if: steps.k.outputs.hazir == 'evet'
+        run: |
+          npm install --no-save playwright@1.48.0
+          npx playwright install --with-deps chromium
+          (cd /tmp/site && python3 -m http.server 8080 &) ; sleep 3
+          E2E_BASE=http://localhost:8080 node scripts/e2e.mjs
