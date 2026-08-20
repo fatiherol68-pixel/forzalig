@@ -6,6 +6,8 @@
 //  1) VAPID anahtar çifti üret:  npx web-push generate-vapid-keys
 //  2) Supabase → Edge Functions → Secrets:
 //       VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mailto:...)
+//       PUSH_SECRET (rastgele uzun bir dize — ZORUNLU; çağıran "x-fl-secret"
+//         header'ında aynı değeri gönderir)
 //     (SERVICE_ROLE_KEY ve SUPABASE_URL otomatik gelir)
 //  3) Deploy:  supabase functions deploy push-gonder
 //  4) İstersen: bildirimler tablosuna bir DB webhook / trigger bağla →
@@ -28,6 +30,22 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
+    // GÜVENLİK: paylaşılan gizli anahtar ZORUNLU (fail-closed). Böylece bu
+    // fonksiyonu yalnız gizli anahtarı bilen çağıran (DB trigger / güvenilir
+    // sunucu) tetikleyebilir; herkese açık URL'den keyfi push yollanamaz.
+    const PUSH_SECRET = Deno.env.get("PUSH_SECRET");
+    if (!PUSH_SECRET) {
+      return new Response(JSON.stringify({ hata: "PUSH_SECRET ayarlı değil — fonksiyon kilitli" }), {
+        status: 503, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+    const gelen = req.headers.get("x-fl-secret") || "";
+    if (gelen !== PUSH_SECRET) {
+      return new Response(JSON.stringify({ hata: "yetkisiz" }), {
+        status: 401, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
     const SB_URL = Deno.env.get("SUPABASE_URL")!;
     const SB_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const PUB = Deno.env.get("VAPID_PUBLIC_KEY");
