@@ -2,6 +2,14 @@
 
 Denetim planı fazları. Her faz: güvenli, geri alınabilir, ücretsiz.
 
+## Faz 6 — Veri Bütünlüğü (güvenli alt-sınır kısıtları) (2026-08-20)
+- Canlıya 4 CHECK kısıtı eklendi: maç skorları ve oyuncu forma_no/ovr
+  NEGATİF olamaz. Mevcut veri %100 uyumlu (apply başarılı = kanıt).
+- Üst sınır EKLENMEDİ (ör. 6-0 maç meşru) → gelecekteki meşru yazımlar
+  engellenmez. NULL'a izin var.
+- Geri dönüş: 20260820_faz6_veri_butunlugu_rollback.sql
+- Puan: 87 → 88.
+
 ## Faz 4 — Felaketten Kurtarma Kanıtı (kısmi, 2026-08-20)
 - `docs/FELAKET-KURTARMA.md`: dürüst DR durumu — şema+depo+kod KANITLI
   kurulabilir; veri öz-yedeği kullanıcı kararıyla şimdilik kapalı, ücretsiz
