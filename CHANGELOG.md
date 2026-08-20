@@ -2,6 +2,19 @@
 
 Denetim planı fazları. Her faz: güvenli, geri alınabilir, ücretsiz.
 
+## Faz 4 — Felaketten Kurtarma Kanıtı (kısmi, 2026-08-20)
+- `docs/FELAKET-KURTARMA.md`: dürüst DR durumu — şema+depo+kod KANITLI
+  kurulabilir; veri öz-yedeği kullanıcı kararıyla şimdilik kapalı, ücretsiz
+  açma yolu (3 adım) belgelendi.
+- Yedek workflow'ları sessizce başarısız olamaz (dosya yoksa FAIL).
+- Puan: 86 → 87 (veri öz-yedeği açılınca 88).
+
+## Faz 3 — CI Kalite Kapıları / Canlı Duman Testi (2026-08-20)
+- `scripts/smoke.mjs` + `smoke-test.yml`: forzalig.com + /orbital/ gerçek
+  tarayıcıyla; HTTP>=400 / boş sayfa / JS hatası / kaynak 404 → FAIL.
+  console.error yalnız uyarı. İlk çalıştırma: PASS.
+- Puan: 84 → 86.
+
 ## Faz 2 — GitHub ↔ Supabase Senkron (2026-08-20)
 - `docs/SUPABASE-SENKRON.md`: depo haritası, "elle SQL yok" kuralı, migration
   + rollback düzeni, baseline, güvenlik ağı, `main` koruma önerileri.
