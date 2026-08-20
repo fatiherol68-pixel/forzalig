@@ -34,5 +34,6 @@ jobs:
           cd repo.git
           URL="${{ secrets.MIRROR_URL }}"
           AUTH_URL=$(echo "$URL" | sed -E "s#https://#https://oauth2:${{ secrets.MIRROR_TOKEN }}@#")
-          git push --mirror "$AUTH_URL"
+          git push --all "$AUTH_URL"
+git push --tags "$AUTH_URL"
           echo "::notice::Off-site ayna güncellendi."
