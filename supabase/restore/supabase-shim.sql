@@ -34,6 +34,12 @@ $$ select coalesce(nullif(current_setting('request.jwt.claims', true),'')::jsonb
 -- auth.users stub
 create table if not exists auth.users(id uuid primary key default gen_random_uuid(), email text, created_at timestamptz default now());
 
+-- Gerçek Supabase'de anon/authenticated auth şemasını kullanabilir ve
+-- auth.uid()/role()/jwt() çağırabilir. RLS policy testlerinin doğru
+-- çalışması için aynı yetkileri ver.
+grant usage on schema auth to anon, authenticated;
+grant execute on function auth.uid(), auth.role(), auth.jwt() to anon, authenticated;
+
 -- Supabase webhook/graphql/realtime stub
 create schema if not exists supabase_functions;
 create schema if not exists graphql;
