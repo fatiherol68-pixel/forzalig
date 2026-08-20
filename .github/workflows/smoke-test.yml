@@ -1,0 +1,35 @@
+name: smoke-test
+
+# ForzaLig canlı site duman testi (ÜCRETSIZ).
+# Gerçek tarayıcıyla forzalig.com + /orbital/ açar; HTTP/404/console/sayfa
+# hatası olursa FAIL. Production'a DOKUNMAZ; yalnız dışarıdan doğrular.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '15 6 * * *'   # her gün 06:15 UTC
+  push:
+    branches: [ main ]
+    paths:
+      - 'index.html'
+      - 'assets/**'
+      - 'orbital/**'
+      - 'sw.js'
+      - 'scripts/smoke.mjs'
+      - '.github/workflows/smoke-test.yml'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Playwright + Chromium kur
+        run: |
+          npm init -y >/dev/null 2>&1 || true
+          npm install --no-save playwright@1.48.0
+          npx playwright install --with-deps chromium
+      - name: Duman testini çalıştır
+        run: node scripts/smoke.mjs
