@@ -1,11 +1,12 @@
 name: mirror-yedek
 
-# ForzaLig — ÜCRETSIZ off-site yedek (ayna).
-# Depoyu ikinci bir ücretsiz git barındırıcıya (GitLab/Codeberg) aynalar.
-# Böylece GitHub erişilemezse bile kodun tam kopyası başka yerde durur.
-# Etkinleşmesi için 2 secret gerekir (yoksa iş sessizce atlar, FAIL vermez):
-#   MIRROR_URL   = https://<host>/<kullanici>/forzalig.git
-#   MIRROR_TOKEN = o hesabın push token'ı  (URL'ye enjekte edilir)
+# ForzaLig — ÜCRETSIZ off-site yedek (Codeberg aynası).
+# GitHub kodunun bağımsız kopyasını Codeberg'e yollar.
+# Yalnız NORMAL branch'ler (refs/heads/*) ve TAG'ler (refs/tags/*) gönderilir.
+# GitHub'a özel gizli ref'ler (refs/pull/*) GÖNDERİLMEZ → "hidden ref" hatası olmaz.
+# Secret yoksa iş sessizce atlar (FAIL vermez).
+#   MIRROR_URL   = https://codeberg.org/<kullanici>/<repo>.git
+#   MIRROR_TOKEN = Codeberg yazma token'ı (log'a yazılmaz; GitHub maskeler)
 
 on:
   workflow_dispatch: {}
@@ -15,24 +16,40 @@ on:
 jobs:
   ayna:
     runs-on: ubuntu-latest
+    env:
+      MIRROR_URL: ${{ secrets.MIRROR_URL }}
+      MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
     steps:
-      - name: Secret var mı?
+      - name: Secret kontrolü
         id: kontrol
         run: |
-          if [ -n "${{ secrets.MIRROR_URL }}" ] && [ -n "${{ secrets.MIRROR_TOKEN }}" ]; then
-            echo "hazir=evet" >> $GITHUB_OUTPUT
+          if [ -n "$MIRROR_URL" ] && [ -n "$MIRROR_TOKEN" ]; then
+            echo "hazir=evet" >> "$GITHUB_OUTPUT"
           else
-            echo "hazir=hayir" >> $GITHUB_OUTPUT
-            echo "::notice::MIRROR_URL/MIRROR_TOKEN yok — ayna atlandı (kurulunca çalışır)."
+            echo "hazir=hayir" >> "$GITHUB_OUTPUT"
+            echo "::notice::MIRROR_URL/MIRROR_TOKEN yok — ayna atlandı."
           fi
-      - name: Tam klon (mirror)
-        if: steps.kontrol.outputs.hazir == 'evet'
-        run: git clone --mirror https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git repo.git
-      - name: İkinci barındırıcıya push (mirror)
+
+      - name: Bare klon (yalnız heads+tags; pull ref'leri YOK)
         if: steps.kontrol.outputs.hazir == 'evet'
         run: |
+          git clone --bare "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" repo.git
+
+      - name: Codeberg'e push (branch + tag) ve doğrula
+        if: steps.kontrol.outputs.hazir == 'evet'
+        run: |
+          set +x
           cd repo.git
-          URL="${{ secrets.MIRROR_URL }}"
-          AUTH_URL=$(echo "$URL" | sed -E "s#https://#https://oauth2:${{ secrets.MIRROR_TOKEN }}@#")
-          git push --mirror "$AUTH_URL"
-          echo "::notice::Off-site ayna güncellendi."
+          # Token'ı URL'ye kullanıcı-adı olarak enjekte et (Codeberg/Gitea yöntemi).
+          # MIRROR_TOKEN kayıtlı secret olduğu için GitHub log'da otomatik maskeler.
+          PUSH_URL="${MIRROR_URL/https:\/\//https://$MIRROR_TOKEN@}"
+          echo "→ branch'ler gönderiliyor..."
+          git push --force "$PUSH_URL" "refs/heads/*:refs/heads/*"
+          echo "→ tag'ler gönderiliyor..."
+          git push --force "$PUSH_URL" "refs/tags/*:refs/tags/*"
+          echo "→ Codeberg'deki ref sayıları:"
+          H=$(git ls-remote --heads "$PUSH_URL" | wc -l)
+          T=$(git ls-remote --tags  "$PUSH_URL" | wc -l)
+          echo "Codeberg branch: $H · tag: $T"
+          if [ "$H" -lt 1 ]; then echo "HATA: Codeberg'de branch görünmüyor"; exit 1; fi
+          echo "✅ Off-site ayna güncellendi (branch=$H, tag=$T)."
