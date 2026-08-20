@@ -20,10 +20,17 @@ Denetim planı fazları. Her faz: güvenli, geri alınabilir, ücretsiz.
   (istenen 30 günden güvenli) → değiştirilmedi.
 - Puan: 88 → 90.
 
-## Faz 8 — Auth sertleştirme (kullanıcı aksiyonu)
-- Sızmış-parola koruması: Supabase Dashboard → Authentication → Passwords
-  → "Leaked password protection" AÇ (ücretsiz, tek tık, yalnız hesap sahibi
-  yapabilir).
+## Faz 8 — Auth sertleştirme (ÜCRETSIZ alternatif)
+- NOT: Supabase "Leaked password protection" (HIBP) yalnız Pro'da → KULLANILMADI.
+- Ücretsiz eşdeğer (rebuild yok, canlıyı bozmaz): Supabase parola
+  GEREKSİNİMLERİ. Kullanıcı aksiyonu (yalnız hesap sahibi yapabilir):
+  Supabase → Authentication → Sign In / Providers → Email →
+  * Minimum password length: 8 (veya üzeri)
+  * Password Requirements: "Lowercase, uppercase, digits and symbols"
+  Bu, zayıf/kısa parolaları engeller (sızıntı riskinin ana kısmı).
+- Ana giriş zaten Google (OAuth) — Google'ın kendi güvenliği geçerli;
+  e-posta/parola ikincil yoldur.
+- Puan etkisi: nötr (ücretsiz sınırında yapılabilenin en iyisi).
 
 ## Faz 7 — PWA Bildirim Düzeltmesi (2026-08-20)
 - sw.js notificationclick: bildirime tıklayınca PWA güvenilir öne gelir +
