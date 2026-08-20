@@ -1,0 +1,17 @@
+name: durum-kontrol
+on: { workflow_dispatch: {} }
+jobs:
+  kontrol:
+    runs-on: ubuntu-latest
+    steps:
+      - name: HTTP başlıkları
+        run: |
+          echo "===== forzalig.com başlıkları ====="
+          curl -sS -D - -o /dev/null https://forzalig.com/ | grep -iE "^(HTTP|server|cf-ray|strict-transport|content-security|x-content-type|x-frame|referrer-policy|permissions-policy)" || true
+      - name: DNS
+        run: |
+          echo "===== NS ====="; dig +short NS forzalig.com
+          echo "===== A ====="; dig +short A forzalig.com
+          echo "===== MX ====="; dig +short MX forzalig.com
+          echo "===== TXT ====="; dig +short TXT forzalig.com
+          echo "===== _dmarc TXT ====="; dig +short TXT _dmarc.forzalig.com
