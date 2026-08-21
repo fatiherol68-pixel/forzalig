@@ -70,9 +70,11 @@ jobs:
           # prod anahtarlarını staging ile değiştir (yalnız build kopyasında)
           sed -i "s#https://crkestykdsnmfcmamxav.supabase.co#${{ secrets.STAGING_URL }}#g" index.html
           sed -i "s#sb_publishable_sjfSVp0CmfnB4g8GecB0eA_BCHZheFB#${{ secrets.STAGING_ANON_KEY }}#g" index.html
+          # ÖNCE bağımlılıkları kur (uret.mjs artık @babel/parser kullanıyor), SONRA üret+derle
+          (cd vite-app && npm install --no-audit --no-fund)
           node vite-app/uret.mjs
-          cd vite-app && npm install --no-audit --no-fund && npm run build
-          cp -r dist /tmp/site
+          (cd vite-app && npm run build)
+          cp -r vite-app/dist /tmp/site
       - name: Serve + E2E
         if: steps.k.outputs.hazir == 'evet'
         env:
