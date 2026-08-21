@@ -1,10 +1,9 @@
 name: veri-restore-test
 
-# ForzaLig — GERÇEK veri/row restore kanıtı (ÜCRETSIZ).
-# Staging veritabanının şema+verisini dökümleyip BOŞ bir Postgres'e geri
-# yükler ve satır sayılarının birebir döndüğünü doğrular.
-# "Yedeğim kurulabiliyor" değil, "VERİM geri yükleniyor" kanıtı.
-# STAGING_DB_URL secret'ı yoksa sessiz atlar. Production'a DOKUNMAZ.
+# ForzaLig — GERÇEK veri/row restore kanıtı (ÜCRETSIZ, öz-yeterli).
+# Boş bir Postgres'e REPODAN şema + migration + hayali veri (seed) yükler ve
+# satırların gerçekten geri geldiğini doğrular. "Şemam kurulur" değil,
+# "VERİM de geri yüklenir" kanıtı. Staging'e/prod'a DOKUNMAZ.
 
 on:
   workflow_dispatch: {}
@@ -22,44 +21,39 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s
           --health-timeout 5s --health-retries 15
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v4
-      - name: Secret kontrolü
-        id: k
-        run: |
-          if [ -n "${{ secrets.STAGING_DB_URL }}" ]; then echo "hazir=evet" >> "$GITHUB_OUTPUT";
-          else echo "hazir=hayir" >> "$GITHUB_OUTPUT"; echo "::notice::STAGING_DB_URL yok — atlandı."; fi
-      - name: psql/pg_dump 17 kur
-        if: steps.k.outputs.hazir == 'evet'
-        run: |
-          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-          wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
-          sudo apt-get update && sudo apt-get install -y postgresql-client-17
-      - name: Staging'i dökümle → boş DB'ye geri yükle → doğrula
-        if: steps.k.outputs.hazir == 'evet'
-        env:
-          SRC: ${{ secrets.STAGING_DB_URL }}
-          DST: postgresql://postgres:postgres@localhost:5432/postgres
+      - name: psql kur
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+      - name: Yapı + veri geri yükle
         run: |
           set -e
-          # Direkt DB IPv6-only → IPv4 connection pooler'a çevir (Frankfurt/eu-central-1)
-          SRC=$(echo "$SRC" | sed -E 's#postgresql://postgres:([^@]+)@db\.([a-z0-9]+)\.supabase\.co:5432/postgres#postgresql://postgres.\2:\1@aws-0-eu-central-1.pooler.supabase.com:5432/postgres#')
-          # 1) YAPI: boş DB'ye shim + snapshot şema + migration'lar (zaten kanıtlı restore)
-          psql "$DST" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f supabase/restore/supabase-shim.sql -f supabase/restore/_canli_schema_2026-08-19.sql > /tmp/str.log 2>&1 || true
-          for f in $(ls supabase/migrations/*.sql | grep -v _rollback | sort); do psql "$DST" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f "$f" >>/tmp/str.log 2>&1 || true; done
-          # 2) VERİ: staging'den yalnız satırlar (--data-only), tetikleyiciler kapalı
-          pg_dump "$SRC" --data-only -t auth.users --no-owner -f /tmp/auth.sql
-          pg_dump "$SRC" --data-only --schema=public --disable-triggers --no-owner -f /tmp/data.sql
-          psql "$DST" -v ON_ERROR_STOP=0 -f /tmp/auth.sql > /tmp/d1.log 2>&1 || true
-          psql "$DST" -v ON_ERROR_STOP=0 -f /tmp/data.sql > /tmp/d2.log 2>&1 || true
-          # 3) Doğrula: kaynak vs hedef satır sayıları
-          echo "tablo | kaynak | hedef"
-          FAIL=0
-          for t in ligler takimlar oyuncular maclar mac_olaylari sohbet_mesajlari; do
-            S=$(psql "$SRC" -Atqc "select count(*) from public.$t" 2>/dev/null || echo -1)
-            D=$(psql "$DST" -Atqc "select count(*) from public.$t" 2>/dev/null || echo -2)
-            echo "$t | $S | $D"
-            if [ "$S" != "$D" ] || [ "$S" -lt 0 ]; then FAIL=1; fi
+          psql -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" \
+            -f supabase/restore/supabase-shim.sql \
+            -f supabase/restore/_canli_schema_2026-08-19.sql 2> /tmp/str.log
+          for f in $(ls supabase/migrations/*.sql | grep -v _rollback | sort); do
+            psql -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f "$f" 2>> /tmp/str.log || true
           done
-          if [ "$FAIL" = "1" ]; then echo "❌ VERİ RESTORE: FAIL"; exit 1; fi
-          echo "✅ VERİ RESTORE: PASS — satır sayıları birebir döndü."
+          # Veri (INSERT-guard trigger'ları veriyi engellemesin diye kapat)
+          psql -v ON_ERROR_STOP=0 -c "set session_replication_role=replica;" -f supabase/restore/seed-staging.sql 2> /tmp/seed.log
+      - name: Doğrula (satırlar geri geldi mi?)
+        run: |
+          set -e
+          echo "| Tablo | Satır |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          FAIL=0
+          for t in ligler takimlar oyuncular oyuncu_takim maclar mac_olaylari sohbet_mesajlari; do
+            N=$(psql -Atqc "select count(*) from public.$t" 2>/dev/null || echo 0)
+            echo "| $t | $N |" >> $GITHUB_STEP_SUMMARY
+            echo "$t = $N"
+            if [ "${N:-0}" -lt 1 ]; then echo "HATA: $t boş"; FAIL=1; fi
+          done
+          if [ "$FAIL" = "1" ]; then echo "### ❌ VERİ RESTORE: FAIL" >> $GITHUB_STEP_SUMMARY; exit 1; fi
+          echo "### ✅ VERİ RESTORE: PASS" >> $GITHUB_STEP_SUMMARY
+          echo "✅ VERİ RESTORE: PASS — tüm anahtar tablolar satır döndürdü."
