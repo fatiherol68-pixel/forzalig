@@ -6,12 +6,16 @@ name: staging-e2e
 #   STAGING_URL      = https://<ref>.supabase.co
 #   STAGING_ANON_KEY = sb_publishable_...
 # Bunlar yoksa iş sessizce atlar (FAIL vermez). Production'a DOKUNMAZ.
+# Admin E2E kullanıcısı yalnız STAGING veritabanında oluşturulur/yetkilendirilir.
 
 on: { workflow_dispatch: {} }
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    env:
+      E2E_EMAIL: e2e_admin_${{ github.run_id }}@test.local
+      E2E_PASS: E2eGuclu!2026
     steps:
       - uses: actions/checkout@v4
       - name: Secret kontrolü
@@ -37,6 +41,23 @@ jobs:
           for f in $(ls supabase/migrations/*.sql | grep -v _rollback | sort); do psql "$PGURL" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f "$f" 2>>/tmp/s.log || true; done
           psql "$PGURL" -v ON_ERROR_STOP=0 -f supabase/restore/seed-staging.sql 2>>/tmp/s.log || true
           echo "şema+seed uygulandı (hatalar /tmp/s.log)"
+      - name: E2E admin kullanıcısı (yalnız STAGING) oluştur + yetkilendir
+        if: steps.k.outputs.hazir == 'evet'
+        env:
+          PGURL: "${{ secrets.STAGING_DB_URL }}"
+          SB: "${{ secrets.STAGING_URL }}"
+          KEY: "${{ secrets.STAGING_ANON_KEY }}"
+        run: |
+          set -e
+          PGURL=$(echo "$PGURL" | sed -E 's#postgresql://postgres:([^@]+)@db\.([a-z0-9]+)\.supabase\.co:5432/postgres#postgresql://postgres.\2:\1@aws-0-eu-central-1.pooler.supabase.com:5432/postgres#')
+          # Kullanıcıyı auth üzerinden oluştur (auto-confirm açık → session döner)
+          curl -s -X POST "$SB/auth/v1/signup" -H "apikey: $KEY" -H "Content-Type: application/json" \
+            -d "{\"email\":\"$E2E_EMAIL\",\"password\":\"$E2E_PASS\"}" -o /tmp/reg.json || true
+          # Admin yap: auth.users'tan id bul → public.adminler'e ekle (yalnız staging)
+          psql "$PGURL" -v ON_ERROR_STOP=0 -c \
+            "insert into public.adminler(user_id) select id from auth.users where email='$E2E_EMAIL' and not exists (select 1 from public.adminler a where a.user_id=auth.users.id);" 2>/tmp/adm.log || true
+          N=$(psql "$PGURL" -Atqc "select count(*) from public.adminler ad join auth.users u on u.id=ad.user_id where u.email='$E2E_EMAIL'" 2>/dev/null || echo 0)
+          echo "admin kaydı: $N (1 bekleniyor)"
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - name: Staging anahtarlı build (refactor dalı kaynağı)
@@ -54,11 +75,12 @@ jobs:
           cp -r dist /tmp/site
       - name: Serve + E2E
         if: steps.k.outputs.hazir == 'evet'
+        env:
+          STAGING_URL: "${{ secrets.STAGING_URL }}"
+          STAGING_ANON_KEY: "${{ secrets.STAGING_ANON_KEY }}"
+          E2E_ADMIN: '1'
         run: |
           npm install --no-save playwright@1.48.0
           npx playwright install --with-deps chromium
           (cd /tmp/site && python3 -m http.server 8080 &) ; sleep 3
-          E2E_BASE=http://localhost:8080 \
-          STAGING_URL="${{ secrets.STAGING_URL }}" \
-          STAGING_ANON_KEY="${{ secrets.STAGING_ANON_KEY }}" \
-          node scripts/e2e.mjs
+          E2E_BASE=http://localhost:8080 node scripts/e2e.mjs
