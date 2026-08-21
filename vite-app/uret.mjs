@@ -10,6 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { adminKumesiCikar } from './bol.mjs';
 
 const VITE = path.dirname(fileURLToPath(import.meta.url));
 const KOK = path.join(VITE, '..');
@@ -35,7 +36,17 @@ fs.mkdirSync(path.join(VITE, 'src'), { recursive: true });
 fs.writeFileSync(path.join(VITE, 'src/main.jsx'),
 `import('./app-body.jsx');   // dinamik import → ayrı async chunk (lazy)\n`);
 
-// 4) app gövdesi: React ESM (bundle) + global uyum + uygulama kodu (rarity/stiller kabukta)
+// 4) Faz 5 — admin kümesini lazy chunk'a çıkar (AST kesin). Başarısızsa TÜM kodu
+//    tek parçada bırak (güvenli geri düşüş → build asla kırılmaz).
+let govde = appKod, chunkKod = null, cikarilan = 0, depAdet = 0;
+try {
+  const r = adminKumesiCikar(appKod);
+  govde = r.govde; chunkKod = r.chunk; cikarilan = r.cikarilan; depAdet = r.depList.length;
+} catch (e) {
+  console.warn('⚠ admin lazy-split atlandı (tek parça devam):', e.message);
+}
+
+// 5) app gövdesi: React ESM (bundle) + global uyum + uygulama kodu (rarity/stiller kabukta)
 fs.writeFileSync(path.join(VITE, 'src/app-body.jsx'),
 `import React from 'react';
 import * as ReactDOMClient from 'react-dom/client';
@@ -43,8 +54,12 @@ const ReactDOM = ReactDOMClient;                       // kod ReactDOM.createRoo
 if (typeof window !== 'undefined') { window.React = React; window.ReactDOM = ReactDOM; }
 
 // ==================== ForzaLig uygulama kodu (index.html babel bloğu) ====================
-${appKod}
+${govde}
 `);
 
-console.log('vite-app faithful üretildi · appKod:', appKod.length, '· shell:', shell.length,
+if (chunkKod) fs.writeFileSync(path.join(VITE, 'src/admin-chunk.jsx'), chunkKod);
+
+console.log('vite-app faithful üretildi · appKod:', appKod.length, '→ gövde:', govde.length,
+  '· admin-chunk:', chunkKod ? (cikarilan + ' char, ' + depAdet + ' dep') : 'YOK',
+  '· shell:', shell.length,
   '· react/babel script kaldırıldı:', !shell.includes('react.production.min.js') && !shell.includes('babel-standalone'));

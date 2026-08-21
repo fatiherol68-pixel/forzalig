@@ -4,4 +4,5 @@ dist/
 index.html
 src/main.jsx
 src/app-body.jsx
+src/admin-chunk.jsx
 src/styles.css
