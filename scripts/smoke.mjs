@@ -12,7 +12,7 @@ const YOLLAR = ['/', '/orbital/', '/gizlilik/', '/saglik/'];
 // Gürültü/3.taraf kaynaklarını FAIL saymayan filtre
 // cloudflareinsights (CF'nin kendi enjekte ettiği beacon) + gstatic (Google font CDN):
 // 3.taraf, uygulama kodu değil; CSP/ağ takılsa bile uygulamayı KIRMAZ → FAIL sayma.
-const YOKSAY = [/favicon/i, /manifest/i, /analytics/i, /gtag/i, /google/i, /cloudflareinsights/i, /gstatic/i];
+const YOKSAY = [/favicon/i, /manifest/i, /analytics/i, /gtag/i, /google/i, /cloudflareinsights/i, /gstatic/i, /clarity\.ms/i];
 const onemli = (url) => !YOKSAY.some((re) => re.test(url));
 
 const browser = await chromium.launch();
