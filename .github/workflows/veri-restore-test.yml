@@ -44,13 +44,14 @@ jobs:
           set -e
           # Direkt DB IPv6-only → IPv4 connection pooler'a çevir (Frankfurt/eu-central-1)
           SRC=$(echo "$SRC" | sed -E 's#postgresql://postgres:([^@]+)@db\.([a-z0-9]+)\.supabase\.co:5432/postgres#postgresql://postgres.\2:\1@aws-0-eu-central-1.pooler.supabase.com:5432/postgres#')
-          # 1) Kaynak (staging) veri: public şema+veri + auth.users satırları
-          pg_dump "$SRC" --schema=auth -t auth.users --no-owner --no-privileges -f /tmp/auth.sql
-          pg_dump "$SRC" --schema=public --no-owner --no-privileges -f /tmp/public.sql
-          # 2) Boş hedefe geri yükle (auth şeması + users önce)
-          psql "$DST" -v ON_ERROR_STOP=0 -c "create schema if not exists auth;" >/dev/null 2>&1
-          psql "$DST" -v ON_ERROR_STOP=0 -f /tmp/auth.sql   > /tmp/r1.log 2>&1 || true
-          psql "$DST" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f /tmp/public.sql > /tmp/r2.log 2>&1 || true
+          # 1) YAPI: boş DB'ye shim + snapshot şema + migration'lar (zaten kanıtlı restore)
+          psql "$DST" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f supabase/restore/supabase-shim.sql -f supabase/restore/_canli_schema_2026-08-19.sql > /tmp/str.log 2>&1 || true
+          for f in $(ls supabase/migrations/*.sql | grep -v _rollback | sort); do psql "$DST" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f "$f" >>/tmp/str.log 2>&1 || true; done
+          # 2) VERİ: staging'den yalnız satırlar (--data-only), tetikleyiciler kapalı
+          pg_dump "$SRC" --data-only -t auth.users --no-owner -f /tmp/auth.sql
+          pg_dump "$SRC" --data-only --schema=public --disable-triggers --no-owner -f /tmp/data.sql
+          psql "$DST" -v ON_ERROR_STOP=0 -f /tmp/auth.sql > /tmp/d1.log 2>&1 || true
+          psql "$DST" -v ON_ERROR_STOP=0 -f /tmp/data.sql > /tmp/d2.log 2>&1 || true
           # 3) Doğrula: kaynak vs hedef satır sayıları
           echo "tablo | kaynak | hedef"
           FAIL=0
