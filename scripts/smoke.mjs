@@ -27,9 +27,14 @@ for (const yol of YOLLAR) {
 
   page.on('console', (m) => { if (m.type() === 'error') uyari.push('console: ' + m.text()); });
   page.on('pageerror', (e) => fatal.push('pageerror: ' + (e && e.message)));
+  // Supabase istekleri: ANONİM duman testinde yetki-gerektiren RPC/rest çağrıları
+  // 401 döner ve tarayıcıda net::ERR_FAILED (CORS) olarak görünür → beklenen sınır,
+  // uygulama kırılması DEĞİL (gerçek kopukluk boş-sayfa kontrolünde yakalanır).
+  const authSinir = (u, txt) => /\.supabase\.co\//.test(u) && /ERR_FAILED/i.test(txt);
   page.on('requestfailed', (r) => {
     const txt = r.failure()?.errorText || '';
-    if (onemli(r.url()) && !/ERR_ABORTED/i.test(txt)) fatal.push('requestfailed: ' + r.url() + ' — ' + txt);
+    if (onemli(r.url()) && !/ERR_ABORTED/i.test(txt) && !authSinir(r.url(), txt)) fatal.push('requestfailed: ' + r.url() + ' — ' + txt);
+    else if (authSinir(r.url(), txt)) uyari.push('supabase (anon yetki sınırı): ' + r.url().slice(0, 80));
   });
   page.on('response', (r) => {
     if (r.status() >= 400 && onemli(r.url())) {
