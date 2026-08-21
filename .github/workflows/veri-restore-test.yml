@@ -1,0 +1,62 @@
+name: veri-restore-test
+
+# ForzaLig — GERÇEK veri/row restore kanıtı (ÜCRETSIZ).
+# Staging veritabanının şema+verisini dökümleyip BOŞ bir Postgres'e geri
+# yükler ve satır sayılarının birebir döndüğünü doğrular.
+# "Yedeğim kurulabiliyor" değil, "VERİM geri yükleniyor" kanıtı.
+# STAGING_DB_URL secret'ı yoksa sessiz atlar. Production'a DOKUNMAZ.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 5 * * 1'   # her Pazartesi 05:00 UTC
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:17
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: [ '5432:5432' ]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secret kontrolü
+        id: k
+        run: |
+          if [ -n "${{ secrets.STAGING_DB_URL }}" ]; then echo "hazir=evet" >> "$GITHUB_OUTPUT";
+          else echo "hazir=hayir" >> "$GITHUB_OUTPUT"; echo "::notice::STAGING_DB_URL yok — atlandı."; fi
+      - name: psql/pg_dump 17 kur
+        if: steps.k.outputs.hazir == 'evet'
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update && sudo apt-get install -y postgresql-client-17
+      - name: Staging'i dökümle → boş DB'ye geri yükle → doğrula
+        if: steps.k.outputs.hazir == 'evet'
+        env:
+          SRC: ${{ secrets.STAGING_DB_URL }}
+          DST: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set -e
+          # 1) Kaynak (staging) veri: public şema+veri + auth.users satırları
+          pg_dump "$SRC" --schema=auth -t auth.users --no-owner --no-privileges -f /tmp/auth.sql
+          pg_dump "$SRC" --schema=public --no-owner --no-privileges -f /tmp/public.sql
+          # 2) Boş hedefe geri yükle (auth şeması + users önce)
+          psql "$DST" -v ON_ERROR_STOP=0 -c "create schema if not exists auth;" >/dev/null 2>&1
+          psql "$DST" -v ON_ERROR_STOP=0 -f /tmp/auth.sql   > /tmp/r1.log 2>&1 || true
+          psql "$DST" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f /tmp/public.sql > /tmp/r2.log 2>&1 || true
+          # 3) Doğrula: kaynak vs hedef satır sayıları
+          echo "tablo | kaynak | hedef"
+          FAIL=0
+          for t in ligler takimlar oyuncular maclar mac_olaylari sohbet_mesajlari; do
+            S=$(psql "$SRC" -Atqc "select count(*) from public.$t" 2>/dev/null || echo -1)
+            D=$(psql "$DST" -Atqc "select count(*) from public.$t" 2>/dev/null || echo -2)
+            echo "$t | $S | $D"
+            if [ "$S" != "$D" ] || [ "$S" -lt 0 ]; then FAIL=1; fi
+          done
+          if [ "$FAIL" = "1" ]; then echo "❌ VERİ RESTORE: FAIL"; exit 1; fi
+          echo "✅ VERİ RESTORE: PASS — satır sayıları birebir döndü."
