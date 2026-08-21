@@ -30,6 +30,9 @@ jobs:
         env: { PGURL: "${{ secrets.STAGING_DB_URL }}" }
         run: |
           set -e
+          # Direkt DB IPv6-only → IPv4 connection pooler (Frankfurt)
+          PGURL=$(echo "$PGURL" | sed -E 's#postgresql://postgres:([^@]+)@db\.([a-z0-9]+)\.supabase\.co:5432/postgres#postgresql://postgres.\2:\1@aws-0-eu-central-1.pooler.supabase.com:5432/postgres#')
+          psql "$PGURL" -c "select 1" >/dev/null   # bağlantı gerçekten kurulmalı (sessiz geçme yok)
           psql "$PGURL" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f supabase/restore/_canli_schema_2026-08-19.sql 2> /tmp/s.log || true
           for f in $(ls supabase/migrations/*.sql | grep -v _rollback | sort); do psql "$PGURL" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f "$f" 2>>/tmp/s.log || true; done
           psql "$PGURL" -v ON_ERROR_STOP=0 -f supabase/restore/seed-staging.sql 2>>/tmp/s.log || true

@@ -42,6 +42,8 @@ jobs:
           DST: postgresql://postgres:postgres@localhost:5432/postgres
         run: |
           set -e
+          # Direkt DB IPv6-only → IPv4 connection pooler'a çevir (Frankfurt/eu-central-1)
+          SRC=$(echo "$SRC" | sed -E 's#postgresql://postgres:([^@]+)@db\.([a-z0-9]+)\.supabase\.co:5432/postgres#postgresql://postgres.\2:\1@aws-0-eu-central-1.pooler.supabase.com:5432/postgres#')
           # 1) Kaynak (staging) veri: public şema+veri + auth.users satırları
           pg_dump "$SRC" --schema=auth -t auth.users --no-owner --no-privileges -f /tmp/auth.sql
           pg_dump "$SRC" --schema=public --no-owner --no-privileges -f /tmp/public.sql
