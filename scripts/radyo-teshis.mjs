@@ -26,6 +26,7 @@ const dir = {};
 cspHeader.split(';').forEach(s => { const parts = s.trim().split(/\s+/); if (parts[0]) dir[parts[0]] = parts.slice(1).join(' '); });
 const mediaKaynak = dir['media-src'] || dir['default-src'] || '(yok)';
 const supaIzin = /supabase\.co/.test(mediaKaynak) || mediaKaynak === '*';
+console.log('TAM_CSP_BASLANGIC>>>' + cspHeader + '<<<TAM_CSP_BITIS');
 console.log('CSP media-src (veya default-src fallback):', mediaKaynak);
 console.log('  → Supabase depoya media izni:', supaIzin ? 'VAR' : 'YOK ❌');
 if (!supaIzin) bulgu.push('CSP media-src Supabase depoya izin VERMİYOR → <audio> engellenir: ' + mediaKaynak);
