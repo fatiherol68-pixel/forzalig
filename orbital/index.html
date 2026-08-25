@@ -917,6 +917,8 @@ body.fl-embed .shell{grid-template-columns:1fr!important;gap:0!important;padding
 body.fl-embed .main{padding:14px 14px 20px!important;gap:24px!important}
 body.fl-embed .amb{opacity:.6}
 </style>
+<script>/* Uygulama TEMA+STİL'ini ?tema= ile al → :root değişkenlerine uygula (yeni tema YOK; app T token'ları eşlenir). Embed anasayfada iframe aynı temaya uyar. */
+(function(){try{var _t=new URLSearchParams(location.search).get("tema");if(!_t)return;var o=JSON.parse(_t);var r=document.documentElement.style;var m={bg0:"--bg0",bg1:"--bg1",bg2:"--bg2",line:"--line",tx:"--tx",soft:"--soft",mut:"--mut",acc:"--acc",acc2:"--acc2",gold:"--gold"};for(var k in m){if(o[k])r.setProperty(m[k],o[k]);}if(o.bg1)r.setProperty("--pnl",o.bg1);if(o.line)r.setProperty("--line2",o.line);}catch(e){}})();</script>
 <script>(function(){try{if(new URLSearchParams(location.search).has("embed")){document.body.classList.add("fl-embed");document.body.classList.remove("radyo-on");var ph=function(){try{parent.postMessage({fzOrbitalHeight:Math.ceil(document.documentElement.scrollHeight)},"*");}catch(e){}};addEventListener("load",ph);setInterval(ph,700);try{new ResizeObserver(ph).observe(document.body);}catch(e){}setTimeout(ph,300);setTimeout(ph,1500);setTimeout(ph,3500);ph();}}catch(e){}})();</script>
 </body>
 </html>
