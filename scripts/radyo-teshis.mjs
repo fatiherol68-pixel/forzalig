@@ -71,6 +71,17 @@ if (ilkUrl) {
 
 console.log('\nCSP ihlalleri (konsol):');
 for (const c of cspIhlal.slice(0, 10)) console.log('  · ' + c);
+// 5) ORBITAL sayfası tema uygulaması (canlı) — ?tema= :root'a uygulanıyor mu?
+try {
+  const tt = encodeURIComponent(JSON.stringify({ bg0: '#FFFFFF', bg1: '#F2F4F8', bg2: '#E8ECF2', line: '#00000018', tx: '#0A0E14', soft: '#556', mut: '#889', acc: '#1E63FF', acc2: '#00B4D8', gold: '#E8A800' }));
+  await p.goto(BASE + '/orbital/?embed=1&tema=' + tt, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await p.waitForTimeout(800);
+  const rv = await p.evaluate(() => { const s = getComputedStyle(document.documentElement); return { bg0: s.getPropertyValue('--bg0').trim(), acc: s.getPropertyValue('--acc').trim(), pnl: s.getPropertyValue('--pnl').trim() }; }).catch(() => ({}));
+  const okTema = (rv.bg0 || '').toUpperCase() === '#FFFFFF' && (rv.acc || '').toUpperCase() === '#1E63FF';
+  console.log('\n/orbital/ tema uygulaması:', JSON.stringify(rv), '→', okTema ? '✅ tema uygulanıyor' : '❌ uygulanmıyor');
+  if (!okTema) bulgu.push('/orbital/ ?tema= :root\'a uygulanmadı: ' + JSON.stringify(rv));
+} catch (e) { console.log('orbital tema testi hata:', String(e).slice(0, 100)); }
+
 console.log('\n=== TEŞHİS ÖZET ===');
 if (bulgu.length) { for (const x of bulgu) console.log('  ❌ ' + x); }
 else console.log('  Belirgin engel bulunamadı (bar:' + barVar + ', mediaIzin:' + supaIzin + ')');
