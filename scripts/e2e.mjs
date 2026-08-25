@@ -45,9 +45,30 @@ try {
       await p.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 });
       await p.waitForTimeout(4000);
       const t2 = await p.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
-      console.log('login sonrası içerik uzunluğu:', t2);
-      if (t2 <= 200) fatal.push('login sonrası içerik login ekranı gibi (RLS/oturum başarısız?): ' + t2);
-      else console.log('✅ login + RLS okuma: giriş-sonrası uygulama yüklendi (' + t2 + ' karakter)');
+      const orbitalHome = await p.evaluate(() => !!document.querySelector('iframe[src*="/orbital/?embed=1"]')).catch(() => false);
+      console.log('login sonrası içerik uzunluğu:', t2, '| orbital home:', orbitalHome);
+      if (t2 <= 200 && !orbitalHome) fatal.push('login sonrası içerik login ekranı gibi (RLS/oturum başarısız?): ' + t2);
+      else console.log('✅ login + RLS okuma: giriş-sonrası uygulama yüklendi (' + t2 + ' karakter' + (orbitalHome ? ', orbital iframe' : '') + ')');
+
+      // ORBİTAL anasayfa doğrulaması (anasayfa_surum='orbital' seed'liyse)
+      if (process.env.E2E_ORBITAL === '1' && t2 > 200) {
+        const orb = await p.evaluate(() => {
+          const f = document.querySelector('iframe[src*="/orbital/?embed=1"]');
+          return f ? { v: true, tema: /[?&]tema=/.test(f.getAttribute('src') || '') } : { v: false };
+        }).catch(() => ({ v: false }));
+        console.log('orbital iframe:', orb.v, '| tema param:', orb.tema);
+        if (!orb.v) fatal.push('orbital anasayfa iframe render olmadı');
+        else if (!orb.tema) fatal.push('orbital iframe tema parametresi geçmiyor');
+        else console.log('✅ orbital anasayfa + mevcut tema geçişi OK');
+      }
+      // RADYO global şalter doğrulaması (radyo_global seed'e göre player mount/unmount)
+      if (process.env.E2E_RADYO && t2 > 200) {
+        const sayi = await p.evaluate(() => document.querySelectorAll('audio').length).catch(() => -1);
+        console.log('radyo audio element sayısı:', sayi, '| beklenen mod:', process.env.E2E_RADYO);
+        if (process.env.E2E_RADYO === 'kapali' && sayi > 0) fatal.push('radyo KAPALI ama player mount olmuş (audio=' + sayi + ')');
+        else if (process.env.E2E_RADYO === 'acik' && sayi < 1) fatal.push('radyo AÇIK ama player yok (audio=' + sayi + ')');
+        else console.log('✅ radyo global şalter (' + process.env.E2E_RADYO + ') doğru: audio=' + sayi);
+      }
 
       // ADMIN paneli mount doğrulaması (lazy-split parite kanıtı için)
       if (process.env.E2E_ADMIN === '1' && t2 > 200) {
