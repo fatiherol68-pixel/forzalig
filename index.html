@@ -3352,14 +3352,18 @@ function Sparkline({seri, T, w=120, h=34}){
 }
 
 /* Sayaç animasyonu — sayı 0'dan yukarı sayar */
-function Sayac({hedef, T, renk, boy=22}){
-  const [n,setN]=useState(0);
+function Sayac({hedef, T, renk, boy=22, agir=800, cizgi}){
+  const sayi=(typeof hedef==="number"&&isFinite(hedef))?hedef:null;
+  const [n,setN]=useState(sayi==null?0:sayi);
   useEffect(()=>{
-    let cur=0; const adim=Math.max(1,Math.ceil(hedef/24));
-    const id=setInterval(()=>{ cur+=adim; if(cur>=hedef){cur=hedef;clearInterval(id);} setN(cur); },24);
+    if(sayi==null) return;
+    let indir=false; try{ indir=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches; }catch(e){}
+    if(indir){ setN(sayi); return; }
+    let cur=0; const adim=Math.max(1,Math.ceil(sayi/24));
+    const id=setInterval(()=>{ cur+=adim; if(cur>=sayi){cur=sayi;clearInterval(id);} setN(cur); },24);
     return ()=>clearInterval(id);
-  },[hedef]);
-  return <span style={{fontSize:boy,fontWeight:800,color:renk,fontFamily:T.fontDisplay}}>{n}</span>;
+  },[sayi]);
+  return <span style={{fontSize:boy,fontWeight:agir,color:renk,fontFamily:T.fontDisplay,lineHeight:cizgi||1}}>{sayi==null?hedef:n}</span>;
 }
 
 /* Dairesel dolan halka (hedef ilerleme) */
@@ -4712,7 +4716,7 @@ function AnaSayfa({turnuvalar, T, git}){
           </div>
           {golK.map((o,i)=>
             <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:o})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:i===0?T.accent+"12":T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:4,border:i===0?"0.5px solid "+T.accent+"33":"0.5px solid "+T.line}}>
-              <span style={{width:14,color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:13}}>{i+1}</span>
+              <span style={{width:16,textAlign:"center",color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:i<3?14:13}}>{i<3?["🥇","🥈","🥉"][i]:(i+1)}</span>
               <Avatar o={o} boy={i===0?38:30} T={T}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
@@ -5011,7 +5015,7 @@ function AnaSayfaV5({turnuvalar, T, git}){
       <div style={{position:"relative",display:"flex",marginTop:20}}>
         {[[topTakim,"takım"],[topOyuncu,"oyuncu"],[topMac,"maç"]].map((s,i)=>
           <div key={i} style={{flex:1,paddingLeft:i?16:0,borderLeft:i?"1px solid "+T.line:"none"}}>
-            <div style={{fontSize:27,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1}}>{s[0]}</div>
+            <Sayac hedef={s[0]} T={T} renk={T.text} boy={27} agir={900}/>
             <div style={{fontSize:10,color:T.textMut,marginTop:4,textTransform:"uppercase",letterSpacing:.5}}>{s[1]}</div>
           </div>
         )}
@@ -5138,7 +5142,7 @@ function AnaSayfaV5({turnuvalar, T, git}){
           <V5Eyebrow T={T} more="Tüm Liste ›" onMore={()=>git({sayfa:"turnuva",turnuva:tk})}>Gol Kralı</V5Eyebrow>
           {golK.map((o,i)=>
             <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:o})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:i===0?T.accent+"12":T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:4,border:i===0?"1px solid "+T.accent+"33":"1px solid "+T.line}}>
-              <span style={{width:14,color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:13}}>{i+1}</span>
+              <span style={{width:16,textAlign:"center",color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:i<3?14:13}}>{i<3?["🥇","🥈","🥉"][i]:(i+1)}</span>
               <Avatar o={o} boy={i===0?38:30} T={T}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
@@ -5377,7 +5381,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
       <div style={{position:"relative",display:"flex",marginTop:20}}>
         {[[topTakim,"takım"],[topOyuncu,"oyuncu"],[topMac,"maç"]].map((s,i)=>
           <div key={i} style={{flex:1,paddingLeft:i?16:0,borderLeft:i?"1px solid "+T.line:"none"}}>
-            <div style={{fontSize:27,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1}}>{s[0]}</div>
+            <Sayac hedef={s[0]} T={T} renk={T.text} boy={27} agir={900}/>
             <div style={{fontSize:10,color:T.textMut,marginTop:4,textTransform:"uppercase",letterSpacing:.5}}>{s[1]}</div>
           </div>
         )}
@@ -5607,7 +5611,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
           <V5Eyebrow T={T} more="Tüm Liste ›" onMore={()=>git({sayfa:"turnuva",turnuva:tk})}>Gol Kralı</V5Eyebrow>
           {golK.map((o,i)=>
             <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:o})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:i===0?T.accent+"12":T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:4,border:i===0?"1px solid "+T.accent+"33":"1px solid "+T.line}}>
-              <span style={{width:14,color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:13}}>{i+1}</span>
+              <span style={{width:16,textAlign:"center",color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:i<3?14:13}}>{i<3?["🥇","🥈","🥉"][i]:(i+1)}</span>
               <Avatar o={o} boy={i===0?38:30} T={T}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
@@ -5854,7 +5858,7 @@ function LigGenel({turnuva, T, git}){
           </div>
           {golK.map((o,i)=>
             <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:o})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:i===0?T.accent+"12":T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:4,border:i===0?"0.5px solid "+T.accent+"33":"0.5px solid "+T.line}}>
-              <span style={{width:14,color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:13}}>{i+1}</span>
+              <span style={{width:16,textAlign:"center",color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:i<3?14:13}}>{i<3?["🥇","🥈","🥉"][i]:(i+1)}</span>
               <Avatar o={o} boy={i===0?38:30} T={T}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
