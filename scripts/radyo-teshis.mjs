@@ -21,6 +21,24 @@ const r = await p.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 });
 if (!cspHeader) { try { cspHeader = (r && r.headers()['content-security-policy']) || ''; } catch (e) {} }
 await p.waitForTimeout(4000);
 
+// ===== CANLI SÜRÜM + CLOUDFLARE CACHE TEŞHİSİ =====
+try {
+  const h = (r && r.headers()) || {};
+  console.log('\n=== SÜRÜM & CACHE ===');
+  console.log('cf-cache-status:', h['cf-cache-status'] || '(yok)');
+  console.log('age:', h['age'] || '(yok)', '| cache-control:', h['cache-control'] || '(yok)');
+  console.log('last-modified:', h['last-modified'] || '(yok)', '| etag:', h['etag'] || '(yok)');
+  const rel = await p.evaluate(() => (window.__FL_RELEASE || '(yok)')).catch(() => '(evaluate hata)');
+  console.log('window.__FL_RELEASE (canlı çalışan):', rel);
+  const html = await p.content().catch(() => '');
+  const mRel = html.match(/__FL_RELEASE = "([0-9]+)"/);
+  console.log('index.html damgası (Cloudflare\'in sunduğu):', mRel ? mRel[1] : '(bulunamadı)');
+  const mIdx = html.match(/assets\/index-[A-Za-z0-9_-]+\.js/);
+  console.log('servis edilen entry asset:', mIdx ? mIdx[0] : '(yok)');
+  console.log('yeni premium CSS var mı → fl-kpi:', /fl-kpi/.test(html) ? 'VAR ✅' : 'YOK ❌', '| vav-hero:', /vav-hero/.test(html) ? 'VAR ✅' : 'YOK ❌');
+  console.log('BEKLENEN damga: 20260828211111 | entry: index-Dc-Nep3s.js');
+} catch (e) { console.log('sürüm teşhisi hata:', String(e).slice(0, 120)); }
+
 // 1) CSP media-src analizi
 const dir = {};
 cspHeader.split(';').forEach(s => { const parts = s.trim().split(/\s+/); if (parts[0]) dir[parts[0]] = parts.slice(1).join(' '); });
