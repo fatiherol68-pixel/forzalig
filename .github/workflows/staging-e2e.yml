@@ -6,12 +6,16 @@ name: staging-e2e
 #   STAGING_URL      = https://<ref>.supabase.co
 #   STAGING_ANON_KEY = sb_publishable_...
 # Bunlar yoksa iş sessizce atlar (FAIL vermez). Production'a DOKUNMAZ.
+# Admin E2E kullanıcısı yalnız STAGING veritabanında oluşturulur/yetkilendirilir.
 
 on: { workflow_dispatch: {} }
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    env:
+      E2E_EMAIL: e2e_admin_${{ github.run_id }}@test.local
+      E2E_PASS: E2eGuclu!2026
     steps:
       - uses: actions/checkout@v4
       - name: Secret kontrolü
@@ -37,6 +41,23 @@ jobs:
           for f in $(ls supabase/migrations/*.sql | grep -v _rollback | sort); do psql "$PGURL" -v ON_ERROR_STOP=0 -c "SET check_function_bodies=off;" -f "$f" 2>>/tmp/s.log || true; done
           psql "$PGURL" -v ON_ERROR_STOP=0 -f supabase/restore/seed-staging.sql 2>>/tmp/s.log || true
           echo "şema+seed uygulandı (hatalar /tmp/s.log)"
+      - name: E2E admin kullanıcısı (yalnız STAGING) oluştur + yetkilendir
+        if: steps.k.outputs.hazir == 'evet'
+        env:
+          PGURL: "${{ secrets.STAGING_DB_URL }}"
+          SB: "${{ secrets.STAGING_URL }}"
+          KEY: "${{ secrets.STAGING_ANON_KEY }}"
+        run: |
+          set -e
+          PGURL=$(echo "$PGURL" | sed -E 's#postgresql://postgres:([^@]+)@db\.([a-z0-9]+)\.supabase\.co:5432/postgres#postgresql://postgres.\2:\1@aws-0-eu-central-1.pooler.supabase.com:5432/postgres#')
+          # Kullanıcıyı auth üzerinden oluştur (auto-confirm açık → session döner)
+          curl -s -X POST "$SB/auth/v1/signup" -H "apikey: $KEY" -H "Content-Type: application/json" \
+            -d "{\"email\":\"$E2E_EMAIL\",\"password\":\"$E2E_PASS\"}" -o /tmp/reg.json || true
+          # Admin yap: auth.users'tan id bul → public.adminler'e ekle (yalnız staging)
+          psql "$PGURL" -v ON_ERROR_STOP=0 -c \
+            "insert into public.adminler(user_id) select id from auth.users where email='$E2E_EMAIL' and not exists (select 1 from public.adminler a where a.user_id=auth.users.id);" 2>/tmp/adm.log || true
+          N=$(psql "$PGURL" -Atqc "select count(*) from public.adminler ad join auth.users u on u.id=ad.user_id where u.email='$E2E_EMAIL'" 2>/dev/null || echo 0)
+          echo "admin kaydı: $N (1 bekleniyor)"
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - name: Staging anahtarlı build (refactor dalı kaynağı)
@@ -49,16 +70,35 @@ jobs:
           # prod anahtarlarını staging ile değiştir (yalnız build kopyasında)
           sed -i "s#https://crkestykdsnmfcmamxav.supabase.co#${{ secrets.STAGING_URL }}#g" index.html
           sed -i "s#sb_publishable_sjfSVp0CmfnB4g8GecB0eA_BCHZheFB#${{ secrets.STAGING_ANON_KEY }}#g" index.html
+          # ÖNCE bağımlılıkları kur (uret.mjs artık @babel/parser kullanıyor), SONRA üret+derle
+          (cd vite-app && npm install --no-audit --no-fund)
           node vite-app/uret.mjs
-          cd vite-app && npm install --no-audit --no-fund && npm run build
-          cp -r dist /tmp/site
-      - name: Serve + E2E
+          (cd vite-app && npm run build)
+          cp -r vite-app/dist /tmp/site
+      - name: Serve + E2E (orbital + radyo şalter + admin parite)
         if: steps.k.outputs.hazir == 'evet'
+        env:
+          STAGING_URL: "${{ secrets.STAGING_URL }}"
+          STAGING_ANON_KEY: "${{ secrets.STAGING_ANON_KEY }}"
+          PGURL: "${{ secrets.STAGING_DB_URL }}"
         run: |
+          set -e
+          PGURL=$(echo "$PGURL" | sed -E 's#postgresql://postgres:([^@]+)@db\.([a-z0-9]+)\.supabase\.co:5432/postgres#postgresql://postgres.\2:\1@aws-0-eu-central-1.pooler.supabase.com:5432/postgres#')
+          ayar(){ psql "$PGURL" -v ON_ERROR_STOP=0 -c "insert into public.sistem_ayar(anahtar,deger) values('$1','$2') on conflict(anahtar) do update set deger=excluded.deger;" >/dev/null 2>&1 || true; }
+          # Radyo test parçası + başlangıç: radyo KAPALI, anasayfa V6
+          ayar radyo_liste '[{"id":"t1","ad":"Test Parca","url":"https://example.com/t.mp3","tur":"klip"}]'
+          ayar radyo_surum 'v2'
+          ayar radyo_global 'kapali'
+          ayar anasayfa_surum 'v6'
           npm install --no-save playwright@1.48.0
           npx playwright install --with-deps chromium
           (cd /tmp/site && python3 -m http.server 8080 &) ; sleep 3
-          E2E_BASE=http://localhost:8080 \
-          STAGING_URL="${{ secrets.STAGING_URL }}" \
-          STAGING_ANON_KEY="${{ secrets.STAGING_ANON_KEY }}" \
-          node scripts/e2e.mjs
+          echo "===== FAZ 1: V6 home + admin parite + RADYO KAPALI ====="
+          E2E_BASE=http://localhost:8080 E2E_ADMIN=1 E2E_RADYO=kapali node scripts/e2e.mjs
+          echo "===== FAZ 2: RADYO AÇIK (player mount olmalı) ====="
+          ayar radyo_global 'acik'
+          E2E_BASE=http://localhost:8080 E2E_RADYO=acik node scripts/e2e.mjs
+          echo "===== FAZ 3: ORBITAL anasayfa + tema geçişi ====="
+          ayar anasayfa_surum 'orbital'
+          E2E_BASE=http://localhost:8080 E2E_ORBITAL=1 node scripts/e2e.mjs
+          echo "✅ tüm fazlar PASS"

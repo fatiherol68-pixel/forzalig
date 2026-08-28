@@ -1,41 +1,87 @@
 // ForzaLig — E2E (Playwright). Staging build'e karşı: render + konsol/crash/404
-// + (opsiyonel) login akışı. BASE ve giriş bilgileri env ile verilir.
+// + login akışı + (opsiyonel) ADMIN paneli mount doğrulaması.
+// BASE ve giriş bilgileri env ile verilir. Production'a DOKUNMAZ.
+//   E2E_BASE        = servis edilen dist (http://localhost:8080)
+//   STAGING_URL     = https://<ref>.supabase.co   (auth için)
+//   STAGING_ANON_KEY= sb_publishable_...
+//   E2E_EMAIL/E2E_PASS = verilirse parola ile giriş (deterministik); yoksa rastgele signup
+//   E2E_ADMIN=1     = giriş yapan kullanıcı admin ise /?p=admin panelini de doğrula
 import { chromium } from 'playwright';
 const BASE = process.env.E2E_BASE || 'http://localhost:8080';
-const EMAIL = process.env.E2E_EMAIL, PASS = process.env.E2E_PASS;
 const b = await chromium.launch(); const ctx = await b.newContext(); const p = await ctx.newPage();
 const fatal = [];
 p.on('pageerror', e => fatal.push('pageerror: ' + (e && e.message)));
 p.on('response', r => { if (r.status() >= 500) fatal.push('http ' + r.status() + ' ' + r.url()); });
-let ok = true;
 try {
   const r = await p.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 });
   if (!r || r.status() >= 400) fatal.push('doküman HTTP ' + (r && r.status()));
   const txt = await p.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
   if (txt < 20) fatal.push('sayfa boş');
   console.log('render: HTTP', r && r.status(), '| içerik', txt, '| fatal', fatal.length);
-  // Gerçek login E2E: staging auth ile signup → session'ı localStorage'a enjekte → reload
+
+  // Oturum: parola grant (deterministik) veya rastgele signup
   const SB = process.env.STAGING_URL, KEY = process.env.STAGING_ANON_KEY;
   if (SB && KEY) {
-    const email = `e2e_${Date.now()}@test.local`, sifre = 'E2eGuclu!2026';
-    const reg = await fetch(`${SB}/auth/v1/signup`, { method: 'POST',
-      headers: { apikey: KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: sifre }) }).then(r => r.json()).catch(e => ({ error: String(e) }));
+    const E = process.env.E2E_EMAIL, PW = process.env.E2E_PASS;
+    let reg;
+    if (E && PW) {
+      reg = await fetch(`${SB}/auth/v1/token?grant_type=password`, { method: 'POST',
+        headers: { apikey: KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: E, password: PW }) }).then(r => r.json()).catch(e => ({ error: String(e) }));
+    } else {
+      const email = `e2e_${Date.now()}@test.local`, sifre = 'E2eGuclu!2026';
+      reg = await fetch(`${SB}/auth/v1/signup`, { method: 'POST',
+        headers: { apikey: KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: sifre }) }).then(r => r.json()).catch(e => ({ error: String(e) }));
+    }
     const sess = reg.access_token ? reg : (reg.session || null);
-    if (!sess || !sess.access_token) { fatal.push('signup/session alınamadı: ' + JSON.stringify(reg).slice(0,180)); }
+    if (!sess || !sess.access_token) { fatal.push('oturum alınamadı: ' + JSON.stringify(reg).slice(0, 180)); }
     else {
       const ref = SB.replace('https://', '').split('.')[0];
       const token = JSON.stringify({ access_token: sess.access_token, refresh_token: sess.refresh_token,
         token_type: 'bearer', expires_in: sess.expires_in || 3600,
-        expires_at: Math.floor(Date.now()/1000) + (sess.expires_in || 3600), user: sess.user });
-      await p.addInitScript(([k, v]) => { try { localStorage.setItem(k, v); } catch(e){} }, [`sb-${ref}-auth-token`, token]);
+        expires_at: Math.floor(Date.now() / 1000) + (sess.expires_in || 3600), user: sess.user });
+      await p.addInitScript(([k, v]) => { try { localStorage.setItem(k, v); } catch (e) {} }, [`sb-${ref}-auth-token`, token]);
       await p.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 });
       await p.waitForTimeout(4000);
       const t2 = await p.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
-      console.log('login sonrası içerik uzunluğu:', t2);
-      // giriş yapılınca içerik login ekranından belirgin biçimde büyümeli
-      if (t2 <= 200) fatal.push('login sonrası içerik login ekranı gibi (RLS/oturum başarısız?): ' + t2);
-      else console.log('✅ login + RLS okuma: giriş-sonrası uygulama yüklendi (' + t2 + ' karakter)');
+      const orbitalHome = await p.evaluate(() => !!document.querySelector('iframe[src*="/orbital/?embed=1"]')).catch(() => false);
+      console.log('login sonrası içerik uzunluğu:', t2, '| orbital home:', orbitalHome);
+      if (t2 <= 200 && !orbitalHome) fatal.push('login sonrası içerik login ekranı gibi (RLS/oturum başarısız?): ' + t2);
+      else console.log('✅ login + RLS okuma: giriş-sonrası uygulama yüklendi (' + t2 + ' karakter' + (orbitalHome ? ', orbital iframe' : '') + ')');
+
+      // ORBİTAL anasayfa doğrulaması (anasayfa_surum='orbital' seed'liyse)
+      if (process.env.E2E_ORBITAL === '1' && t2 > 200) {
+        const orb = await p.evaluate(() => {
+          const f = document.querySelector('iframe[src*="/orbital/?embed=1"]');
+          return f ? { v: true, tema: /[?&]tema=/.test(f.getAttribute('src') || '') } : { v: false };
+        }).catch(() => ({ v: false }));
+        console.log('orbital iframe:', orb.v, '| tema param:', orb.tema);
+        if (!orb.v) fatal.push('orbital anasayfa iframe render olmadı');
+        else if (!orb.tema) fatal.push('orbital iframe tema parametresi geçmiyor');
+        else console.log('✅ orbital anasayfa + mevcut tema geçişi OK');
+      }
+      // RADYO global şalter doğrulaması (radyo_global seed'e göre player mount/unmount)
+      if (process.env.E2E_RADYO && t2 > 200) {
+        const sayi = await p.evaluate(() => document.querySelectorAll('audio').length).catch(() => -1);
+        console.log('radyo audio element sayısı:', sayi, '| beklenen mod:', process.env.E2E_RADYO);
+        if (process.env.E2E_RADYO === 'kapali' && sayi > 0) fatal.push('radyo KAPALI ama player mount olmuş (audio=' + sayi + ')');
+        else if (process.env.E2E_RADYO === 'acik' && sayi < 1) fatal.push('radyo AÇIK ama player yok (audio=' + sayi + ')');
+        else console.log('✅ radyo global şalter (' + process.env.E2E_RADYO + ') doğru: audio=' + sayi);
+      }
+
+      // ADMIN paneli mount doğrulaması (lazy-split parite kanıtı için)
+      if (process.env.E2E_ADMIN === '1' && t2 > 200) {
+        const adFatal = fatal.length;
+        await p.goto(BASE + '/?p=admin', { waitUntil: 'networkidle', timeout: 60000 });
+        await p.waitForTimeout(4500);   // lazy chunk indirme + mount payı
+        const ta = await p.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
+        const adminMarker = await p.evaluate(() =>
+          /admin|yönetim|denetim|panel/i.test(document.body?.innerText || '')).catch(() => false);
+        console.log('admin paneli içerik uzunluğu:', ta, '| işaret:', adminMarker);
+        if (ta <= 400) fatal.push('admin paneli mount olmadı (içerik ' + ta + ')');
+        else if (fatal.length === adFatal) console.log('✅ admin paneli mount oldu (' + ta + ' karakter)');
+      }
     }
   }
 } catch (e) { fatal.push('goto: ' + (e && e.message)); }
