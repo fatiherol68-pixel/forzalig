@@ -341,6 +341,14 @@
   .vav-bar { position:relative; overflow:hidden; }
   .vav-bar::after { content:""; position:absolute; top:0; bottom:0; width:38%; left:-45%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.85),transparent); animation:vavIsilti 2.6s ease-in-out infinite; }
   .vav-supurme { position:absolute; top:0; bottom:0; width:42%; left:-45%; background:linear-gradient(105deg,transparent,rgba(255,255,255,.055),transparent); animation:vavIsilti 5.5s ease-in-out infinite; pointer-events:none; }
+  /* ===== ANA SAYFA PREMIUM — mevcut tasarım/tema korunur, yalnız hareket eklenir ===== */
+  @keyframes flKpiGir { 0%{opacity:0;transform:translateY(12px) scale(.95);} 60%{transform:translateY(0) scale(1.02);} 100%{opacity:1;transform:none;} }
+  .fl-kpi { position:relative; overflow:hidden; animation:flKpiGir .55s cubic-bezier(.2,.85,.3,1.12) both; }
+  .fl-kpi::after { content:""; position:absolute; top:0; bottom:0; width:46%; left:-60%; transform:skewX(-16deg); pointer-events:none; background:linear-gradient(105deg,transparent,color-mix(in srgb,var(--accent,#20E07A) 30%,transparent),transparent); animation:vavIsilti 4.8s ease-in-out infinite; }
+  .kpi-2x2 .fl-kpi:nth-child(2){ animation-delay:.07s; } .kpi-2x2 .fl-kpi:nth-child(2)::after{ animation-delay:.7s; }
+  .kpi-2x2 .fl-kpi:nth-child(3){ animation-delay:.14s; } .kpi-2x2 .fl-kpi:nth-child(3)::after{ animation-delay:1.4s; }
+  .kpi-2x2 .fl-kpi:nth-child(4){ animation-delay:.21s; } .kpi-2x2 .fl-kpi:nth-child(4)::after{ animation-delay:2.1s; }
+  .fl-float { animation:vavSuzul 3.4s ease-in-out infinite; will-change:transform; }
   @keyframes vavAltin { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
   /* Progress bar (stat çubuğu) */
   .prem-bar-track { height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; }
@@ -4714,6 +4722,7 @@ function AnaSayfa({turnuvalar, T, git}){
             <span style={{fontSize:13,fontWeight:700,color:T.text}}>⚽ Gol Kralı</span>
             <span onClick={()=>git({sayfa:"turnuva",turnuva:tk})} className="tap" style={{fontSize:11,color:T.accent,fontWeight:600}}>Tüm Liste ›</span>
           </div>
+          <div className="stagger">
           {golK.map((o,i)=>
             <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:o})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:i===0?T.accent+"12":T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:4,border:i===0?"0.5px solid "+T.accent+"33":"0.5px solid "+T.line}}>
               <span style={{width:16,textAlign:"center",color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:i<3?14:13}}>{i<3?["🥇","🥈","🥉"][i]:(i+1)}</span>
@@ -4725,6 +4734,7 @@ function AnaSayfa({turnuvalar, T, git}){
               <span style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>{o.gol}</span>
             </div>
           )}
+          </div>
         </div>
       </div>
 
@@ -5002,10 +5012,11 @@ function AnaSayfaV5({turnuvalar, T, git}){
     <CanliBant items={bantItems} T={T}/>
 
     {/* ===== V5 SİNEMATİK HERO ===== */}
-    <div style={{position:"relative",overflow:"hidden",padding:"30px 20px 22px",borderBottom:"1px solid "+T.line,
+    <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"30px 20px 22px",borderBottom:"1px solid "+T.line,
       background:"radial-gradient(90% 120% at 88% -12%,"+T.accent+"36,transparent 56%), linear-gradient(180deg,"+T.bg1+" 0%,"+T.bg0+" 84%)"}}>
       <div style={{position:"absolute",inset:0,opacity:.05,pointerEvents:"none",backgroundImage:"repeating-linear-gradient(90deg,transparent 0 58px,"+T.accent+" 58px 59px)"}}/>
-      <div style={{position:"absolute",right:-46,top:-54,width:230,height:230,borderRadius:"50%",pointerEvents:"none",background:"radial-gradient(circle at 40% 40%,"+T.accent+",transparent 62%)",opacity:.22,filter:"blur(10px)"}}/>
+      <div className="vav-supurme"/>
+      <div className="vav-suzul" style={{position:"absolute",right:-46,top:-54,width:230,height:230,borderRadius:"50%",pointerEvents:"none",background:"radial-gradient(circle at 40% 40%,"+T.accent+",transparent 62%)",opacity:.28,filter:"blur(10px)"}}/>
       <span style={{position:"relative",display:"inline-flex",alignItems:"center",gap:8,fontSize:10.5,fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",color:T.accent,background:T.accent+"14",border:"1px solid "+T.accent+"3a",borderRadius:30,padding:"5px 12px"}}>
         <span style={{width:7,height:7,borderRadius:"50%",background:T.accent,boxShadow:"0 0 10px "+T.accent}} className="fz-nabiz"/>CANLI · {tk.ad}
       </span>
@@ -5140,6 +5151,7 @@ function AnaSayfaV5({turnuvalar, T, git}){
         {/* GOL KRALI */}
         <div>
           <V5Eyebrow T={T} more="Tüm Liste ›" onMore={()=>git({sayfa:"turnuva",turnuva:tk})}>Gol Kralı</V5Eyebrow>
+          <div className="stagger">
           {golK.map((o,i)=>
             <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:o})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:i===0?T.accent+"12":T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:4,border:i===0?"1px solid "+T.accent+"33":"1px solid "+T.line}}>
               <span style={{width:16,textAlign:"center",color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:i<3?14:13}}>{i<3?["🥇","🥈","🥉"][i]:(i+1)}</span>
@@ -5151,6 +5163,7 @@ function AnaSayfaV5({turnuvalar, T, git}){
               <span style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>{o.gol}</span>
             </div>
           )}
+          </div>
         </div>
       </div>
 
@@ -5179,7 +5192,7 @@ function AnaSayfaV5({turnuvalar, T, git}){
         </div>
 
         {/* SON MAÇLAR */}
-        <div>
+        <div className="stagger">
           <V5Eyebrow T={T} more="Tüm Maçlar ›" onMore={()=>git({sayfa:"turnuva",turnuva:tk})}>Son Maçlar</V5Eyebrow>
           {sonMaclar.map(m=>{
             const aG=m.skorA>m.skorB, bG=m.skorB>m.skorA;
@@ -5368,10 +5381,11 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
     </div>}
 
     {/* ===== V6 HERO (V5 + bu hafta nabzı) ===== */}
-    <div style={{position:"relative",overflow:"hidden",padding:"30px 20px 22px",borderBottom:"1px solid "+T.line,
+    <div className="vav-hero" style={{position:"relative",overflow:"hidden",padding:"30px 20px 22px",borderBottom:"1px solid "+T.line,
       background:"radial-gradient(90% 120% at 88% -12%,"+T.accent+"36,transparent 56%), linear-gradient(180deg,"+T.bg1+" 0%,"+T.bg0+" 84%)"}}>
       <div style={{position:"absolute",inset:0,opacity:.05,pointerEvents:"none",backgroundImage:"repeating-linear-gradient(90deg,transparent 0 58px,"+T.accent+" 58px 59px)"}}/>
-      <div style={{position:"absolute",right:-46,top:-54,width:230,height:230,borderRadius:"50%",pointerEvents:"none",background:"radial-gradient(circle at 40% 40%,"+T.accent+",transparent 62%)",opacity:.22,filter:"blur(10px)"}}/>
+      <div className="vav-supurme"/>
+      <div className="vav-suzul" style={{position:"absolute",right:-46,top:-54,width:230,height:230,borderRadius:"50%",pointerEvents:"none",background:"radial-gradient(circle at 40% 40%,"+T.accent+",transparent 62%)",opacity:.28,filter:"blur(10px)"}}/>
       <span style={{position:"relative",display:"inline-flex",alignItems:"center",gap:8,fontSize:10.5,fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",color:T.accent,background:T.accent+"14",border:"1px solid "+T.accent+"3a",borderRadius:30,padding:"5px 12px"}}>
         <span style={{width:7,height:7,borderRadius:"50%",background:T.accent,boxShadow:"0 0 10px "+T.accent}} className="fz-nabiz"/>CANLI · {tk.ad}
       </span>
@@ -5506,7 +5520,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
       if(list.length<2) return null;
       return <div style={{padding:"22px 14px 0"}}>
         <V5Eyebrow T={T}>Canlı Akış <span style={{fontSize:9,fontWeight:800,color:T.danger,background:T.danger+"16",border:"0.5px solid "+T.danger+"44",borderRadius:20,padding:"2px 8px",marginLeft:6,display:"inline-flex",alignItems:"center",gap:4,verticalAlign:"middle"}}><span style={{width:5,height:5,borderRadius:"50%",background:T.danger}} className="fz-nabiz"/>tüm ligler</span></V5Eyebrow>
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        <div className="stagger" style={{display:"flex",flexDirection:"column",gap:6}}>
           {list.map((it,i)=>{ const m=it.m; const d=parseT(m.tarih); const atesli=it.gol>=5; const bitmis=m.skorA!=null&&m.skorB!=null;
             const kazA=bitmis&&m.skorA>m.skorB, kazB=bitmis&&m.skorB>m.skorA;
             return <div key={i} onClick={()=>git&&git({sayfa:"mac",mac:m,turnuva:it.t})} className="tap" style={{display:"flex",alignItems:"center",gap:10,background:atesli?"linear-gradient(120deg,"+T.danger+"14,"+T.bg1+" 60%)":T.bg1,border:"0.5px solid "+(atesli?T.danger+"33":T.line),borderRadius:12,padding:"9px 11px"}}>
@@ -5609,6 +5623,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
 
         <div>
           <V5Eyebrow T={T} more="Tüm Liste ›" onMore={()=>git({sayfa:"turnuva",turnuva:tk})}>Gol Kralı</V5Eyebrow>
+          <div className="stagger">
           {golK.map((o,i)=>
             <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:o})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:i===0?T.accent+"12":T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:4,border:i===0?"1px solid "+T.accent+"33":"1px solid "+T.line}}>
               <span style={{width:16,textAlign:"center",color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:i<3?14:13}}>{i<3?["🥇","🥈","🥉"][i]:(i+1)}</span>
@@ -5620,6 +5635,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
               <span style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>{o.gol}</span>
             </div>
           )}
+          </div>
         </div>
       </div>
 
@@ -5645,7 +5661,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
           )}
         </div>
 
-        <div>
+        <div className="stagger">
           <V5Eyebrow T={T} more="Tüm Maçlar ›" onMore={()=>git({sayfa:"turnuva",turnuva:tk})}>Son Maçlar</V5Eyebrow>
           {sonMaclar.map(m=>{
             const aG=m.skorA>m.skorB, bG=m.skorB>m.skorA;
@@ -5728,10 +5744,11 @@ function OneCikan({ik, et, ana, alt, T, onClick}){
 }
 
 function KpiMini({ik, buyuk, et, renk, T, onClick}){
-  return <div onClick={onClick} className={onClick?"kart-hover":""} style={{background:T.bg1,borderRadius:13,padding:"14px 13px",border:"0.5px solid "+T.line}}>
-    <div style={{fontSize:16,marginBottom:6}}>{ik}</div>
-    <div style={{lineHeight:1}}>{typeof buyuk==="number" ? <Sayac hedef={buyuk} T={T} renk={renk} boy={24}/> : <span style={{fontSize:24,fontWeight:800,color:renk,fontFamily:T.fontDisplay}}>{buyuk}</span>}</div>
-    <div style={{fontSize:10,color:T.textMut,marginTop:4}}>{et}</div>
+  return <div onClick={onClick} className={"fl-kpi"+(onClick?" kart-hover":"")} style={{position:"relative",background:"linear-gradient(160deg,"+renk+"16,"+T.bg1+" 62%)",borderRadius:13,padding:"14px 13px",border:"0.5px solid "+renk+"3a",boxShadow:"0 8px 20px -14px "+renk}}>
+    <div className="fl-float" style={{fontSize:18,marginBottom:6,display:"inline-block",filter:"drop-shadow(0 2px 6px "+renk+"66)"}}>{ik}</div>
+    <div style={{lineHeight:1,position:"relative"}}>{typeof buyuk==="number" ? <Sayac hedef={buyuk} T={T} renk={renk} boy={26}/> : <span style={{fontSize:26,fontWeight:800,color:renk,fontFamily:T.fontDisplay}}>{buyuk}</span>}</div>
+    <div style={{fontSize:10,color:T.textMut,marginTop:4,position:"relative"}}>{et}</div>
+    <div style={{position:"absolute",left:0,right:0,bottom:0,height:3,background:"linear-gradient(90deg,"+renk+","+renk+"00)",opacity:.7}}/>
   </div>;
 }
 
@@ -5856,6 +5873,7 @@ function LigGenel({turnuva, T, git}){
             <span style={{fontSize:13,fontWeight:700,color:T.text}}>⚽ Gol Kralı</span>
             <span onClick={()=>git({sayfa:"turnuva",turnuva:tk})} className="tap" style={{fontSize:11,color:T.accent,fontWeight:600}}>Tüm Liste ›</span>
           </div>
+          <div className="stagger">
           {golK.map((o,i)=>
             <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:o})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:i===0?T.accent+"12":T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:4,border:i===0?"0.5px solid "+T.accent+"33":"0.5px solid "+T.line}}>
               <span style={{width:16,textAlign:"center",color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:i<3?14:13}}>{i<3?["🥇","🥈","🥉"][i]:(i+1)}</span>
@@ -5867,6 +5885,7 @@ function LigGenel({turnuva, T, git}){
               <span style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>{o.gol}</span>
             </div>
           )}
+          </div>
         </div>
       </div>
 
