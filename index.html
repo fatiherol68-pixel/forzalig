@@ -55,7 +55,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260828125315"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260828211111"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -338,6 +338,14 @@
   .vav-bar { position:relative; overflow:hidden; }
   .vav-bar::after { content:""; position:absolute; top:0; bottom:0; width:38%; left:-45%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.85),transparent); animation:vavIsilti 2.6s ease-in-out infinite; }
   .vav-supurme { position:absolute; top:0; bottom:0; width:42%; left:-45%; background:linear-gradient(105deg,transparent,rgba(255,255,255,.055),transparent); animation:vavIsilti 5.5s ease-in-out infinite; pointer-events:none; }
+  /* ===== ANA SAYFA PREMIUM — mevcut tasarım/tema korunur, yalnız hareket eklenir ===== */
+  @keyframes flKpiGir { 0%{opacity:0;transform:translateY(12px) scale(.95);} 60%{transform:translateY(0) scale(1.02);} 100%{opacity:1;transform:none;} }
+  .fl-kpi { position:relative; overflow:hidden; animation:flKpiGir .55s cubic-bezier(.2,.85,.3,1.12) both; }
+  .fl-kpi::after { content:""; position:absolute; top:0; bottom:0; width:46%; left:-60%; transform:skewX(-16deg); pointer-events:none; background:linear-gradient(105deg,transparent,color-mix(in srgb,var(--accent,#20E07A) 30%,transparent),transparent); animation:vavIsilti 4.8s ease-in-out infinite; }
+  .kpi-2x2 .fl-kpi:nth-child(2){ animation-delay:.07s; } .kpi-2x2 .fl-kpi:nth-child(2)::after{ animation-delay:.7s; }
+  .kpi-2x2 .fl-kpi:nth-child(3){ animation-delay:.14s; } .kpi-2x2 .fl-kpi:nth-child(3)::after{ animation-delay:1.4s; }
+  .kpi-2x2 .fl-kpi:nth-child(4){ animation-delay:.21s; } .kpi-2x2 .fl-kpi:nth-child(4)::after{ animation-delay:2.1s; }
+  .fl-float { animation:vavSuzul 3.4s ease-in-out infinite; will-change:transform; }
   @keyframes vavAltin { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
   /* Progress bar (stat çubuğu) */
   .prem-bar-track { height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; }
@@ -396,7 +404,7 @@
   @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
   .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
-  <script type="module" crossorigin src="/assets/index-BA0_p0f3.js"></script>
+  <script type="module" crossorigin src="/assets/index-Dc-Nep3s.js"></script>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash">
