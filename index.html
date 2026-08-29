@@ -3141,7 +3141,7 @@ const Motor = {
    UI PARÇALARI (ortak bileşenler — her yerde aynı)
    ============================================================ */
 function Logo({renk, boy=40, ad, logo, renk2}){
-  return <div style={{width:boy,height:boy,flexShrink:0,borderRadius:"50%",overflow:"hidden"}} dangerouslySetInnerHTML={{__html: svgAmblem(ad||"F", renk, boy, logo, renk2)}}/>;
+  return <div style={{width:boy,height:boy,flexShrink:0,borderRadius:"50%",overflow:"hidden",boxShadow:"inset 0 1px 1.5px rgba(255,255,255,.35), inset 0 -2px 4px rgba(0,0,0,.22), 0 1px 3px rgba(0,0,0,.28)"}} dangerouslySetInnerHTML={{__html: svgAmblem(ad||"F", renk, boy, logo, renk2)}}/>;
 }
 
 function Avatar({o, boy=44, T}){
@@ -3362,6 +3362,24 @@ function Sparkline({seri, T, w=120, h=34}){
     <polygon className="bar-grow" points={alan} fill={T.accent+"22"}/>
     <polyline className="bar-grow" points={pts.map(p=>p.join(",")).join(" ")} fill="none" stroke={T.accent} strokeWidth="2"/>
     {pts.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r="2.5" fill={T.accent}/>)}
+  </svg>;
+}
+
+/* Basit çubuk grafik (gerçek veriyle, SVG — kütüphane yok) */
+function CubukGrafik({veri, T, renk}){
+  if(!veri||!veri.length) return null;
+  const W=330,H=118,x0=10,base=100,maxH=86;
+  const mx=Math.max.apply(null,veri.map(d=>d.v).concat([1]));
+  const slot=(W-2*x0)/veri.length, bw=Math.min(30,slot*0.6);
+  return <svg viewBox={"0 0 "+W+" "+H} style={{width:"100%",height:"auto",display:"block",overflow:"visible"}} role="img" aria-label="çubuk grafik">
+    <line x1={x0} y1={base+0.5} x2={W-x0} y2={base+0.5} stroke={T.line} strokeWidth="1"/>
+    {veri.map((d,i)=>{ const h=Math.max(2,Math.round((d.v/mx)*maxH)); const x=x0+slot*i+(slot-bw)/2; const y=base-h; const c=d.renk||renk||T.accent;
+      return <g key={i}>
+        <rect x={x} y={y} width={bw} height={h} rx="4" fill={c} opacity={d.v===mx?1:.82}/>
+        {d.v===mx && <text x={x+bw/2} y={y-4} textAnchor="middle" fontFamily={T.fontDisplay} fontSize="9.5" fontWeight="700" fill={T.text}>{d.v}</text>}
+        <text x={x+bw/2} y={base+13} textAnchor="middle" fontSize="8" fill={T.textMut}>{d.lbl}</text>
+      </g>;
+    })}
   </svg>;
 }
 
@@ -5236,6 +5254,21 @@ function AnaSayfaV5({turnuvalar, T, git}){
     </div>}
 
     {/* HABERLER & DUYURULAR */}
+    {tk.maclar.filter(m=>m.oynandi!==false).length>=3 && (()=>{
+      const hg={}; tk.maclar.forEach(m=>{ if(m.oynandi===false)return; const h=m.hafta||0; hg[h]=(hg[h]||0)+(m.skorA||0)+(m.skorB||0); });
+      const haftaVeri=Object.keys(hg).map(Number).sort((a,b)=>a-b).slice(-10).map(h=>({lbl:"H"+h, v:hg[h]}));
+      const takimVeri=[...tk.takimlar].sort((a,b)=>(b.ag||0)-(a.ag||0)).slice(0,6).map(t=>({lbl:(t.ad||"?").slice(0,3).toUpperCase(), v:t.ag||0, renk:t.renk}));
+      if(haftaVeri.length<2) return null;
+      const kutu={background:"linear-gradient(160deg,"+T.bg1+","+T.bg2+")",border:"1px solid "+T.line,borderRadius:15,padding:"13px 13px 9px"};
+      const bas={display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:9};
+      const bt={fontFamily:T.fontDisplay,fontWeight:700,fontSize:13,color:T.text};
+      return <div style={{padding:"22px 14px 0"}}>
+        <V5Eyebrow T={T}>Lig İstatistikleri</V5Eyebrow>
+        <div style={{...kutu,marginBottom:10}}><div style={bas}><span style={bt}>Haftalık Gol Trendi</span><span style={{fontSize:9.5,color:T.textMut}}>{tk.ad}</span></div><CubukGrafik veri={haftaVeri} T={T} renk={T.accent}/></div>
+        <div style={kutu}><div style={bas}><span style={bt}>En Golcü Takımlar</span><span style={{fontSize:9.5,color:T.textMut}}>attığı gol</span></div><CubukGrafik veri={takimVeri} T={T} renk={T.accent2}/></div>
+      </div>;
+    })()}
+
     {haberlerListe.length>0 && <div style={{padding:"20px 14px 6px"}}>
       <V5Eyebrow T={T}>Haberler & Duyurular</V5Eyebrow>
       <HaberVitrin haberler={haberlerListe} T={T}/>
@@ -5698,6 +5731,21 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
         </div>
       )}
     </div>}
+
+    {tk.maclar.filter(m=>m.oynandi!==false).length>=3 && (()=>{
+      const hg={}; tk.maclar.forEach(m=>{ if(m.oynandi===false)return; const h=m.hafta||0; hg[h]=(hg[h]||0)+(m.skorA||0)+(m.skorB||0); });
+      const haftaVeri=Object.keys(hg).map(Number).sort((a,b)=>a-b).slice(-10).map(h=>({lbl:"H"+h, v:hg[h]}));
+      const takimVeri=[...tk.takimlar].sort((a,b)=>(b.ag||0)-(a.ag||0)).slice(0,6).map(t=>({lbl:(t.ad||"?").slice(0,3).toUpperCase(), v:t.ag||0, renk:t.renk}));
+      if(haftaVeri.length<2) return null;
+      const kutu={background:"linear-gradient(160deg,"+T.bg1+","+T.bg2+")",border:"1px solid "+T.line,borderRadius:15,padding:"13px 13px 9px"};
+      const bas={display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:9};
+      const bt={fontFamily:T.fontDisplay,fontWeight:700,fontSize:13,color:T.text};
+      return <div style={{padding:"22px 14px 0"}}>
+        <V5Eyebrow T={T}>Lig İstatistikleri</V5Eyebrow>
+        <div style={{...kutu,marginBottom:10}}><div style={bas}><span style={bt}>Haftalık Gol Trendi</span><span style={{fontSize:9.5,color:T.textMut}}>{tk.ad}</span></div><CubukGrafik veri={haftaVeri} T={T} renk={T.accent}/></div>
+        <div style={kutu}><div style={bas}><span style={bt}>En Golcü Takımlar</span><span style={{fontSize:9.5,color:T.textMut}}>attığı gol</span></div><CubukGrafik veri={takimVeri} T={T} renk={T.accent2}/></div>
+      </div>;
+    })()}
 
     {haberlerListe.length>0 && <div style={{padding:"20px 14px 6px"}}>
       <V5Eyebrow T={T}>Haberler & Duyurular</V5Eyebrow>
