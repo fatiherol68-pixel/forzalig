@@ -55,7 +55,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260829144023"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260829171842"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -352,6 +352,20 @@
   .fl-atmos .grain{position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;background-size:150px 150px;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
   @media (prefers-reduced-motion:reduce){ .fl-atmos .grain{opacity:.03} }
+  /* Aurora — atmosfer ışıması yavaşça nefes alsın/süzülsün (temaya uyumlu, çok ölçülü) */
+  @keyframes flAurora { 0%,100%{ transform:scale(1) translateY(0); opacity:.9; } 50%{ transform:scale(1.08) translateY(-1.4%); opacity:1; } }
+  .fl-atmos .glow{ transform-origin:50% 20%; animation:flAurora 16s ease-in-out infinite; will-change:transform,opacity; }
+  @media (prefers-reduced-motion:reduce){ .fl-atmos .glow{ animation:none; } }
+  /* ===== KAYDIRINCA BELİREN BÖLÜMLER (scroll-reveal) — premium his =====
+     Güvenli: sadece JS engine 'fl-reveal-on' sınıfını eklerse gizler. JS çalışmazsa
+     içerik NORMAL görünür (hiçbir şey kaybolmaz). 'hareket azaltma'da tamamen kapanır. */
+  html.fl-reveal-on .fl-reveal{ opacity:0; transform:translateY(24px); transition:opacity .72s cubic-bezier(.2,.7,.2,1), transform .72s cubic-bezier(.2,.7,.2,1); will-change:opacity,transform; }
+  html.fl-reveal-on .fl-reveal.gorunur{ opacity:1; transform:none; }
+  @media (prefers-reduced-motion:reduce){ html.fl-reveal-on .fl-reveal{ opacity:1 !important; transform:none !important; transition:none !important; } }
+  /* Grafik çubukları: bölüm görünür alana girince tabandan yukarı büyüsün */
+  @keyframes flCubBuyu{ from{ transform:scaleY(0); } to{ transform:scaleY(1); } }
+  html.fl-reveal-on .fl-reveal .flcub-bar{ transform-box:fill-box; transform-origin:50% 100%; transform:scaleY(0); }
+  html.fl-reveal-on .fl-reveal.gorunur .flcub-bar{ animation:flCubBuyu .8s cubic-bezier(.2,.85,.25,1) both; animation-delay:var(--gcik,0s); }
   @keyframes vavAltin { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
   /* Progress bar (stat çubuğu) */
   .prem-bar-track { height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; }
@@ -410,7 +424,7 @@
   @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
   .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
-  <script type="module" crossorigin src="/assets/index-BwOu7STG.js"></script>
+  <script type="module" crossorigin src="/assets/index-DBvxwJ6B.js"></script>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash">
