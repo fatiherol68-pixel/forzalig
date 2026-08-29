@@ -55,7 +55,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260829123148"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260829142018"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -346,6 +346,12 @@
   .kpi-2x2 .fl-kpi:nth-child(3){ animation-delay:.14s; } .kpi-2x2 .fl-kpi:nth-child(3)::after{ animation-delay:1.4s; }
   .kpi-2x2 .fl-kpi:nth-child(4){ animation-delay:.21s; } .kpi-2x2 .fl-kpi:nth-child(4)::after{ animation-delay:2.1s; }
   .fl-float { animation:vavSuzul 3.4s ease-in-out infinite; will-change:transform; }
+  /* ===== SİNEMATİK ATMOSFER — ana sayfaya derinlik (temaya uyumlu, var(--accent)/var(--bg0)) ===== */
+  .fl-atmos{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .fl-atmos .glow{position:absolute;inset:0;background:radial-gradient(84% 34% at 50% -6%, color-mix(in srgb,var(--accent,#20E07A) 15%,transparent), transparent 60%), radial-gradient(120% 70% at 50% 118%, color-mix(in srgb,var(--accent,#20E07A) 8%,transparent), transparent 55%)}
+  .fl-atmos .grain{position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;background-size:150px 150px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  @media (prefers-reduced-motion:reduce){ .fl-atmos .grain{opacity:.03} }
   @keyframes vavAltin { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
   /* Progress bar (stat çubuğu) */
   .prem-bar-track { height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; }
@@ -404,7 +410,7 @@
   @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
   .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
-  <script type="module" crossorigin src="/assets/index-Cpg2MADL.js"></script>
+  <script type="module" crossorigin src="/assets/index-DAs1WKc_.js"></script>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash">
