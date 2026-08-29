@@ -36,6 +36,12 @@ try {
   const mIdx = html.match(/assets\/index-[A-Za-z0-9_-]+\.js/);
   console.log('servis edilen entry asset:', mIdx ? mIdx[0] : '(yok)');
   console.log('yeni premium CSS var mı → fl-kpi:', /fl-kpi/.test(html) ? 'VAR ✅' : 'YOK ❌', '| vav-hero:', /vav-hero/.test(html) ? 'VAR ✅' : 'YOK ❌');
+  // RENDER edilen gerçek metin — canlıda hangi ana sayfa?
+  const bodyTxt = await p.evaluate(() => (document.body && document.body.innerText || '').replace(/\s+/g,' ').slice(0, 420)).catch(() => '(alınamadı)');
+  console.log('RENDER metni (ilk 420):', bodyTxt);
+  console.log('  → "tek ekranda":', /tek ekranda/.test(bodyTxt) ? 'VAR (ESKİ landing)' : 'yok', '| "Hoş geldin":', /Hoş geldin/.test(bodyTxt) ? 'VAR (yeni V6)' : 'yok', '| "Senin kartın":', /Senin kartın/.test(bodyTxt) ? 'VAR' : 'yok');
+  const scriptSrc = await p.evaluate(() => Array.prototype.slice.call(document.querySelectorAll('script[src]')).map(s => s.getAttribute('src')).filter(s => /assets\//.test(s))).catch(() => []);
+  console.log('yüklenen app scriptleri:', JSON.stringify(scriptSrc));
   console.log('BEKLENEN damga: 20260828211111 | entry: index-Dc-Nep3s.js');
 } catch (e) { console.log('sürüm teşhisi hata:', String(e).slice(0, 120)); }
 
