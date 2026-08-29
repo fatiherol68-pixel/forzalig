@@ -9426,7 +9426,7 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
     </div>
 
     {/* CANLI İZLE (Faz 7) */}
-    <CanliYayin m={m} T={T}/>
+    <CanliYayin m={m} T={T} git={git} turnuva={turnuva}/>
 
     {/* AKSİYON BUTONLARI */}
     {git && <div style={{padding:"8px 14px 0",display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -11506,13 +11506,43 @@ function MEDYA_ALGILA(url){
   }
   if(/\.(mp4|webm|ogg|m3u8|mov)(\?|#|$)/i.test(u))
     return {platform:"mp4", ad:"Video", ik:"🎞️", embed:u, dis:u, direkt:true};
+  // İÇ LİNK: forzalig.com/?mac=/?takim=/?oyuncu=/?lig= → uygulama İÇİNDE açılır (dışarı yeni sekme değil)
+  if(/(?:^|\/\/|\.)forzalig\.com/i.test(L) && /[?&](mac|takim|oyuncu|lig)=/.test(L)){
+    var ic={};
+    try{ var qi=u.indexOf("?"); var qs=new URLSearchParams(qi>=0?u.slice(qi+1):""); ["mac","takim","oyuncu","lig"].forEach(function(k){ var v=qs.get(k); if(v) ic[k]=v; }); }catch(e){}
+    var et = ic.mac?"Maça git" : ic.takim?"Takıma git" : ic.oyuncu?"Oyuncuya git" : ic.lig?"Lige git" : "ForzaLig";
+    return {platform:"forzalig", ad:"ForzaLig", et:et, ik:"⚽", embed:null, dis:u, ic:ic};
+  }
   return {platform:"link", ad:"Bağlantı", ik:"🔗", embed:null, dis:u};
 }
 
 /* Inline 16:9 oynatıcı: iframe embed / yerleşik <video> / "dışarıda aç" yedeği */
-function MedyaOynatici({algi, canli, T}){
+function MedyaOynatici({algi, canli, T, git, turnuva}){
   var [oran,setOran]=useState(null); // mp4 gerçek en/boy (auto yön)
   if(!algi) return null;
+  // İÇ LİNK: ForzaLig maç/takım/oyuncu linki → uygulama içinde aç (aynı ligdeyse yumuşak geçiş, değilse aynı sekmede derin-link)
+  if(algi.platform==="forzalig"){
+    var ic=algi.ic||{};
+    var icAc=function(){
+      try{
+        if(git && turnuva){
+          if(ic.mac){ var mm=(turnuva.maclar||[]).find(function(x){ return String(x.id)===String(ic.mac); }); if(mm){ git({sayfa:"mac",mac:mm,turnuva:turnuva}); return; } }
+          if(ic.takim){ var tt=(turnuva.takimlar||[]).find(function(x){ return String(x.id)===String(ic.takim); }); if(tt){ git({sayfa:"takim",takim:tt,turnuva:turnuva}); return; } }
+          if(ic.oyuncu){ for(var i=0;i<(turnuva.takimlar||[]).length;i++){ var tk=turnuva.takimlar[i]; var oo=(tk.oyuncular||[]).find(function(x){ return String(x.player_id||x.id)===String(ic.oyuncu); }); if(oo){ git({sayfa:"oyuncu",oyuncu:Object.assign({},oo,{takimAd:tk.ad,turnuva:turnuva.ad})}); return; } } }
+        }
+      }catch(e){}
+      // başka ligde ya da bulunamadı → aynı sekmede aç, derin-link yönlendirmesi açar
+      try{ window.location.href=algi.dis; }catch(e){}
+    };
+    return <div onClick={icAc} className="tap" style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer",background:"linear-gradient(120deg,"+T.accent+"18,"+T.bg1+" 60%)",border:"1px solid "+T.accent+"44",borderRadius:12,padding:"14px 15px"}}>
+      <span style={{fontSize:26,filter:"drop-shadow(0 2px 6px "+T.accent+"55)"}}>⚽</span>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:9.5,color:T.accent,fontWeight:800,letterSpacing:.5,textTransform:"uppercase"}}>ForzaLig</div>
+        <div style={{fontSize:14,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>{algi.et||"Bağlantıyı aç"}</div>
+      </div>
+      <span style={{color:T.accent,fontSize:18,fontWeight:900}}>›</span>
+    </div>;
+  }
   var u=(algi.dis||"").toLowerCase();
   var iframeDikey = algi.platform==="tiktok"
     || (algi.platform==="instagram" && u.indexOf("/reel")>=0)
@@ -11547,7 +11577,7 @@ function MedyaOynatici({algi, canli, T}){
 }
 
 /* Akıllı buton + inline expand + (çoklu ise) segment sekme. Modal yok. */
-function CanliYayin({m, T}){
+function CanliYayin({m, T, git, turnuva}){
   var medya = m.medya||{};
   var ham=[
     {k:"canli", et:"Canlı Yayın", ik:"📺", url:medya.canli, canli:!!medya.canliAcik},
@@ -11583,7 +11613,7 @@ function CanliYayin({m, T}){
       {slotlar.length>1 && <div style={{display:"flex",gap:6,marginBottom:9}}>
         {slotlar.map(function(s){ var on=acik===s.k; return <button key={s.k} onClick={function(){ setAcik(s.k); }} className="tap" style={{flex:1,height:38,borderRadius:10,fontSize:12,fontWeight:700,border:"1px solid "+(on?(s.canli?"#F4525A":T.accent):T.line),background:on?(s.canli?"#F4525A22":T.accent+"1e"):T.bg1,color:on?(s.canli?"#ff7a7f":T.accent):T.textMut,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>{s.ik} {s.et}</button>; })}
       </div>}
-      {acikSlot && <MedyaOynatici algi={acikSlot.algi} canli={acikSlot.canli} T={T}/>}
+      {acikSlot && <MedyaOynatici algi={acikSlot.algi} canli={acikSlot.canli} T={T} git={git} turnuva={turnuva}/>}
     </div>
   </div>;
 }
@@ -17561,11 +17591,12 @@ function App(){
     if(derinRestoreRef.current) return;
     if(!(MAC_ID||TAKIM_ID||OYUNCU_ID)) return;
     if(!turnuvalar||!turnuvalar.length) return;
-    derinRestoreRef.current=true;
+    // NOT: ref'i ancak GERÇEKTEN yönlendirince kilitle — hedef lig/maç henüz yüklenmediyse
+    // veri büyüdükçe tekrar dener (aksi halde ilk yüklemede bulunamayınca kalıcı takılırdı).
     try{
-      if(MAC_ID){ for(const t of turnuvalar){ const mm=(t.maclar||[]).find(x=>String(x.id)===String(MAC_ID)); if(mm){ git({sayfa:"mac",mac:mm,turnuva:t}); return; } } }
-      if(TAKIM_ID){ for(const t of turnuvalar){ const tk=(t.takimlar||[]).find(x=>String(x.id)===String(TAKIM_ID)); if(tk){ git({sayfa:"takim",takim:tk,turnuva:t}); return; } } }
-      if(OYUNCU_ID){ for(const t of turnuvalar){ for(const tk of (t.takimlar||[])){ const o=(tk.oyuncular||[]).find(x=>String(x.player_id||x.id)===String(OYUNCU_ID)); if(o){ git({sayfa:"oyuncu",oyuncu:{...o,takimAd:tk.ad,turnuva:t.ad}}); return; } } } }
+      if(MAC_ID){ for(const t of turnuvalar){ const mm=(t.maclar||[]).find(x=>String(x.id)===String(MAC_ID)); if(mm){ derinRestoreRef.current=true; git({sayfa:"mac",mac:mm,turnuva:t}); return; } } }
+      if(TAKIM_ID){ for(const t of turnuvalar){ const tk=(t.takimlar||[]).find(x=>String(x.id)===String(TAKIM_ID)); if(tk){ derinRestoreRef.current=true; git({sayfa:"takim",takim:tk,turnuva:t}); return; } } }
+      if(OYUNCU_ID){ for(const t of turnuvalar){ for(const tk of (t.takimlar||[])){ const o=(tk.oyuncular||[]).find(x=>String(x.player_id||x.id)===String(OYUNCU_ID)); if(o){ derinRestoreRef.current=true; git({sayfa:"oyuncu",oyuncu:{...o,takimAd:tk.ad,turnuva:t.ad}}); return; } } } }
     }catch(e){}
   },[turnuvalar]);
   const veriUret=(a,b,c)=>{ setTurnuvalar(uretVeri(a,b,c)); setNav({sayfa:"ana"}); setNavGecmis([]); setTab("ana"); };
