@@ -11519,6 +11519,7 @@ function MEDYA_ALGILA(url){
 /* Inline 16:9 oynatıcı: iframe embed / yerleşik <video> / "dışarıda aç" yedeği */
 function MedyaOynatici({algi, canli, T, git, turnuva}){
   var [oran,setOran]=useState(null); // mp4 gerçek en/boy (auto yön)
+  var [oynat,setOynat]=useState(false); // gömülü video: kapağa dokununca inline yüklenir (lite-embed)
   if(!algi) return null;
   // İÇ LİNK: ForzaLig maç/takım/oyuncu linki → uygulama içinde aç (aynı ligdeyse yumuşak geçiş, değilse aynı sekmede derin-link)
   if(algi.platform==="forzalig"){
@@ -11556,16 +11557,20 @@ function MedyaOynatici({algi, canli, T, git, turnuva}){
   if(algi.direkt){
     ic = <video src={algi.embed} controls playsInline onLoadedMetadata={e=>{ try{ var v=e.target; if(v.videoWidth&&v.videoHeight) setOran(v.videoWidth/v.videoHeight); }catch(_){} }} style={{width:"100%",height:"100%",objectFit:"contain",background:"#000"}}/>;
   } else if(algi.embed){
-    // NOT: Cloudflare CSP frame-src şu an YouTube/IG/TikTok iframe'ine izin vermiyor →
-    // gömülü oynatıcı kara ekran veriyordu. Bu yüzden KAPAK (poster) + ▶ gösterip
-    // videoyu platformunda açıyoruz (YouTube kapağı gerçek küçük resim). CSP açılırsa
-    // burası tekrar inline iframe'e çevrilebilir.
-    var poster = (algi.platform==="youtube" && algi.vid) ? ("https://i.ytimg.com/vi/"+algi.vid+"/hqdefault.jpg") : null;
-    ic = <a href={algi.dis} target="_blank" rel="noopener noreferrer" aria-label={algi.ad+" videosunu aç"} style={{position:"absolute",inset:0,display:"block",textDecoration:"none",background:poster?("#000 url('"+poster+"') center/cover no-repeat"):"#000"}}>
-      <span style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.5))"}}/>
-      <span style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:62,height:62,borderRadius:"50%",background:"rgba(0,0,0,.55)",border:"2px solid rgba(255,255,255,.92)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:"#fff",boxShadow:"0 6px 20px rgba(0,0,0,.4)"}}>▶</span>
-      <span style={{position:"absolute",left:0,right:0,bottom:0,padding:"9px 11px",display:"flex",alignItems:"center",gap:6,color:"#fff",fontSize:11.5,fontWeight:700,background:"linear-gradient(0deg,rgba(0,0,0,.62),transparent)"}}>{algi.ik} {algi.ad}'da aç ↗</span>
-    </a>;
+    // LİTE-EMBED: önce KAPAK (poster) + ▶ göster; dokununca inline iframe yüklenip
+    // videoyu UYGULAMA İÇİNDE oynatır (Cloudflare CSP frame-src video alanlarına izinli).
+    // Hızlı açılır (iframe sadece istenince yüklenir), kara ekran yok.
+    if(oynat){
+      var kaynak = (algi.platform==="youtube") ? (algi.embed + (algi.embed.indexOf("?")>=0?"&":"?") + "autoplay=1") : algi.embed;
+      ic = <iframe src={kaynak} title={algi.ad} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen frameBorder="0" style={{position:"absolute",inset:0,width:"100%",height:"100%",border:0}}/>;
+    } else {
+      var poster = (algi.platform==="youtube" && algi.vid) ? ("https://i.ytimg.com/vi/"+algi.vid+"/hqdefault.jpg") : null;
+      ic = <div onClick={()=>setOynat(true)} className="tap" role="button" aria-label={algi.ad+" videosunu oynat"} style={{position:"absolute",inset:0,cursor:"pointer",background:poster?("#000 url('"+poster+"') center/cover no-repeat"):"#000"}}>
+        <span style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.5))"}}/>
+        <span style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:62,height:62,borderRadius:"50%",background:"rgba(0,0,0,.6)",border:"2px solid rgba(255,255,255,.92)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:"#fff",boxShadow:"0 6px 20px rgba(0,0,0,.4)"}}>▶</span>
+        <span style={{position:"absolute",left:0,right:0,bottom:0,padding:"9px 11px",display:"flex",alignItems:"center",gap:6,color:"#fff",fontSize:11.5,fontWeight:700,background:"linear-gradient(0deg,rgba(0,0,0,.62),transparent)"}}>{algi.ik} {algi.ad} · oynatmak için dokun</span>
+      </div>;
+    }
   } else {
     ic = <a href={algi.dis} target="_blank" rel="noopener noreferrer" style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,color:T.text,textDecoration:"none"}}>
       <span style={{fontSize:34}}>{algi.ik}</span>
