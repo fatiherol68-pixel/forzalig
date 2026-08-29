@@ -5362,18 +5362,14 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     <CanliBant items={bantItems} T={T}/>
 
-    {/* ===== KİŞİSEL ŞERİT (giriş yapana özel) ===== */}
-    {oturum && benimO && <div style={{padding:"14px 14px 0"}}>
-      <div onClick={()=>oyuncuGit({...benimO,turnuva:benimTkT&&benimTkT.ad})} className="tap prem-tap" style={{display:"flex",alignItems:"center",gap:13,background:"linear-gradient(120deg,"+T.accent+"22,"+T.bg1+" 55%)",border:"1px solid "+T.accent+"44",borderRadius:16,padding:"13px 14px"}}>
-        <Avatar o={benimO} boy={50} T={T}/>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:10,color:T.accent,fontWeight:800,letterSpacing:.4}}>{selam.toUpperCase()} 👋</div>
-          <div style={{fontSize:17,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimO.ad}</div>
-          <div style={{fontSize:11,color:T.textSoft,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimTk?benimTk.ad+" · ":""}<b style={{color:T.text}}>{benimO.gol||0}</b> gol · <b style={{color:T.text}}>{benimO.asist||0}</b> asist · <b style={{color:T.text}}>{benimO.mac||0}</b> maç</div>
-        </div>
-        {benimO.ovr!=null && <div style={{flexShrink:0,textAlign:"center",background:T.accent+"1e",borderRadius:12,padding:"8px 12px",border:"0.5px solid "+T.accent+"44"}}><div style={{fontSize:22,fontWeight:900,fontFamily:T.fontDisplay,color:T.accent,lineHeight:1}}>{benimO.ovr}</div><div style={{fontSize:8,color:T.textMut,letterSpacing:.5,marginTop:2}}>OVR</div></div>}
+    {/* ===== KİŞİSEL KARŞILAMA — GİRİŞ YAPANIN KENDİ FIFA KARTI ===== */}
+    {oturum && benimO && <div style={{padding:"18px 14px 4px"}}>
+      <div style={{textAlign:"center",marginBottom:12}}>
+        <div style={{fontSize:11,color:T.accent,fontWeight:800,letterSpacing:.8,textTransform:"uppercase"}}>{selam} 👋 · Senin kartın</div>
+        <div style={{fontSize:19,color:T.text,fontWeight:900,fontFamily:T.fontDisplay,lineHeight:1.1,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimO.ad}</div>
       </div>
-      {benimSonraki && <div onClick={()=>git&&git({sayfa:"mac",mac:benimSonraki,turnuva:benimTkT})} className="tap" style={{display:"flex",alignItems:"center",gap:10,marginTop:8,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 12px"}}>
+      <FifaKart o={{...benimO, takimAd:(benimTk&&benimTk.ad)||benimO.takimAd, renk:(benimTk&&benimTk.renk)||benimO.takimRenk, renk2:benimTk&&benimTk.renk2, logo:benimTk&&benimTk.logo}} T={T}/>
+      {benimSonraki && <div onClick={()=>git&&git({sayfa:"mac",mac:benimSonraki,turnuva:benimTkT})} className="tap" style={{display:"flex",alignItems:"center",gap:10,marginTop:12,maxWidth:320,marginLeft:"auto",marginRight:"auto",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 12px"}}>
         <span style={{fontSize:16}}>📅</span>
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800,letterSpacing:.3}}>SIRADAKİ MAÇIN</div><div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimSonraki.takimA} vs {benimSonraki.takimB}{benimSonraki.hafta?" · Hafta "+benimSonraki.hafta:""}</div></div>
         <span style={{color:T.textMut,fontSize:16}}>›</span>
