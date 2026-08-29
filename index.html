@@ -349,6 +349,12 @@
   .kpi-2x2 .fl-kpi:nth-child(3){ animation-delay:.14s; } .kpi-2x2 .fl-kpi:nth-child(3)::after{ animation-delay:1.4s; }
   .kpi-2x2 .fl-kpi:nth-child(4){ animation-delay:.21s; } .kpi-2x2 .fl-kpi:nth-child(4)::after{ animation-delay:2.1s; }
   .fl-float { animation:vavSuzul 3.4s ease-in-out infinite; will-change:transform; }
+  /* ===== SİNEMATİK ATMOSFER — ana sayfaya derinlik (temaya uyumlu, var(--accent)/var(--bg0)) ===== */
+  .fl-atmos{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .fl-atmos .glow{position:absolute;inset:0;background:radial-gradient(84% 34% at 50% -6%, color-mix(in srgb,var(--accent,#20E07A) 15%,transparent), transparent 60%), radial-gradient(120% 70% at 50% 118%, color-mix(in srgb,var(--accent,#20E07A) 8%,transparent), transparent 55%)}
+  .fl-atmos .grain{position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;background-size:150px 150px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  @media (prefers-reduced-motion:reduce){ .fl-atmos .grain{opacity:.03} }
   @keyframes vavAltin { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
   /* Progress bar (stat çubuğu) */
   .prem-bar-track { height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; }
@@ -5360,6 +5366,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
   const benimSonraki = (benimO&&benimTk&&benimTkT)? (benimTkT.maclar||[]).find(m=>m.oynandi===false && (m.takimA===benimTk.ad||m.takimB===benimTk.ad)) : null;
 
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
+    <div className="fl-atmos" aria-hidden="true"><div className="glow"/><div className="grain"/></div>
     <CanliBant items={bantItems} T={T}/>
 
     {/* ===== KİŞİSEL KARŞILAMA — GİRİŞ YAPANIN KENDİ FIFA KARTI ===== */}
