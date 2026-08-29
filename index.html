@@ -355,6 +355,20 @@
   .fl-atmos .grain{position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;background-size:150px 150px;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
   @media (prefers-reduced-motion:reduce){ .fl-atmos .grain{opacity:.03} }
+  /* Aurora — atmosfer ışıması yavaşça nefes alsın/süzülsün (temaya uyumlu, çok ölçülü) */
+  @keyframes flAurora { 0%,100%{ transform:scale(1) translateY(0); opacity:.9; } 50%{ transform:scale(1.08) translateY(-1.4%); opacity:1; } }
+  .fl-atmos .glow{ transform-origin:50% 20%; animation:flAurora 16s ease-in-out infinite; will-change:transform,opacity; }
+  @media (prefers-reduced-motion:reduce){ .fl-atmos .glow{ animation:none; } }
+  /* ===== KAYDIRINCA BELİREN BÖLÜMLER (scroll-reveal) — premium his =====
+     Güvenli: sadece JS engine 'fl-reveal-on' sınıfını eklerse gizler. JS çalışmazsa
+     içerik NORMAL görünür (hiçbir şey kaybolmaz). 'hareket azaltma'da tamamen kapanır. */
+  html.fl-reveal-on .fl-reveal{ opacity:0; transform:translateY(24px); transition:opacity .72s cubic-bezier(.2,.7,.2,1), transform .72s cubic-bezier(.2,.7,.2,1); will-change:opacity,transform; }
+  html.fl-reveal-on .fl-reveal.gorunur{ opacity:1; transform:none; }
+  @media (prefers-reduced-motion:reduce){ html.fl-reveal-on .fl-reveal{ opacity:1 !important; transform:none !important; transition:none !important; } }
+  /* Grafik çubukları: bölüm görünür alana girince tabandan yukarı büyüsün */
+  @keyframes flCubBuyu{ from{ transform:scaleY(0); } to{ transform:scaleY(1); } }
+  html.fl-reveal-on .fl-reveal .flcub-bar{ transform-box:fill-box; transform-origin:50% 100%; transform:scaleY(0); }
+  html.fl-reveal-on .fl-reveal.gorunur .flcub-bar{ animation:flCubBuyu .8s cubic-bezier(.2,.85,.25,1) both; animation-delay:var(--gcik,0s); }
   @keyframes vavAltin { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
   /* Progress bar (stat çubuğu) */
   .prem-bar-track { height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; }
@@ -3375,7 +3389,7 @@ function CubukGrafik({veri, T, renk}){
     <line x1={x0} y1={base+0.5} x2={W-x0} y2={base+0.5} stroke={T.line} strokeWidth="1"/>
     {veri.map((d,i)=>{ const h=Math.max(2,Math.round((d.v/mx)*maxH)); const x=x0+slot*i+(slot-bw)/2; const y=base-h; const c=d.renk||renk||T.accent;
       return <g key={i}>
-        <rect x={x} y={y} width={bw} height={h} rx="4" fill={c} opacity={d.v===mx?1:.82}/>
+        <rect className="flcub-bar" x={x} y={y} width={bw} height={h} rx="4" fill={c} opacity={d.v===mx?1:.82} style={{["--gcik"]:(i*0.06)+"s"}}/>
         {d.v===mx && <text x={x+bw/2} y={y-4} textAnchor="middle" fontFamily={T.fontDisplay} fontSize="9.5" fontWeight="700" fill={T.text}>{d.v}</text>}
         <text x={x+bw/2} y={base+13} textAnchor="middle" fontSize="8" fill={T.textMut}>{d.lbl}</text>
       </g>;
@@ -5292,6 +5306,35 @@ function AnaSayfaV5({turnuvalar, T, git}){
    (A8) Maç Merkezi (Bugün/Yaklaşan/Son), (A1) hero 'bu hafta' nabzı, (A2) Enler SPOTLIGHT, (A6) 'AI'→'Özet'.
    Eskiye (V5) HİÇ dokunulmaz; sorun olursa tek tuşla V5'e dönülür. */
 function AnaSayfaV6({turnuvalar, T, git, oturum}){
+  // ===== KAYDIRINCA BELİREN BÖLÜMLER — bölümler görünür alana girince yumuşakça yükselir =====
+  // Güvenli: JS çalışmazsa/hata olursa hiçbir şey gizlenmez; 'hareket azaltma'da tamamen kapanır.
+  const kokRef = useRef(null);
+  useEffect(()=>{
+    const kok = kokRef.current; if(!kok) return;
+    let io=null, mo=null, zaman=null;
+    try{
+      if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if(!("IntersectionObserver" in window)) return;
+      document.documentElement.classList.add("fl-reveal-on");
+      io = new IntersectionObserver((giris)=>{
+        giris.forEach(g=>{ if(g.isIntersecting){ g.target.classList.add("gorunur"); io.unobserve(g.target); } });
+      }, {rootMargin:"0px 0px -7% 0px", threshold:0.05});
+      const etiketle=()=>{
+        Array.prototype.forEach.call(kok.children, (el)=>{
+          if(el.classList && el.classList.contains("fl-atmos")) return; // sabit atmosfer katmanı — atla
+          if(el.classList && !el.classList.contains("fl-reveal")) el.classList.add("fl-reveal");
+          if(el.classList && !el.classList.contains("gorunur")) io.observe(el);
+        });
+      };
+      etiketle();
+      let bekle=false;
+      mo = new MutationObserver(()=>{ if(bekle)return; bekle=true; requestAnimationFrame(()=>{ bekle=false; etiketle(); }); });
+      mo.observe(kok, {childList:true});
+      // Güvenlik ağı: 1.8sn sonra görünür alandaki gizli bölümleri zorla aç
+      zaman=setTimeout(()=>{ try{ kok.querySelectorAll(":scope > .fl-reveal:not(.gorunur)").forEach(el=>{ const r=el.getBoundingClientRect(); if(r.top < (window.innerHeight+60)) el.classList.add("gorunur"); }); }catch(e){} }, 1800);
+    }catch(e){}
+    return ()=>{ try{ io&&io.disconnect(); mo&&mo.disconnect(); if(zaman)clearTimeout(zaman); }catch(e){} };
+  },[turnuvalar]);
   const aktifTurnuva = useMemo(()=>{
     const dolu = turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0);
     if(!dolu.length) return null;
@@ -5398,7 +5441,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
   if(bakUid){ for(const t of (turnuvalar||[])){ for(const tkm of (t.takimlar||[])){ const f=(tkm.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===bakUid); if(f){benimO=f;benimTk=tkm;benimTkT=t;break;} } if(benimO)break; } }
   const benimSonraki = (benimO&&benimTk&&benimTkT)? (benimTkT.maclar||[]).find(m=>m.oynandi===false && (m.takimA===benimTk.ad||m.takimB===benimTk.ad)) : null;
 
-  return <div className="fade-in main-area" style={{paddingBottom:90}}>
+  return <div ref={kokRef} className="fade-in main-area" style={{paddingBottom:90}}>
     <div className="fl-atmos" aria-hidden="true"><div className="glow"/><div className="grain"/></div>
     <CanliBant items={bantItems} T={T}/>
 
