@@ -3769,6 +3769,12 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   // Sahiplendiğin oyuncu + takımı + ligi → kariyer & takım kartlarında göster
   let benimOyuncum=null, benimTakim=null, benimTakimT=null;
   if(bakUid){ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ const f=(tk.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===bakUid); if(f){benimOyuncum=f;benimTakim=tk;benimTakimT=t;break;} } if(benimOyuncum)break; } }
+  // Ligde oyuncu değilsen (serbest/kulüp) kendi oyuncu profilini çek → profilden düzenleme için
+  const [serbestOyuncum,setSerbestOyuncum]=useState(null);
+  useEffect(()=>{ let a=true;
+    if(oturum && oturum.id && !benimOyuncum){ Db.benimOyuncu(oturum.id).then(o=>{ if(a) setSerbestOyuncum(o); }); } else { setSerbestOyuncum(null); }
+    return ()=>{ a=false; };
+  },[oturum && oturum.id, !!benimOyuncum]);
   // Foto önceliği: sahiplenilen oyuncu kartı → yüklenen profil fotosu → Google (avatar_url/picture) → varsayılan
   const gFoto = oturum&&oturum.user_metadata ? (oturum.user_metadata.avatar_url||oturum.user_metadata.picture) : null;
   const profilFoto = sg ? ((benimOyuncum&&benimOyuncum.foto)||(sgProfil&&sgProfil.foto)||null)
@@ -3882,10 +3888,27 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
           <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,color:T.text,fontWeight:700}}>{sahiplenme.oyuncu_ad}</div><div style={{fontSize:10.5,color:T.gold}}>{sahiplenme.lig_ad||"kart & istatistiklerim"} · aç →</div></div>
           <button onClick={(e)=>{e.stopPropagation();onSahiplenmeBirak&&onSahiplenmeBirak();}} className="tap" style={{fontSize:10,color:T.textMut,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"5px 8px"}}>bırak</button>
         </div>
-      </> : oturum ? <div style={{margin:"16px 0 0",background:"linear-gradient(120deg,"+T.gold+"12,"+T.bg1+")",border:"0.5px solid "+T.gold+"33",borderRadius:16,padding:"15px 15px"}}>
+      </> : (oturum && serbestOyuncum) ? <div onClick={()=>git&&git({sayfa:"oyuncu",oyuncu:{...serbestOyuncum, ad:serbestOyuncum.ad_soyad||serbestOyuncum.takma_ad, sahip_user_id:oturum.id}})} className="tap kart-hover" style={{margin:"16px 0 0",display:"flex",alignItems:"center",gap:12,background:"linear-gradient(120deg,"+T.accent+"18,"+T.bg1+" 62%)",border:"0.5px solid "+T.accent+"55",borderRadius:16,padding:14,cursor:"pointer"}}>
+        <div style={{width:52,height:52,borderRadius:14,overflow:"hidden",border:"1.5px solid "+T.accent+"66",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(serbestOyuncum.ad_soyad||"?",52,serbestOyuncum.foto||gFoto)}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:14.5,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>⚽ Oyuncu Kartım</div>
+          <div style={{fontSize:11,color:T.accent,marginTop:2,fontWeight:700}}>Fotoğraf · boy · kilo · doğum · ayak — düzenle →</div>
+        </div>
+        <span style={{fontSize:20,color:T.accent}}>›</span>
+      </div> : oturum ? <div style={{margin:"16px 0 0",background:"linear-gradient(120deg,"+T.gold+"12,"+T.bg1+")",border:"0.5px solid "+T.gold+"33",borderRadius:16,padding:"15px 15px"}}>
         <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:6}}><span style={{fontSize:20}}>⚽</span><div style={{fontSize:13,color:T.text,fontWeight:700}}>Henüz bir oyuncu kariyerin yok</div></div>
-        <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.55}}>Bir takım davetini kabul edip yönetici onayladığında kariyerin otomatik burada oluşur.</div>
+        <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.55}}>Bir takıma/kulübe katılıp bilgilerini girdiğinde kartın otomatik burada oluşur.</div>
       </div> : null}
+
+      {/* SÜPER ADMIN — oyuncu yönetimi kısayolu */}
+      {oturum && adminMi && git && <div onClick={()=>git({sayfa:"ligler"})} className="tap kart-hover" style={{margin:"10px 0 0",display:"flex",alignItems:"center",gap:12,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:16,padding:14,cursor:"pointer"}}>
+        <span style={{width:44,height:44,borderRadius:12,flexShrink:0,background:T.danger+"1e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🛡️</span>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Oyuncuları yönet <span style={{fontSize:10,color:T.danger,fontWeight:800}}>· admin</span></div>
+          <div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>Keşfet'te oyuncu ara → dokun → bilgi/kart düzenle</div>
+        </div>
+        <span style={{fontSize:20,color:T.textMut}}>›</span>
+      </div>}
 
       {/* TAKIMIM */}
       {oturum && benimTakim && <>
