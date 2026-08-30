@@ -8012,12 +8012,22 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
             <button onClick={()=>tdAd.trim()&&tdKaydet({ad:tdAd.trim()})} className="tap" style={{background:T.accent,color:T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:10,padding:"0 16px",fontSize:13,fontWeight:800}}>Kaydet</button>
           </div>
           {td && <button onClick={()=>tdKaydet(null)} className="tap" style={{width:"100%",background:"none",color:T.danger,border:"0.5px solid "+T.danger+"44",borderRadius:10,padding:"9px",fontSize:12.5,fontWeight:700,marginBottom:12}}>TD'yi kaldır</button>}
-          <div style={{fontSize:10,color:T.textMut,fontWeight:700,margin:"2px 2px 8px"}}>LİGDEKİ KİŞİLER</div>
-          {(turnuva&&turnuva.takimlar||[]).flatMap(tk=>(tk.oyuncular||[]).map(o=>({o,tk}))).slice(0,60).map(({o,tk})=><div key={tk.id+"|"+o.id} onClick={()=>tdKaydet({ad:o.ad,foto:o.foto||null})} className="tap" style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",borderRadius:9,borderBottom:"0.5px solid "+T.line}}>
-            <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0,background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,30,o.foto)}}/>
-            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div><div style={{fontSize:10,color:T.textMut}}>{tk.ad}</div></div>
-            <span style={{fontSize:11,color:T.accent,fontWeight:700}}>Seç</span>
-          </div>)}
+          <div style={{fontSize:10,color:T.textMut,fontWeight:700,margin:"2px 2px 8px"}}>KİŞİLER <span style={{fontWeight:400}}>(kadro + lig · yazınca filtrelenir)</span></div>
+          {(()=>{
+            const q=(tdAd||"").trim().toLocaleLowerCase("tr");
+            // Önce takımın KENDİ kadrosu, sonra ligdeki diğerleri (isim/id ile tekilleştir)
+            const kendi=(takim.oyuncular||[]).map(o=>({o,tk:takim}));
+            const ligdekiler=(turnuva&&turnuva.takimlar||[]).flatMap(tk=>(tk.oyuncular||[]).map(o=>({o,tk})));
+            const gorulen=new Set(); const hepsi=[];
+            [...kendi,...ligdekiler].forEach(x=>{ const k=String((x.o&&(x.o.id||x.o.player_id||x.o.ad))||""); if(k&&!gorulen.has(k)){ gorulen.add(k); hepsi.push(x); } });
+            const suzulmus=(q ? hepsi.filter(x=>String((x.o&&x.o.ad)||"").toLocaleLowerCase("tr").includes(q)) : hepsi).slice(0,60);
+            if(!suzulmus.length) return <div style={{fontSize:11.5,color:T.textMut,textAlign:"center",padding:"14px 0"}}>{q?"Eşleşen kişi yok — yukarıya adı yazıp Kaydet'e bas.":"Liste boş."}</div>;
+            return suzulmus.map(({o,tk})=><div key={(tk.id||"t")+"|"+(o.id||o.player_id||o.ad)} onClick={()=>tdKaydet({ad:o.ad,foto:o.foto||null})} className="tap" style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",borderRadius:9,borderBottom:"0.5px solid "+T.line}}>
+              <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0,background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,30,o.foto)}}/>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div><div style={{fontSize:10,color:T.textMut}}>{(tk&&tk.id===takim.id)?"bu takım · kadro":(tk&&tk.ad)||""}</div></div>
+              <span style={{fontSize:11,color:T.accent,fontWeight:700}}>Seç</span>
+            </div>);
+          })()}
         </div>
       </div>}
       {/* parlayan büyük sayılar + ışıklı çubuklar */}
