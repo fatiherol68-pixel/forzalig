@@ -1294,6 +1294,13 @@ const Db = {
   async kulupKur(userId, obj){ if(!sb||!userId) return {hata:"yok"}; try{ const {data,error}=await sb.from('kulupler').insert({ad:(obj.ad||'').trim(), renk:obj.renk||null, renk2:obj.renk2||null, logo:obj.logo||null, sahip_user_id:userId}).select('id,ad,logo,renk,renk2').single(); if(error){ const m=(error.message||'')+ (error.code||''); if(error.code==='42501'||/row-level security|policy|permission|denied/i.test(m)) return {hata:'Yetkiniz bulunmuyor.'}; return {hata:error.message}; } return {ok:true,kulup:data}; }catch(e){ return {hata:String(e)}; } },
   async kulupKadro(kulupId){ if(!sb||!kulupId) return []; try{ const {data}=await sb.from('kulup_oyuncu').select('player_id,forma_no,mevki,aktif, oyuncular(ad_soyad,foto,poz,ovr)').eq('kulup_id',kulupId).eq('aktif',true); return (data||[]).map(x=>({player_id:x.player_id, forma_no:x.forma_no, mevki:x.mevki||(x.oyuncular&&x.oyuncular.poz)||null, ad:(x.oyuncular&&x.oyuncular.ad_soyad)||'Oyuncu', foto:(x.oyuncular&&x.oyuncular.foto)||null, ovr:(x.oyuncular&&x.oyuncular.ovr)||null})); }catch(e){ return []; } },
   async kulupOyuncuEkle(kulupId, ad, mevki, forma){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('kulup_oyuncu_ekle',{p_kulup:kulupId, p_ad:ad, p_mevki:mevki||null, p_forma:forma?parseInt(forma)||null:null}); return error?{hata:error.message}:{ok:true,player_id:data}; }catch(e){ return {hata:String(e)}; } },
+  // Giriş yapanın KENDİ oyuncu profili (lig gerekmez) — kulüp kartı için. En son oluşturulan + aktif kulübü.
+  async benimOyuncu(userId){ if(!sb||!userId) return null; try{
+    const {data:pls}=await sb.from('oyuncular').select('player_id,ad_soyad,takma_ad,foto,poz,forma_no,ovr,nitelik,deger,uyruk,ayak,boy,kilo,saglik,renk').eq('sahip_user_id',userId).limit(1);
+    const o=(pls&&pls[0])||null; if(!o) return null;
+    let kulup=null; try{ const {data:ko}=await sb.from('kulup_oyuncu').select('kulupler(id,ad,logo,renk,renk2)').eq('player_id',o.player_id).eq('aktif',true).limit(1); const c=(ko&&ko[0]&&ko[0].kulupler)||null; kulup=c||null; }catch(e){}
+    return {...o, kulup};
+  }catch(e){ return null; } },
   async kulupOyuncuCikar(kulupId, playerId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('kulup_oyuncu').update({aktif:false}).eq('kulup_id',kulupId).eq('player_id',playerId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async kulupLigeKatil(kulupId, ligId, ad){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('kulup_lige_katil',{p_kulup:kulupId, p_lig:ligId, p_ad:ad||null}); return error?{hata:error.message}:{ok:true,takim_id:data}; }catch(e){ return {hata:String(e)}; } },
   async kulupSil(kulupId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('kulup_kalici_sil',{p_kulup:kulupId}); if(error){ if(error.code==='42501'||/yetki|policy|permission|denied/i.test(error.message||'')) return {hata:'Yetkiniz bulunmuyor.'}; return {hata:error.message}; } return {ok:true}; }catch(e){ return {hata:String(e)}; } },
@@ -5447,6 +5454,19 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
   const benad = (benimO&&benimO.ad) || (oturum && ((oturum.user_metadata&&(oturum.user_metadata.ad||oturum.user_metadata.full_name||oturum.user_metadata.name)) || (oturum.email&&String(oturum.email).split("@")[0]))) || "";
   // Google/hesap fotoğrafı (oyuncu fotosu yoksa geçici kart için)
   const benfoto = (benimO&&benimO.foto) || (oturum&&oturum.user_metadata&&(oturum.user_metadata.avatar_url||oturum.user_metadata.picture)) || null;
+  // LİG YOKKEN KART: ligde oyuncu değilsen kendi oyuncu profilini (kulüp) çek → gerçek FIFA kartı göster
+  const [serbestO,setSerbestO]=useState(null);
+  useEffect(()=>{ let a=true;
+    if(oturum && oturum.id && !benimO){ Db.benimOyuncu(oturum.id).then(o=>{ if(a) setSerbestO(o); }); } else { setSerbestO(null); }
+    return ()=>{ a=false; };
+  },[oturum && oturum.id, !!benimO]);
+  // Çekilen oyuncudan FifaKart nesnesi (girilen bilgiler + temel başlangıç statları)
+  const serbestKart = serbestO ? (()=>{ const nk=serbestO.nitelik||{}; const kl=serbestO.kulup||{};
+    return {ad:serbestO.ad_soyad||serbestO.takma_ad||benad, foto:serbestO.foto||benfoto, ovr:serbestO.ovr||62,
+      pac:nk.pac||60, sho:nk.sho||58, pas:nk.pas||60, dri:nk.dri||60, def:nk.def||58, phy:nk.phy||62,
+      forma_no:serbestO.forma_no, poz:serbestO.poz, uyruk:serbestO.uyruk, deger:serbestO.deger,
+      gol:0, asist:0, kurtaris:0, mac:0,
+      takimAd:kl.ad||"", renk:kl.renk||T.accent, renk2:kl.renk2||null, logo:kl.logo||null}; })() : null;
 
   return <div ref={kokRef} className="fade-in main-area" style={{paddingBottom:90}}>
     <div className="fl-atmos" aria-hidden="true"><div className="glow"/><div className="grain"/></div>
@@ -5466,14 +5486,24 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
       </div>}
     </div>}
 
-    {/* ===== GEÇİCİ KARŞILAMA KARTI — giriş var ama henüz oyuncuya bağlı değil (Google foto+ad) ===== */}
-    {oturum && !benimO && <div style={{padding:"18px 14px 4px"}}>
+    {/* ===== LİG YOKKEN KİŞİSEL KART — kulüp oyuncusunun gerçek FIFA kartı (girdiği bilgilerle) ===== */}
+    {oturum && !benimO && serbestKart && <div style={{padding:"18px 14px 4px"}}>
+      <div style={{textAlign:"center",marginBottom:12}}>
+        <div style={{fontSize:11,color:T.accent,fontWeight:800,letterSpacing:.8,textTransform:"uppercase"}}>{selam} 👋 · Senin kartın</div>
+        <div style={{fontSize:19,color:T.text,fontWeight:900,fontFamily:T.fontDisplay,lineHeight:1.1,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{serbestKart.ad}{serbestKart.takimAd?" · "+serbestKart.takimAd:""}</div>
+      </div>
+      <FifaKart o={serbestKart} T={T}/>
+      <div style={{fontSize:11,color:T.textMut,textAlign:"center",marginTop:10,lineHeight:1.5,maxWidth:320,marginLeft:"auto",marginRight:"auto"}}>Bir lige katılınca maç istatistiklerin (gol · asist · maç) ve reytingin buraya işlenir.</div>
+    </div>}
+
+    {/* ===== GEÇİCİ KARŞILAMA KARTI — giriş var, henüz oyuncu profili yok (Google foto+ad) ===== */}
+    {oturum && !benimO && !serbestKart && <div style={{padding:"18px 14px 4px"}}>
       <div style={{maxWidth:340,margin:"0 auto",position:"relative",overflow:"hidden",borderRadius:18,padding:"22px 16px 18px",textAlign:"center",background:"linear-gradient(150deg,"+T.accent+"24,"+T.bg1+" 62%)",border:"1px solid "+T.accent+"44",boxShadow:"0 12px 32px -18px "+T.accent}}>
         <div className="vav-supurme"/>
         <div className="vav-suzul" style={{width:92,height:92,margin:"0 auto 10px",borderRadius:"50%",overflow:"hidden",border:"2.5px solid "+T.accent,boxShadow:"0 0 22px "+T.accent+"55"}} dangerouslySetInnerHTML={{__html:svgAvatar(benad||"?",92,benfoto)}}/>
         <div style={{position:"relative",fontSize:11,color:T.accent,fontWeight:800,letterSpacing:.8,textTransform:"uppercase"}}>{selam} 👋</div>
         <div style={{position:"relative",fontSize:21,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benad||"Hoş geldin"}</div>
-        <div style={{position:"relative",fontSize:11.5,color:T.textSoft,marginTop:9,lineHeight:1.5}}>Bir takıma katılıp yönetici onayladığında <b style={{color:T.accent}}>kendi FIFA kartın</b> — fotoğrafın ve statlarınla — tam burada oluşacak.</div>
+        <div style={{position:"relative",fontSize:11.5,color:T.textSoft,marginTop:9,lineHeight:1.5}}>Bir takıma/kulübe katılıp bilgilerini girdiğinde <b style={{color:T.accent}}>kendi FIFA kartın</b> — fotoğrafın ve statlarınla — tam burada oluşur.</div>
         <div style={{position:"relative",display:"inline-flex",alignItems:"center",gap:6,marginTop:11,fontSize:10.5,fontWeight:700,color:T.textMut,background:T.bg0+"aa",border:"0.5px solid "+T.line,borderRadius:20,padding:"5px 11px"}}>⏳ Kartın hazırlanıyor</div>
       </div>
     </div>}
