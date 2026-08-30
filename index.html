@@ -5440,6 +5440,8 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
   let benimO=null, benimTk=null, benimTkT=null; const bakUid=oturum&&oturum.id;
   if(bakUid){ for(const t of (turnuvalar||[])){ for(const tkm of (t.takimlar||[])){ const f=(tkm.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===bakUid); if(f){benimO=f;benimTk=tkm;benimTkT=t;break;} } if(benimO)break; } }
   const benimSonraki = (benimO&&benimTk&&benimTkT)? (benimTkT.maclar||[]).find(m=>m.oynandi===false && (m.takimA===benimTk.ad||m.takimB===benimTk.ad)) : null;
+  // Giriş yapan kullanıcının adı: oyuncu bağlıysa oyuncu adı, yoksa profil/e-posta adı (yoksa boş)
+  const benad = (benimO&&benimO.ad) || (oturum && ((oturum.user_metadata&&(oturum.user_metadata.ad||oturum.user_metadata.full_name||oturum.user_metadata.name)) || (oturum.email&&String(oturum.email).split("@")[0]))) || "";
 
   return <div ref={kokRef} className="fade-in main-area" style={{paddingBottom:90}}>
     <div className="fl-atmos" aria-hidden="true"><div className="glow"/><div className="grain"/></div>
@@ -5468,8 +5470,8 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
       <span style={{position:"relative",display:"inline-flex",alignItems:"center",gap:8,fontSize:10.5,fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",color:T.accent,background:T.accent+"14",border:"1px solid "+T.accent+"3a",borderRadius:30,padding:"5px 12px"}}>
         <span style={{width:7,height:7,borderRadius:"50%",background:T.accent,boxShadow:"0 0 10px "+T.accent}} className="fz-nabiz"/>CANLI · {tk.ad}
       </span>
-      <div style={{position:"relative",fontSize:15,fontWeight:600,color:T.textSoft,marginTop:16,letterSpacing:.4}}>{selam},</div>
-      <div style={{position:"relative",fontSize:44,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:.98,letterSpacing:-1.4,textTransform:"uppercase"}}>Hoş geldin</div>
+      <div style={{position:"relative",fontSize:15,fontWeight:600,color:T.textSoft,marginTop:16,letterSpacing:.4}}>{selam},{benad?" hoş geldin":""}</div>
+      <div style={{position:"relative",fontSize:benad?38:44,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:.98,letterSpacing:-1.4,textTransform:"uppercase",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benad||"Hoş geldin"}</div>
       <div style={{position:"relative",fontSize:12,color:T.textMut,marginTop:10}}>{bugun}</div>
       <div style={{position:"relative",display:"flex",marginTop:20}}>
         {[[topTakim,"takım"],[topOyuncu,"oyuncu"],[topMac,"maç"]].map((s,i)=>
