@@ -8596,6 +8596,9 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     o.uyruk=bd.uyruk||o.uyruk; o.saglik=bd.saglik; o.foto=bd.foto!==undefined?bd.foto:o.foto;
     const y=parseInt((bd.dogum.split(".")[2]||bd.dogum.split("-")[0]||"")); if(y>1950&&y<2020)o.yas=2026-y;
     o._manuel=true; setBilgiAcik(false);
+    // KALICI: sahip veya admin ise Supabase'e yaz (RLS: sahip_user_id / admin_mi)
+    const pid=o.player_id||(typeof o.id==="string"?o.id:null);
+    if(pid && sb){ Db.oyuncuGuncelle(pid, { ad_soyad:o.ad, poz:o.poz, forma_no:o.no, dogum:tarihISO(o.dogum), boy:o.boy, kilo:o.kilo, ayak:o.ayak, uyruk:o.uyruk, saglik:o.saglik, foto:o.foto }); }
   };
   const kaydet=()=>{
     const perf=(o.degerP||0); const eskiG=(o.degerG!=null?o.degerG:o.deger);
@@ -8603,7 +8606,8 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     // DEĞER (Faz 1): admin GÜNCEL değeri belirler → temel = güncel − performans (İşlem 1). Supabase'e KALICI yazılır.
     const hedef=Math.round(parseFloat(d.deger)||0); const yeniTemel=Math.max(0, hedef-perf);
     o.deger=yeniTemel; o.degerTemel=yeniTemel; o.degerP=perf; o.degerG=yeniTemel+perf;
-    if(typeof o.id==="string" && sb){ Db.oyuncuGuncelle(o.id,{deger:yeniTemel}); Db.degerLog(o.id,{onceki:eskiG,yeni:o.degerG,temel:yeniTemel,kaynak:"manuel",aciklama:"Süper admin değer düzenledi"}); }
+    const spid=o.player_id||(typeof o.id==="string"?o.id:null);
+    if(spid && sb){ Db.oyuncuGuncelle(spid,{deger:yeniTemel, ovr:o.ovr, nitelik:{pac:d.pac,sho:d.sho,pas:d.pas,dri:d.dri,def:d.def,phy:d.phy}}); Db.degerLog(spid,{onceki:eskiG,yeni:o.degerG,temel:yeniTemel,kaynak:"manuel",aciklama:"Süper admin değer düzenledi"}); }
     setDuzenle(false);
   };
   const otomatikYap=()=>{
@@ -8809,7 +8813,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
       )}
     </div>
 
-    {adminMod && <div style={{padding:"10px 14px 0",display:"flex",justifyContent:"center",gap:8}}>
+    {(adminMod || adminMi || benimMi) && <div style={{padding:"10px 14px 0",display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
       <button onClick={acDuzenle} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.bg1,border:"0.5px solid "+T.line,color:T.text,borderRadius:10,padding:"7px 14px",fontSize:11,fontWeight:600}}>⚙️ Statları Düzelt</button>
       <button onClick={acBilgi} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.bg1,border:"0.5px solid "+T.line,color:T.text,borderRadius:10,padding:"7px 14px",fontSize:11,fontWeight:600}}>✏️ Bilgileri Düzenle</button>
     </div>}
