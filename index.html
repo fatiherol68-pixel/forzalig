@@ -5338,8 +5338,11 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
   const aktifTurnuva = useMemo(()=>{
     const dolu = turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0);
     if(!dolu.length) return null;
+    // KİŞİYE GÖRE: kullanıcı bir takımda oyuncuysa, varsayılan lig ONUN ligi olsun
+    const uid = oturum && oturum.id;
+    if(uid){ for(const t of dolu){ for(const tk of (t.takimlar||[])){ if((tk.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===uid)) return t; } } }
     return [...dolu].sort((a,b)=>b.maclar.length-a.maclar.length)[0];
-  },[turnuvalar]);
+  },[turnuvalar, oturum]);
   const yukselenTakim = useMemo(()=>{
     if(!aktifTurnuva || !aktifTurnuva.takimlar) return null;
     const puanla=(t)=>(t.form||[]).slice(-5).reduce((s,f)=>s+(f==="G"?3:f==="B"?1:0),0);
@@ -5442,6 +5445,8 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
   const benimSonraki = (benimO&&benimTk&&benimTkT)? (benimTkT.maclar||[]).find(m=>m.oynandi===false && (m.takimA===benimTk.ad||m.takimB===benimTk.ad)) : null;
   // Giriş yapan kullanıcının adı: oyuncu bağlıysa oyuncu adı, yoksa profil/e-posta adı (yoksa boş)
   const benad = (benimO&&benimO.ad) || (oturum && ((oturum.user_metadata&&(oturum.user_metadata.ad||oturum.user_metadata.full_name||oturum.user_metadata.name)) || (oturum.email&&String(oturum.email).split("@")[0]))) || "";
+  // Google/hesap fotoğrafı (oyuncu fotosu yoksa geçici kart için)
+  const benfoto = (benimO&&benimO.foto) || (oturum&&oturum.user_metadata&&(oturum.user_metadata.avatar_url||oturum.user_metadata.picture)) || null;
 
   return <div ref={kokRef} className="fade-in main-area" style={{paddingBottom:90}}>
     <div className="fl-atmos" aria-hidden="true"><div className="glow"/><div className="grain"/></div>
@@ -5459,6 +5464,18 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800,letterSpacing:.3}}>SIRADAKİ MAÇIN</div><div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimSonraki.takimA} vs {benimSonraki.takimB}{benimSonraki.hafta?" · Hafta "+benimSonraki.hafta:""}</div></div>
         <span style={{color:T.textMut,fontSize:16}}>›</span>
       </div>}
+    </div>}
+
+    {/* ===== GEÇİCİ KARŞILAMA KARTI — giriş var ama henüz oyuncuya bağlı değil (Google foto+ad) ===== */}
+    {oturum && !benimO && <div style={{padding:"18px 14px 4px"}}>
+      <div style={{maxWidth:340,margin:"0 auto",position:"relative",overflow:"hidden",borderRadius:18,padding:"22px 16px 18px",textAlign:"center",background:"linear-gradient(150deg,"+T.accent+"24,"+T.bg1+" 62%)",border:"1px solid "+T.accent+"44",boxShadow:"0 12px 32px -18px "+T.accent}}>
+        <div className="vav-supurme"/>
+        <div className="vav-suzul" style={{width:92,height:92,margin:"0 auto 10px",borderRadius:"50%",overflow:"hidden",border:"2.5px solid "+T.accent,boxShadow:"0 0 22px "+T.accent+"55"}} dangerouslySetInnerHTML={{__html:svgAvatar(benad||"?",92,benfoto)}}/>
+        <div style={{position:"relative",fontSize:11,color:T.accent,fontWeight:800,letterSpacing:.8,textTransform:"uppercase"}}>{selam} 👋</div>
+        <div style={{position:"relative",fontSize:21,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benad||"Hoş geldin"}</div>
+        <div style={{position:"relative",fontSize:11.5,color:T.textSoft,marginTop:9,lineHeight:1.5}}>Bir takıma katılıp yönetici onayladığında <b style={{color:T.accent}}>kendi FIFA kartın</b> — fotoğrafın ve statlarınla — tam burada oluşacak.</div>
+        <div style={{position:"relative",display:"inline-flex",alignItems:"center",gap:6,marginTop:11,fontSize:10.5,fontWeight:700,color:T.textMut,background:T.bg0+"aa",border:"0.5px solid "+T.line,borderRadius:20,padding:"5px 11px"}}>⏳ Kartın hazırlanıyor</div>
+      </div>
     </div>}
 
     {/* ===== V6 HERO (V5 + bu hafta nabzı) ===== */}
