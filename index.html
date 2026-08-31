@@ -1744,10 +1744,11 @@ const Db = {
     try{
       const {data}=await sb.from('ligler').select('id').eq('yonetici_id',yoneticiId);
       for(const l of (data||[])){ await sb.from('ligler').delete().eq('id',l.id); }
-      // üyeliği kalmayan (öksüz) oyuncuları sil
-      const [{data:oy},{data:ot}]=await Promise.all([ sb.from('oyuncular').select('player_id'), sb.from('oyuncu_takim').select('player_id') ]);
+      // üyeliği kalmayan GERÇEK öksüz oyuncuları sil — sahipli veya aktif kulüplü oyuncuya DOKUNMA (lig-siz kart artık geçerli)
+      const [{data:oy},{data:ot},{data:ku}]=await Promise.all([ sb.from('oyuncular').select('player_id,sahip_user_id'), sb.from('oyuncu_takim').select('player_id'), sb.from('kulup_oyuncu').select('player_id').or('aktif.is.null,aktif.eq.true') ]);
       const aktif=new Set((ot||[]).map(x=>x.player_id));
-      const oksuz=(oy||[]).filter(o=>!aktif.has(o.player_id)).map(o=>o.player_id);
+      const kuplu=new Set((ku||[]).map(x=>x.player_id));
+      const oksuz=(oy||[]).filter(o=>!aktif.has(o.player_id) && !o.sahip_user_id && !kuplu.has(o.player_id)).map(o=>o.player_id);
       for(let i=0;i<oksuz.length;i+=100){ await sb.from('oyuncular').delete().in('player_id',oksuz.slice(i,i+100)); }
       return {ok:true, lig:(data||[]).length, oyuncu:oksuz.length};
     }catch(e){ return {hata:String(e&&e.message||e)}; }
@@ -1841,14 +1842,17 @@ const Db = {
     try{
       var lgP=sb.from('ligler').select('id').or('silindi.is.null,silindi.eq.false');
       var tkP=sb.from('takimlar').select('lig_id');
-      var oyP=sb.from('oyuncular').select('player_id');
+      var oyP=sb.from('oyuncular').select('player_id,sahip_user_id');
       var otP=sb.from('oyuncu_takim').select('player_id');
+      var kuP=sb.from('kulup_oyuncu').select('player_id').or('aktif.is.null,aktif.eq.true');
       var hmP=sb.from('maclar').select('id',{count:'exact',head:true}).eq('oynandi',false).or('ev_skor.gt.0,dep_skor.gt.0');
-      var [lg,tk,oy,ot,hm]=await Promise.all([lgP,tkP,oyP,otP,hmP]);
+      var [lg,tk,oy,ot,ku,hm]=await Promise.all([lgP,tkP,oyP,otP,kuP,hmP]);
       var takimli=new Set(((tk.data)||[]).map(function(x){return x.lig_id;}));
       s.takimsizLig=((lg.data)||[]).filter(function(l){return !takimli.has(l.id);}).length;
       var aktif=new Set(((ot.data)||[]).map(function(x){return x.player_id;}));
-      s.oksuzOyuncu=((oy.data)||[]).filter(function(o){return !aktif.has(o.player_id);}).length;
+      var kulupluOy=new Set(((ku.data)||[]).map(function(x){return x.player_id;}));
+      // Gerçek öksüz = ligde YOK + sahibi YOK + aktif kulübü YOK (lig-siz sahipli/kulüplü oyuncu artık geçerli)
+      s.oksuzOyuncu=((oy.data)||[]).filter(function(o){return !aktif.has(o.player_id) && !o.sahip_user_id && !kulupluOy.has(o.player_id);}).length;
       s.hayaletMac=hm.count||0;
       s.zaman=new Date().toISOString();
       return s;
@@ -17230,9 +17234,10 @@ function App(){
   useEffect(()=>{
     if(!sb) return;
     const gorulen=new Set(); let sayac=0;
-    const yaz=(m)=>{ try{ m=String(m||"").slice(0,500); if(!m||gorulen.has(m)||sayac>=30) return; gorulen.add(m); sayac++; Db.hataKaydet(m, window.__FL_SAYFA||null, window.__FL_UID); }catch(e){} };
-    const oh=(ev)=>yaz((ev&&ev.message)||(ev&&ev.error&&ev.error.message)||"window error");
-    const ph=(ev)=>yaz("promise: "+((ev&&ev.reason&&(ev.reason.message||ev.reason))||"unhandled"));
+    const yaz=(m)=>{ try{ m=String(m||"").slice(0,800); if(!m||gorulen.has(m)||sayac>=30) return; gorulen.add(m); sayac++; Db.hataKaydet(m, window.__FL_SAYFA||null, window.__FL_UID); }catch(e){} };
+    const stackAl=(err)=>{ try{ const st=err&&err.stack; return st?(" | "+String(st).replace(/https?:\/\/[^ )]+\//g,"").replace(/\s+/g," ").trim().slice(0,360)):""; }catch(e){ return ""; } };
+    const oh=(ev)=>yaz(((ev&&ev.message)||(ev&&ev.error&&ev.error.message)||"window error")+((ev&&ev.filename)?(" @"+String(ev.filename).split("/").pop()+":"+(ev.lineno||"?")+":"+(ev.colno||"?")):stackAl(ev&&ev.error)));
+    const ph=(ev)=>{ const r=ev&&ev.reason; yaz("promise: "+((r&&(r.message||r))||"unhandled")+stackAl(r)); };
     window.addEventListener('error', oh); window.addEventListener('unhandledrejection', ph);
     return ()=>{ window.removeEventListener('error', oh); window.removeEventListener('unhandledrejection', ph); };
   },[]);
