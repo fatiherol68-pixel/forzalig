@@ -5386,6 +5386,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
     if(oturum && oturum.id && !benimO){ Db.benimOyuncu(oturum.id).then(o=>{ if(a) setSerbestO(o); }); } else { setSerbestO(null); }
     return ()=>{ a=false; };
   },[oturum && oturum.id, !!benimO]);
+  const [onbirTip,setOnbirTip]=useState("altin"); // Haftanın 11'i: altın / gümüş
   const aktifTurnuva = useMemo(()=>{
     const dolu = turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0);
     if(!dolu.length) return null;
@@ -5524,6 +5525,12 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
         {benimSonraki && <div onClick={()=>git&&git({sayfa:"mac",mac:benimSonraki,turnuva:benimTkT})} className="tap" style={{flex:"1 1 150px",display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px"}}>
           <span style={{fontSize:16}}>📅</span>
           <div style={{flex:1,minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800,letterSpacing:.3}}>SIRADAKİ MAÇIN</div><div style={{fontSize:12,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimSonraki.takimA} vs {benimSonraki.takimB}{benimSonraki.hafta?" · H"+benimSonraki.hafta:""}</div></div>
+        </div>}
+        {benimTk && (benimTk.form||[]).length>0 && <div onClick={()=>git&&git({sayfa:"takim",takim:benimTk,turnuva:benimTkT})} className="tap" style={{flex:"1 1 150px",display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px"}}>
+          <span style={{fontSize:15}}>📈</span>
+          <div style={{minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800,letterSpacing:.3}}>TAKIM FORMU</div>
+            <div style={{display:"flex",gap:3,marginTop:3}}>{(benimTk.form||[]).slice(-5).map((f,i)=><span key={i} title={f} style={{width:16,height:16,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#06140d",background:f==="G"?"#34D399":f==="B"?T.gold:T.danger}}>{f}</span>)}</div>
+          </div>
         </div>}
       </div>
     </div>}
@@ -5731,10 +5738,27 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
       </div>;
     })()}
 
-    {yildizFull && <div style={{padding:"22px 14px 0"}}>
-      <V5Eyebrow T={T}>Haftanın Kartı</V5Eyebrow>
-      <VitrinFifa oyuncu={yildizFull} T={T} etiket={"⚽ "+tk.ad}/>
-    </div>}
+    {(()=>{ const onbir=Motor.ideal11(tk, onbirTip); if(!onbir||!onbir.length) return null;
+      const renk = onbirTip==="altin"?T.gold:"#cbd5e1"; const pk={Kaleci:"KL",Defans:"DF",OrtaSaha:"OS",Forvet:"FV"};
+      return <div style={{padding:"22px 14px 0"}}>
+        <V5Eyebrow T={T}>Haftanın 11'i <span style={{fontSize:9,color:T.textMut,fontWeight:600}}>· {tk.ad}</span></V5Eyebrow>
+        <div style={{display:"flex",gap:7,marginBottom:11}}>
+          {[["altin","🥇 Altın 11",T.gold],["gumus","🥈 Gümüş 11","#cbd5e1"]].map(x=>
+            <span key={x[0]} onClick={()=>setOnbirTip(x[0])} className="tap" style={{flex:1,textAlign:"center",fontSize:11.5,fontWeight:800,padding:"8px",borderRadius:10,background:onbirTip===x[0]?x[2]+"22":T.bg1,color:onbirTip===x[0]?x[2]:T.textMut,border:"1px solid "+(onbirTip===x[0]?x[2]+"66":T.line)}}>{x[1]}</span>)}
+        </div>
+        <div style={{display:"flex",gap:9,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
+          {onbir.map((o,i)=>
+            <div key={o.id||i} onClick={()=>oyuncuGit({...o,turnuva:tk.ad})} className="tap prem-tap" style={{flexShrink:0,width:104,borderRadius:14,overflow:"hidden",position:"relative",background:"linear-gradient(165deg,"+renk+"33,"+T.bg1+" 62%)",border:"1px solid "+renk+"55",padding:"11px 9px 12px",textAlign:"center"}}>
+              <div style={{position:"absolute",top:7,left:9,fontSize:8.5,fontWeight:800,color:renk,letterSpacing:.3}}>{pk[o.poz]||""}</div>
+              {o.ovr!=null && <div style={{position:"absolute",top:6,right:9,fontSize:15,fontWeight:900,fontFamily:T.fontDisplay,color:renk,lineHeight:1}}>{o.ovr}</div>}
+              <div style={{margin:"16px auto 6px",display:"flex",justifyContent:"center"}}><Avatar o={o} boy={44} T={T}/></div>
+              <div style={{fontSize:11,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
+              <div style={{fontSize:8.5,color:T.textMut,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.takimAd}</div>
+            </div>
+          )}
+        </div>
+      </div>;
+    })()}
 
     <div style={{padding:"22px 14px 0"}}>
       <V5Eyebrow T={T}>Haftanın Öne Çıkanı</V5Eyebrow>
