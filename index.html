@@ -4174,6 +4174,9 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
         : <div style={{fontSize:12.5,color:T.textMut,textAlign:"center",padding:"30px 20px",lineHeight:1.6}}>Henüz lig yok.<br/>{ligKurAc?"Yukarıdan kendi ligini kurabilirsin.":"Bir lige katıldığında burada görünür."}</div>)}
       {aktifTurnuvalar.filter(t=>!q||((t.ad||"")+" "+(t.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(t=>{
         const oynanan=t.maclar.filter(m=>m.oynandi).length;
+        // Tembel (özet) ligler: takimlar/maclar dizileri boş gelir → sayıları özet alanlarından göster (0/0 görünmesin)
+        const takimGoster=(t.takimSay!=null?t.takimSay:t.takimlar.length);
+        const macGoster=(t.maclar.length? oynanan : (t.macSay!=null?t.macSay:0));
         const lider=[...t.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
         const ilkTakimlar=(t.takimlar||[]).slice(0,3);
         return <div key={t.id} onClick={()=>git({sayfa:"turnuva",turnuva:t})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",background:T.bg1,borderRadius:18,padding:14,marginBottom:11,border:"0.5px solid "+T.line,cursor:"pointer"}}>
@@ -4184,8 +4187,8 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
               <div style={{fontSize:16,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
               <div style={{display:"flex",gap:12,marginTop:6,flexWrap:"wrap"}}>
                 {t.sehir && <span style={{fontSize:11,color:T.textMut}}>📍 {t.sehir}</span>}
-                <span style={{fontSize:11,color:T.textMut}}>👥 {t.takimlar.length} takım</span>
-                <span style={{fontSize:11,color:T.textMut}}>⚽ {oynanan} maç</span>
+                <span style={{fontSize:11,color:T.textMut}}>👥 {takimGoster} takım</span>
+                <span style={{fontSize:11,color:T.textMut}}>⚽ {macGoster} maç</span>
               </div>
               {lider && oynanan>0 && <div style={{fontSize:11,color:T.gold,marginTop:6,fontWeight:700}}>🏆 {lider.ad}</div>}
             </div>
