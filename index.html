@@ -18246,7 +18246,7 @@ function App(){
       <div className="fz-topbar" role="banner" style={{position:"sticky",top:0,zIndex:10,background:T.bg0,borderBottom:"0.5px solid "+T.line,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"calc(12px + env(safe-area-inset-top)) 16px 12px"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           {geriVar && <button onClick={geri} className="tap" style={{fontSize:20,color:T.textSoft}}>‹</button>}
-          <span style={{fontWeight:800,fontSize:17,color:T.accent,fontFamily:T.fontDisplay,letterSpacing:.5}}>ForzaLig</span>
+          <span onClick={()=>git({sayfa:"ana"})} role="button" tabIndex={0} aria-label="Ana sayfa" title="Ana sayfa" onKeyDown={e=>{ if(e.key==="Enter"||e.key===" ") git({sayfa:"ana"}); }} className="tap" style={{fontWeight:800,fontSize:17,color:T.accent,fontFamily:T.fontDisplay,letterSpacing:.5,cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>ForzaLig</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {saltOkunur ? <a href={(window.location.origin+window.location.pathname)} className="tap" style={{background:T.accent,color:T.bg0,borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:800,textDecoration:"none"}}>Katıl →</a> : <>
