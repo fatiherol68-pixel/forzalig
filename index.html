@@ -285,7 +285,10 @@
     .fl-top2 { display: grid; grid-template-columns: minmax(320px, 380px) 1fr; align-items: stretch; gap: 16px; padding: 6px 14px 0; }
     .fl-top2 > * { margin: 0 !important; }
     .fl-top2 .vav-hero { border-bottom: none; border-radius: 16px; height: 100%; }
+    .fl-hero-extra { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
   }
+  /* Hero'nun masaüstü boş alanını dolduran KPI mini-panosu — mobilde gizli */
+  .fl-hero-extra { display: none; }
   .kpi-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
   /* ============ PREMIUM KATMAN ============ */
@@ -5345,7 +5348,7 @@ function AnaSayfaV5({turnuvalar, T, git}){
    V5'in kanıtlı veri mantığı + yardımcıları AYNEN kullanılır; üstüne Faz-1 eklentileri:
    (A8) Maç Merkezi (Bugün/Yaklaşan/Son), (A1) hero 'bu hafta' nabzı, (A2) Enler SPOTLIGHT, (A6) 'AI'→'Özet'.
    Eskiye (V5) HİÇ dokunulmaz; sorun olursa tek tuşla V5'e dönülür. */
-function AnaSayfaV6({turnuvalar, T, git, oturum}){
+function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki}){
   // ===== KAYDIRINCA BELİREN BÖLÜMLER — bölümler görünür alana girince yumuşakça yükselir =====
   // Güvenli: JS çalışmazsa/hata olursa hiçbir şey gizlenmez; 'hareket azaltma'da tamamen kapanır.
   const kokRef = useRef(null);
@@ -5535,7 +5538,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
       <div style={{fontSize:11,color:T.textMut,textAlign:"center",marginTop:10,lineHeight:1.5,maxWidth:320,marginLeft:"auto",marginRight:"auto"}}>Bir lige katılınca maç istatistiklerin (gol · asist · maç) ve reytingin buraya işlenir.</div>
       {git && <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginTop:12,maxWidth:340,marginLeft:"auto",marginRight:"auto"}}>
         <button onClick={()=>git({sayfa:"ligler"})} className="tap" style={{flex:"1 1 140px",background:T.accent,color:T.bg0,border:0,borderRadius:11,padding:"11px 12px",fontSize:12.5,fontWeight:800,cursor:"pointer"}}>🔍 Ligleri Keşfet</button>
-        <button onClick={()=>git({sayfa:"ligkur"})} className="tap" style={{flex:"1 1 140px",background:T.bg1,color:T.text,border:"1px solid "+T.line,borderRadius:11,padding:"11px 12px",fontSize:12.5,fontWeight:800,cursor:"pointer"}}>🏆 Lig Kur</button>
+        {ligKurYetki && <button onClick={()=>git({sayfa:"ligkur"})} className="tap" style={{flex:"1 1 140px",background:T.bg1,color:T.text,border:"1px solid "+T.line,borderRadius:11,padding:"11px 12px",fontSize:12.5,fontWeight:800,cursor:"pointer"}}>🏆 Lig Kur</button>}
       </div>}
     </div>}
 
@@ -5580,6 +5583,15 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
         {buHaftaMac.length>0
           ? <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu hafta <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaMac.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaGol}</b> gol</span>
           : <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu sezon <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{oynananlar.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{topGolLig}</b> gol</span>}
+      </div>
+      <div className="fl-hero-extra" style={{position:"relative"}}>
+        {[["⚽",topGolLig,"toplam gol"],["📊",ortGolLig,"maç başı gol"],["🏆",lider.puan,(lider.ad||"").slice(0,11)+" · puan"],golK[0]&&["🎯",golK[0].gol,"gol kralı golü"]].filter(Boolean).map((x,i)=>
+          <div key={i} style={{background:T.bg0+"66",border:"0.5px solid "+T.line,borderRadius:12,padding:"11px 12px"}}>
+            <div style={{fontSize:13,marginBottom:3}}>{x[0]}</div>
+            <div style={{fontSize:22,fontWeight:900,fontFamily:T.fontDisplay,color:T.accent,lineHeight:1}}>{x[1]}</div>
+            <div style={{fontSize:9.5,color:T.textMut,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{x[2]}</div>
+          </div>
+        )}
       </div>
     </div>
     </div>
@@ -18147,7 +18159,7 @@ function App(){
     // Yetkisiz kişi düzenleme ekranına gelirse: kaydetmeyi engelle (sunucu RLS de engeller, bu arayüz kapısı)
     const kilitliKaydet=()=>{ alert("Bu maçı yalnızca ligin yöneticisi düzenleyebilir."); return Promise.resolve({hata:"yetki yok"}); };
     switch(nav.sayfa){
-      case "ana": icerik=<AnaComp turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} oturum={oturum} yukleniyor={liglerYuk}/>; break;
+      case "ana": icerik=<AnaComp turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} oturum={oturum} yukleniyor={liglerYuk} ligKurYetki={etkinLigKurYetkim}/>; break;
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
       case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} ligKurYetki={etkinLigKurYetkim} saltOkunur={saltOkunur} yukleniyor={liglerYuk} oturum={oturum} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
@@ -18175,7 +18187,7 @@ function App(){
       case "admin": icerik = destek ? destekKapali : <AdminPanel T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} baslangicSekme={nav.adminSekme} onIliskiselYukle={async(evren)=>{ try{ if(evren) localStorage.setItem('fz_aktif_evren',evren); }catch(e){} const gelen = evren ? await Db.liglerEvrenYukle(evren) : await Db.liglerYukle(oturum&&oturum.id, true); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onGercegeDon={async()=>{ try{ localStorage.removeItem('fz_aktif_evren'); }catch(e){} const gelen=await Db.liglerYukle(oturum&&oturum.id,false); gelen.forEach(t=>{ try{turnuvaHesapla(t);}catch(e){} }); setIliskiselModu(true); setTurnuvalar(gelen); git({sayfa:"ana"}); return gelen.length; }} onDestek={destekBaslat}/>; break;
       case "yasal": icerik=<YasalSayfa T={T} git={git} tip={nav.tip}/>; break;
       case "ayar": icerik = destek ? destekKapali : <Ayarlar T={T} stilKey={stilKey} setStilKey={setStilKey} renkKey={renkKey} setRenkKey={setRenkKey} veriUret={veriUret} veriSil={veriSil} turnuvalar={turnuvalar} adminMod={adminMod} setAdminMod={setAdminMod} yedekle={yedekle} yukleDosya={yukleDosya} kayitDurum={kayitDurum} git={git} adminMi={adminMi} rehberBaslat={rehberBaslat} oturum={oturum}/>; break;
-      default: icerik=<AnaComp turnuvalar={turnuvalar} T={T} git={git} oturum={oturum}/>;
+      default: icerik=<AnaComp turnuvalar={turnuvalar} T={T} git={git} oturum={oturum} ligKurYetki={etkinLigKurYetkim}/>;
     }
   }
 
