@@ -278,8 +278,13 @@
   }
   /* Ana Sayfa: telefonda tek kolon, masaüstünde sol içerik + sağ özet */
   .ana-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  /* Üst bölge (kişisel kart + hero): mobilde alt alta, masaüstünde yan yana → boş alan dolar */
+  .fl-top2 { display: block; }
   @media (min-width: 820px) {
     .ana-grid { grid-template-columns: 1.55fr 1fr; align-items: start; }
+    .fl-top2 { display: grid; grid-template-columns: minmax(320px, 380px) 1fr; align-items: stretch; gap: 16px; padding: 6px 14px 0; }
+    .fl-top2 > * { margin: 0 !important; }
+    .fl-top2 .vav-hero { border-bottom: none; border-radius: 16px; height: 100%; }
   }
   .kpi-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
@@ -5500,6 +5505,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
     <div className="fl-atmos" aria-hidden="true"><div className="glow"/><div className="grain"/></div>
     <CanliBant items={bantItems} T={T}/>
 
+    <div className={oturum?"fl-top2":undefined}>
     {/* ===== KİŞİSEL KARŞILAMA — GİRİŞ YAPANIN KENDİ FIFA KARTI ===== */}
     {oturum && benimO && <div style={{padding:"18px 14px 4px"}}>
       <div style={{textAlign:"center",marginBottom:12}}>
@@ -5507,11 +5513,16 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
         <div style={{fontSize:19,color:T.text,fontWeight:900,fontFamily:T.fontDisplay,lineHeight:1.1,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimO.ad}</div>
       </div>
       <FifaKart o={{...benimO, takimAd:(benimTk&&benimTk.ad)||benimO.takimAd, renk:(benimTk&&benimTk.renk)||benimO.takimRenk, renk2:benimTk&&benimTk.renk2, logo:benimTk&&benimTk.logo}} T={T}/>
-      {benimSonraki && <div onClick={()=>git&&git({sayfa:"mac",mac:benimSonraki,turnuva:benimTkT})} className="tap" style={{display:"flex",alignItems:"center",gap:10,marginTop:12,maxWidth:320,marginLeft:"auto",marginRight:"auto",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 12px"}}>
-        <span style={{fontSize:16}}>📅</span>
-        <div style={{flex:1,minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800,letterSpacing:.3}}>SIRADAKİ MAÇIN</div><div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimSonraki.takimA} vs {benimSonraki.takimB}{benimSonraki.hafta?" · Hafta "+benimSonraki.hafta:""}</div></div>
-        <span style={{color:T.textMut,fontSize:16}}>›</span>
-      </div>}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12,maxWidth:340,marginLeft:"auto",marginRight:"auto"}}>
+        {benimTk && <div onClick={()=>git&&git({sayfa:"takim",takim:benimTk,turnuva:benimTkT})} className="tap" style={{flex:"1 1 150px",display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px"}}>
+          <Logo renk={benimTk.renk} ad={benimTk.ad} logo={benimTk.logo} renk2={benimTk.renk2} boy={26}/>
+          <div style={{minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800,letterSpacing:.3}}>TAKIMIN</div><div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap"}}>{benimTk.sira!=null?benimTk.sira+". sıra":benimTk.ad}{benimTk.puan!=null?" · "+benimTk.puan+" p":""}</div></div>
+        </div>}
+        {benimSonraki && <div onClick={()=>git&&git({sayfa:"mac",mac:benimSonraki,turnuva:benimTkT})} className="tap" style={{flex:"1 1 150px",display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px"}}>
+          <span style={{fontSize:16}}>📅</span>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800,letterSpacing:.3}}>SIRADAKİ MAÇIN</div><div style={{fontSize:12,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimSonraki.takimA} vs {benimSonraki.takimB}{benimSonraki.hafta?" · H"+benimSonraki.hafta:""}</div></div>
+        </div>}
+      </div>
     </div>}
 
     {/* ===== LİG YOKKEN KİŞİSEL KART — kulüp oyuncusunun gerçek FIFA kartı (girdiği bilgilerle) ===== */}
@@ -5522,6 +5533,10 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
       </div>
       <FifaKart o={serbestKart} T={T}/>
       <div style={{fontSize:11,color:T.textMut,textAlign:"center",marginTop:10,lineHeight:1.5,maxWidth:320,marginLeft:"auto",marginRight:"auto"}}>Bir lige katılınca maç istatistiklerin (gol · asist · maç) ve reytingin buraya işlenir.</div>
+      {git && <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginTop:12,maxWidth:340,marginLeft:"auto",marginRight:"auto"}}>
+        <button onClick={()=>git({sayfa:"ligler"})} className="tap" style={{flex:"1 1 140px",background:T.accent,color:T.bg0,border:0,borderRadius:11,padding:"11px 12px",fontSize:12.5,fontWeight:800,cursor:"pointer"}}>🔍 Ligleri Keşfet</button>
+        <button onClick={()=>git({sayfa:"ligkur"})} className="tap" style={{flex:"1 1 140px",background:T.bg1,color:T.text,border:"1px solid "+T.line,borderRadius:11,padding:"11px 12px",fontSize:12.5,fontWeight:800,cursor:"pointer"}}>🏆 Lig Kur</button>
+      </div>}
     </div>}
 
     {/* ===== GEÇİCİ KARŞILAMA KARTI — giriş var, henüz oyuncu profili yok (Google foto+ad) ===== */}
@@ -5533,6 +5548,10 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
         <div style={{position:"relative",fontSize:21,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.1,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benad||"Hoş geldin"}</div>
         <div style={{position:"relative",fontSize:11.5,color:T.textSoft,marginTop:9,lineHeight:1.5}}>Bir takıma/kulübe katılıp bilgilerini girdiğinde <b style={{color:T.accent}}>kendi FIFA kartın</b> — fotoğrafın ve statlarınla — tam burada oluşur.</div>
         <div style={{position:"relative",display:"inline-flex",alignItems:"center",gap:6,marginTop:11,fontSize:10.5,fontWeight:700,color:T.textMut,background:T.bg0+"aa",border:"0.5px solid "+T.line,borderRadius:20,padding:"5px 11px"}}>⏳ Kartın hazırlanıyor</div>
+        {git && <div style={{position:"relative",display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginTop:13}}>
+          <button onClick={()=>git({sayfa:"ligler"})} className="tap" style={{flex:"1 1 130px",background:T.accent,color:T.bg0,border:0,borderRadius:11,padding:"10px 12px",fontSize:12,fontWeight:800,cursor:"pointer"}}>🔍 Ligleri Keşfet</button>
+          <button onClick={()=>git({sayfa:"kuluplerim"})} className="tap" style={{flex:"1 1 130px",background:T.bg0+"aa",color:T.text,border:"0.5px solid "+T.line,borderRadius:11,padding:"10px 12px",fontSize:12,fontWeight:800,cursor:"pointer"}}>🛡️ Takımını Kur</button>
+        </div>}
       </div>
     </div>}
 
@@ -5562,6 +5581,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum}){
           ? <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu hafta <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaMac.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaGol}</b> gol</span>
           : <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu sezon <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{oynananlar.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{topGolLig}</b> gol</span>}
       </div>
+    </div>
     </div>
 
     {/* ===== MAÇ MERKEZİ (V6 yeni) ===== */}
