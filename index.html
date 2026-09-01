@@ -5378,6 +5378,14 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
     }catch(e){}
     return ()=>{ try{ io&&io.disconnect(); mo&&mo.disconnect(); if(zaman)clearTimeout(zaman); }catch(e){} };
   },[turnuvalar]);
+  // KİŞİSEL — hook sırası bozulmasın diye erken çıkıştan ÖNCE (üstte). Lig oyuncusu tespiti + lig-siz kart çekimi.
+  let benimO=null, benimTk=null, benimTkT=null; const bakUid=oturum&&oturum.id;
+  if(bakUid){ for(const t of (turnuvalar||[])){ for(const tkm of (t.takimlar||[])){ const f=(tkm.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===bakUid); if(f){benimO=f;benimTk=tkm;benimTkT=t;break;} } if(benimO)break; } }
+  const [serbestO,setSerbestO]=useState(null);
+  useEffect(()=>{ let a=true;
+    if(oturum && oturum.id && !benimO){ Db.benimOyuncu(oturum.id).then(o=>{ if(a) setSerbestO(o); }); } else { setSerbestO(null); }
+    return ()=>{ a=false; };
+  },[oturum && oturum.id, !!benimO]);
   const aktifTurnuva = useMemo(()=>{
     const dolu = turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0);
     if(!dolu.length) return null;
@@ -5482,20 +5490,12 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
   const spotAday = vitrin.gol || vitrin.asist || vitrin.formEn || vitrin.mvp || null;
   const spotFull = spotAday ? (tumO.find(p=>p.id===spotAday.id)||spotAday) : null;
   const cip=(renk)=>({flexShrink:0,display:"inline-flex",alignItems:"center",gap:5,fontSize:10.5,fontWeight:800,color:renk,background:renk+"18",border:"0.5px solid "+renk+"44",borderRadius:20,padding:"5px 11px",whiteSpace:"nowrap"});
-  // ── KİŞİSEL ŞERİT (giriş yapana) — kullanıcının oyuncusu + sıradaki maçı ──
-  let benimO=null, benimTk=null, benimTkT=null; const bakUid=oturum&&oturum.id;
-  if(bakUid){ for(const t of (turnuvalar||[])){ for(const tkm of (t.takimlar||[])){ const f=(tkm.oyuncular||[]).find(o=>o.sahip_user_id&&o.sahip_user_id===bakUid); if(f){benimO=f;benimTk=tkm;benimTkT=t;break;} } if(benimO)break; } }
+  // ── KİŞİSEL türev değerler — benimO/serbestO YUKARI taşındı (hook sırası); burada sadece türevler ──
   const benimSonraki = (benimO&&benimTk&&benimTkT)? (benimTkT.maclar||[]).find(m=>m.oynandi===false && (m.takimA===benimTk.ad||m.takimB===benimTk.ad)) : null;
   // Giriş yapan kullanıcının adı: oyuncu bağlıysa oyuncu adı, yoksa profil/e-posta adı (yoksa boş)
   const benad = (benimO&&benimO.ad) || (oturum && ((oturum.user_metadata&&(oturum.user_metadata.ad||oturum.user_metadata.full_name||oturum.user_metadata.name)) || (oturum.email&&String(oturum.email).split("@")[0]))) || "";
   // Google/hesap fotoğrafı (oyuncu fotosu yoksa geçici kart için)
   const benfoto = (benimO&&benimO.foto) || (oturum&&oturum.user_metadata&&(oturum.user_metadata.avatar_url||oturum.user_metadata.picture)) || null;
-  // LİG YOKKEN KART: ligde oyuncu değilsen kendi oyuncu profilini (kulüp) çek → gerçek FIFA kartı göster
-  const [serbestO,setSerbestO]=useState(null);
-  useEffect(()=>{ let a=true;
-    if(oturum && oturum.id && !benimO){ Db.benimOyuncu(oturum.id).then(o=>{ if(a) setSerbestO(o); }); } else { setSerbestO(null); }
-    return ()=>{ a=false; };
-  },[oturum && oturum.id, !!benimO]);
   // Çekilen oyuncudan FifaKart nesnesi (girilen bilgiler + temel başlangıç statları)
   const serbestKart = serbestO ? (()=>{ const nk=serbestO.nitelik||{}; const kl=serbestO.kulup||{};
     return {ad:serbestO.ad_soyad||serbestO.takma_ad||benad, foto:serbestO.foto||benfoto, ovr:serbestO.ovr||62,
