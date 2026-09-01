@@ -5760,39 +5760,8 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
       </div>;
     })()}
 
-    <div style={{padding:"22px 14px 0"}}>
-      <V5Eyebrow T={T}>Haftanın Öne Çıkanı</V5Eyebrow>
-      <div onClick={()=>git({sayfa:"takim",takim:lider,turnuva:tk})} className="tap"
-        style={{position:"relative",overflow:"hidden",background:"linear-gradient(135deg,"+T.accent+"22,"+T.bg1+")",borderRadius:16,padding:"18px 18px 16px",border:"1px solid "+T.accent+"44"}}>
-        <div style={{fontSize:10,color:T.accent,fontWeight:800,letterSpacing:.6,marginBottom:9,display:"inline-block",background:T.accent+"22",padding:"3px 9px",borderRadius:20}}>ZİRVEDE</div>
-        <div style={{display:"flex",alignItems:"center",gap:14}}>
-          <Logo renk={lider.renk} ad={lider.ad} logo={lider.logo} renk2={lider.renk2} boy={56}/>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:21,fontWeight:900,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.08,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{lider.ad} zirvede!</div>
-            <div style={{fontSize:12,color:T.textSoft,marginTop:4}}>{lider.o} maçta {lider.g} galibiyet. {fark>0?`2. sıraya ${fark} puan fark.`:"Liderlik eşit puanda."}</div>
-          </div>
-        </div>
-        <div style={{display:"flex",gap:14,marginTop:14,paddingTop:12,borderTop:"1px solid "+T.line}}>
-          <MiniIstatBanner buyuk={lider.puan} etiket="puan" renk={T.gold} T={T}/>
-          <MiniIstatBanner buyuk={lider.ag} etiket="attı" renk={T.accent} T={T}/>
-          <MiniIstatBanner buyuk={lider.yg} etiket="yedi" renk={T.danger} T={T}/>
-          <MiniIstatBanner buyuk={(lider.ag-lider.yg>=0?"+":"")+(lider.ag-lider.yg)} etiket="averaj" renk={T.accent2} T={T}/>
-        </div>
-      </div>
-    </div>
-
-    {(haftaninOyuncusu || (yukselenTakim&&yukselenTakim.t)) && <div style={{padding:"18px 14px 0"}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-        {haftaninOyuncusu && <div onClick={()=>oyuncuGit({...haftaninOyuncusu,turnuva:tk.ad})} className="tap prem-tap" style={{position:"relative",overflow:"hidden",background:"linear-gradient(120deg,"+T.gold+"3a,"+T.bg1+" 42%)",border:"1px solid "+T.gold+"55",borderRadius:15,padding:13}}>
-          <div style={{fontSize:9,color:T.gold,fontWeight:800,marginBottom:9,letterSpacing:.3}}>👑 ÖNE ÇIKAN OYUNCU</div>
-          <div style={{display:"flex",alignItems:"center",gap:9}}>
-            <Avatar o={haftaninOyuncusu} boy={36} T={T}/>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{haftaninOyuncusu.ad}</div>
-              <div style={{fontSize:9.5,color:T.gold}}><b style={{fontSize:12,fontFamily:T.fontDisplay}}>{haftaninOyuncusu.gol||0}</b> gol · <b style={{fontSize:12,fontFamily:T.fontDisplay}}>{haftaninOyuncusu.asist||0}</b> asist</div>
-            </div>
-          </div>
-        </div>}
+    {(yukselenTakim&&yukselenTakim.t) && <div style={{padding:"18px 14px 0"}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr",gap:9}}>
         {yukselenTakim && yukselenTakim.t && <div onClick={()=>takimGit({...yukselenTakim.t,turnuva:tk.ad})} className="tap prem-tap" style={{position:"relative",overflow:"hidden",background:"linear-gradient(120deg,#34D3993a,"+T.bg1+" 42%)",border:"1px solid #34D39955",borderRadius:15,padding:13}}>
           <div style={{fontSize:9,color:"#34D399",fontWeight:800,marginBottom:9,letterSpacing:.3}}>📈 YÜKSELEN TAKIM</div>
           <div style={{display:"flex",alignItems:"center",gap:9}}>
