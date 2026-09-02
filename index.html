@@ -182,8 +182,9 @@
     });
   })();
 </script>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Playfair+Display:wght@500;600;700;800&family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap"></noscript>
+<!-- İLK AÇILIŞ: yalnız Inter + Sora (varsayılan/çoğu tema). display=optional → yazı tipi geç gelirse metni KAYDIRMAZ (CLS≈0). Alternatif tema yazı tipleri (Playfair/Bebas/Oswald) yalnız o tema seçilince tembel yüklenir. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&display=optional" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&display=optional"></noscript>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   /* iOS Safari otomatik yazı büyütmesini KAPAT — sabitlenmiş sohbette her şeyi "kocaman"
@@ -17619,6 +17620,21 @@ function App(){
     const r=document.documentElement.style;
     r.setProperty("--bg0",T.bg0); r.setProperty("--text",T.text); r.setProperty("--font-body",T.fontBody);
     r.setProperty("--font-display",T.fontDisplay); r.setProperty("--accent",T.accent);
+    // Alternatif tema yazı tipleri (Playfair/Bebas/Oswald) yalnız o tema seçilince yüklenir — ilk açılış Inter+Sora ile hafif kalır (CLS/hız). Varsayılan tema hiç ek font çekmez.
+    try{
+      const ekFont={ "Playfair Display":"Playfair+Display:wght@500;600;700;800", "Bebas Neue":"Bebas+Neue", "Oswald":"Oswald:wght@400;500;600;700" };
+      const gerek=(T.fontBody||"")+" "+(T.fontDisplay||"");
+      Object.keys(ekFont).forEach(ad=>{
+        if(gerek.indexOf(ad)>=0){
+          const fid="fz-font-"+ad.replace(/\s+/g,"");
+          if(!document.getElementById(fid)){
+            const l=document.createElement("link"); l.id=fid; l.rel="stylesheet";
+            l.href="https://fonts.googleapis.com/css2?family="+ekFont[ad]+"&display=swap";
+            document.head.appendChild(l);
+          }
+        }
+      });
+    }catch(e){}
     r.setProperty("--bg1",T.bg1); r.setProperty("--line",T.line);
     // premium gradyan atmosfer — tema accent'inden türet (neon stilde daha güçlü)
     const hex2rgb=(h)=>{ h=h.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; };
