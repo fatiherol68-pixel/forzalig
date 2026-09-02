@@ -55,7 +55,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <!-- Chart.js statik yüklenmez; sadece grafik gerektiğinde chartYukle() ile getirilir (hız). -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<!-- qrcode yalnız paylaşım/QR ekranında (kullanıcı dokununca) gerekir → defer: render'ı bloklamaz (Lighthouse "oluşturma engelleme" ~900ms). qrData() zaten 'qrcode tanımsız' durumunu güvenle atlar. -->
+<script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
@@ -5742,7 +5743,10 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
       </div>;
     })()}
 
-    {(()=>{ const onbir=Motor.ideal11(tk, onbirTip); if(!onbir||!onbir.length) return null;
+    {(()=>{ const onbir=Motor.ideal11(tk, onbirTip);
+      const oyuncuVar=(tk.takimlar||[]).some(t=>(t.oyuncular||[]).length>0);
+      if((!onbir||!onbir.length) && oyuncuVar) return null;   // oyuncular yüklü ama 11 çıkmadı → gizle
+      const yukleniyorOnbir=(!onbir||!onbir.length);          // oyuncular HENÜZ yüklenmedi (hafif aşama) → aynı yükseklikte iskelet: bölüm sonradan MOUNT olup altını itmesin (CLS)
       const renk = onbirTip==="altin"?T.gold:"#cbd5e1"; const pk={Kaleci:"KL",Defans:"DF",OrtaSaha:"OS",Forvet:"FV"};
       return <div style={{padding:"22px 14px 0"}}>
         <V5Eyebrow T={T}>Haftanın 11'i <span style={{fontSize:9,color:T.textMut,fontWeight:600}}>· {tk.ad}</span></V5Eyebrow>
@@ -5751,7 +5755,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
             <span key={x[0]} onClick={()=>setOnbirTip(x[0])} className="tap" style={{flex:1,textAlign:"center",fontSize:11.5,fontWeight:800,padding:"8px",borderRadius:10,background:onbirTip===x[0]?x[2]+"22":T.bg1,color:onbirTip===x[0]?x[2]:T.textMut,border:"1px solid "+(onbirTip===x[0]?x[2]+"66":T.line)}}>{x[1]}</span>)}
         </div>
         <div style={{display:"flex",gap:9,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
-          {onbir.map((o,i)=>
+          {yukleniyorOnbir ? [0,1,2,3,4].map(i=><div key={"sk"+i} className="skel" style={{flexShrink:0,width:104,height:116,borderRadius:14}}/>) : onbir.map((o,i)=>
             <div key={o.id||i} onClick={()=>oyuncuGit({...o,turnuva:tk.ad})} className="tap prem-tap" style={{flexShrink:0,width:104,borderRadius:14,overflow:"hidden",position:"relative",background:"linear-gradient(165deg,"+renk+"33,"+T.bg1+" 62%)",border:"1px solid "+renk+"55",padding:"11px 9px 12px",textAlign:"center"}}>
               <div style={{position:"absolute",top:7,left:9,fontSize:8.5,fontWeight:800,color:renk,letterSpacing:.3}}>{pk[o.poz]||""}</div>
               {o.ovr!=null && <div style={{position:"absolute",top:6,right:9,fontSize:15,fontWeight:900,fontFamily:T.fontDisplay,color:renk,lineHeight:1}}>{o.ovr}</div>}
