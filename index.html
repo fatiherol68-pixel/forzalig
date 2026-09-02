@@ -45,19 +45,18 @@
 ]}
 ]}
 </script>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://crkestykdsnmfcmamxav.supabase.co" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- React kendi sunucumuzdan (aynı köken + Cloudflare edge cache). Dış CDN bağımlılığı yok. defer: render'ı bloklamaz, sıra korunur. -->
 <!-- Chart.js statik yüklenmez; sadece grafik gerektiğinde chartYukle() ile getirilir (hız). -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="/assets/supabase.min.js"></script>
 <!-- qrcode yalnız paylaşım/QR ekranında (kullanıcı dokununca) gerekir → defer: render'ı bloklamaz (Lighthouse "oluşturma engelleme" ~900ms). qrData() zaten 'qrcode tanımsız' durumunu güvenle atlar. -->
-<script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script defer src="/assets/qrcode.min.js"></script>
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260902131446"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260902134609"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
