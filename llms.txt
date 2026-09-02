@@ -1,0 +1,20 @@
+# ForzaLig
+
+> ForzaLig, halı saha (amatör futbol) liglerini yönetmek için ücretsiz bir web uygulamasıdır (PWA). Lig kur, fikstür ve puan durumu oluştur, gol krallığı ve kral listelerini takip et, FIFA tarzı oyuncu kartları ve OVR sistemiyle oyuncuları değerlendir, ligini link/QR ile paylaş.
+
+ForzaLig is a free progressive web app for running amateur football (five-a-side / halı saha) leagues: fixtures, standings, top-scorer charts, FIFA-style player cards with an OVR rating, live scores, and a transfer market. The interface is in Turkish.
+
+## Ana özellikler / Key features
+- Lig ve turnuva yönetimi: takımlar, oyuncular, fikstür, puan durumu, playoff/kupa.
+- FIFA tarzı oyuncu kartları ve OVR (genel puan) sistemi; her kullanıcı kendi kartını görür ve düzenler.
+- Gol kralı, asist kralı, haftanın 11'i ve lig istatistikleri.
+- Transfer pazarı: takım, rakip ve oyuncu ilanları.
+- Ligini herkese açık link veya QR kod ile paylaşma.
+
+## Bağlantılar / Links
+- [Ana sayfa](https://forzalig.com/): Uygulamaya giriş ve lig keşfi.
+- [Ligleri Keşfet](https://forzalig.com/?p=ligler): Herkese açık ligler, takımlar ve oyuncular.
+
+## Notlar / Notes
+- Uygulama tek sayfalık (SPA) bir yapıya sahiptir; içerik giriş yaptıktan sonra kişiye göre yüklenir.
+- Kişisel oyuncu kartları kullanıcıya özeldir (her kullanıcı yalnızca kendi kartını düzenleyebilir).
