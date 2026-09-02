@@ -938,11 +938,11 @@ async function fotoYukle(dosya, klasor, eskiUrl){
     return {url:(data&&data.publicUrl)||""};
   }catch(e){ return {hata:String(e&&e.message||e)}; }
 }
-/* Ses yükleme (sohbet medyası) — küçültme yok, ses MIME, güvenli isim, 5MB sınır */
+/* Ses yükleme (sohbet medyası) — küçültme yok, ses MIME, güvenli isim, 20MB sınır */
 async function sesYukle(blob){
   if(!sb) return {hata:"Giriş gerekli (bulut kapalı)."};
   if(!blob) return {hata:"Ses yok."};
-  if(blob.size>5*1024*1024) return {hata:"Ses çok büyük (max 5MB)."};
+  if(blob.size>20*1024*1024) return {hata:"Ses çok büyük (max 20MB)."};
   var tip=blob.type||"audio/webm"; if(!/^audio\//.test(tip)) return {hata:"Geçersiz ses dosyası."};
   try{
     var uid=null; try{ uid=((await sb.auth.getUser()).data.user||{}).id||null; }catch(e){}
