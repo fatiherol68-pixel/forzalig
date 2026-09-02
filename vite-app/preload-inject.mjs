@@ -3,6 +3,15 @@
 // modulepreload ile paralel iner → uygulama ~350ms erken çalışır → LCP düşer. Görsel/işlev DEĞİŞMEZ (yalnız indirme ipucu).
 import fs from 'fs';
 const dist='dist';
+// Kendi sunucumuzda barındırılan 3. taraf scriptleri (jsDelivr yerine) → dist/assets'e kopyala.
+// Böylece /assets/supabase.min.js aynı kökenden gelir (hızlı + Cloudflare 1-yıl cache kuralı kapsar) ve
+// Lighthouse "3. taraf / verimsiz cache" uyarısından çıkar. Sürüm sabit (npm pack ile alındı).
+try {
+  for (const f of ['supabase.min.js', 'qrcode.min.js']) {
+    if (fs.existsSync('vendored/' + f)) fs.copyFileSync('vendored/' + f, dist + '/assets/' + f);
+  }
+  console.log('vendored (supabase/qrcode) dist/assets\'e kopyalandi');
+} catch (e) { console.warn('vendored kopyalama atlandi:', e.message); }
 const p=dist+'/index.html';
 let html=fs.readFileSync(p,'utf8');
 if(html.includes('rel="modulepreload"')){ console.log('modulepreload zaten var, atlandı'); process.exit(0); }
