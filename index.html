@@ -5352,7 +5352,7 @@ function AnaSayfaV5({turnuvalar, T, git}){
    V5'in kanıtlı veri mantığı + yardımcıları AYNEN kullanılır; üstüne Faz-1 eklentileri:
    (A8) Maç Merkezi (Bugün/Yaklaşan/Son), (A1) hero 'bu hafta' nabzı, (A2) Enler SPOTLIGHT, (A6) 'AI'→'Özet'.
    Eskiye (V5) HİÇ dokunulmaz; sorun olursa tek tuşla V5'e dönülür. */
-function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
+function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki, yukleniyor}){
   // ===== KAYDIRINCA BELİREN BÖLÜMLER — bölümler görünür alana girince yumuşakça yükselir =====
   // Güvenli: JS çalışmazsa/hata olursa hiçbir şey gizlenmez; 'hareket azaltma'da tamamen kapanır.
   const kokRef = useRef(null);
@@ -5418,6 +5418,22 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
   const selam = saat<5?"İyi geceler":saat<12?"Günaydın":saat<18?"Merhaba":saat<23?"İyi akşamlar":"İyi geceler";
   const bugun = new Date().toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric",weekday:"long"});
 
+  // YÜKLEME İSKELETİ (CLS): özet ligler var ama tam veri (takımlar) henüz gelmediyse, kısa "Hoş geldin" ekranı yerine
+  // kokpitle aynı yükseklikte sabit iskelet göster → tam veri gelince içerik boşluğa değil hazır alana dolar (kayma olmaz).
+  // Not: gerçekten lig-siz kullanıcıya (özet boş) yine aşağıdaki CTA görünür.
+  if(!aktifTurnuva){
+    const veriGeliyor = !!yukleniyor || turnuvalar.some(t=>((t.takimSay||0)>0) && (!t.takimlar || t.takimlar.length===0));
+    if(veriGeliyor) return <div className="fade-in" style={{padding:"0 0 80px",minHeight:"100vh"}} aria-busy="true">
+      <div className="skel" style={{height:200,borderRadius:0,marginBottom:12}}/>
+      <div style={{padding:"0 14px"}}>
+        <div className="skel" style={{height:70,borderRadius:14,marginBottom:12}}/>
+        <div className="skel" style={{height:118,borderRadius:14,marginBottom:12}}/>
+        <div className="skel" style={{height:150,borderRadius:14,marginBottom:12}}/>
+        <div className="skel" style={{height:210,borderRadius:14,marginBottom:12}}/>
+        <div className="skel" style={{height:180,borderRadius:14}}/>
+      </div>
+    </div>;
+  }
   if(!aktifTurnuva) return <div className="fade-in" style={{padding:"34px 20px 80px",maxWidth:460,margin:"0 auto"}}>
     <div style={{textAlign:"center",marginBottom:22}}>
       <div style={{fontSize:44,marginBottom:10}}>⚽</div>
