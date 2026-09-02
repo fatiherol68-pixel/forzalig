@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { adminKumesiCikar } from './bol.mjs';
+import { sayfalariCikar } from './bol-sayfalar.mjs';
 
 const VITE = path.dirname(fileURLToPath(import.meta.url));
 const KOK = path.join(VITE, '..');
@@ -46,6 +47,16 @@ try {
   console.warn('⚠ admin lazy-split atlandı (tek parça devam):', e.message);
 }
 
+// 4b) Navigasyon-only SAYFA kümesini ikinci lazy chunk'a çıkar (ilk açılış paketini küçültür).
+//     Başarısızsa sayfa-split atlanır (govde admin-split hâlinde kalır → build kırılmaz).
+let sayfaChunk = null, sayfaCikar = 0, sayfaDep = 0, sayfaSay = 0;
+try {
+  const s = sayfalariCikar(govde);
+  govde = s.govde; sayfaChunk = s.chunk; sayfaCikar = s.cikarilan; sayfaDep = s.depList.length; sayfaSay = s.cluster.length;
+} catch (e) {
+  console.warn('⚠ sayfa lazy-split atlandı (admin-split ile devam):', e.message);
+}
+
 // 5) app gövdesi: React ESM (bundle) + global uyum + uygulama kodu (rarity/stiller kabukta)
 fs.writeFileSync(path.join(VITE, 'src/app-body.jsx'),
 `import React from 'react';
@@ -58,8 +69,11 @@ ${govde}
 `);
 
 if (chunkKod) fs.writeFileSync(path.join(VITE, 'src/admin-chunk.jsx'), chunkKod);
+if (sayfaChunk) fs.writeFileSync(path.join(VITE, 'src/pages-chunk.jsx'), sayfaChunk);
+else { try { fs.unlinkSync(path.join(VITE, 'src/pages-chunk.jsx')); } catch (e) {} }
 
 console.log('vite-app faithful üretildi · appKod:', appKod.length, '→ gövde:', govde.length,
   '· admin-chunk:', chunkKod ? (cikarilan + ' char, ' + depAdet + ' dep') : 'YOK',
+  '· pages-chunk:', sayfaChunk ? (sayfaCikar + ' char, ' + sayfaSay + ' sayfa, ' + sayfaDep + ' dep') : 'YOK',
   '· shell:', shell.length,
   '· react/babel script kaldırıldı:', !shell.includes('react.production.min.js') && !shell.includes('babel-standalone'));
