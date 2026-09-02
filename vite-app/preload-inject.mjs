@@ -7,7 +7,7 @@ const dist='dist';
 // Böylece /assets/supabase.min.js aynı kökenden gelir (hızlı + Cloudflare 1-yıl cache kuralı kapsar) ve
 // Lighthouse "3. taraf / verimsiz cache" uyarısından çıkar. Sürüm sabit (npm pack ile alındı).
 try {
-  for (const f of ['supabase.min.js', 'qrcode.min.js']) {
+  for (const f of ['supabase-2.74.0.min.js', 'qrcode-1.4.4.min.js']) {
     if (fs.existsSync('vendored/' + f)) fs.copyFileSync('vendored/' + f, dist + '/assets/' + f);
   }
   console.log('vendored (supabase/qrcode) dist/assets\'e kopyalandi');
