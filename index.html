@@ -67,21 +67,25 @@
      sw.js'yi ÖNBELLEĞİ ATLAYAN benzersiz adresle çeker (?fl=zaman), SURUM'u okur; çalışan sürümden farklıysa
      SW+cache temizler ve /?fl=<sürüm> adresine gider (bu benzersiz adres taze HTML getirir). Sürüm başına 1 kez → döngü yok. */
   (function(){
-    try{
-      var calisan = window.__FL_RELEASE || "";
-      if(!calisan || calisan.indexOf("FL_SW_")===0) return;   // damgalanmamış (dev) → dokunma
-      fetch("/sw.js?fl="+Date.now(), {cache:"no-store"}).then(function(r){ return r.text(); }).then(function(t){
-        var m = t.match(/SURUM\s*=\s*"(\d+)"/); var enSon = m && m[1];
-        if(!enSon || enSon===calisan) return;                 // zaten güncel
-        var k = "fl_tazele_"+enSon;
-        try{ if(sessionStorage.getItem(k)) return; sessionStorage.setItem(k,"1"); }catch(e){}  // bu sürüm için 1 kez
-        var bit = function(){ try{ location.replace("/?fl="+enSon+(location.hash||"")); }catch(e){ location.reload(); } };
-        Promise.resolve()
-          .then(function(){ return (window.caches&&caches.keys)?caches.keys().then(function(a){return Promise.all(a.map(function(x){return caches.delete(x);}));}):null; })
-          .then(function(){ return (navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(x){return x.unregister();}));}):null; })
-          .then(bit).catch(bit);
-      }).catch(function(){});
-    }catch(e){}
+    var calisan = window.__FL_RELEASE || "";
+    if(!calisan || calisan.indexOf("FL_SW_")===0) return;   // damgalanmamış (dev) → dokunma
+    function kontrol(){
+      try{
+        fetch("/sw.js?fl="+Date.now(), {cache:"no-store"}).then(function(r){ return r.text(); }).then(function(t){
+          var m = t.match(/SURUM\s*=\s*"(\d+)"/); var enSon = m && m[1];
+          if(!enSon || enSon===calisan) return;                 // zaten güncel
+          var k = "fl_tazele_"+enSon;
+          try{ if(sessionStorage.getItem(k)) return; sessionStorage.setItem(k,"1"); }catch(e){}  // bu sürüm için 1 kez
+          var bit = function(){ try{ location.replace("/?fl="+enSon+(location.hash||"")); }catch(e){ location.reload(); } };
+          Promise.resolve()
+            .then(function(){ return (window.caches&&caches.keys)?caches.keys().then(function(a){return Promise.all(a.map(function(x){return caches.delete(x);}));}):null; })
+            .then(function(){ return (navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(x){return x.unregister();}));}):null; })
+            .then(bit).catch(bit);
+        }).catch(function(){});
+      }catch(e){}
+    }
+    kontrol();   // açılışta
+    try{ document.addEventListener("visibilitychange", function(){ if(document.visibilityState==="visible") kontrol(); }); }catch(e){}  // PWA öne gelince tekrar
   })();
   (function(){
     var dsn = window.__FL_SENTRY_DSN;
@@ -16967,9 +16971,10 @@ function fzKapakURL(){ if(__fzKapakURL!=null) return __fzKapakURL; try{
   for(var i=0;i<seams.length;i++){ var s=seams[i]; x.beginPath(); x.moveTo(s[0],s[1]); x.lineTo(s[2],s[3]); x.stroke(); }
   x.restore();
   // Yazı — "ForzaLig" degrade (splash ile aynı), ortalı
-  var tg=x.createLinearGradient(0,384,0,436); tg.addColorStop(0,"#EAFBF2"); tg.addColorStop(.5,"#5FE9A6"); tg.addColorStop(1,"#2ec3d6");
-  x.fillStyle=tg; x.font="800 60px Sora, Arial, sans-serif"; x.textAlign="center"; x.fillText("ForzaLig",256,424);
-  x.fillStyle="rgba(255,255,255,.55)"; x.font="600 19px Inter, Arial, sans-serif"; x.fillText("RADYO · HALI SAHA LİGİ",256,458);
+  var tg=x.createLinearGradient(0,372,0,424); tg.addColorStop(0,"#EAFBF2"); tg.addColorStop(.5,"#5FE9A6"); tg.addColorStop(1,"#2ec3d6");
+  x.fillStyle=tg; x.font="800 58px Sora, Arial, sans-serif"; x.textAlign="center"; x.fillText("ForzaLig",256,410);
+  x.fillStyle="rgba(255,255,255,.5)"; x.font="600 17px Inter, Arial, sans-serif";
+  x.fillText("HALI SAHA LİGİNİN",256,446); x.fillText("DİJİTAL MERKEZİ",256,470);
   __fzKapakURL=c.toDataURL("image/png"); return __fzKapakURL;
 }catch(e){ __fzKapakURL=""; return ""; } }
 function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
