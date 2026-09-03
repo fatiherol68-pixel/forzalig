@@ -16952,16 +16952,24 @@ function RadyoCalar({T, barGizle}){
 let __fzKapakURL=null;
 function fzKapakURL(){ if(__fzKapakURL!=null) return __fzKapakURL; try{
   var c=document.createElement("canvas"); c.width=512; c.height=512; var x=c.getContext("2d"); if(!x){ __fzKapakURL=""; return ""; }
-  var g=x.createLinearGradient(0,0,512,512); g.addColorStop(0,"#0b3b2c"); g.addColorStop(.52,"#0a1220"); g.addColorStop(1,"#241a4a"); x.fillStyle=g; x.fillRect(0,0,512,512);
-  var r1=x.createRadialGradient(120,90,10,120,90,340); r1.addColorStop(0,"rgba(31,143,107,.9)"); r1.addColorStop(1,"rgba(31,143,107,0)"); x.fillStyle=r1; x.fillRect(0,0,512,512);
-  var r2=x.createRadialGradient(430,460,10,430,460,360); r2.addColorStop(0,"rgba(109,92,214,.75)"); r2.addColorStop(1,"rgba(109,92,214,0)"); x.fillStyle=r2; x.fillRect(0,0,512,512);
-  x.strokeStyle="rgba(255,255,255,.9)"; x.lineWidth=10; x.beginPath(); x.arc(256,236,150,0,Math.PI*2); x.stroke();
-  x.fillStyle="rgba(255,255,255,.95)"; x.beginPath(); x.moveTo(256,146); x.lineTo(310,186); x.lineTo(289,250); x.lineTo(223,250); x.lineTo(202,186); x.closePath(); x.fill();
-  x.strokeStyle="rgba(255,255,255,.72)"; x.lineWidth=8; x.lineCap="round";
-  var xs=[150,192,234,278,320,362], hs=[16,46,80,80,46,16];
-  for(var i=0;i<xs.length;i++){ x.beginPath(); x.moveTo(xs[i],250+hs[i]); x.lineTo(xs[i],250-hs[i]); x.stroke(); }
-  x.fillStyle="rgba(255,255,255,.95)"; x.font="800 46px Sora, Arial, sans-serif"; x.textAlign="left"; x.fillText("FORZALIG",40,452);
-  x.fillStyle="rgba(255,255,255,.6)"; x.font="600 20px Inter, Arial, sans-serif"; x.fillText("RADYO · HALI SAHA",42,482);
+  // Arka plan — splash ile aynı ruh (koyu + emerald/cyan ışıma)
+  var g=x.createLinearGradient(0,0,512,512); g.addColorStop(0,"#0b3b2c"); g.addColorStop(.5,"#0a1220"); g.addColorStop(1,"#241a4a"); x.fillStyle=g; x.fillRect(0,0,512,512);
+  var r1=x.createRadialGradient(150,120,10,150,120,360); r1.addColorStop(0,"rgba(52,211,153,.34)"); r1.addColorStop(1,"rgba(52,211,153,0)"); x.fillStyle=r1; x.fillRect(0,0,512,512);
+  var r2=x.createRadialGradient(400,440,10,400,440,380); r2.addColorStop(0,"rgba(56,189,248,.26)"); r2.addColorStop(1,"rgba(56,189,248,0)"); x.fillStyle=r2; x.fillRect(0,0,512,512);
+  // Amblem — splash ile BİREBİR (200 viewBox koordinatları, ölçekli): emerald halka + beyaz top + koyu pentagon + koyu dikişler
+  x.save(); x.translate(256,196); x.scale(1.7,1.7); x.translate(-100,-100);
+  var rg=x.createLinearGradient(20,20,180,180); rg.addColorStop(0,"#5FE9A6"); rg.addColorStop(1,"#2ec3d6");
+  x.beginPath(); x.arc(100,100,86,0,Math.PI*2); x.strokeStyle=rg; x.lineWidth=9; x.stroke();
+  x.beginPath(); x.arc(100,100,62,0,Math.PI*2); x.fillStyle="#ffffff"; x.fill();
+  x.fillStyle="#0A1017"; x.beginPath(); x.moveTo(100,74); x.lineTo(122,90); x.lineTo(113,116); x.lineTo(87,116); x.lineTo(78,90); x.closePath(); x.fill();
+  x.strokeStyle="#0A1017"; x.lineWidth=6; x.lineCap="round";
+  var seams=[[100,44,100,66],[156,86,134,98],[134,146,120,124],[66,146,80,124],[44,86,66,98]];
+  for(var i=0;i<seams.length;i++){ var s=seams[i]; x.beginPath(); x.moveTo(s[0],s[1]); x.lineTo(s[2],s[3]); x.stroke(); }
+  x.restore();
+  // Yazı — "ForzaLig" degrade (splash ile aynı), ortalı
+  var tg=x.createLinearGradient(0,384,0,436); tg.addColorStop(0,"#EAFBF2"); tg.addColorStop(.5,"#5FE9A6"); tg.addColorStop(1,"#2ec3d6");
+  x.fillStyle=tg; x.font="800 60px Sora, Arial, sans-serif"; x.textAlign="center"; x.fillText("ForzaLig",256,424);
+  x.fillStyle="rgba(255,255,255,.55)"; x.font="600 19px Inter, Arial, sans-serif"; x.fillText("RADYO · HALI SAHA LİGİ",256,458);
   __fzKapakURL=c.toDataURL("image/png"); return __fzKapakURL;
 }catch(e){ __fzKapakURL=""; return ""; } }
 function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
@@ -16980,7 +16988,9 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const SLOT=(yayin&&yayin.slot)||210;          // senkron dilim (sn)
   const yukle=()=>{ Db.radyoOku().then(l=>{ setListe(Array.isArray(l)?l.filter(x=>x&&x.url):[]); }).catch(()=>{}); };
   const yayinOku=()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; try{ const y=ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; setYayin(y&&y.mod?y:null); }catch(e){ setYayin(null); } }).catch(()=>{}); };
-  useEffect(()=>{ yukle(); yayinOku(); const h=()=>{ yukle(); yayinOku(); }; window.addEventListener("radyo-guncelle",h); return ()=>window.removeEventListener("radyo-guncelle",h); },[]);
+  useEffect(()=>{ yukle(); yayinOku(); const h=()=>{ yukle(); yayinOku(); }; window.addEventListener("radyo-guncelle",h);
+    const id=setInterval(yayinOku,12000);   // yedek: admin şarkı değiştirince realtime kaçsa bile dinleyici ~12sn'de yakalar
+    return ()=>{ window.removeEventListener("radyo-guncelle",h); clearInterval(id); }; },[]);
   // ===== DİNLEYİCİ PRESENCE (kim dinliyor) — mevcut kimlikle, AYRI kanal, yeni tablo YOK =====
   const [dinleyiciler,setDinleyiciler]=useState([]);
   const presCanalRef=useRef(null);
@@ -17310,7 +17320,7 @@ function App(){
   useEffect(()=>{ let a=true; const oku=()=>Db.ayarlarOku().then(x=>{ if(a) setSistemBayrak(x||{}); });
     oku(); const h=()=>oku(); window.addEventListener("surum-guncelle",h);   // Süper Admin sürüm/senkron değiştirince ANINDA yeniden oku (deploy beklemeden)
     // Realtime: sistem_ayar değişimi (radyo global aç/kapa dahil) TÜM açık cihazlara anında yayılsın (yeni tablo yok; hafif broadcast kanalı)
-    let kanal=null; try{ if(sb){ kanal=sb.channel("fz-sistem",{config:{broadcast:{self:false}}}); kanal.on("broadcast",{event:"guncelle"},()=>oku()); kanal.subscribe(); window.__flSistemYayinla=()=>{ try{ kanal.send({type:"broadcast",event:"guncelle",payload:{t:Date.now()}}); }catch(e){} }; } }catch(e){}
+    let kanal=null; try{ if(sb){ kanal=sb.channel("fz-sistem",{config:{broadcast:{self:false}}}); kanal.on("broadcast",{event:"guncelle"},()=>{ oku(); try{ window.dispatchEvent(new Event("radyo-guncelle")); window.dispatchEvent(new Event("surum-guncelle")); }catch(e){} }); kanal.subscribe(); window.__flSistemYayinla=()=>{ try{ kanal.send({type:"broadcast",event:"guncelle",payload:{t:Date.now()}}); }catch(e){} }; } }catch(e){}
     return ()=>{a=false; window.removeEventListener("surum-guncelle",h); try{ if(kanal&&sb) sb.removeChannel(kanal); }catch(e){} try{ window.__flSistemYayinla=null; }catch(e){} }; },[]);
   const bakimModu = (sistemBayrak.bakim==="1"||sistemBayrak.bakim===true) && !adminMi;  // admin hariç herkes salt-okunur
   const saltOkunur = saltOkunurBase || !!destek || bakimModu;  // destek/bakım = global salt-okunur (yazma/yetki otomatik kapanır)
