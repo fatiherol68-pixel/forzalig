@@ -14093,7 +14093,17 @@ function RadyoYonetim({T, oturum}){
   const sil=(id)=>{ if(!confirm("Bu parça listeden çıkarılsın mı?")) return; kaydet((liste||[]).filter(x=>x.id!==id)); };
   const tasi=(i,yon)=>{ const a=[...(liste||[])]; const j=i+yon; if(j<0||j>=a.length) return; const t=a[i]; a[i]=a[j]; a[j]=t; kaydet(a); };
   // ▶ ŞİMDİ ÇAL — SADECE süper admin şarkı geçişini yapar: seçileni en üste al + senkron ref'i sıfırla → herkes bu şarkıyı baştan dinler
-  const simdiCal=async(i)=>{ let a=[...(liste||[])]; if(i>0){ const x=a.splice(i,1)[0]; a.unshift(x); await kaydet(a); } const y={mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); const r=await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla && window.__flSistemYayinla(); }catch(e){} setMesaj((r&&r.ok)?"▶ Şimdi çalıyor — herkes bu şarkıyı dinliyor":"Kaydedilemedi: "+((r&&r.hata)||"")); };
+  // ▶ DJ kumandası — SADECE süper admin şarkı seçer. Liste sırasını bozmadan radyo_yayin.idx yazar → herkes o şarkıyı baştan dinler.
+  const djIdx = (()=>{ const nn=(liste||[]).length; if(!nn) return 0; const ix=(yayin&&yayin.idx!=null)?yayin.idx:0; return ((ix%nn)+nn)%nn; })();
+  const seciliCal=async(i)=>{ const nn=(liste||[]).length; if(!nn){ setMesaj("Önce Müzik Kasası'na şarkı ekle."); return; } const ni=((i%nn)+nn)%nn;
+    try{ window.__fzRadyoOynat && window.__fzRadyoOynat(); }catch(e){}                    // admin cihazında sesi jest içinde aç (kesin ses gelir)
+    const y={mod:"senkron",ref:Date.now(),slot:210,idx:ni}; setYayin(y);
+    if(surum!=="v2"){ setSurum("v2"); await Db.ayarYaz("radyo_surum","v2"); }             // radyo kapalıysa aç
+    if(globalAcik===false){ setGlobalAcik(true); await Db.ayarYaz("radyo_global","acik"); }
+    const r=await Db.ayarYaz("radyo_yayin",JSON.stringify(y));
+    try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla && window.__flSistemYayinla(); }catch(e){}
+    setMesaj((r&&r.ok)?("▶ Çalıyor: "+(((liste||[])[ni]||{}).ad||("Parça "+(ni+1)))+" — herkes bunu dinliyor"):("Kaydedilemedi: "+((r&&r.hata)||""))); };
+  const djOnceki=()=>seciliCal(djIdx-1); const djSonraki=()=>seciliCal(djIdx+1);
   // ===== DİNLEYİCİLER (presence, RadyoCalarV2'den window olayıyla) + PARÇA İSTEKLERİ + KASA İSTATİSTİĞİ =====
   const [dinleyiciler,setDinleyiciler]=useState(()=>{ try{ return window.__fzDinleyiciler||[]; }catch(e){ return []; } });
   useEffect(()=>{ const h=(e)=>{ try{ setDinleyiciler((e&&e.detail)||window.__fzDinleyiciler||[]); }catch(x){} }; window.addEventListener("fz-dinleyici",h); return ()=>window.removeEventListener("fz-dinleyici",h); },[]);
@@ -14263,14 +14273,27 @@ function RadyoYonetim({T, oturum}){
     </div>
     {liste===null && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Yükleniyor…</div>}
     {liste&&liste.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16,background:T.bg1,border:"0.5px dashed "+T.line,borderRadius:11}}>Henüz ses yok. Yukarıdan klip kaydet, ses dosyası yükle ya da ses linki yapıştır.</div>}
-    {liste&&liste.length>0 && <div style={{fontSize:10.5,color:T.textMut,margin:"0 2px 8px",lineHeight:1.5}}>▶ <b style={{color:T.accent}}>Çal</b>'a bastığın şarkıyı <b style={{color:T.textSoft}}>herkes</b> baştan dinler. Şarkı kendiliğinden geçmez — sıradaki için sen <b style={{color:T.accent}}>Çal</b>'a basarsın.</div>}
-    {liste&&liste.map((p,i)=><div key={p.id||i} style={{display:"flex",alignItems:"center",gap:9,background:i===0?"linear-gradient(160deg,"+T.accent+"1c,"+T.bg1+")":T.bg1,border:"0.5px solid "+(i===0?T.accent+"66":T.line),borderRadius:11,padding:"9px 11px",marginBottom:6}}>
+    {liste&&liste.length>0 && (()=>{ const cur=liste[djIdx]||liste[0]; const btn=(lbl,fn,ana)=><button onClick={fn} className="tap" style={{flexShrink:0,fontSize:15,fontWeight:800,background:ana?T.accent:T.bg2,color:ana?"#04140c":T.text,border:ana?0:"0.5px solid "+T.line,borderRadius:11,padding:ana?"11px 18px":"11px 14px",cursor:"pointer"}}>{lbl}</button>;
+      return <div style={{background:"linear-gradient(160deg,"+T.accent+"1e,"+T.bg1+")",border:"1px solid "+T.accent+"55",borderRadius:14,padding:"12px 13px",marginBottom:10}}>
+        <div style={{fontSize:9.5,color:T.textMut,fontWeight:800,letterSpacing:.6,marginBottom:7}}>🎧 DJ KUMANDASI — sadece sen değiştirirsin</div>
+        <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:9}}>
+          <span style={{fontSize:22,flexShrink:0}} className="fz-nabiz">🔊</span>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:9,color:T.accent,fontWeight:800,letterSpacing:.5}}>ŞU AN ÇALIYOR ({djIdx+1}/{liste.length})</div><div style={{fontSize:14.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(cur&&cur.ad)||("Parça "+(djIdx+1))}</div></div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {btn("◀◀ Önceki",djOnceki,false)}
+          <button onClick={()=>seciliCal(djIdx)} className="tap" style={{flex:1,fontSize:14,fontWeight:800,background:T.accent,color:"#04140c",border:0,borderRadius:11,padding:"11px",cursor:"pointer"}}>▶ Çal / Dinle</button>
+          {btn("Sonraki ▶▶",djSonraki,false)}
+        </div>
+        <div style={{fontSize:10,color:T.textMut,marginTop:8,lineHeight:1.5}}>Şarkı kendiliğinden geçmez. <b style={{color:T.textSoft}}>Önceki/Sonraki</b> ile istediğin an geç — herkes seninle aynı şarkıyı baştan dinler. Ses gelmezse bir kez <b style={{color:T.accent}}>▶ Çal</b>'a bas.</div>
+      </div>; })()}
+    {liste&&liste.map((p,i)=><div key={p.id||i} style={{display:"flex",alignItems:"center",gap:9,background:i===djIdx?"linear-gradient(160deg,"+T.accent+"1c,"+T.bg1+")":T.bg1,border:"0.5px solid "+(i===djIdx?T.accent+"66":T.line),borderRadius:11,padding:"9px 11px",marginBottom:6}}>
       <span style={{fontSize:16,width:24,textAlign:"center",flexShrink:0}}>{ikon(p)}</span>
       <div style={{flex:1,minWidth:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:7}}><div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.ad||("Parça "+(i+1))}</div>{i===0 && <span style={{flexShrink:0,fontSize:8.5,fontWeight:800,letterSpacing:.4,color:T.accent,background:T.accent+"1e",borderRadius:20,padding:"2px 7px"}}>🔊 ŞU AN</span>}</div>
+        <div style={{display:"flex",alignItems:"center",gap:7}}><div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.ad||("Parça "+(i+1))}</div>{i===djIdx && <span style={{flexShrink:0,fontSize:8.5,fontWeight:800,letterSpacing:.4,color:T.accent,background:T.accent+"1e",borderRadius:20,padding:"2px 7px"}}>🔊 ŞU AN</span>}</div>
         <audio controls preload="none" src={p.url} style={{width:"100%",maxWidth:220,height:30,marginTop:4}}/>
       </div>
-      <button onClick={()=>simdiCal(i)} className="tap" aria-label="Şimdi çal" style={{flexShrink:0,fontSize:11.5,fontWeight:800,background:i===0?T.bg2:T.accent,color:i===0?T.textMut:"#04140c",border:i===0?"0.5px solid "+T.line:0,borderRadius:9,padding:"7px 11px",cursor:"pointer"}}>{i===0?"● Çalıyor":"▶ Çal"}</button>
+      <button onClick={()=>seciliCal(i)} className="tap" aria-label="Şimdi çal" style={{flexShrink:0,fontSize:11.5,fontWeight:800,background:i===djIdx?T.bg2:T.accent,color:i===djIdx?T.textMut:"#04140c",border:i===djIdx?"0.5px solid "+T.line:0,borderRadius:9,padding:"7px 11px",cursor:"pointer"}}>{i===djIdx?"● Çalıyor":"▶ Çal"}</button>
       <div style={{display:"flex",flexDirection:"column",gap:3,flexShrink:0}}>
         <button onClick={()=>tasi(i,-1)} className="tap" aria-label="Yukarı" style={{fontSize:11,background:"none",border:"0.5px solid "+T.line,borderRadius:6,padding:"2px 7px",color:T.textMut}}>▲</button>
         <button onClick={()=>tasi(i,1)} className="tap" aria-label="Aşağı" style={{fontSize:11,background:"none",border:"0.5px solid "+T.line,borderRadius:6,padding:"2px 7px",color:T.textMut}}>▼</button>
@@ -16956,7 +16979,8 @@ function RadyoCalarV2({T, barGizle, kimlik}){
   const parca = n? liste[gerIdx] : null;
   const senkronAktif = !!(yayin && yayin.mod==="senkron" && yayin.ref && n);
   // Senkron konum: her cihaz aynı formül → aynı parça + aynı saniye
-  const senkronKonum=()=>{ if(!senkronAktif) return null; const el=(Date.now()-yayin.ref)/1000; if(el<0) return null; return {i:0, off: el%SLOT}; };   // TEK ŞARKI: her cihaz hep 1. parçada, aynı saniyede → otomatik şarkı geçişi YOK
+  const senkIdx = (n && yayin && yayin.idx!=null) ? (((yayin.idx%n)+n)%n) : 0;   // hangi şarkı çalıyor (admin seçer) — otomatik geçiş YOK
+  const senkronKonum=()=>{ if(!senkronAktif) return null; const el=(Date.now()-yayin.ref)/1000; if(el<0) return null; return {i:senkIdx, off: el%SLOT}; };
   const oynatDurdur=(zorla)=>{
     try{ const _l=canliAudioRef.current; if(_l&&_l.srcObject) _l.play().catch(()=>{}); }catch(e){}   // canlı yayın sesini de aç (autoplay kilidi kırılır)
     const a=audioRef.current; if(!a||!parca) return;
@@ -16966,6 +16990,8 @@ function RadyoCalarV2({T, barGizle, kimlik}){
   };
   const sonraki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i+1); setCalisiyor(true); };
   const onceki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i-1); setCalisiyor(true); };
+  // Süper admin panelindeki DJ kumandası, admin'in KENDİ cihazındaki bu çaları jest içinde başlatsın (ses kilidi kırılır → ses gelir)
+  useEffect(()=>{ window.__fzRadyoOynat=()=>{ try{ oynatDurdur(true); }catch(e){} }; return ()=>{ try{ if(window.__fzRadyoOynat) window.__fzRadyoOynat=null; }catch(e){} }; });
   // parça değişince çalıyorsa yeni kaynağı çal
   useEffect(()=>{ const a=audioRef.current; if(!a||!parca) return; if(calisiyor){ a.src=parca.url; a.volume=ses; a.play().catch(()=>{}); } },[idx]);
   // SENKRON: admin listenin 1. şarkısını değiştirince (ben ne açarsam) herkes yeni parçayı yüklesin
@@ -16974,7 +17000,7 @@ function RadyoCalarV2({T, barGizle, kimlik}){
   useEffect(()=>{ const a=audioRef.current; if(a && !canliDinle) a.volume=ses; try{ localStorage.setItem("fz_radyo_ses",String(ses)); }catch(e){} },[ses]);
   // SENKRON tik: her 2 sn — hep 1. şarkı (otomatik geçiş yok), şarkı KENDİ süresine göre döngü, herkes aynı saniyede
   useEffect(()=>{ if(!senkronAktif) return; const tik=()=>{ const a=audioRef.current; if(!a) return;
-      if(gerIdx!==0){ setIdx(0); return; }                                   // hep 1. parçada kilitli
+      if(gerIdx!==senkIdx){ setIdx(senkIdx); return; }                        // admin'in seçtiği şarkıda kilitli (kendiliğinden geçmez)
       const el=(Date.now()-yayin.ref)/1000; if(el<0) return;
       const dur=(a.duration&&isFinite(a.duration)&&a.duration>1)?a.duration:SLOT;  // şarkının gerçek süresi (yoksa SLOT)
       const off=((el%dur)+dur)%dur;
@@ -16982,7 +17008,7 @@ function RadyoCalarV2({T, barGizle, kimlik}){
       if(a.paused){ try{ a.currentTime=off; }catch(e){} a.play().catch(()=>{}); } // kısa şarkı bitince otomatik baştan (sessizlik yok)
       else if(isFinite(off)&&Math.abs((a.currentTime||0)-off)>2.5){ try{ a.currentTime=off; }catch(e){} } };
     tik(); const id=setInterval(tik,2000); return ()=>clearInterval(id);
-  },[senkronAktif, yayin&&yayin.ref, gerIdx, calisiyor]);
+  },[senkronAktif, yayin&&yayin.ref, senkIdx, gerIdx, calisiyor]);
   // uyku sayacı
   useEffect(()=>{ if(uykuRef.current){ clearTimeout(uykuRef.current); uykuRef.current=null; } if(uyku>0){ uykuRef.current=setTimeout(()=>{ oynatDurdur(false); setUyku(0); }, uyku*60000); } return ()=>{ if(uykuRef.current) clearTimeout(uykuRef.current); }; },[uyku]);
   // MediaSession — kilit ekranı
