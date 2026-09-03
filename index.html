@@ -14153,9 +14153,9 @@ function RadyoYonetim({T, oturum}){
       </div>
       <div style={{fontSize:11,color:T.textMut,marginBottom:10,lineHeight:1.5}}>Sen konuşursun, <b style={{color:T.textSoft}}>tüm dinleyiciler</b> canlı duyar. Sen konuşurken müzik arkada kısılır (durmaz), bitince yumuşakça geri gelir.{surum!=="v2"&&<span style={{color:T.gold}}> (Önce yukarıdan <b>ForzaLig Radyo</b>'yu aç ki dinleyiciler duyabilsin.)</span>}</div>
       {!canli
-        ? <button onClick={canliBasla} className="tap" style={{width:"100%",background:"linear-gradient(135deg,"+T.danger+",#c0392b)",color:"#fff",border:0,borderRadius:12,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer"}}>🎙 Mikrofonu Aç (canlı yayına başla)</button>
+        ? <button onClick={canliBasla} className="tap" style={{width:"100%",background:"linear-gradient(135deg,"+T.danger+",#c0392b)",color:"#fff",border:0,borderRadius:14,padding:"17px",fontSize:16,fontWeight:800,cursor:"pointer",letterSpacing:.3}}>🔴 Konuşmak için DOKUN — yayına geç</button>
         : <>
-            <button onClick={canliBitir} className="tap" style={{width:"100%",background:T.bg2,color:T.text,border:"1px solid "+T.danger,borderRadius:12,padding:"14px",fontSize:15,fontWeight:800,cursor:"pointer"}}>⏹ Yayını Bitir</button>
+            <button onClick={canliBitir} className="tap fz-nabiz" style={{width:"100%",background:"linear-gradient(135deg,"+T.accent+",#1f9f6e)",color:"#04140c",border:0,borderRadius:14,padding:"17px",fontSize:16,fontWeight:800,cursor:"pointer",letterSpacing:.3,boxShadow:"0 0 0 4px "+T.accent+"33"}}>🟢 YAYINDASIN · konuş — bitirmek için DOKUN</button>
             {/* 🎤 SES DALGASI (equalizer) — konuşunca çubuklar oynar → çalıştığını anlarsın */}
             <div style={{marginTop:12}}>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:T.textMut,marginBottom:6,fontWeight:700}}><span>🎤 Ses dalgan — konuşunca oynar</span><span>👥 {dinleyici} dinleyici</span></div>
@@ -16936,7 +16936,7 @@ function fzKapakURL(){ if(__fzKapakURL!=null) return __fzKapakURL; try{
   x.fillStyle="rgba(255,255,255,.6)"; x.font="600 20px Inter, Arial, sans-serif"; x.fillText("RADYO · HALI SAHA",42,482);
   __fzKapakURL=c.toDataURL("image/png"); return __fzKapakURL;
 }catch(e){ __fzKapakURL=""; return ""; } }
-function RadyoCalarV2({T, barGizle, kimlik}){
+function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const [liste,setListe]=useState([]);
   const [idx,setIdx]=useState(0);
   const [calisiyor,setCalisiyor]=useState(false);
@@ -16991,6 +16991,8 @@ function RadyoCalarV2({T, barGizle, kimlik}){
   };
   const sonraki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i+1); setCalisiyor(true); };
   const onceki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i-1); setCalisiyor(true); };
+  // SÜPER ADMIN — senkronda ileri/geri: radyo_yayin.idx yaz → HERKES o şarkıya geçer (liste sırası korunur). Kendi cihazında da çalsın.
+  const djGec=async(yon)=>{ if(!n) return; const ni=(((senkIdx+yon)%n)+n)%n; const y={mod:"senkron",ref:Date.now(),slot:210,idx:ni}; setYayin(y); setIdx(ni); if(!calisiyor){ setCalisiyor(true); } try{ const a=audioRef.current; const url=(liste[ni]||{}).url; if(a&&url){ a.src=url; a.currentTime=0; a.play().catch(()=>{}); } }catch(e){} try{ await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla&&window.__flSistemYayinla(); }catch(e){} };
   // Süper admin panelindeki DJ kumandası, admin'in KENDİ cihazındaki bu çaları jest içinde başlatsın (ses kilidi kırılır → ses gelir)
   useEffect(()=>{ window.__fzRadyoOynat=()=>{ try{ oynatDurdur(true); }catch(e){} }; return ()=>{ try{ if(window.__fzRadyoOynat) window.__fzRadyoOynat=null; }catch(e){} }; });
   // parça değişince çalıyorsa yeni kaynağı çal
@@ -17124,9 +17126,9 @@ function RadyoCalarV2({T, barGizle, kimlik}){
         {dinleyiciSayi>0 && <div onClick={()=>setDinlAcik(v=>!v)} className="tap" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:16,cursor:"pointer"}}>{avatarlar(dinleyiciBenzersiz)}<span style={{fontSize:12,color:T.textMut}}><b style={{color:T.text}}>{dinleyiciSayi}</b> kişi dinliyor</span></div>}
         <div style={{marginTop:18}}>{dalga(rnk)}<div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:T.textMut,marginTop:7,fontVariantNumeric:"tabular-nums"}}><span>{fmt(sure)}</span><span>{toplam?("-"+fmt(Math.max(0,toplam-sure))):"canlı"}</span></div></div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:24,marginTop:14}}>
-          <button onClick={onceki} disabled={senkronAktif} className="tap" aria-label="Önceki" style={{width:46,height:46,borderRadius:14,border:"1px solid "+T.line,background:"rgba(255,255,255,.05)",color:senkronAktif?T.textMut:T.text,fontSize:16,opacity:senkronAktif?.4:1}}>⏮</button>
+          {(()=>{ const aktif=!senkronAktif||adminMi; return <button onClick={aktif?(senkronAktif?()=>djGec(-1):onceki):null} disabled={!aktif} className="tap" aria-label="Önceki" style={{width:46,height:46,borderRadius:14,border:"1px solid "+T.line,background:"rgba(255,255,255,.05)",color:aktif?T.text:T.textMut,fontSize:16,opacity:aktif?1:.4}}>⏮</button>; })()}
           <button onClick={()=>oynatDurdur()} className="tap prem-tap" aria-label="Oynat/Duraklat" style={{width:70,height:70,borderRadius:"50%",border:0,cursor:"pointer",background:"radial-gradient(120% 120% at 30% 25%,#5fe6bd,"+(T.accent2||T.accent)+")",color:"#052318",fontSize:26,display:"grid",placeItems:"center",boxShadow:"0 14px 30px -8px "+T.accent+"99, inset 0 1px 0 rgba(255,255,255,.5)"}}>{calisiyor?"⏸":"▶"}</button>
-          <button onClick={sonraki} disabled={senkronAktif} className="tap" aria-label="Sonraki" style={{width:46,height:46,borderRadius:14,border:"1px solid "+T.line,background:"rgba(255,255,255,.05)",color:senkronAktif?T.textMut:T.text,fontSize:16,opacity:senkronAktif?.4:1}}>⏭</button>
+          {(()=>{ const aktif=!senkronAktif||adminMi; return <button onClick={aktif?(senkronAktif?()=>djGec(1):sonraki):null} disabled={!aktif} className="tap" aria-label="Sonraki" style={{width:46,height:46,borderRadius:14,border:"1px solid "+T.line,background:"rgba(255,255,255,.05)",color:aktif?T.text:T.textMut,fontSize:16,opacity:aktif?1:.4}}>⏭</button>; })()}
         </div>
         <div style={{display:"flex",gap:8,marginTop:20}}>
           <button onClick={()=>begeniyeCevir(parca)} className="tap" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5,padding:"11px 4px",borderRadius:14,background:parcaBegenili?T.danger+"14":"rgba(255,255,255,.05)",border:"1px solid "+(parcaBegenili?T.danger+"44":T.line),color:parcaBegenili?T.danger:T.textMut,fontSize:10,fontWeight:700,cursor:"pointer"}}><span style={{fontSize:17}}>{parcaBegenili?"❤️":"🤍"}</span>Beğen</button>
@@ -17163,9 +17165,9 @@ function RadyoCalarV2({T, barGizle, kimlik}){
           <div style={{fontSize:12.5,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>{canliDinle?"🎙️ Spiker konuşuyor…":canliVar?"Canlı yayına bağlanılıyor — dokun":(parca?(parca.ad||"Yayın"):"Yayın")}</div>
         </div>
         {parca&&<button onClick={()=>begeniyeCevir(parca)} className="tap" aria-label="Beğen" style={{width:34,height:34,flexShrink:0,borderRadius:10,border:0,background:"transparent",color:parcaBegenili?T.danger:T.textMut,fontSize:16}}>{parcaBegenili?"❤️":"🤍"}</button>}
-        {!senkronAktif&&<button onClick={onceki} className="tap" aria-label="Önceki" style={{width:32,height:34,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏮</button>}
+        {(!senkronAktif||adminMi)&&<button onClick={senkronAktif?()=>djGec(-1):onceki} className="tap" aria-label="Önceki" style={{width:32,height:34,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏮</button>}
         <button onClick={()=>oynatDurdur()} className="tap" aria-label="Oynat/Duraklat" style={{width:40,height:40,flexShrink:0,borderRadius:"50%",border:0,cursor:"pointer",background:"radial-gradient(120% 120% at 30% 25%,#5fe6bd,"+(T.accent2||T.accent)+")",color:"#052318",fontSize:15,display:"grid",placeItems:"center"}}>{calisiyor?"⏸":"▶"}</button>
-        {!senkronAktif&&<button onClick={sonraki} className="tap" aria-label="Sonraki" style={{width:32,height:34,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏭</button>}
+        {(!senkronAktif||adminMi)&&<button onClick={senkronAktif?()=>djGec(1):sonraki} className="tap" aria-label="Sonraki" style={{width:32,height:34,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏭</button>}
       </div>
     </div>; })()}
   </>;
@@ -18504,7 +18506,7 @@ function App(){
     </div>}
 
     {/* RADYO — global mini-çalar (içerik varken görünür; sayfa değişince ses kesilmez). Kendi hata kalkanında → asla tüm uygulamayı düşürmez. */}
-    {sistemBayrak.radyo_global!=="kapali" && <HataSiniri sayfa="radyo" gomulu><RadyoComp T={T} kimlik={radyoKimlik} barGizle={(nav.sayfa==="sohbet"&&nav.turnuva) || ["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa)}/></HataSiniri>}
+    {sistemBayrak.radyo_global!=="kapali" && <HataSiniri sayfa="radyo" gomulu><RadyoComp T={T} kimlik={radyoKimlik} adminMi={adminMi} barGizle={(nav.sayfa==="sohbet"&&nav.turnuva) || ["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa)}/></HataSiniri>}
 
     {/* mobil alt menü — giriş yapmış kullanıcıda salt-okunur (demo evren/destek) modda da görünür ki mahsur kalmasın */}
     {(oturum || !saltOkunur) && !(nav.sayfa==="sohbet"&&nav.turnuva) && !["sihirbaz","skorgir","rating","istatistik","kurulum"].includes(nav.sayfa) && <div className="mobile-bottom" role="navigation" aria-label="Ana gezinme" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:T.bg1,borderTop:"0.5px solid "+T.line,display:"flex",padding:"8px 0 calc(10px + env(safe-area-inset-bottom))",zIndex:900,boxShadow:"0 -2px 12px rgba(0,0,0,.3)"}}>
