@@ -441,22 +441,43 @@
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
 </head>
 <body>
-<div id="root"><div id="fz-onsplash">
-  <svg viewBox="0 0 220 300" width="220" height="300" style="position:absolute;opacity:.35" aria-hidden="true">
+<div id="root"><div id="fz-onsplash" style="background:radial-gradient(120% 52% at 50% 30%,rgba(52,211,153,.15),transparent 60%),radial-gradient(90% 42% at 50% 96%,rgba(56,189,248,.09),transparent 62%),linear-gradient(180deg,#070B12,#05080F 60%,#04070C)">
+  <svg viewBox="0 0 220 300" width="220" height="300" style="position:absolute;opacity:.06" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
     <g fill="none" stroke="#34D399" stroke-width="1">
       <rect x="8" y="8" width="204" height="284" rx="5"/><line x1="8" y1="150" x2="212" y2="150"/>
       <circle cx="110" cy="150" r="34"/><rect x="58" y="8" width="104" height="46"/><rect x="58" y="246" width="104" height="46"/>
     </g>
   </svg>
-  <div style="position:relative;text-align:center;z-index:2">
-    <div style="font-size:46px;line-height:1">⚽</div>
-    <div style="font-size:34px;font-weight:800;color:#34D399;letter-spacing:1px;text-shadow:0 0 22px #34D399;font-family:'Sora','Inter',sans-serif;margin-top:10px">ForzaLig</div>
-    <div style="width:160px;height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin:20px auto 0">
+  <div style="position:relative;text-align:center;z-index:2;transform:translateY(-22px)">
+    <div style="position:relative;width:132px;height:132px;margin:0 auto 26px">
+      <div style="position:absolute;inset:-26px;border-radius:50%;background:radial-gradient(circle,rgba(52,211,153,.30),transparent 62%);filter:blur(9px)"></div>
+      <svg width="132" height="132" viewBox="0 0 200 200" style="position:relative" aria-hidden="true">
+        <defs><linearGradient id="fzrg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5FE9A6"/><stop offset="1" stop-color="#2ec3d6"/></linearGradient>
+        <radialGradient id="fzbl" cx="42%" cy="36%" r="72%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#D9E6DF"/></radialGradient></defs>
+        <circle cx="100" cy="100" r="86" fill="none" stroke="url(#fzrg)" stroke-width="9" opacity=".95"/>
+        <circle cx="100" cy="100" r="62" fill="url(#fzbl)"/>
+        <polygon points="100,74 122,90 113,116 87,116 78,90" fill="#0A1017"/>
+        <path d="M100,44 L100,66 M156,86 L134,98 M134,146 L120,124 M66,146 L80,124 M44,86 L66,98" stroke="#0A1017" stroke-width="6" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div style="font-size:52px;font-weight:800;letter-spacing:-1.5px;line-height:1;font-family:'Sora','Inter',sans-serif;background:linear-gradient(180deg,#EAFBF2,#5FE9A6 46%,#34D399 78%,#2ec3d6);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 20px rgba(52,211,153,.32))">ForzaLig</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:16px 0 13px">
+      <span style="width:44px;height:2px;background:linear-gradient(90deg,transparent,#34D399)"></span>
+      <span style="width:7px;height:7px;transform:rotate(45deg);background:linear-gradient(135deg,#34D399,#38BDF8);box-shadow:0 0 10px rgba(52,211,153,.7)"></span>
+      <span style="width:44px;height:2px;background:linear-gradient(90deg,#34D399,transparent)"></span>
+    </div>
+    <div style="font-size:12.5px;font-weight:600;letter-spacing:3.5px;color:#93A7BD;text-transform:uppercase;line-height:1.7;padding-left:3.5px">Halı Saha Liginin<br>Dijital Merkezi</div>
+    <div style="width:150px;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;margin:26px auto 0">
       <div style="width:45%;height:100%;background:linear-gradient(90deg,#34D399,#38BDF8);border-radius:3px;animation:fzPreBar 1.1s ease-in-out infinite"></div>
     </div>
-    <div style="font-size:10px;color:#74849B;letter-spacing:1.5px;margin-top:9px">YÜKLENİYOR...</div>
   </div>
-  <div style="position:absolute;bottom:24px;font-size:11px;color:#74849B;letter-spacing:2px">forzalig.com</div>
+  <div style="position:absolute;bottom:26px;left:0;right:0;z-index:2;text-align:center">
+    <div style="display:inline-block;padding:13px 26px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(52,211,153,.16)">
+      <div style="font-size:14px;font-weight:800;letter-spacing:1px;color:#EAF5EE;font-family:'Sora','Inter',sans-serif">Fatih <span style="color:#34D399">EROL</span></div>
+      <div style="font-size:11.5px;font-weight:600;letter-spacing:.6px;color:#8CA0B6;margin-top:6px">📞 0554 702 23 95 &nbsp;·&nbsp; ✉ fatiherol68@gmail.com</div>
+    </div>
+    <div style="font-size:10px;color:#4E607A;letter-spacing:2.5px;margin-top:13px">FORZALIG.COM</div>
+  </div>
 </div></div>
 <noscript>
   <div style="max-width:760px;margin:0 auto;padding:24px 20px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#eaf3ee;background:#0a110d;line-height:1.7">
@@ -14049,19 +14070,20 @@ function RadyoYonetim({T, oturum}){
   useEffect(()=>()=>{ meterDur(); try{ Object.keys(pcMapRef.current).forEach(k=>pcMapRef.current[k].close()); }catch(e){} try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} },[]);
   useEffect(()=>{ Db.radyoOku().then(l=>setListe(Array.isArray(l)?l:[])).catch(()=>setListe([])); },[]);
   // Radyo sürüm/senkron anahtarları (bu ekranda doğrudan görünsün diye) — sistem_ayar'a yazar, ANINDA etki eder
-  const [surum,setSurum]=useState(null); const [yayin,setYayin]=useState(null);
-  useEffect(()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; setSurum(ay.radyo_surum||"v1"); try{ setYayin(ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null); }catch(e){ setYayin(null); } }); },[]);
+  const [surum,setSurum]=useState(null); const [yayin,setYayin]=useState(null); const [globalAcik,setGlobalAcik]=useState(null);
+  useEffect(()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; setSurum(ay.radyo_surum||"v1"); setGlobalAcik(ay.radyo_global!=="kapali"); try{ setYayin(ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null); }catch(e){ setYayin(null); } }); },[]);
   const surumCevir=async(v)=>{ setSurum(v); const r=await Db.ayarYaz("radyo_surum",v); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj("✓ Radyo "+(v==="v2"?"V2 açıldı":"V1'e döndü")); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
   const senkronCevir=async()=>{ const on=!!(yayin&&yayin.mod==="senkron"); const y=on?{mod:"kapali"}:{mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); const r=await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj(on?"✓ Senkron kapandı":"✓ Senkron açıldı — herkes aynı yayında"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
-  // TEK ANAHTAR (redesign ①): kullanıcı V1/V2/senkron bilmez. Tek "FORZALİG RADYO" aç/kapat.
-  //  AÇIK → yeni radyo (v2) + ortak/senkron yayın OTOMATİK (canlı mikrofon yoksa). KAPALI → radyo kapalı.
+  // TEK ANAHTAR: kullanıcı V1/V2/senkron/global bilmez. Tek "FORZALİG RADYO" aç/kapat.
+  //  AÇIK → radyo herkese görünür (global açık) + yeni çalar (v2) + ortak/senkron yayın (canlı mikrofon yoksa).
+  //  KAPALI → radyo_global kapalı = player hiç yüklenmez, dinleyicilerde görünmez. (Eski V1'e hiç dokunmaz.)
   const radyoMasterCevir=async()=>{
-    const acik = surum==="v2";
-    if(acik){ setSurum("v1"); await Db.ayarYaz("radyo_surum","v1"); const y={mod:"kapali"}; setYayin(y); await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); setMesaj("📻 ForzaLig Radyo kapatıldı"); }
-    else { setSurum("v2"); await Db.ayarYaz("radyo_surum","v2");
+    const acik = globalAcik===true;
+    if(acik){ setGlobalAcik(false); await Db.ayarYaz("radyo_global","kapali"); setMesaj("📻 ForzaLig Radyo kapatıldı — dinleyicilerde görünmez"); }
+    else { setGlobalAcik(true); setSurum("v2"); await Db.ayarYaz("radyo_global","acik"); await Db.ayarYaz("radyo_surum","v2");
       if(!(yayin&&yayin.mod==="canli")){ const y={mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); }
-      setMesaj("📻 ForzaLig Radyo açıldı — herkes aynı yayını dinliyor"); }
-    try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
+      setMesaj("📻 ForzaLig Radyo açıldı — herkes senin açtığını dinliyor"); }
+    try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla && window.__flSistemYayinla(); }catch(e){}
   };
   const kaydet=async(yeni)=>{ setListe(yeni); const r=await Db.radyoYaz(yeni); if(r&&r.ok){ try{ window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj("✓ Kaydedildi"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")+" — sistem ayar yazma izni gerekir (bakım-modu anahtarıyla aynı yer)."); };
   const ekle=(url,adx,tur,boyut)=>{ const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,7); const yeni=[...(liste||[]),{id, ad:(adx||("Parça "+((liste||[]).length+1))), url, tur:tur||"klip", ...(boyut?{boyut:boyut}:{})}]; kaydet(yeni); setAd(""); };
@@ -14093,7 +14115,7 @@ function RadyoYonetim({T, oturum}){
   const ikon=(p)=> p&&p.tur==="anons"?"📣":p&&p.tur==="ses"?"🎙️":"🎵";
   return <div style={{paddingBottom:"calc(150px + env(safe-area-inset-bottom))"}}>
     {/* 🆕 RADYO SÜRÜM ANAHTARI — bu ekranda doğrudan görünür (tek tuş, anında) */}
-    {(()=>{ const acik=surum==="v2"; const yukleniyor=surum===null;
+    {(()=>{ const acik=globalAcik===true; const yukleniyor=globalAcik===null;
       const sw=(on)=>({width:48,height:27,borderRadius:15,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
       const knob=(on)=>({position:"absolute",top:2,left:on?23:2,width:21,height:21,borderRadius:"50%",background:"#fff",transition:"left .2s"});
       return <div style={{background:acik?"linear-gradient(160deg,"+T.accent+"1c,"+T.bg1+")":"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+(acik?T.accent+"55":T.line),borderRadius:14,padding:"15px 16px",marginBottom:12}}>
@@ -15202,28 +15224,21 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             <div style={{fontSize:10.5,color:T.textMut,marginTop:9,lineHeight:1.5}}>Kapalı = kullanıcı görmez/etkilenmez · Bakım modu açıkken sadece sen düzenleyebilirsin. Anında etki eder, güncelleme beklemez.</div>
           </div>;
         })()}
-        {/* ===== 🆕 SÜRÜM & RADYO — tek tuş geri dönüş (paralel yeni tasarımları aç/kapat, ANINDA) ===== */}
+        {/* ===== 🆕 ANASAYFA SÜRÜMÜ — tek tuş geri dönüş (radyo ayarları artık "Radyo" sekmesinde tek düğme) ===== */}
         {(()=>{ const A=anahtarlar||{};
           const sw=(on)=>({width:36,height:20,borderRadius:11,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
           const knob=(on)=>({position:"absolute",top:2,left:on?18:2,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"});
-          const anaV6=A.anasayfa_surum!=="v5"; const radyoV2=A.radyo_surum!=="v1";  // V6 + Radyo V2 artık VARSAYILAN (sadece açıkça v5/v1 seçilirse eski)
-          const orbitalOn=A.anasayfa_surum==="orbital"; const radyoGlobalAcik=A.radyo_global!=="kapali";  // orbital anasayfa + global radyo şalteri
-          let yayin=null; try{ yayin=A.radyo_yayin?JSON.parse(A.radyo_yayin):null; }catch(e){}
-          const senkOn=!!(yayin&&yayin.mod==="senkron");
+          const anaV6=A.anasayfa_surum!=="v5"; const orbitalOn=A.anasayfa_surum==="orbital";
           const cevir=async(k,v)=>{ await anahtarCevir(k,v); try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} try{ window.__flSistemYayinla && window.__flSistemYayinla(); }catch(e){} };
-          const senkronCevir=()=> cevir("radyo_yayin", senkOn?JSON.stringify({mod:"kapali"}):JSON.stringify({mod:"senkron",ref:Date.now(),slot:210}));
           const satir=(et,alt,on,onClick)=><div onClick={onClick} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderBottom:"1px solid "+T.line,cursor:"pointer"}}>
             <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,color:T.text,fontWeight:600}}>{et}</div>{alt&&<div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>{alt}</div>}</div>
             <span style={sw(on)}><span style={knob(on)}/></span>
           </div>;
           return <div style={{background:"linear-gradient(160deg,"+T.accent+"12,"+T.bg1+")",border:"1px solid "+T.accent+"33",borderRadius:14,padding:"14px 15px",marginBottom:10}}>
-            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>🆕</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Sürüm & Radyo — tek tuşla geri dönüş</div></div>
-            <div style={{fontSize:10.5,color:T.textMut,marginBottom:8,lineHeight:1.5}}>Yeni tasarımlar ESKİSİNE dokunmadan paralel durur. İstediğin an aç/kapat — <b>anında</b>, güncelleme beklemeden. Sorun olursa kapat, eskiye dönersin.</div>
-            {satir("📻 Radyo V2 (senkron · ses seviyesi · beğeni · uyku)", radyoV2?"Açık — yeni radyo görünüyor":"Kapalı — eski radyo (V1) çalışıyor", radyoV2, ()=>cevir("radyo_surum",radyoV2?"v1":"v2"))}
-            {radyoV2 && satir("📡 Senkron canlı yayın (herkes aynı anda aynı şarkı)", senkOn?"Açık — dinleyiciler tek yayında, sıra otomatik":"Kapalı — herkes serbest dinliyor", senkOn, senkronCevir)}
+            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>🆕</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Anasayfa Sürümü — tek tuşla geri dönüş</div></div>
+            <div style={{fontSize:10.5,color:T.textMut,marginBottom:8,lineHeight:1.5}}>Yeni tasarımlar ESKİSİNE dokunmadan paralel durur. İstediğin an aç/kapat — <b>anında</b>, güncelleme beklemeden. Sorun olursa kapat, eskiye dönersin. <b style={{color:T.textSoft}}>Radyo</b> ayarları artık tek düğme: alttaki <b style={{color:T.accent}}>“Radyo”</b> sekmesinde.</div>
             {satir("🏠 Yeni anasayfa (V6 · Maç Merkezi + spotlight)", anaV6?"Açık — yeni anasayfa görünüyor":"Kapalı — eski anasayfa (V5) çalışıyor", anaV6, ()=>cevir("anasayfa_surum",anaV6?"v5":"v6"))}
             {satir("🛰️ Orbital anasayfa (tam tasarım · /orbital embed)", orbitalOn?"Açık — Orbital anasayfa görünüyor":"Kapalı — V6/klasik anasayfa çalışıyor", orbitalOn, ()=>cevir("anasayfa_surum",orbitalOn?"v6":"orbital"))}
-            {satir("🔴 RADYO — global aç/kapa", radyoGlobalAcik?"AÇIK — radyo herkese görünür":"KAPALI — player hiç yüklenmez; ses/stream/istek yok", radyoGlobalAcik, ()=>cevir("radyo_global",radyoGlobalAcik?"kapali":"acik"))}
           </div>;
         })()}
         {/* ===== FİDAN SAYACI AYARI — kaç golde kaç fidan (tüm liglere göre) ===== */}
@@ -16934,7 +16949,7 @@ function RadyoCalarV2({T, barGizle, kimlik}){
   const parca = n? liste[gerIdx] : null;
   const senkronAktif = !!(yayin && yayin.mod==="senkron" && yayin.ref && n);
   // Senkron konum: her cihaz aynı formül → aynı parça + aynı saniye
-  const senkronKonum=()=>{ if(!senkronAktif) return null; const el=(Date.now()-yayin.ref)/1000; if(el<0) return null; const top=n*SLOT; const pos=((el%top)+top)%top; return {i:Math.floor(pos/SLOT)%n, off:pos%SLOT}; };
+  const senkronKonum=()=>{ if(!senkronAktif) return null; const el=(Date.now()-yayin.ref)/1000; if(el<0) return null; return {i:0, off: el%SLOT}; };   // TEK ŞARKI: her cihaz hep 1. parçada, aynı saniyede → otomatik şarkı geçişi YOK
   const oynatDurdur=(zorla)=>{
     try{ const _l=canliAudioRef.current; if(_l&&_l.srcObject) _l.play().catch(()=>{}); }catch(e){}   // canlı yayın sesini de aç (autoplay kilidi kırılır)
     const a=audioRef.current; if(!a||!parca) return;
@@ -16946,10 +16961,19 @@ function RadyoCalarV2({T, barGizle, kimlik}){
   const onceki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i-1); setCalisiyor(true); };
   // parça değişince çalıyorsa yeni kaynağı çal
   useEffect(()=>{ const a=audioRef.current; if(!a||!parca) return; if(calisiyor){ a.src=parca.url; a.volume=ses; a.play().catch(()=>{}); } },[idx]);
+  // SENKRON: admin listenin 1. şarkısını değiştirince (ben ne açarsam) herkes yeni parçayı yüklesin
+  useEffect(()=>{ if(!senkronAktif) return; const a=audioRef.current; if(!a||!parca||!parca.url) return; if((a.src||"").indexOf(parca.url)<0){ a.src=parca.url; if(calisiyor) a.play().catch(()=>{}); } },[senkronAktif, parca&&parca.url]);
   // ses seviyesi (canlı yayında müzik duck efekti kontrol eder → ezme)
   useEffect(()=>{ const a=audioRef.current; if(a && !canliDinle) a.volume=ses; try{ localStorage.setItem("fz_radyo_ses",String(ses)); }catch(e){} },[ses]);
-  // SENKRON tik: her 2 sn idx/offset düzelt (herkesi aynı yerde tut)
-  useEffect(()=>{ if(!senkronAktif) return; const tik=()=>{ const k=senkronKonum(); if(!k) return; if(k.i!==gerIdx){ setIdx(k.i); return; } const a=audioRef.current; if(a&&calisiyor&&isFinite(k.off)){ if(Math.abs((a.currentTime||0)-k.off)>2.5){ try{ a.currentTime=k.off; }catch(e){} } } };
+  // SENKRON tik: her 2 sn — hep 1. şarkı (otomatik geçiş yok), şarkı KENDİ süresine göre döngü, herkes aynı saniyede
+  useEffect(()=>{ if(!senkronAktif) return; const tik=()=>{ const a=audioRef.current; if(!a) return;
+      if(gerIdx!==0){ setIdx(0); return; }                                   // hep 1. parçada kilitli
+      const el=(Date.now()-yayin.ref)/1000; if(el<0) return;
+      const dur=(a.duration&&isFinite(a.duration)&&a.duration>1)?a.duration:SLOT;  // şarkının gerçek süresi (yoksa SLOT)
+      const off=((el%dur)+dur)%dur;
+      if(!calisiyor) return;
+      if(a.paused){ try{ a.currentTime=off; }catch(e){} a.play().catch(()=>{}); } // kısa şarkı bitince otomatik baştan (sessizlik yok)
+      else if(isFinite(off)&&Math.abs((a.currentTime||0)-off)>2.5){ try{ a.currentTime=off; }catch(e){} } };
     tik(); const id=setInterval(tik,2000); return ()=>clearInterval(id);
   },[senkronAktif, yayin&&yayin.ref, gerIdx, calisiyor]);
   // uyku sayacı
