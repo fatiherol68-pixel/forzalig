@@ -17005,11 +17005,12 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   useEffect(()=>{ if(!senkronAktif) return; const tik=()=>{ const a=audioRef.current; if(!a) return;
       if(gerIdx!==senkIdx){ setIdx(senkIdx); return; }                        // admin'in seçtiği şarkıda kilitli (kendiliğinden geçmez)
       if(!calisiyor) return;
-      // iOS-DOSTU: derin saniye-seek YOK (preload=none MP3'te iOS onu sessizce reddedip sesi kesiyordu).
-      // Şarkı bitince baştan (döngü). Herkes aynı ŞARKIYI dinler; saniye hizası gevşek (yalnız çok büyük sapmada, çalarken düzeltilir).
-      if(a.paused){ try{ a.currentTime=0; }catch(e){} a.play().catch(()=>{}); return; }
       const dur=(a.duration&&isFinite(a.duration)&&a.duration>1)?a.duration:0;
-      if(dur){ const el=(Date.now()-yayin.ref)/1000; if(el<0) return; const off=((el%dur)+dur)%dur; if(Math.abs((a.currentTime||0)-off)>3){ try{ a.currentTime=off; }catch(e){} } } };  // 3sn: cihazlar aynı saniyeye yaklaşsın (çalarken düzeltir → iOS-güvenli)
+      if(!dur) return;                                                        // süre bilinmiyorsa dokunma (yanlış başa sarma yok)
+      const el=(Date.now()-yayin.ref)/1000; if(el<0) return;
+      const off=((el%dur)+dur)%dur;                                            // herkesin ortak saniyesi (paylaşılan saat)
+      if(a.paused){ a.play().catch(()=>{}); }                                  // buffer/duraklama → DEVAM ettir; BAŞA SARMA YOK (döngü onEnded'de)
+      if(Math.abs((a.currentTime||0)-off)>3){ try{ a.currentTime=off; }catch(e){} } };  // 3sn sapmada ortak saniyeye çek → cihazlar aynı yerde
     tik(); const id=setInterval(tik,2000); return ()=>clearInterval(id);
   },[senkronAktif, yayin&&yayin.ref, senkIdx, gerIdx, calisiyor]);
   // uyku sayacı
