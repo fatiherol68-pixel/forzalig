@@ -64,21 +64,25 @@
      sw.js'yi ÖNBELLEĞİ ATLAYAN benzersiz adresle çeker (?fl=zaman), SURUM'u okur; çalışan sürümden farklıysa
      SW+cache temizler ve /?fl=<sürüm> adresine gider (bu benzersiz adres taze HTML getirir). Sürüm başına 1 kez → döngü yok. */
   (function(){
-    try{
-      var calisan = window.__FL_RELEASE || "";
-      if(!calisan || calisan.indexOf("FL_SW_")===0) return;   // damgalanmamış (dev) → dokunma
-      fetch("/sw.js?fl="+Date.now(), {cache:"no-store"}).then(function(r){ return r.text(); }).then(function(t){
-        var m = t.match(/SURUM\s*=\s*"(\d+)"/); var enSon = m && m[1];
-        if(!enSon || enSon===calisan) return;                 // zaten güncel
-        var k = "fl_tazele_"+enSon;
-        try{ if(sessionStorage.getItem(k)) return; sessionStorage.setItem(k,"1"); }catch(e){}  // bu sürüm için 1 kez
-        var bit = function(){ try{ location.replace("/?fl="+enSon+(location.hash||"")); }catch(e){ location.reload(); } };
-        Promise.resolve()
-          .then(function(){ return (window.caches&&caches.keys)?caches.keys().then(function(a){return Promise.all(a.map(function(x){return caches.delete(x);}));}):null; })
-          .then(function(){ return (navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(x){return x.unregister();}));}):null; })
-          .then(bit).catch(bit);
-      }).catch(function(){});
-    }catch(e){}
+    var calisan = window.__FL_RELEASE || "";
+    if(!calisan || calisan.indexOf("FL_SW_")===0) return;   // damgalanmamış (dev) → dokunma
+    function kontrol(){
+      try{
+        fetch("/sw.js?fl="+Date.now(), {cache:"no-store"}).then(function(r){ return r.text(); }).then(function(t){
+          var m = t.match(/SURUM\s*=\s*"(\d+)"/); var enSon = m && m[1];
+          if(!enSon || enSon===calisan) return;                 // zaten güncel
+          var k = "fl_tazele_"+enSon;
+          try{ if(sessionStorage.getItem(k)) return; sessionStorage.setItem(k,"1"); }catch(e){}  // bu sürüm için 1 kez
+          var bit = function(){ try{ location.replace("/?fl="+enSon+(location.hash||"")); }catch(e){ location.reload(); } };
+          Promise.resolve()
+            .then(function(){ return (window.caches&&caches.keys)?caches.keys().then(function(a){return Promise.all(a.map(function(x){return caches.delete(x);}));}):null; })
+            .then(function(){ return (navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(x){return x.unregister();}));}):null; })
+            .then(bit).catch(bit);
+        }).catch(function(){});
+      }catch(e){}
+    }
+    kontrol();   // açılışta
+    try{ document.addEventListener("visibilitychange", function(){ if(document.visibilityState==="visible") kontrol(); }); }catch(e){}  // PWA öne gelince tekrar
   })();
   (function(){
     var dsn = window.__FL_SENTRY_DSN;
@@ -459,8 +463,8 @@
   @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
   .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
-  <link rel="modulepreload" crossorigin href="/assets/app-body-Ba2U-cZ3.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
-<script type="module" crossorigin src="/assets/index-Dh72IlIb.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/app-body-DDnmIQB-.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
+<script type="module" crossorigin src="/assets/index-CVItFAt3.js"></script>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash" style="background:radial-gradient(120% 52% at 50% 30%,rgba(52,211,153,.15),transparent 60%),radial-gradient(90% 42% at 50% 96%,rgba(56,189,248,.09),transparent 62%),linear-gradient(180deg,#070B12,#05080F 60%,#04070C)">
