@@ -16998,7 +16998,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   // parça değişince çalıyorsa yeni kaynağı çal
   useEffect(()=>{ const a=audioRef.current; if(!a||!parca) return; if(calisiyor){ a.src=parca.url; a.volume=ses; a.play().catch(()=>{}); } },[idx]);
   // SENKRON: admin listenin 1. şarkısını değiştirince (ben ne açarsam) herkes yeni parçayı yüklesin
-  useEffect(()=>{ if(!senkronAktif) return; const a=audioRef.current; if(!a||!parca||!parca.url) return; if((a.src||"").indexOf(parca.url)<0){ a.src=parca.url; if(calisiyor) a.play().catch(()=>{}); } },[senkronAktif, parca&&parca.url]);
+  useEffect(()=>{ if(!senkronAktif) return; const a=audioRef.current; if(!a||!parca||!parca.url) return; try{ a.preload="auto"; }catch(e){} if((a.src||"").indexOf(parca.url)<0){ a.src=parca.url; try{ a.load(); }catch(e){} if(calisiyor) a.play().catch(()=>{}); } },[senkronAktif, parca&&parca.url]);
   // ses seviyesi (canlı yayında müzik duck efekti kontrol eder → ezme)
   useEffect(()=>{ const a=audioRef.current; if(a && !canliDinle) a.volume=ses; try{ localStorage.setItem("fz_radyo_ses",String(ses)); }catch(e){} },[ses]);
   // SENKRON tik: her 2 sn — hep 1. şarkı (otomatik geçiş yok), şarkı KENDİ süresine göre döngü, herkes aynı saniyede
@@ -17009,7 +17009,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
       // Şarkı bitince baştan (döngü). Herkes aynı ŞARKIYI dinler; saniye hizası gevşek (yalnız çok büyük sapmada, çalarken düzeltilir).
       if(a.paused){ try{ a.currentTime=0; }catch(e){} a.play().catch(()=>{}); return; }
       const dur=(a.duration&&isFinite(a.duration)&&a.duration>1)?a.duration:0;
-      if(dur){ const el=(Date.now()-yayin.ref)/1000; if(el<0) return; const off=((el%dur)+dur)%dur; if(Math.abs((a.currentTime||0)-off)>10){ try{ a.currentTime=off; }catch(e){} } } };
+      if(dur){ const el=(Date.now()-yayin.ref)/1000; if(el<0) return; const off=((el%dur)+dur)%dur; if(Math.abs((a.currentTime||0)-off)>3){ try{ a.currentTime=off; }catch(e){} } } };  // 3sn: cihazlar aynı saniyeye yaklaşsın (çalarken düzeltir → iOS-güvenli)
     tik(); const id=setInterval(tik,2000); return ()=>clearInterval(id);
   },[senkronAktif, yayin&&yayin.ref, senkIdx, gerIdx, calisiyor]);
   // uyku sayacı
