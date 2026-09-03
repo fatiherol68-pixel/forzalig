@@ -19,7 +19,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ForzaLig">
-<link rel="apple-touch-startup-image" href="/icons/apple-splash-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)">
+<link rel="apple-touch-startup-image" href="/icons/apple-splash-1170x2532-v2.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)">
 <!-- Open Graph (WhatsApp/Facebook önizleme) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ForzaLig">
@@ -86,6 +86,9 @@
             "ResizeObserver loop completed with undelivered notifications",
             "Non-Error promise rejection captured",
             "AbortError", "The operation was aborted",
+            // Canlı-mikrofon (WebRTC) sırasında supabase-realtime kütüphanesinin KENDİ iç recursion'u —
+            // radyo müziğini etkilemez, yakalanmamış promise reddi olarak düşer. Kotayı/maili yemesin.
+            /Maximum call stack size exceeded/i,
             /Load failed/i, /NetworkError/i, /Failed to fetch/i, /Importing a module script failed/i
           ],
           denyUrls: [ /^chrome-extension:\/\//i, /^moz-extension:\/\//i, /safari-web-extension:/i, /extensions\//i ],
@@ -14029,10 +14032,10 @@ function RadyoYonetim({T, oturum}){
         try{ const offer=await pc.createOffer(); await pc.setLocalDescription(offer); sgonder("offer",{to:lid,from:myIdRef.current,sdp:{type:offer.type,sdp:offer.sdp}}); sgonder("duck",{level:muzikSevRef.current}); tset("offer","gönderildi ✓"); tlog("OFFER_SENT"); setDinleyici(Object.keys(pcMapRef.current).length); }catch(e){ tlog("OFFER_HATA "+((e&&e.message)||e)); } });
       kanal.on("broadcast",{event:"answer"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.sdp){ try{ await pc.setRemoteDescription(payload.sdp); tset("answer","alındı ✓"); tlog("ANSWER_RECEIVED"); }catch(e){ tlog("ANSWER_HATA "+((e&&e.message)||e)); } } });
       kanal.on("broadcast",{event:"ice"},async({payload})=>{ if(!payload||payload.to!==myIdRef.current) return; const pc=pcMapRef.current[payload.from]; if(pc&&payload.cand){ try{ await pc.addIceCandidate(payload.cand); tset("ice","akıyor ✓"); }catch(e){} } });
-      kanal.subscribe(async(st)=>{
+      kanal.subscribe(async(st)=>{ try{
         if(st==="SUBSCRIBED"){
           tset("kanal","bağlı ✓"); tlog("CHANNEL_SUBSCRIBED");
-          await Db.ayarYaz("radyo_yayin",JSON.stringify({mod:"canli",ref:Date.now(),by:oturum?oturum.id:null,duck:muzikSevRef.current}));
+          try{ await Db.ayarYaz("radyo_yayin",JSON.stringify({mod:"canli",ref:Date.now(),by:oturum?oturum.id:null,duck:muzikSevRef.current})); }catch(e){}
           try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
           sgonder("live-start",{from:myIdRef.current,duck:muzikSevRef.current}); setCanli(true); setMesaj("🔴 CANLIDASIN — bas konuş, istediğin kadar. Bitince ⏹ Yayını Bitir.");
         } else if(st==="CHANNEL_ERROR"||st==="TIMED_OUT"||st==="CLOSED"){
@@ -14042,7 +14045,7 @@ function RadyoYonetim({T, oturum}){
           try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} yayinStreamRef.current=null;
           try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} canalRef.current=null;
         }
-      });
+      }catch(e){ tlog("SUBSCRIBE_CB_HATA "+((e&&e.message)||e)); } });
     }catch(e){ try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e2){} meterDur();
       const msj=String((e&&e.message)||e); const izin=/permission|denied|notallowed|not allowed/i.test(msj);
       setMesaj(izin?"🎤 Mikrofon İZNİ gerekli — adres çubuğundaki 🎤/🔒 simgesine tıkla → 'İzin ver' → tekrar 'Mikrofonu Aç'.":("Mikrofon açılamadı: "+msj)); }
@@ -14089,6 +14092,8 @@ function RadyoYonetim({T, oturum}){
   const ekle=(url,adx,tur,boyut)=>{ const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,7); const yeni=[...(liste||[]),{id, ad:(adx||("Parça "+((liste||[]).length+1))), url, tur:tur||"klip", ...(boyut?{boyut:boyut}:{})}]; kaydet(yeni); setAd(""); };
   const sil=(id)=>{ if(!confirm("Bu parça listeden çıkarılsın mı?")) return; kaydet((liste||[]).filter(x=>x.id!==id)); };
   const tasi=(i,yon)=>{ const a=[...(liste||[])]; const j=i+yon; if(j<0||j>=a.length) return; const t=a[i]; a[i]=a[j]; a[j]=t; kaydet(a); };
+  // ▶ ŞİMDİ ÇAL — SADECE süper admin şarkı geçişini yapar: seçileni en üste al + senkron ref'i sıfırla → herkes bu şarkıyı baştan dinler
+  const simdiCal=async(i)=>{ let a=[...(liste||[])]; if(i>0){ const x=a.splice(i,1)[0]; a.unshift(x); await kaydet(a); } const y={mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); const r=await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla && window.__flSistemYayinla(); }catch(e){} setMesaj((r&&r.ok)?"▶ Şimdi çalıyor — herkes bu şarkıyı dinliyor":"Kaydedilemedi: "+((r&&r.hata)||"")); };
   // ===== DİNLEYİCİLER (presence, RadyoCalarV2'den window olayıyla) + PARÇA İSTEKLERİ + KASA İSTATİSTİĞİ =====
   const [dinleyiciler,setDinleyiciler]=useState(()=>{ try{ return window.__fzDinleyiciler||[]; }catch(e){ return []; } });
   useEffect(()=>{ const h=(e)=>{ try{ setDinleyiciler((e&&e.detail)||window.__fzDinleyiciler||[]); }catch(x){} }; window.addEventListener("fz-dinleyici",h); return ()=>window.removeEventListener("fz-dinleyici",h); },[]);
@@ -14258,12 +14263,14 @@ function RadyoYonetim({T, oturum}){
     </div>
     {liste===null && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Yükleniyor…</div>}
     {liste&&liste.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16,background:T.bg1,border:"0.5px dashed "+T.line,borderRadius:11}}>Henüz ses yok. Yukarıdan klip kaydet, ses dosyası yükle ya da ses linki yapıştır.</div>}
-    {liste&&liste.map((p,i)=><div key={p.id||i} style={{display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"9px 11px",marginBottom:6}}>
+    {liste&&liste.length>0 && <div style={{fontSize:10.5,color:T.textMut,margin:"0 2px 8px",lineHeight:1.5}}>▶ <b style={{color:T.accent}}>Çal</b>'a bastığın şarkıyı <b style={{color:T.textSoft}}>herkes</b> baştan dinler. Şarkı kendiliğinden geçmez — sıradaki için sen <b style={{color:T.accent}}>Çal</b>'a basarsın.</div>}
+    {liste&&liste.map((p,i)=><div key={p.id||i} style={{display:"flex",alignItems:"center",gap:9,background:i===0?"linear-gradient(160deg,"+T.accent+"1c,"+T.bg1+")":T.bg1,border:"0.5px solid "+(i===0?T.accent+"66":T.line),borderRadius:11,padding:"9px 11px",marginBottom:6}}>
       <span style={{fontSize:16,width:24,textAlign:"center",flexShrink:0}}>{ikon(p)}</span>
       <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.ad||("Parça "+(i+1))}</div>
+        <div style={{display:"flex",alignItems:"center",gap:7}}><div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.ad||("Parça "+(i+1))}</div>{i===0 && <span style={{flexShrink:0,fontSize:8.5,fontWeight:800,letterSpacing:.4,color:T.accent,background:T.accent+"1e",borderRadius:20,padding:"2px 7px"}}>🔊 ŞU AN</span>}</div>
         <audio controls preload="none" src={p.url} style={{width:"100%",maxWidth:220,height:30,marginTop:4}}/>
       </div>
+      <button onClick={()=>simdiCal(i)} className="tap" aria-label="Şimdi çal" style={{flexShrink:0,fontSize:11.5,fontWeight:800,background:i===0?T.bg2:T.accent,color:i===0?T.textMut:"#04140c",border:i===0?"0.5px solid "+T.line:0,borderRadius:9,padding:"7px 11px",cursor:"pointer"}}>{i===0?"● Çalıyor":"▶ Çal"}</button>
       <div style={{display:"flex",flexDirection:"column",gap:3,flexShrink:0}}>
         <button onClick={()=>tasi(i,-1)} className="tap" aria-label="Yukarı" style={{fontSize:11,background:"none",border:"0.5px solid "+T.line,borderRadius:6,padding:"2px 7px",color:T.textMut}}>▲</button>
         <button onClick={()=>tasi(i,1)} className="tap" aria-label="Aşağı" style={{fontSize:11,background:"none",border:"0.5px solid "+T.line,borderRadius:6,padding:"2px 7px",color:T.textMut}}>▼</button>
@@ -17019,7 +17026,7 @@ function RadyoCalarV2({T, barGizle, kimlik}){
     kanal.on("broadcast",{event:"offer"},({payload})=>{ if(aktifRef.current&&!benYayinciRef.current) teklifIsle(payload); });
     kanal.on("broadcast",{event:"ice"},({payload})=>{ if(!aktifRef.current||!payload||payload.to!==dinleIdRef.current) return; const pc=dinlePcRef.current; if(pc&&payload.cand){ try{ pc.addIceCandidate(payload.cand); }catch(e){} } });
     kanal.on("broadcast",{event:"live-end"},()=>{ if(aktifRef.current){ setCanliVar(false); dinleTemizle(); } });
-    kanal.subscribe((st)=>{ if(st==="SUBSCRIBED"){ Db.ayarlarOku().then(ay=>{ try{ const y=ay&&ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; if(y&&y.mod==="canli"&&!benYayinciRef.current){ setCanliVar(true); if(y.duck!=null) setDuckSev(y.duck); hello(); } }catch(e){} }); } });
+    kanal.subscribe((st)=>{ if(st==="SUBSCRIBED"){ Db.ayarlarOku().then(ay=>{ try{ const y=ay&&ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; if(y&&y.mod==="canli"&&!benYayinciRef.current){ setCanliVar(true); if(y.duck!=null) setDuckSev(y.duck); hello(); } }catch(e){} }).catch(()=>{}); } });
   };
   const dinleyiciKapat=()=>{ aktifRef.current=false; dinleTemizle(); const k=dinleCanalRef.current; dinleCanalRef.current=null; try{ k&&sb.removeChannel(k); }catch(e){} };
   useEffect(()=>{ dinleyiciKur(); return ()=>dinleyiciKapat(); },[]);
@@ -17309,7 +17316,7 @@ function App(){
   useEffect(()=>{
     if(!sb) return;
     const gorulen=new Set(); let sayac=0;
-    const yaz=(m)=>{ try{ m=String(m||"").slice(0,800); if(!m||gorulen.has(m)||sayac>=30) return; gorulen.add(m); sayac++; Db.hataKaydet(m, window.__FL_SAYFA||null, window.__FL_UID); }catch(e){} };
+    const yaz=(m)=>{ try{ m=String(m||"").slice(0,800); if(!m||gorulen.has(m)||sayac>=30) return; if(/Maximum call stack size exceeded/i.test(m)) return; /* supabase-realtime iç recursion'u (canlı mikrofon) — radyo çalışır, log/mail'i şişirmesin */ gorulen.add(m); sayac++; Db.hataKaydet(m, window.__FL_SAYFA||null, window.__FL_UID); }catch(e){} };
     const stackAl=(err)=>{ try{ const st=err&&err.stack; return st?(" | "+String(st).replace(/https?:\/\/[^ )]+\//g,"").replace(/\s+/g," ").trim().slice(0,360)):""; }catch(e){ return ""; } };
     const oh=(ev)=>yaz(((ev&&ev.message)||(ev&&ev.error&&ev.error.message)||"window error")+((ev&&ev.filename)?(" @"+String(ev.filename).split("/").pop()+":"+(ev.lineno||"?")+":"+(ev.colno||"?")):stackAl(ev&&ev.error)));
     const ph=(ev)=>{ const r=ev&&ev.reason; yaz("promise: "+((r&&(r.message||r))||"unhandled")+stackAl(r)); };
