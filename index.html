@@ -828,6 +828,14 @@ const HERKESE_ACIK = true; // 🌍 YAYINDA — herkes üye olup girebilir
 let sb = null;
 try { if (typeof supabase !== "undefined" && supabase.createClient) sb = supabase.createClient(SB_URL, SB_ANAHTAR); }
 catch(e){ console.warn("Supabase başlatılamadı:", e); }
+/* ===== SUNUCU SAATİ (radyo senkronu) — cihaz saatleri farklı olabilir; herkes ORTAK sunucu saatini baz alsın.
+   flSimdi() = sunucuya göre 'şimdi' (ms). Ölçülemezse cihaz saatine düşer (güvenli). ===== */
+let __flSkew = 0, __flSkewOk = false;
+async function flSkewYukle(){ try{ if(!sb) return; const t0=Date.now(); const {data}=await sb.rpc('sunucu_ms'); const t1=Date.now();
+  if(data!=null){ const gecikme=(t1-t0)/2; __flSkew = Number(data) + gecikme - t1; __flSkewOk=true; } }catch(e){} }
+function flSimdi(){ return Date.now() + (__flSkewOk ? __flSkew : 0); }
+try{ if(typeof window!=="undefined") window.flSimdi=flSimdi; }catch(e){}
+if(sb){ flSkewYukle(); setInterval(flSkewYukle, 300000); }   // ilk yükle + 5 dk'da bir tazele (saat kayması)
 /* ===== VERİ KATMANI READ-ONLY KİLİDİ =====
    Destek Modu / paylaşım-linki gibi salt-okunur durumlarda YAZMA çağrıları
    veri katmanında engellenir (sadece UI'da değil). Tek noktada, additive. */
@@ -14035,7 +14043,7 @@ function RadyoYonetim({T, oturum}){
       kanal.subscribe(async(st)=>{ try{
         if(st==="SUBSCRIBED"){
           tset("kanal","bağlı ✓"); tlog("CHANNEL_SUBSCRIBED");
-          try{ await Db.ayarYaz("radyo_yayin",JSON.stringify({mod:"canli",ref:Date.now(),by:oturum?oturum.id:null,duck:muzikSevRef.current})); }catch(e){}
+          try{ await Db.ayarYaz("radyo_yayin",JSON.stringify({mod:"canli",ref:flSimdi(),by:oturum?oturum.id:null,duck:muzikSevRef.current})); }catch(e){}
           try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
           sgonder("live-start",{from:myIdRef.current,duck:muzikSevRef.current}); setCanli(true); setMesaj("🔴 CANLIDASIN — bas konuş, istediğin kadar. Bitince ⏹ Yayını Bitir.");
         } else if(st==="CHANNEL_ERROR"||st==="TIMED_OUT"||st==="CLOSED"){
@@ -14057,7 +14065,7 @@ function RadyoYonetim({T, oturum}){
     try{ ((yayinStreamRef.current&&yayinStreamRef.current.getTracks())||[]).forEach(t=>t.stop()); }catch(e){} yayinStreamRef.current=null;
     try{ canalRef.current&&sb.removeChannel(canalRef.current); }catch(e){} canalRef.current=null;
     // Radyo AÇIK ise (tek anahtar) yayın bitince ortak müzik (senkron) devam etsin; kapalıysa sustur.
-    await Db.ayarYaz("radyo_yayin",JSON.stringify(surum==="v2"?{mod:"senkron",ref:Date.now(),slot:210}:{mod:"kapali"}));
+    await Db.ayarYaz("radyo_yayin",JSON.stringify(surum==="v2"?{mod:"senkron",ref:flSimdi(),slot:210}:{mod:"kapali"}));
     try{ window.dispatchEvent(new CustomEvent("radyo-yayinci",{detail:{aktif:false}})); }catch(e){}   // yayıncı cihaz: normale dön + dinleyici kanalı geri kurulur
     try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){}
     setCanli(false); setMesaj("Yayın bitti — müzik moduna dönüldü");
@@ -14076,7 +14084,7 @@ function RadyoYonetim({T, oturum}){
   const [surum,setSurum]=useState(null); const [yayin,setYayin]=useState(null); const [globalAcik,setGlobalAcik]=useState(null);
   useEffect(()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; setSurum(ay.radyo_surum||"v1"); setGlobalAcik(ay.radyo_global!=="kapali"); try{ setYayin(ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null); }catch(e){ setYayin(null); } }); },[]);
   const surumCevir=async(v)=>{ setSurum(v); const r=await Db.ayarYaz("radyo_surum",v); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj("✓ Radyo "+(v==="v2"?"V2 açıldı":"V1'e döndü")); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
-  const senkronCevir=async()=>{ const on=!!(yayin&&yayin.mod==="senkron"); const y=on?{mod:"kapali"}:{mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); const r=await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj(on?"✓ Senkron kapandı":"✓ Senkron açıldı — herkes aynı yayında"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
+  const senkronCevir=async()=>{ const on=!!(yayin&&yayin.mod==="senkron"); const y=on?{mod:"kapali"}:{mod:"senkron",ref:flSimdi(),slot:210}; setYayin(y); const r=await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); if(r&&r.ok){ try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); }catch(e){} setMesaj(on?"✓ Senkron kapandı":"✓ Senkron açıldı — herkes aynı yayında"); } else setMesaj("Kaydedilemedi: "+((r&&r.hata)||"")); };
   // TEK ANAHTAR: kullanıcı V1/V2/senkron/global bilmez. Tek "FORZALİG RADYO" aç/kapat.
   //  AÇIK → radyo herkese görünür (global açık) + yeni çalar (v2) + ortak/senkron yayın (canlı mikrofon yoksa).
   //  KAPALI → radyo_global kapalı = player hiç yüklenmez, dinleyicilerde görünmez. (Eski V1'e hiç dokunmaz.)
@@ -14084,7 +14092,7 @@ function RadyoYonetim({T, oturum}){
     const acik = globalAcik===true;
     if(acik){ setGlobalAcik(false); await Db.ayarYaz("radyo_global","kapali"); setMesaj("📻 ForzaLig Radyo kapatıldı — dinleyicilerde görünmez"); }
     else { setGlobalAcik(true); setSurum("v2"); await Db.ayarYaz("radyo_global","acik"); await Db.ayarYaz("radyo_surum","v2");
-      if(!(yayin&&yayin.mod==="canli")){ const y={mod:"senkron",ref:Date.now(),slot:210}; setYayin(y); await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); }
+      if(!(yayin&&yayin.mod==="canli")){ const y={mod:"senkron",ref:flSimdi(),slot:210}; setYayin(y); await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); }
       setMesaj("📻 ForzaLig Radyo açıldı — herkes senin açtığını dinliyor"); }
     try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla && window.__flSistemYayinla(); }catch(e){}
   };
@@ -14097,7 +14105,7 @@ function RadyoYonetim({T, oturum}){
   const djIdx = (()=>{ const nn=(liste||[]).length; if(!nn) return 0; const ix=(yayin&&yayin.idx!=null)?yayin.idx:0; return ((ix%nn)+nn)%nn; })();
   const seciliCal=async(i)=>{ const nn=(liste||[]).length; if(!nn){ setMesaj("Önce Müzik Kasası'na şarkı ekle."); return; } const ni=((i%nn)+nn)%nn;
     try{ window.__fzRadyoOynat && window.__fzRadyoOynat(); }catch(e){}                    // admin cihazında sesi jest içinde aç (kesin ses gelir)
-    const y={mod:"senkron",ref:Date.now(),slot:210,idx:ni}; setYayin(y);
+    const y={mod:"senkron",ref:flSimdi(),slot:210,idx:ni}; setYayin(y);
     if(surum!=="v2"){ setSurum("v2"); await Db.ayarYaz("radyo_surum","v2"); }             // radyo kapalıysa aç
     if(globalAcik===false){ setGlobalAcik(true); await Db.ayarYaz("radyo_global","acik"); }
     const r=await Db.ayarYaz("radyo_yayin",JSON.stringify(y));
@@ -16980,7 +16988,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const senkronAktif = !!(yayin && yayin.mod==="senkron" && yayin.ref && n);
   // Senkron konum: her cihaz aynı formül → aynı parça + aynı saniye
   const senkIdx = (n && yayin && yayin.idx!=null) ? (((yayin.idx%n)+n)%n) : 0;   // hangi şarkı çalıyor (admin seçer) — otomatik geçiş YOK
-  const senkronKonum=()=>{ if(!senkronAktif) return null; const el=(Date.now()-yayin.ref)/1000; if(el<0) return null; return {i:senkIdx, off: el%SLOT}; };
+  const senkronKonum=()=>{ if(!senkronAktif) return null; const el=(flSimdi()-yayin.ref)/1000; if(el<0) return null; return {i:senkIdx, off: el%SLOT}; };
   const oynatDurdur=(zorla)=>{
     try{ const _l=canliAudioRef.current; if(_l&&_l.srcObject) _l.play().catch(()=>{}); }catch(e){}   // canlı yayın sesini de aç (autoplay kilidi kırılır)
     const a=audioRef.current; if(!a||!parca) return;
@@ -16992,7 +17000,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const sonraki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i+1); setCalisiyor(true); };
   const onceki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i-1); setCalisiyor(true); };
   // SÜPER ADMIN — senkronda ileri/geri: radyo_yayin.idx yaz → HERKES o şarkıya geçer (liste sırası korunur). Kendi cihazında da çalsın.
-  const djGec=async(yon)=>{ if(!n) return; const ni=(((senkIdx+yon)%n)+n)%n; const y={mod:"senkron",ref:Date.now(),slot:210,idx:ni}; setYayin(y); setIdx(ni); if(!calisiyor){ setCalisiyor(true); } try{ const a=audioRef.current; const url=(liste[ni]||{}).url; if(a&&url){ a.src=url; a.currentTime=0; a.play().catch(()=>{}); } }catch(e){} try{ await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla&&window.__flSistemYayinla(); }catch(e){} };
+  const djGec=async(yon)=>{ if(!n) return; const ni=(((senkIdx+yon)%n)+n)%n; const y={mod:"senkron",ref:flSimdi(),slot:210,idx:ni}; setYayin(y); setIdx(ni); if(!calisiyor){ setCalisiyor(true); } try{ const a=audioRef.current; const url=(liste[ni]||{}).url; if(a&&url){ a.src=url; a.currentTime=0; a.play().catch(()=>{}); } }catch(e){} try{ await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla&&window.__flSistemYayinla(); }catch(e){} };
   // Süper admin panelindeki DJ kumandası, admin'in KENDİ cihazındaki bu çaları jest içinde başlatsın (ses kilidi kırılır → ses gelir)
   useEffect(()=>{ window.__fzRadyoOynat=()=>{ try{ oynatDurdur(true); }catch(e){} }; return ()=>{ try{ if(window.__fzRadyoOynat) window.__fzRadyoOynat=null; }catch(e){} }; });
   // parça değişince çalıyorsa yeni kaynağı çal
@@ -17007,7 +17015,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
       if(!calisiyor) return;
       const dur=(a.duration&&isFinite(a.duration)&&a.duration>1)?a.duration:0;
       if(!dur) return;                                                        // süre bilinmiyorsa dokunma (yanlış başa sarma yok)
-      const el=(Date.now()-yayin.ref)/1000; if(el<0) return;
+      const el=(flSimdi()-yayin.ref)/1000; if(el<0) return;
       const off=((el%dur)+dur)%dur;                                            // herkesin ortak saniyesi (paylaşılan saat)
       if(a.paused){ a.play().catch(()=>{}); }                                  // buffer/duraklama → DEVAM ettir; BAŞA SARMA YOK (döngü onEnded'de)
       if(Math.abs((a.currentTime||0)-off)>3){ try{ a.currentTime=off; }catch(e){} } };  // 3sn sapmada ortak saniyeye çek → cihazlar aynı yerde
