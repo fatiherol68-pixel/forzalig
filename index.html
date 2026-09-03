@@ -17017,6 +17017,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const [ses,setSes]=useState(()=>{ try{ const v=parseFloat(localStorage.getItem("fz_radyo_ses")); return isNaN(v)?0.9:Math.min(1,Math.max(0,v)); }catch(e){ return 0.9; } });
   const [sure,setSure]=useState(0);
   const [toplam,setToplam]=useState(0);
+  const [scrub,setScrub]=useState(null);   // DJ ses dalgasını sürüklerken hedef saniye (null=sürüklenmiyor)
   const [begeni,setBegeni]=useState(()=>{ try{ const a=JSON.parse(localStorage.getItem("fz_radyo_begeni")||"[]"); return new Set(Array.isArray(a)?a:[]); }catch(e){ return new Set(); } });
   const [uyku,setUyku]=useState(0);            // kalan dk (0=kapalı)
   const [yayin,setYayin]=useState(null);        // {mod,ref,slot} senkron config
@@ -17088,6 +17089,13 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const djGec=async(yon)=>{ if(!n) return; const ni=(((senkIdx+yon)%n)+n)%n;
     var y = (yayin&&yayin.mod==="canli") ? {mod:"canli",ref:flSimdi(),slot:210,idx:ni,by:yayin.by||null,duck:(yayin.duck!=null?yayin.duck:0.18)} : {mod:"senkron",ref:flSimdi(),slot:210,idx:ni};
     setYayin(y); setIdx(ni); if(!calisiyor){ setCalisiyor(true); } try{ const a=audioRef.current; const url=(liste[ni]||{}).url; if(a&&url){ a.src=url; a.currentTime=0; a.play().catch(()=>{}); } }catch(e){} try{ await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla&&window.__flSistemYayinla(); }catch(e){} };
+  // SÜPER ADMIN — ses dalgasını/kilit ekranını sürükle: radyo_yayin.ref'i o saniyeye ayarla → HERKES aynı saniyeye atlar (senkron korunur)
+  const djSeek=async(sec)=>{ if(!n||!muzikSenk) return; const a=audioRef.current;
+    const dur=(a&&a.duration&&isFinite(a.duration)&&a.duration>1)?a.duration:(toplam>1?toplam:0); if(!dur) return;
+    const s=Math.max(0,Math.min(dur-0.4, sec||0)); const yeniRef=flSimdi()-Math.round(s*1000);
+    var y=(yayin&&yayin.mod==="canli")?{mod:"canli",ref:yeniRef,slot:210,idx:senkIdx,by:(yayin.by||null),duck:(yayin.duck!=null?yayin.duck:0.18)}:{mod:"senkron",ref:yeniRef,slot:210,idx:senkIdx};
+    setYayin(y); try{ if(a){ a.currentTime=s; if(calisiyor) a.play().catch(()=>{}); } }catch(e){}
+    try{ await Db.ayarYaz("radyo_yayin",JSON.stringify(y)); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla&&window.__flSistemYayinla(); }catch(e){} };
   // Süper admin panelindeki DJ kumandası, admin'in KENDİ cihazındaki bu çaları jest içinde başlatsın (ses kilidi kırılır → ses gelir)
   useEffect(()=>{ window.__fzRadyoOynat=()=>{ try{ oynatDurdur(true); }catch(e){} }; return ()=>{ try{ if(window.__fzRadyoOynat) window.__fzRadyoOynat=null; }catch(e){} }; });
   // parça değişince çalıyorsa yeni kaynağı çal
@@ -17117,8 +17125,15 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
     const set=(a,f)=>{ try{ navigator.mediaSession.setActionHandler(a,f); }catch(e){} };
     set("play",()=>oynatDurdur(true)); set("pause",()=>oynatDurdur(false));
     set("nexttrack",senkronAktif?null:sonraki); set("previoustrack",senkronAktif?null:onceki);
+    // Kilit ekranından sürükle (sadece DJ) → herkes o saniyeye atlar; dinleyicide kapalı (senkron bozulmasın)
+    set("seekto",(adminMi&&muzikSenk)?((e)=>{ if(e&&e.seekTime!=null) djSeek(e.seekTime); }):null);
     try{ navigator.mediaSession.playbackState=calisiyor?"playing":"paused"; }catch(e){}
-  }catch(e){} },[parca&&parca.url,calisiyor,senkronAktif]);
+  }catch(e){} },[parca&&parca.url,calisiyor,senkronAktif,muzikSenk,adminMi]);
+  // Kilit ekranı ilerleme çubuğu + saniye (MediaSession position state) — 4sn'de bir güncelle, iOS scrubber'ı buradan çizer
+  useEffect(()=>{ try{ if(typeof navigator==="undefined"||!("mediaSession" in navigator)||!navigator.mediaSession.setPositionState) return; }catch(e){ return; }
+    const guncelle=()=>{ try{ const a=audioRef.current; const dur=(a&&a.duration&&isFinite(a.duration)&&a.duration>1)?a.duration:0; if(dur){ navigator.mediaSession.setPositionState({duration:dur, position:Math.min(dur,Math.max(0,a.currentTime||0)), playbackRate:calisiyor?1:0}); } }catch(e){} };
+    guncelle(); const id=setInterval(guncelle,4000); return ()=>clearInterval(id);
+  },[parca&&parca.url,calisiyor,toplam]);
   const begeniyeCevir=(p)=>{ if(!p) return; const id=p.id||p.url; setBegeni(s=>{ const y=new Set(s); if(y.has(id)) y.delete(id); else y.add(id); try{ localStorage.setItem("fz_radyo_begeni",JSON.stringify([...y])); }catch(e){} return y; }); };
   // ===== CANLI MİKROFON DİNLEYİCİ (WebRTC) — yayıncı konuşunca canlı duy, müziği kıs =====
   const [canliDinle,setCanliDinle]=useState(false);     // gerçekten canlı sesi DUYUYOR (bağlandı)
@@ -17247,7 +17262,27 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
           <div style={{fontSize:12,color:T.textMut,marginTop:3}}>{senkronAktif?"📡 Canlı Yayın · herkes aynı yayında":canliVar?"Canlı yayına bağlanılıyor…":"ForzaLig Radyo · halı saha ligin cebinde"}</div>
         </div>
         {dinleyiciSayi>0 && <div onClick={()=>setDinlAcik(v=>!v)} className="tap" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:10,cursor:"pointer"}}>{avatarlar(dinleyiciBenzersiz)}<span style={{fontSize:12,color:T.textMut}}><b style={{color:T.text}}>{dinleyiciSayi}</b> kişi dinliyor</span></div>}
-        <div style={{marginTop:12}}>{dalga(rnk)}<div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:T.textMut,marginTop:6,fontVariantNumeric:"tabular-nums"}}><span>{fmt(sure)}</span><span>{toplam?("-"+fmt(Math.max(0,toplam-sure))):"canlı"}</span></div></div>
+        <div style={{marginTop:12}}>{(()=>{ const kaydirilabilir = adminMi && muzikSenk && toplam>1;
+          const frac = (scrub!=null && toplam>0) ? Math.max(0,Math.min(1,scrub/toplam)) : (yuzde/100);
+          const gosterSaniye = scrub!=null ? scrub : sure;
+          const barSaniye=(clientX,el)=>{ try{ const r=el.getBoundingClientRect(); const f=Math.max(0,Math.min(1,(clientX-r.left)/(r.width||1))); return f*(toplam||0); }catch(e){ return 0; } };
+          const TB=40, dolu=Math.round(frac*TB);
+          return <>
+            <div
+              onPointerDown={kaydirilabilir?(e=>{ try{ e.currentTarget.setPointerCapture&&e.currentTarget.setPointerCapture(e.pointerId); }catch(x){} setScrub(barSaniye(e.clientX,e.currentTarget)); }):undefined}
+              onPointerMove={kaydirilabilir?(e=>{ if(scrub!=null||e.buttons) setScrub(barSaniye(e.clientX,e.currentTarget)); }):undefined}
+              onPointerUp={kaydirilabilir?(e=>{ const t=barSaniye(e.clientX,e.currentTarget); setScrub(null); djSeek(t); }):undefined}
+              onPointerCancel={kaydirilabilir?(()=>setScrub(null)):undefined}
+              style={{position:"relative",touchAction:"none",cursor:kaydirilabilir?"pointer":"default",padding:"5px 0"}}>
+              <div style={{display:"flex",alignItems:"center",gap:2,height:34}}>{[...Array(TB)].map((_,i)=>{ const h=22+Math.abs(Math.sin(i*0.7))*70; return <div key={i} style={{flex:1,height:h+"%",borderRadius:2,background:i<dolu?rnk:"rgba(255,255,255,.16)",transition:scrub!=null?"none":"background .2s"}}/>; })}</div>
+              {kaydirilabilir && <div style={{position:"absolute",top:0,bottom:0,left:"calc("+(frac*100)+"% - 8px)",width:16,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}><div style={{width:15,height:15,borderRadius:"50%",background:"#fff",boxShadow:"0 2px 9px rgba(0,0,0,.6)",border:"2.5px solid "+rnk}}/></div>}
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginTop:6,fontVariantNumeric:"tabular-nums"}}>
+              <span style={{color:scrub!=null?rnk:T.textMut,fontWeight:scrub!=null?800:600}}>{fmt(gosterSaniye)}</span>
+              {kaydirilabilir && <span style={{fontSize:9.5,color:T.textMut,fontWeight:700}}>{scrub!=null?"↔ bırak → herkes buraya atlar":"↔ sürükle · herkesi taşı"}</span>}
+              <span style={{color:T.textMut}}>{toplam?("-"+fmt(Math.max(0,toplam-gosterSaniye))):"canlı"}</span>
+            </div>
+          </>; })()}</div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:22,marginTop:10}}>
           {(()=>{ const aktif=!muzikSenk||adminMi; return <button onClick={aktif?(muzikSenk?()=>djGec(-1):onceki):null} disabled={!aktif} className="tap" aria-label="Önceki" style={{width:44,height:44,borderRadius:14,border:"1px solid "+T.line,background:"rgba(255,255,255,.05)",color:aktif?T.text:T.textMut,fontSize:16,opacity:aktif?1:.4}}>⏮</button>; })()}
           <button onClick={()=>oynatDurdur()} className="tap prem-tap" aria-label="Oynat/Duraklat" style={{width:62,height:62,borderRadius:"50%",border:0,cursor:"pointer",background:"radial-gradient(120% 120% at 30% 25%,#5fe6bd,"+(T.accent2||T.accent)+")",color:"#052318",fontSize:24,display:"grid",placeItems:"center",boxShadow:"0 14px 30px -8px "+T.accent+"99, inset 0 1px 0 rgba(255,255,255,.5)"}}>{calisiyor?"⏸":"▶"}</button>
