@@ -1,6 +1,6 @@
 /* ForzaLig service worker — kabuk önbelleği + güncelleme bildirimi
-   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (20260811203757). */
-const SURUM = "20260902172937";
+   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (20260903071840). */
+const SURUM = "20260903071840";
 const KABUK = "forzalig-kabuk-" + SURUM;
 
 // Açılış için gereken çekirdek dosyalar (CDN dosyaları ilk kullanımda önbelleğe alınır)
@@ -10,10 +10,7 @@ self.addEventListener("install", (e) => {
   e.waitUntil(
     caches.open(KABUK).then((c) => c.addAll(CEKIRDEK)).catch(() => {})
   );
-  // OTOMATİK GÜNCELLEME: yeni sürüm "waiting"de beklemesin, HEMEN devral.
-  // (activate → clients.claim + gezinmede önce-ağ ile bir sonraki açılışta taze sürüm gelir.)
-  // Böylece kullanıcı bir daha eski sürümde takılı kalmaz.
-  self.skipWaiting();
+  // Yeni sürüm hemen "waiting" durumuna geçsin; sayfa toast ile kullanıcıya sorar.
 });
 
 self.addEventListener("activate", (e) => {
@@ -45,29 +42,14 @@ self.addEventListener("push", (e) => {
   );
 });
 
-// Bildirime tıklanınca uygulamayı aç / öne getir + hedefi ilet
+// Bildirime tıklanınca uygulamayı aç / öne getir
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const hedef = (e.notification.data && e.notification.data.link) || "/";
   e.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((liste) => {
-      // Açık bir uygulama penceresi varsa: öne getir + hedefi mesajla ilet
-      // (uygulama içi yönlendirmeyi tetiklemek için). Bu, telefonda PWA'yı
-      // güvenilir biçimde öne getirir — eski kod hedefi yok sayıyordu.
-      for (const c of liste) {
-        try {
-          if (c.url && new URL(c.url).origin === self.location.origin && "focus" in c) {
-            try { c.postMessage({ tip: "FL_BILDIRIM", link: hedef }); } catch (x) {}
-            return c.focus();
-          }
-        } catch (x) {}
-      }
-      // Açık pencere yoksa: uygulamayı KÖKTEN aç (404 riski yok), hedefi
-      // ?bildirim= ile ilet ki uygulama açılışta okuyabilsin.
-      if (self.clients.openWindow) {
-        const acHedef = (hedef && hedef !== "/") ? ("/?bildirim=" + encodeURIComponent(hedef)) : "/";
-        return self.clients.openWindow(acHedef);
-      }
+      for (const c of liste) { if ("focus" in c) return c.focus(); }
+      if (self.clients.openWindow) return self.clients.openWindow(hedef);
     })
   );
 });
@@ -94,7 +76,7 @@ self.addEventListener("fetch", (e) => {
             h.delete("Feature-Policy");
             yanit = new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
           } catch (x) { yanit = r; }
-          try { if (url.pathname === "/") { const kopya = yanit.clone(); caches.open(KABUK).then((c) => c.put("/", kopya)).catch(() => {}); } } catch (x) {}
+          try { const kopya = yanit.clone(); caches.open(KABUK).then((c) => c.put("/", kopya)).catch(() => {}); } catch (x) {}
           return yanit;
         })
         .catch(() => caches.match("/"))
