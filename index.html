@@ -14156,6 +14156,8 @@ function RadyoYonetim({T, oturum}){
   // ===== DİNLEYİCİLER (presence, RadyoCalarV2'den window olayıyla) + PARÇA İSTEKLERİ + KASA İSTATİSTİĞİ =====
   const [dinleyiciler,setDinleyiciler]=useState(()=>{ try{ return window.__fzDinleyiciler||[]; }catch(e){ return []; } });
   useEffect(()=>{ const h=(e)=>{ try{ setDinleyiciler((e&&e.detail)||window.__fzDinleyiciler||[]); }catch(x){} }; window.addEventListener("fz-dinleyici",h); return ()=>window.removeEventListener("fz-dinleyici",h); },[]);
+  const [tepkiSay,setTepkiSay]=useState(()=>{ try{ return window.__fzTepkiSay||0; }catch(e){ return 0; } });   // spikerde canlı beğeni sayacı
+  useEffect(()=>{ const h=(e)=>{ try{ setTepkiSay((e&&e.detail)||window.__fzTepkiSay||0); }catch(x){} }; window.addEventListener("fz-tepki-say",h); return ()=>window.removeEventListener("fz-tepki-say",h); },[]);
   const dinlBenzersiz=(()=>{ const m={}; (dinleyiciler||[]).forEach(d=>{ if(d&&d.uid&&!m[d.uid]) m[d.uid]=d; }); return Object.keys(m).map(k=>m[k]); })();
   const takimDagilim=(()=>{ const m={}; dinlBenzersiz.forEach(d=>{ const t=(d.takim||"Takımsız"); if(!m[t]) m[t]={takim:t,adet:0,renk:d.renk}; m[t].adet++; }); return Object.keys(m).map(k=>m[k]).sort((a,b)=>b.adet-a.adet); })();
   const [istekler,setIstekler]=useState([]);
@@ -14240,6 +14242,7 @@ function RadyoYonetim({T, oturum}){
     <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"13px 14px",marginBottom:12}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:dinlBenzersiz.length?10:0}}>
         <span style={{fontSize:15}}>👥</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>{dinlBenzersiz.length} kişi dinliyor</div>
+        {tepkiSay>0 && <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:12,fontWeight:800,color:T.danger,background:T.danger+"14",border:"1px solid "+T.danger+"33",borderRadius:20,padding:"2px 9px"}} title="Bu yayında toplam beğeni">❤️ {tepkiSay}</span>}
         <span style={{marginLeft:"auto",width:8,height:8,borderRadius:"50%",background:dinlBenzersiz.length?T.accent:T.line}} className={dinlBenzersiz.length?"fz-nabiz":""}/>
       </div>
       {takimDagilim.length>0 && <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
@@ -17042,11 +17045,18 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const presKayit=()=>{ const k=kimlikRef.current; return k?{uid:k.uid,ad:k.ad,takim:k.takim,renk:k.renk,t:Date.now()}:{uid:presIdRef.current,ad:"Misafir",takim:null,renk:null,t:Date.now()}; };
   // ===== CANLI TEPKİ (❤️) — dinleyici kalbe basınca herkeste (spiker dahil) uçan kalp + "kim attı" =====
   const [tepkiler,setTepkiler]=useState([]);
-  const tepkiEkle=(emoji,ad)=>{ const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,6); const x=10+Math.random()*64;
-    setTepkiler(t=>[...t.slice(-14),{id,emoji:emoji||"❤️",ad:ad||"",x}]);
+  const [tepkiSay,setTepkiSay]=useState(0);   // bu yayında toplam kalp/tepki (spikerde canlı sayaç)
+  const kalpTutRef=useRef(null);              // "basılı tut → kalp yağmuru" interval
+  const tepkiEkle=(emoji,ad)=>{ const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,6); const x=8+Math.random()*68;
+    setTepkiler(t=>[...t.slice(-24),{id,emoji:emoji||"❤️",ad:ad||"",x,s:0.85+Math.random()*0.5}]);
+    setTepkiSay(s=>s+1); try{ window.__fzTepkiSay=(window.__fzTepkiSay||0)+1; window.dispatchEvent(new CustomEvent("fz-tepki-say",{detail:window.__fzTepkiSay})); }catch(e){}
     setTimeout(()=>{ setTepkiler(t=>t.filter(r=>r.id!==id)); },2300); };
-  const tepkiGonder=(emoji)=>{ const e=emoji||"❤️"; const k=kimlikRef.current; tepkiEkle(e,(k&&k.ad)||"Sen");
+  const tepkiGonder=(emoji,sessiz)=>{ const e=emoji||"❤️"; const k=kimlikRef.current; if(!sessiz) tepkiEkle(e,(k&&k.ad)||"Sen");
     try{ presCanalRef.current && presCanalRef.current.send({type:"broadcast",event:"tepki",payload:{emoji:e, ad:(k&&k.ad)||"Dinleyici"}}); }catch(err){} };
+  // Basılı tut → arka arkaya kalp yağmuru (bırakınca durur)
+  const kalpBasla=()=>{ tepkiGonder("❤️"); if(kalpTutRef.current) return; let n=0; kalpTutRef.current=setInterval(()=>{ if(n++>=50){ kalpBirak(); return; } tepkiGonder("❤️"); },300); };
+  const kalpBirak=()=>{ if(kalpTutRef.current){ clearInterval(kalpTutRef.current); kalpTutRef.current=null; } };
+  useEffect(()=>()=>kalpBirak(),[]);
   useEffect(()=>{ if(!sb) return; let aktif=true;
     const kanal=sb.channel("fz-radyo-dinleyici",{config:{presence:{key:presIdRef.current}}}); presCanalRef.current=kanal;
     const topla=()=>{ try{ const st=kanal.presenceState()||{}; const arr=[]; Object.keys(st).forEach(k=>{ const m=(st[k]&&st[k][0])||null; if(m&&m.uid) arr.push(m); }); if(aktif) setDinleyiciler(arr); try{ window.__fzDinleyiciler=arr; window.dispatchEvent(new CustomEvent("fz-dinleyici",{detail:arr})); }catch(e){} }catch(e){} };
@@ -17246,7 +17256,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
     {/* ===== UÇAN CANLI TEPKİLER (❤️) — herkeste görünür ===== */}
     {tepkiler.length>0 && <div style={{position:"fixed",left:0,right:0,bottom:"calc(120px + env(safe-area-inset-bottom))",zIndex:908,pointerEvents:"none",maxWidth:480,margin:"0 auto",height:0}}>
       {tepkiler.map(r=><div key={r.id} className="fz-ucus" style={{position:"absolute",left:r.x+"%",bottom:0,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-        <span style={{fontSize:30,filter:"drop-shadow(0 3px 8px rgba(0,0,0,.5))"}}>{r.emoji}</span>
+        <span style={{fontSize:Math.round(30*(r.s||1)),filter:"drop-shadow(0 3px 8px rgba(0,0,0,.5))"}}>{r.emoji}</span>
         {r.ad && <span style={{fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.45)",borderRadius:20,padding:"1px 7px",whiteSpace:"nowrap"}}>{r.ad}</span>}
       </div>)}
     </div>}
@@ -17264,7 +17274,10 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
           <div style={{fontSize:18,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{canliDinle?"🎙️ Spiker konuşuyor…":(parca?(parca.ad||"Yayın"):"ForzaLig Radyo")}</div>
           <div style={{fontSize:12,color:T.textMut,marginTop:3}}>{senkronAktif?"📡 Canlı Yayın · herkes aynı yayında":canliVar?"Canlı yayına bağlanılıyor…":"ForzaLig Radyo · halı saha ligin cebinde"}</div>
         </div>
-        {dinleyiciSayi>0 && <div onClick={()=>setDinlAcik(v=>!v)} className="tap" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:10,cursor:"pointer"}}>{avatarlar(dinleyiciBenzersiz)}<span style={{fontSize:12,color:T.textMut}}><b style={{color:T.text}}>{dinleyiciSayi}</b> kişi dinliyor</span></div>}
+        {(dinleyiciSayi>0||tepkiSay>0) && <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginTop:10}}>
+          {dinleyiciSayi>0 && <div onClick={()=>setDinlAcik(v=>!v)} className="tap" style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>{avatarlar(dinleyiciBenzersiz)}<span style={{fontSize:12,color:T.textMut}}><b style={{color:T.text}}>{dinleyiciSayi}</b> dinliyor</span></div>}
+          {tepkiSay>0 && <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:12,fontWeight:800,color:T.danger,background:T.danger+"14",border:"1px solid "+T.danger+"33",borderRadius:20,padding:"3px 10px"}}>❤️ {tepkiSay}</span>}
+        </div>}
         <div style={{marginTop:12}}>{(()=>{ const kaydirilabilir = adminMi && muzikSenk && toplam>1;
           const suruklu = scrub!=null;
           const frac = (suruklu && toplam>0) ? Math.max(0,Math.min(1,scrub/toplam)) : (yuzde/100);
@@ -17304,7 +17317,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
           {(()=>{ const aktif=!muzikSenk||adminMi; return <button onClick={aktif?(muzikSenk?()=>djGec(1):sonraki):null} disabled={!aktif} className="tap" aria-label="Sonraki" style={{width:44,height:44,borderRadius:14,border:"1px solid "+T.line,background:"rgba(255,255,255,.05)",color:aktif?T.text:T.textMut,fontSize:16,opacity:aktif?1:.4}}>⏭</button>; })()}
         </div>
         <div style={{display:"flex",gap:8,marginTop:14}}>
-          <button onClick={()=>{ begeniyeCevir(parca); tepkiGonder("❤️"); }} className="tap" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"9px 4px",borderRadius:14,background:parcaBegenili?T.danger+"14":"rgba(255,255,255,.05)",border:"1px solid "+(parcaBegenili?T.danger+"44":T.line),color:parcaBegenili?T.danger:T.textMut,fontSize:10,fontWeight:700,cursor:"pointer"}}><span style={{fontSize:17}}>{parcaBegenili?"❤️":"🤍"}</span>Beğen</button>
+          <button onPointerDown={e=>{ e.preventDefault(); begeniyeCevir(parca); kalpBasla(); }} onPointerUp={kalpBirak} onPointerLeave={kalpBirak} onPointerCancel={kalpBirak} className="tap" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"9px 4px",borderRadius:14,touchAction:"none",userSelect:"none",background:parcaBegenili?T.danger+"14":"rgba(255,255,255,.05)",border:"1px solid "+(parcaBegenili?T.danger+"44":T.line),color:parcaBegenili?T.danger:T.textMut,fontSize:10,fontWeight:700,cursor:"pointer"}}><span style={{fontSize:17}}>{parcaBegenili?"❤️":"🤍"}</span>Beğen · bas-tut</button>
           {n>0 && <button onClick={()=>setIstekAcik(v=>!v)} className="tap" style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"9px 4px",borderRadius:14,background:istekAcik?T.accent+"18":"rgba(255,255,255,.05)",border:"1px solid "+(istekAcik?T.accent+"44":T.line),color:istekAcik?T.accent:T.textMut,fontSize:10,fontWeight:700,cursor:"pointer"}}><span style={{fontSize:17}}>🎵</span>Parça İste</button>}
           <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"9px 4px",borderRadius:14,background:uyku?T.accent+"18":"rgba(255,255,255,.05)",border:"1px solid "+(uyku?T.accent+"44":T.line),color:uyku?T.accent:T.textMut,fontSize:10,fontWeight:700}}><span style={{fontSize:17}}>😴</span>{uyku?uyku+" dk":"Uyku"}<select value={uyku} onChange={e=>setUyku(parseInt(e.target.value)||0)} aria-label="Uyku zamanlayıcı" style={{position:"absolute",inset:0,opacity:0,cursor:"pointer",width:"100%",height:"100%"}}><option value="0">Kapalı</option><option value="15">15 dk</option><option value="30">30 dk</option><option value="60">60 dk</option></select></div>
         </div>
@@ -17337,7 +17350,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
           <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,borderRadius:"50%",background:rnk,flexShrink:0}} className={(senkronAktif||canliDinle||canliVar)?"fz-nabiz":""}/><span style={{fontSize:8.5,fontWeight:800,color:rnk,letterSpacing:.4,whiteSpace:"nowrap"}}>{canliDinle?"CANLI MİKROFON":canliVar?"BAĞLANILIYOR…":senkronAktif?"CANLI YAYIN":"FORZALIG RADYO"}{dinleyiciSayi>0?(" · "+dinleyiciSayi+" dinliyor"):""}</span></div>
           <div style={{fontSize:12.5,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>{canliDinle?"🎙️ Spiker konuşuyor…":canliVar?"Canlı yayına bağlanılıyor — dokun":(parca?(parca.ad||"Yayın"):"Yayın")}</div>
         </div>
-        {parca&&<button onClick={()=>{ begeniyeCevir(parca); tepkiGonder("❤️"); }} className="tap" aria-label="Beğen" style={{width:34,height:34,flexShrink:0,borderRadius:10,border:0,background:"transparent",color:parcaBegenili?T.danger:T.textMut,fontSize:16}}>{parcaBegenili?"❤️":"🤍"}</button>}
+        {parca&&<button onPointerDown={e=>{ e.preventDefault(); begeniyeCevir(parca); kalpBasla(); }} onPointerUp={kalpBirak} onPointerLeave={kalpBirak} onPointerCancel={kalpBirak} className="tap" aria-label="Beğen" style={{width:34,height:34,flexShrink:0,borderRadius:10,border:0,background:"transparent",touchAction:"none",userSelect:"none",color:parcaBegenili?T.danger:T.textMut,fontSize:16}}>{parcaBegenili?"❤️":"🤍"}</button>}
         {(!muzikSenk||adminMi)&&<button onClick={muzikSenk?()=>djGec(-1):onceki} className="tap" aria-label="Önceki" style={{width:32,height:34,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏮</button>}
         <button onClick={()=>oynatDurdur()} className="tap" aria-label="Oynat/Duraklat" style={{width:40,height:40,flexShrink:0,borderRadius:"50%",border:0,cursor:"pointer",background:"radial-gradient(120% 120% at 30% 25%,#5fe6bd,"+(T.accent2||T.accent)+")",color:"#052318",fontSize:15,display:"grid",placeItems:"center"}}>{calisiyor?"⏸":"▶"}</button>
         {(!muzikSenk||adminMi)&&<button onClick={muzikSenk?()=>djGec(1):sonraki} className="tap" aria-label="Sonraki" style={{width:32,height:34,flexShrink:0,borderRadius:9,border:"0.5px solid "+T.line,background:T.bg1,color:T.textSoft,fontSize:12}}>⏭</button>}
