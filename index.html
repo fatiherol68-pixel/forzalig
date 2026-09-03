@@ -270,6 +270,8 @@
   @keyframes barGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   .fz-ucus { animation: fzUcus 2.2s cubic-bezier(.3,.7,.4,1) forwards; will-change: transform, opacity; }
   @keyframes fzUcus { 0%{ opacity:0; transform: translateY(0) scale(.5); } 12%{ opacity:1; transform: translateY(-12px) scale(1.1); } 100%{ opacity:0; transform: translateY(-150px) scale(.9); } }
+  .fz-cikan { animation: fzCikan 6s cubic-bezier(.4,0,.2,1) forwards; will-change: transform, opacity; }
+  @keyframes fzCikan { 0%{ opacity:0; transform: translateY(20px) scale(.94); } 8%{ opacity:1; transform: translateY(0) scale(1); } 74%{ opacity:1; } 100%{ opacity:0; transform: translateY(-240px) scale(1); } }
   button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
   .tap { transition: transform .1s; cursor: pointer; }
   .tap:active { transform: scale(.96); }
@@ -17057,11 +17059,25 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const kalpBasla=()=>{ tepkiGonder("❤️"); if(kalpTutRef.current) return; let n=0; kalpTutRef.current=setInterval(()=>{ if(n++>=50){ kalpBirak(); return; } tepkiGonder("❤️"); },300); };
   const kalpBirak=()=>{ if(kalpTutRef.current){ clearInterval(kalpTutRef.current); kalpTutRef.current=null; } };
   useEffect(()=>()=>kalpBirak(),[]);
+  // ===== CANLI SOHBET — radyo açıkken ÜYELER yazar, herkeste baloncuk olarak yükselir (aynı canlı kanal) =====
+  const [sohbetler,setSohbetler]=useState([]);
+  const [mesajIn,setMesajIn]=useState("");
+  const sonMesajRef=useRef(0);
+  const sohbetEkle=(o)=>{ if(!o||!o.mesaj) return; const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2,6); const x=4+Math.random()*11;
+    setSohbetler(s=>[...s.slice(-8),{id, ad:String(o.ad||"Üye").slice(0,22), renk:o.renk||null, mesaj:String(o.mesaj).slice(0,140), x}]);
+    setTimeout(()=>{ setSohbetler(s=>s.filter(r=>r.id!==id)); },6200); };
+  const sohbetGonder=()=>{ const m=(mesajIn||"").trim(); if(!m) return; const k=kimlikRef.current;
+    if(!k||!k.uid) return;                                   // sadece üye (giriş yapmış)
+    const now=Date.now(); if(now-sonMesajRef.current<3200) return;   // spam sınırı: ~3sn'de 1 mesaj
+    sonMesajRef.current=now; const pay={ad:(k.ad||"Üye"), renk:(k.renk||null), mesaj:m.slice(0,140)};
+    sohbetEkle(pay); try{ presCanalRef.current && presCanalRef.current.send({type:"broadcast",event:"sohbet",payload:pay}); }catch(e){}
+    setMesajIn(""); };
   useEffect(()=>{ if(!sb) return; let aktif=true;
     const kanal=sb.channel("fz-radyo-dinleyici",{config:{presence:{key:presIdRef.current}}}); presCanalRef.current=kanal;
     const topla=()=>{ try{ const st=kanal.presenceState()||{}; const arr=[]; Object.keys(st).forEach(k=>{ const m=(st[k]&&st[k][0])||null; if(m&&m.uid) arr.push(m); }); if(aktif) setDinleyiciler(arr); try{ window.__fzDinleyiciler=arr; window.dispatchEvent(new CustomEvent("fz-dinleyici",{detail:arr})); }catch(e){} }catch(e){} };
     kanal.on("presence",{event:"sync"},topla).on("presence",{event:"join"},topla).on("presence",{event:"leave"},topla);
     kanal.on("broadcast",{event:"tepki"},({payload})=>{ if(aktif && payload && payload.emoji) tepkiEkle(payload.emoji,payload.ad); });
+    kanal.on("broadcast",{event:"sohbet"},({payload})=>{ if(aktif && payload && payload.mesaj) sohbetEkle(payload); });
     kanal.subscribe((st)=>{ if(st==="SUBSCRIBED"){ try{ kanal.track(presKayit()); }catch(e){} } });
     // Sağlamlık: 25sn'de bir yeniden bildir + uygulama öne gelince → arka plana atılmış cihaz listede kaybolmaz
     const hb=setInterval(()=>{ try{ kanal.track(presKayit()); }catch(e){} },25000);
@@ -17260,6 +17276,14 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
         {r.ad && <span style={{fontSize:9,fontWeight:800,color:"#fff",background:"rgba(0,0,0,.45)",borderRadius:20,padding:"1px 7px",whiteSpace:"nowrap"}}>{r.ad}</span>}
       </div>)}
     </div>}
+    {/* ===== CANLI SOHBET BALONCUKLARI — alttan yükselir, herkeste görünür ===== */}
+    {sohbetler.length>0 && <div style={{position:"fixed",left:0,right:0,bottom:"calc(150px + env(safe-area-inset-bottom))",zIndex:907,pointerEvents:"none",maxWidth:480,margin:"0 auto",height:0,paddingLeft:12}}>
+      {sohbetler.map(s=><div key={s.id} className="fz-cikan" style={{position:"absolute",left:s.x+"%",bottom:0,maxWidth:"84%",display:"inline-flex",alignItems:"center",gap:8,padding:"7px 12px 7px 7px",borderRadius:100,background:"linear-gradient(120deg,rgba(20,30,44,.94),rgba(14,21,32,.94))",border:"1px solid rgba(255,255,255,.08)",boxShadow:"0 8px 20px -10px rgba(0,0,0,.7)",whiteSpace:"nowrap"}}>
+        <span style={{width:24,height:24,borderRadius:"50%",flexShrink:0,display:"grid",placeItems:"center",fontSize:9,fontWeight:800,color:"#05140c",fontFamily:T.fontDisplay,background:s.renk||T.accent}}>{String(s.ad||"?").slice(0,2).toUpperCase()}</span>
+        <span style={{fontSize:10,fontWeight:800,color:T.textSoft}}>{s.ad}</span>
+        <span style={{fontSize:12.5,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",maxWidth:210}}>{s.mesaj}</span>
+      </div>)}
+    </div>}
     {/* ===== TAM EKRAN "ŞİMDİ ÇALIYOR" ===== */}
     {!barGizle && acik && (()=>{ const rnk=(senkronAktif||canliDinle||canliVar)?T.danger:T.accent; return <div className="fade-in" style={{position:"fixed",inset:0,zIndex:906,background:"linear-gradient(180deg,#0b1622,#06090f 62%)",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{position:"absolute",top:"-6%",left:"-20%",right:"-20%",height:"50%",zIndex:0,filter:"blur(52px)",opacity:.5,pointerEvents:"none",background:"radial-gradient(50% 60% at 30% 30%,rgba(52,211,153,.5),transparent 70%),radial-gradient(55% 60% at 78% 40%,rgba(139,123,255,.42),transparent 70%)"}}/>
@@ -17326,6 +17350,16 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
           <input type="range" min="0" max="1" step="0.02" value={ses} onChange={e=>setSes(parseFloat(e.target.value))} aria-label="Ses" style={{flex:1,accentColor:T.accent,height:4}}/>
           <span style={{fontSize:14}}>🔊</span>
         </div>
+        {/* CANLI SOHBET — radyo açıkken üyeler yazar */}
+        {(()=>{ const uye=!!(kimlik&&kimlik.uid); return <div style={{marginTop:14}}>
+          <div style={{fontSize:10,color:T.textMut,fontWeight:800,letterSpacing:.5,marginBottom:7}}>💬 CANLI SOHBET {uye?<span style={{fontWeight:600}}>· herkes görür</span>:null}</div>
+          {uye
+            ? <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 5px 5px 14px",borderRadius:100,background:"rgba(255,255,255,.05)",border:"1px solid "+T.line}}>
+                <input value={mesajIn} onChange={e=>setMesajIn(e.target.value.slice(0,140))} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); sohbetGonder(); } }} maxLength={140} placeholder="Bir şeyler yaz — herkes görsün" aria-label="Sohbet mesajı" style={{flex:1,minWidth:0,background:"transparent",border:0,outline:"none",color:T.text,fontSize:13,fontFamily:"inherit"}}/>
+                <button onClick={sohbetGonder} className="tap" aria-label="Gönder" style={{width:34,height:34,flexShrink:0,borderRadius:"50%",border:0,cursor:"pointer",display:"grid",placeItems:"center",color:"#05140c",fontSize:15,background:"radial-gradient(120% 120% at 30% 25%,#5fe6bd,"+(T.accent2||T.accent)+")"}}>➤</button>
+              </div>
+            : <div style={{textAlign:"center",fontSize:11.5,color:T.textMut,padding:"10px",borderRadius:12,background:"rgba(255,255,255,.04)",border:"1px solid "+T.line}}>Sohbete katılmak için <b style={{color:T.textSoft}}>üye ol / giriş yap</b> 💬</div>}
+        </div>; })()}
         {istekMesaj && <div style={{fontSize:12,color:/✅/.test(istekMesaj)?T.accent:T.gold,textAlign:"center",marginTop:12,fontWeight:700}}>{istekMesaj}</div>}
         {istekAcik && n>0 && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:14,padding:"11px 11px",marginTop:14}}>
           <div style={{fontSize:10,color:T.textMut,fontWeight:800,letterSpacing:.5,marginBottom:8}}>KASADAN SEÇ — SPİKERE İLETİLİR</div>
