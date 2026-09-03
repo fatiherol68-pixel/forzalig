@@ -14136,6 +14136,21 @@ function RadyoYonetim({T, oturum}){
     try{ window.dispatchEvent(new Event("surum-guncelle")); window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla && window.__flSistemYayinla(); }catch(e){}
     setMesaj((r&&r.ok)?("▶ Çalıyor: "+(((liste||[])[ni]||{}).ad||("Parça "+(ni+1)))+" — herkes bunu dinliyor"):("Kaydedilemedi: "+((r&&r.hata)||""))); };
   const djOnceki=()=>seciliCal(djIdx-1); const djSonraki=()=>seciliCal(djIdx+1);
+  // ===== JINGLE PAD'LERİ — dokun → müziğin ÜSTÜNE çalar (herkes duyar), müzik otomatik kısılır. Aynı senkron/yayınla mekanizması. =====
+  const JINGLELER=[
+    {ad:"Anons", ikon:"📣", url:"/radyo/jingles/anons.wav"},
+    {ad:"GOOOL", ikon:"⚽", url:"/radyo/jingles/gool.wav"},
+    {ad:"Alkış", ikon:"👏", url:"/radyo/jingles/alkis.wav"},
+    {ad:"Korna", ikon:"📯", url:"/radyo/jingles/korna.wav"},
+    {ad:"Düdük", ikon:"🔔", url:"/radyo/jingles/duduk.wav"},
+  ];
+  const [jingleSon,setJingleSon]=useState(0);   // buton kilidi (art arda basmayı yumuşat)
+  const jingleCal=async(j)=>{ if(!j||!j.url) return; const now=Date.now(); if(now-jingleSon<900) return; setJingleSon(now);
+    const at=flSimdi();
+    try{ window.__fzJingle && window.__fzJingle(j.url, at); }catch(e){}                         // admin cihazında jest içinde ÇAL (kesin ses + müzik kısılır)
+    try{ await Db.ayarYaz("radyo_jingle", JSON.stringify({url:j.url, ad:j.ad, at})); }catch(e){}
+    try{ window.dispatchEvent(new Event("radyo-guncelle")); window.__flSistemYayinla && window.__flSistemYayinla(); }catch(e){}   // herkese anında yay (senkron ile aynı yol)
+    setMesaj("🔊 "+j.ad+" çalındı — herkes duydu"); };
   // ===== DİNLEYİCİLER (presence, RadyoCalarV2'den window olayıyla) + PARÇA İSTEKLERİ + KASA İSTATİSTİĞİ =====
   const [dinleyiciler,setDinleyiciler]=useState(()=>{ try{ return window.__fzDinleyiciler||[]; }catch(e){ return []; } });
   useEffect(()=>{ const h=(e)=>{ try{ setDinleyiciler((e&&e.detail)||window.__fzDinleyiciler||[]); }catch(x){} }; window.addEventListener("fz-dinleyici",h); return ()=>window.removeEventListener("fz-dinleyici",h); },[]);
@@ -14319,6 +14334,16 @@ function RadyoYonetim({T, oturum}){
         </div>
         <div style={{fontSize:10,color:T.textMut,marginTop:8,lineHeight:1.5}}>Şarkı kendiliğinden geçmez. <b style={{color:T.textSoft}}>Önceki/Sonraki</b> ile istediğin an geç — herkes seninle aynı şarkıyı baştan dinler. Ses gelmezse bir kez <b style={{color:T.accent}}>▶ Çal</b>'a bas.</div>
       </div>; })()}
+    {liste&&liste.length>=0 && <div style={{background:"linear-gradient(160deg,"+T.gold+"1c,"+T.bg1+")",border:"1px solid "+T.gold+"44",borderRadius:14,padding:"12px 13px",marginBottom:10}}>
+      <div style={{fontSize:9.5,color:T.textMut,fontWeight:800,letterSpacing:.6,marginBottom:9}}>🔊 JINGLE PAD'LERİ — dokun, herkes duysun (müzik kısılır, sonra geri gelir)</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:7}}>
+        {JINGLELER.map((j,i)=><button key={i} onClick={()=>jingleCal(j)} className="tap prem-tap" aria-label={j.ad} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 4px",cursor:"pointer",color:T.text}}>
+          <span style={{fontSize:23,lineHeight:1}}>{j.ikon}</span>
+          <span style={{fontSize:10,fontWeight:800,letterSpacing:.2}}>{j.ad}</span>
+        </button>)}
+      </div>
+      <div style={{fontSize:10,color:T.textMut,marginTop:8,lineHeight:1.5}}>Canlı mikrofon açıkken de çalışır — anons/gol sesini yayının üstüne bindirir. Dinleyicide müzik <b style={{color:T.textSoft}}>otomatik kısılır</b>, jingle bitince geri açılır.</div>
+    </div>}
     {liste&&liste.map((p,i)=><div key={p.id||i} style={{display:"flex",alignItems:"center",gap:9,background:i===djIdx?"linear-gradient(160deg,"+T.accent+"1c,"+T.bg1+")":T.bg1,border:"0.5px solid "+(i===djIdx?T.accent+"66":T.line),borderRadius:11,padding:"9px 11px",marginBottom:6}}>
       <span style={{fontSize:16,width:24,textAlign:"center",flexShrink:0}}>{ikon(p)}</span>
       <div style={{flex:1,minWidth:0}}>
@@ -16993,11 +17018,15 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const [begeni,setBegeni]=useState(()=>{ try{ const a=JSON.parse(localStorage.getItem("fz_radyo_begeni")||"[]"); return new Set(Array.isArray(a)?a:[]); }catch(e){ return new Set(); } });
   const [uyku,setUyku]=useState(0);            // kalan dk (0=kapalı)
   const [yayin,setYayin]=useState(null);        // {mod,ref,slot} senkron config
+  const [jingle,setJingle]=useState(null);      // {url,ad,at} — admin bir pad'e basınca herkeste çalar
   const audioRef=useRef(null);
+  const jingleRef=useRef(null);                 // jingle sesi ayrı kanal (müziğin ÜSTÜNE çalar)
+  const sonJingleRef=useRef(0);                 // en son çalınan jingle zamanı (tekrar çalmayı önler)
+  const volRef=useRef(0.9);                      // jingle bitince müziği geri yükseltmek için hedef ses
   const uykuRef=useRef(null);
   const SLOT=(yayin&&yayin.slot)||210;          // senkron dilim (sn)
   const yukle=()=>{ Db.radyoOku().then(l=>{ setListe(Array.isArray(l)?l.filter(x=>x&&x.url):[]); }).catch(()=>{}); };
-  const yayinOku=()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; try{ const y=ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; setYayin(y&&y.mod?y:null); }catch(e){ setYayin(null); } }).catch(()=>{}); };
+  const yayinOku=()=>{ Db.ayarlarOku().then(ay=>{ if(!ay) return; try{ const y=ay.radyo_yayin?JSON.parse(ay.radyo_yayin):null; setYayin(y&&y.mod?y:null); }catch(e){ setYayin(null); } try{ const j=ay.radyo_jingle?JSON.parse(ay.radyo_jingle):null; if(j&&j.url&&j.at) setJingle(j); }catch(e){} }).catch(()=>{}); };
   useEffect(()=>{ yukle(); yayinOku(); const h=()=>{ yukle(); yayinOku(); }; window.addEventListener("radyo-guncelle",h);
     const id=setInterval(yayinOku,12000);   // yedek: admin şarkı değiştirince realtime kaçsa bile dinleyici ~12sn'de yakalar
     return ()=>{ window.removeEventListener("radyo-guncelle",h); clearInterval(id); }; },[]);
@@ -17136,6 +17165,25 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
     }
     else { const a=audioRef.current; if(a){ try{ a.volume=ses; }catch(e){} } }
   },[canliDinle,duckSev,ses]);
+  // ===== JINGLE (📣 Anons / ⚽ GOOOL / 👏 Alkış …) — admin bir pad'e basar → herkeste müziğin ÜSTÜNDE çalar, müzik otomatik kısılır, bitince geri gelir =====
+  // Geri-yükleme hedefi: canlı yayında müzik zaten kısık (duck), değilse tam ses. Slider oynarsa da güncel kalsın.
+  useEffect(()=>{ volRef.current = canliDinle ? Math.max(0,Math.min(1,duckSev*ses)) : ses; },[ses,canliDinle,duckSev]);
+  const jingleOynat=(url)=>{ const j=jingleRef.current; if(!j||!url) return;
+    const a=audioRef.current; try{ if(a && !a.paused){ a.volume=Math.max(0,Math.min(1,volRef.current*0.16)); } }catch(e){}   // müziği kıs (kapatma — arkada devam)
+    const geri=()=>{ try{ const a2=audioRef.current; if(a2){ a2.volume=volRef.current; } }catch(e){} };                     // jingle bitince müzik seviyesi geri
+    try{ j.pause(); }catch(e){} try{ j.src=url; j.currentTime=0; j.volume=1; j.play().catch(()=>{ geri(); }); }catch(e){ geri(); }
+    try{ j.onended=geri; j.onerror=geri; }catch(e){}
+    try{ if(j.__geriTo) clearTimeout(j.__geriTo); j.__geriTo=setTimeout(geri,7000); }catch(e){}                              // yedek: onended kaçarsa 7sn'de müzik geri
+  };
+  // Admin KENDİ cihazında jest içinde çalsın (ses kilidi kırılır) — ayrıca tekrar-çalmayı önlemek için sonJingle damgala
+  useEffect(()=>{ window.__fzJingle=(url,at)=>{ try{ if(at) sonJingleRef.current=at; jingleOynat(url); }catch(e){} }; return ()=>{ try{ if(window.__fzJingle) window.__fzJingle=null; }catch(e){} }; });
+  // Dinleyici: yeni jingle geldiğinde (at daha yeni + son 8sn içinde) çal — eski/açılış jingle'ı çalınmaz
+  useEffect(()=>{ if(!jingle||!jingle.url||!jingle.at) return;
+    if(jingle.at<=sonJingleRef.current) return;             // bu jingle zaten çalındı (admin kendi jesti dahil)
+    sonJingleRef.current=jingle.at;
+    if(flSimdi()-jingle.at>8000) return;                    // eski jingle (yeni açılan cihaz geçmişi çalmasın)
+    jingleOynat(jingle.url);
+  },[jingle&&jingle.at]);
   if(!n && !canliDinle && !canliVar) return null;
   const ikon=(p)=> p&&p.tur==="anons"?"📣":p&&p.tur==="ses"?"🎙️":"🎵";
   const fmt=(s)=>{ s=Math.max(0,Math.floor(s||0)); const m=Math.floor(s/60); const k=s%60; return m+":"+(k<10?"0":"")+k; };
@@ -17162,6 +17210,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
       onTimeUpdate={e=>{ setSure(e.target.currentTime||0); }}
       onLoadedMetadata={e=>{ setToplam(e.target.duration||0); }}/>
     <audio ref={canliAudioRef} playsInline autoPlay style={{display:"none"}}/>
+    <audio ref={jingleRef} preload="auto" playsInline style={{display:"none"}}/>
     {/* ===== TAM EKRAN "ŞİMDİ ÇALIYOR" ===== */}
     {!barGizle && acik && (()=>{ const rnk=(senkronAktif||canliDinle||canliVar)?T.danger:T.accent; return <div className="fade-in" style={{position:"fixed",inset:0,zIndex:906,background:"linear-gradient(180deg,#0b1622,#06090f 62%)",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{position:"absolute",top:"-6%",left:"-20%",right:"-20%",height:"50%",zIndex:0,filter:"blur(52px)",opacity:.5,pointerEvents:"none",background:"radial-gradient(50% 60% at 30% 30%,rgba(52,211,153,.5),transparent 70%),radial-gradient(55% 60% at 78% 40%,rgba(139,123,255,.42),transparent 70%)"}}/>
