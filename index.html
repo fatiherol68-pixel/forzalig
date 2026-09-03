@@ -17018,6 +17018,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const [sure,setSure]=useState(0);
   const [toplam,setToplam]=useState(0);
   const [scrub,setScrub]=useState(null);   // DJ ses dalgasını sürüklerken hedef saniye (null=sürüklenmiyor)
+  const dragBasRef=useRef(0);               // sürükleme başladığındaki saniye (yeşil delta için)
   const [begeni,setBegeni]=useState(()=>{ try{ const a=JSON.parse(localStorage.getItem("fz_radyo_begeni")||"[]"); return new Set(Array.isArray(a)?a:[]); }catch(e){ return new Set(); } });
   const [uyku,setUyku]=useState(0);            // kalan dk (0=kapalı)
   const [yayin,setYayin]=useState(null);        // {mod,ref,slot} senkron config
@@ -17124,7 +17125,9 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
     if(parca && window.MediaMetadata){ var _ka=fzKapakURL(); navigator.mediaSession.metadata=new window.MediaMetadata({title:(parca.ad||"ForzaLig Radyo"), artist:(senkronAktif?"📡 Canlı Yayın":"ForzaLig Radyo"), album:"halı saha ligin cebinde", artwork:_ka?[{src:_ka,sizes:"512x512",type:"image/png"}]:[]}); }
     const set=(a,f)=>{ try{ navigator.mediaSession.setActionHandler(a,f); }catch(e){} };
     set("play",()=>oynatDurdur(true)); set("pause",()=>oynatDurdur(false));
-    set("nexttrack",senkronAktif?null:sonraki); set("previoustrack",senkronAktif?null:onceki);
+    // Kilit ekranı ileri/geri: DJ ise şarkıyı değiştir (herkes geçer); dinleyicide senkronda kapalı
+    set("nexttrack",(adminMi&&muzikSenk)?(()=>djGec(1)):(senkronAktif?null:sonraki));
+    set("previoustrack",(adminMi&&muzikSenk)?(()=>djGec(-1)):(senkronAktif?null:onceki));
     // Kilit ekranından sürükle (sadece DJ) → herkes o saniyeye atlar; dinleyicide kapalı (senkron bozulmasın)
     set("seekto",(adminMi&&muzikSenk)?((e)=>{ if(e&&e.seekTime!=null) djSeek(e.seekTime); }):null);
     try{ navigator.mediaSession.playbackState=calisiyor?"playing":"paused"; }catch(e){}
@@ -17263,23 +17266,35 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
         </div>
         {dinleyiciSayi>0 && <div onClick={()=>setDinlAcik(v=>!v)} className="tap" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:10,cursor:"pointer"}}>{avatarlar(dinleyiciBenzersiz)}<span style={{fontSize:12,color:T.textMut}}><b style={{color:T.text}}>{dinleyiciSayi}</b> kişi dinliyor</span></div>}
         <div style={{marginTop:12}}>{(()=>{ const kaydirilabilir = adminMi && muzikSenk && toplam>1;
-          const frac = (scrub!=null && toplam>0) ? Math.max(0,Math.min(1,scrub/toplam)) : (yuzde/100);
-          const gosterSaniye = scrub!=null ? scrub : sure;
+          const suruklu = scrub!=null;
+          const frac = (suruklu && toplam>0) ? Math.max(0,Math.min(1,scrub/toplam)) : (yuzde/100);
+          const gosterSaniye = suruklu ? scrub : sure;
           const barSaniye=(clientX,el)=>{ try{ const r=el.getBoundingClientRect(); const f=Math.max(0,Math.min(1,(clientX-r.left)/(r.width||1))); return f*(toplam||0); }catch(e){ return 0; } };
           const TB=40, dolu=Math.round(frac*TB);
+          const yesil=T.accent, kirmizi=rnk;
+          // sürüklerken: eski konuma kadar KIRMIZI, oradan yeni konuma kadar (kaydırdığın alan) YEŞİL → ne kadar kaydırdığın belli
+          const basF = (suruklu && toplam>0) ? Math.max(0,Math.min(1,(dragBasRef.current||0)/toplam)) : 0;
+          const basBar = Math.round(basF*TB), altBar=Math.min(dolu,basBar), ustBar=Math.max(dolu,basBar);
+          const barRenk=(i)=>{ if(!suruklu){ return i<dolu?kirmizi:"rgba(255,255,255,.16)"; }
+            if(i<altBar) return kirmizi;               // değişmeyen (zaten çalınan) kısım
+            if(i<ustBar) return yesil;                 // KAYDIRDIĞIN alan → yeşil
+            return "rgba(255,255,255,.16)"; };
+          const delta = suruklu ? Math.round(scrub-(dragBasRef.current||0)) : 0;
           return <>
             <div
-              onPointerDown={kaydirilabilir?(e=>{ try{ e.currentTarget.setPointerCapture&&e.currentTarget.setPointerCapture(e.pointerId); }catch(x){} setScrub(barSaniye(e.clientX,e.currentTarget)); }):undefined}
+              onPointerDown={kaydirilabilir?(e=>{ try{ e.currentTarget.setPointerCapture&&e.currentTarget.setPointerCapture(e.pointerId); }catch(x){} dragBasRef.current=sure; setScrub(barSaniye(e.clientX,e.currentTarget)); }):undefined}
               onPointerMove={kaydirilabilir?(e=>{ if(scrub!=null||e.buttons) setScrub(barSaniye(e.clientX,e.currentTarget)); }):undefined}
               onPointerUp={kaydirilabilir?(e=>{ const t=barSaniye(e.clientX,e.currentTarget); setScrub(null); djSeek(t); }):undefined}
               onPointerCancel={kaydirilabilir?(()=>setScrub(null)):undefined}
               style={{position:"relative",touchAction:"none",cursor:kaydirilabilir?"pointer":"default",padding:"5px 0"}}>
-              <div style={{display:"flex",alignItems:"center",gap:2,height:34}}>{[...Array(TB)].map((_,i)=>{ const h=22+Math.abs(Math.sin(i*0.7))*70; return <div key={i} style={{flex:1,height:h+"%",borderRadius:2,background:i<dolu?rnk:"rgba(255,255,255,.16)",transition:scrub!=null?"none":"background .2s"}}/>; })}</div>
-              {kaydirilabilir && <div style={{position:"absolute",top:0,bottom:0,left:"calc("+(frac*100)+"% - 8px)",width:16,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}><div style={{width:15,height:15,borderRadius:"50%",background:"#fff",boxShadow:"0 2px 9px rgba(0,0,0,.6)",border:"2.5px solid "+rnk}}/></div>}
+              <div style={{display:"flex",alignItems:"center",gap:2,height:34}}>{[...Array(TB)].map((_,i)=>{ const h=22+Math.abs(Math.sin(i*0.7))*70; return <div key={i} style={{flex:1,height:h+"%",borderRadius:2,background:barRenk(i),transition:suruklu?"none":"background .2s"}}/>; })}</div>
+              {kaydirilabilir && <div style={{position:"absolute",top:0,bottom:0,left:"calc("+(frac*100)+"% - 8px)",width:16,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}><div style={{width:15,height:15,borderRadius:"50%",background:"#fff",boxShadow:"0 2px 9px rgba(0,0,0,.6)",border:"2.5px solid "+(suruklu?yesil:kirmizi)}}/></div>}
             </div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginTop:6,fontVariantNumeric:"tabular-nums"}}>
-              <span style={{color:scrub!=null?rnk:T.textMut,fontWeight:scrub!=null?800:600}}>{fmt(gosterSaniye)}</span>
-              {kaydirilabilir && <span style={{fontSize:9.5,color:T.textMut,fontWeight:700}}>{scrub!=null?"↔ bırak → herkes buraya atlar":"↔ sürükle · herkesi taşı"}</span>}
+              <span style={{color:suruklu?yesil:T.textMut,fontWeight:suruklu?800:600}}>{fmt(gosterSaniye)}</span>
+              {kaydirilabilir && (suruklu
+                ? <span style={{fontSize:11,color:yesil,fontWeight:800,background:yesil+"1e",border:"1px solid "+yesil+"55",borderRadius:20,padding:"1px 9px"}}>{delta>=0?"+":"−"}{fmt(Math.abs(delta))}</span>
+                : <span style={{fontSize:9.5,color:T.textMut,fontWeight:700}}>↔ sürükle · herkesi taşı</span>)}
               <span style={{color:T.textMut}}>{toplam?("-"+fmt(Math.max(0,toplam-gosterSaniye))):"canlı"}</span>
             </div>
           </>; })()}</div>
