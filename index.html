@@ -16985,7 +16985,8 @@ function RadyoCalarV2({T, barGizle, kimlik}){
     try{ const _l=canliAudioRef.current; if(_l&&_l.srcObject) _l.play().catch(()=>{}); }catch(e){}   // canlı yayın sesini de aç (autoplay kilidi kırılır)
     const a=audioRef.current; if(!a||!parca) return;
     const hedef=(typeof zorla==="boolean")?zorla:!calisiyor;
-    if(hedef){ if(a.src!==parca.url){ a.src=parca.url; } a.volume = canliDinle ? Math.max(0,Math.min(1,duckSev*ses)) : ses; a.play().then(()=>setCalisiyor(true)).catch(()=>setCalisiyor(false)); }
+    if(hedef){ if((a.src||"").indexOf(parca.url)<0){ a.src=parca.url; } a.volume = canliDinle ? Math.max(0,Math.min(1,duckSev*ses)) : ses;
+      a.play().then(()=>setCalisiyor(true)).catch(()=>{ try{ a.currentTime=0; }catch(e){} a.play().then(()=>setCalisiyor(true)).catch(()=>setCalisiyor(false)); }); }  // iOS: ilk red → baştan tekrar dene
     else { a.pause(); setCalisiyor(false); }
   };
   const sonraki=()=>{ if(!n||senkronAktif) return; setIdx(i=>i+1); setCalisiyor(true); };
@@ -17001,12 +17002,12 @@ function RadyoCalarV2({T, barGizle, kimlik}){
   // SENKRON tik: her 2 sn — hep 1. şarkı (otomatik geçiş yok), şarkı KENDİ süresine göre döngü, herkes aynı saniyede
   useEffect(()=>{ if(!senkronAktif) return; const tik=()=>{ const a=audioRef.current; if(!a) return;
       if(gerIdx!==senkIdx){ setIdx(senkIdx); return; }                        // admin'in seçtiği şarkıda kilitli (kendiliğinden geçmez)
-      const el=(Date.now()-yayin.ref)/1000; if(el<0) return;
-      const dur=(a.duration&&isFinite(a.duration)&&a.duration>1)?a.duration:SLOT;  // şarkının gerçek süresi (yoksa SLOT)
-      const off=((el%dur)+dur)%dur;
       if(!calisiyor) return;
-      if(a.paused){ try{ a.currentTime=off; }catch(e){} a.play().catch(()=>{}); } // kısa şarkı bitince otomatik baştan (sessizlik yok)
-      else if(isFinite(off)&&Math.abs((a.currentTime||0)-off)>2.5){ try{ a.currentTime=off; }catch(e){} } };
+      // iOS-DOSTU: derin saniye-seek YOK (preload=none MP3'te iOS onu sessizce reddedip sesi kesiyordu).
+      // Şarkı bitince baştan (döngü). Herkes aynı ŞARKIYI dinler; saniye hizası gevşek (yalnız çok büyük sapmada, çalarken düzeltilir).
+      if(a.paused){ try{ a.currentTime=0; }catch(e){} a.play().catch(()=>{}); return; }
+      const dur=(a.duration&&isFinite(a.duration)&&a.duration>1)?a.duration:0;
+      if(dur){ const el=(Date.now()-yayin.ref)/1000; if(el<0) return; const off=((el%dur)+dur)%dur; if(Math.abs((a.currentTime||0)-off)>10){ try{ a.currentTime=off; }catch(e){} } } };
     tik(); const id=setInterval(tik,2000); return ()=>clearInterval(id);
   },[senkronAktif, yayin&&yayin.ref, senkIdx, gerIdx, calisiyor]);
   // uyku sayacı
@@ -17101,10 +17102,10 @@ function RadyoCalarV2({T, barGizle, kimlik}){
   const avatarlar=(dizi)=><div style={{display:"flex"}}>{dizi.slice(0,5).map((d,i)=><span key={d.uid||i} style={{width:26,height:26,borderRadius:"50%",marginLeft:i?-8:0,border:"2px solid "+T.bg0,display:"grid",placeItems:"center",fontSize:9,fontWeight:800,fontFamily:T.fontDisplay,color:"#04140c",background:d.renk||T.accent}}>{String(d.ad||"?").slice(0,2).toUpperCase()}</span>)}</div>;
   return <>
     <audio ref={audioRef} preload="none" playsInline
-      onEnded={()=>{ if(senkronAktif){ const k=senkronKonum(); if(k){ setIdx(k.i); } } else { sonraki(); } }}
+      onEnded={()=>{ if(senkronAktif){ const a=audioRef.current; if(a&&calisiyor){ try{ a.currentTime=0; }catch(e){} a.play().catch(()=>{}); } } else { sonraki(); } }}
       onError={()=>{ if(!senkronAktif && n>1){ setIdx(i=>i+1); } }}
       onTimeUpdate={e=>{ setSure(e.target.currentTime||0); }}
-      onLoadedMetadata={e=>{ setToplam(e.target.duration||0); if(senkronAktif){ const k=senkronKonum(); if(k&&isFinite(k.off)){ try{ e.target.currentTime=k.off; }catch(err){} } } }}/>
+      onLoadedMetadata={e=>{ setToplam(e.target.duration||0); }}/>
     <audio ref={canliAudioRef} playsInline autoPlay style={{display:"none"}}/>
     {/* ===== TAM EKRAN "ŞİMDİ ÇALIYOR" ===== */}
     {!barGizle && acik && (()=>{ const rnk=(senkronAktif||canliDinle||canliVar)?T.danger:T.accent; return <div className="fade-in" style={{position:"fixed",inset:0,zIndex:906,background:"linear-gradient(180deg,#0b1622,#06090f 62%)",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
