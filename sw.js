@@ -1,6 +1,6 @@
 /* ForzaLig service worker — kabuk önbelleği + güncelleme bildirimi
-   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (20260903133057). */
-const SURUM = "20260903133057";
+   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (20260903134217). */
+const SURUM = "20260903134217";
 const KABUK = "forzalig-kabuk-" + SURUM;
 
 // Açılış için gereken çekirdek dosyalar (CDN dosyaları ilk kullanımda önbelleğe alınır)
@@ -10,7 +10,8 @@ self.addEventListener("install", (e) => {
   e.waitUntil(
     caches.open(KABUK).then((c) => c.addAll(CEKIRDEK)).catch(() => {})
   );
-  // Yeni sürüm hemen "waiting" durumuna geçsin; sayfa toast ile kullanıcıya sorar.
+  // Yeni sürüm BEKLEMEDEN aktive olsun → cihaz eski sürümde takılı kalmaz (kalıcı güncelleme).
+  self.skipWaiting();
 });
 
 self.addEventListener("activate", (e) => {
