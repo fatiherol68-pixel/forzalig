@@ -63,6 +63,26 @@
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
+  /* ===== KALICI SÜRÜM TAZELEME — cihaz eski sürümde takılıysa (Cloudflare/PWA önbelleği) otomatik en-son sürüme geç.
+     sw.js'yi ÖNBELLEĞİ ATLAYAN benzersiz adresle çeker (?fl=zaman), SURUM'u okur; çalışan sürümden farklıysa
+     SW+cache temizler ve /?fl=<sürüm> adresine gider (bu benzersiz adres taze HTML getirir). Sürüm başına 1 kez → döngü yok. */
+  (function(){
+    try{
+      var calisan = window.__FL_RELEASE || "";
+      if(!calisan || calisan.indexOf("FL_SW_")===0) return;   // damgalanmamış (dev) → dokunma
+      fetch("/sw.js?fl="+Date.now(), {cache:"no-store"}).then(function(r){ return r.text(); }).then(function(t){
+        var m = t.match(/SURUM\s*=\s*"(\d+)"/); var enSon = m && m[1];
+        if(!enSon || enSon===calisan) return;                 // zaten güncel
+        var k = "fl_tazele_"+enSon;
+        try{ if(sessionStorage.getItem(k)) return; sessionStorage.setItem(k,"1"); }catch(e){}  // bu sürüm için 1 kez
+        var bit = function(){ try{ location.replace("/?fl="+enSon+(location.hash||"")); }catch(e){ location.reload(); } };
+        Promise.resolve()
+          .then(function(){ return (window.caches&&caches.keys)?caches.keys().then(function(a){return Promise.all(a.map(function(x){return caches.delete(x);}));}):null; })
+          .then(function(){ return (navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(x){return x.unregister();}));}):null; })
+          .then(bit).catch(bit);
+      }).catch(function(){});
+    }catch(e){}
+  })();
   (function(){
     var dsn = window.__FL_SENTRY_DSN;
     if(!dsn) return;
