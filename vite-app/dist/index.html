@@ -19,7 +19,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ForzaLig">
-<link rel="apple-touch-startup-image" href="/icons/apple-splash-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)">
+<link rel="apple-touch-startup-image" href="/icons/apple-splash-1170x2532-v2.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)">
 <!-- Open Graph (WhatsApp/Facebook önizleme) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ForzaLig">
@@ -83,6 +83,9 @@
             "ResizeObserver loop completed with undelivered notifications",
             "Non-Error promise rejection captured",
             "AbortError", "The operation was aborted",
+            // Canlı-mikrofon (WebRTC) sırasında supabase-realtime kütüphanesinin KENDİ iç recursion'u —
+            // radyo müziğini etkilemez, yakalanmamış promise reddi olarak düşer. Kotayı/maili yemesin.
+            /Maximum call stack size exceeded/i,
             /Load failed/i, /NetworkError/i, /Failed to fetch/i, /Importing a module script failed/i
           ],
           denyUrls: [ /^chrome-extension:\/\//i, /^moz-extension:\/\//i, /safari-web-extension:/i, /extensions\//i ],
@@ -436,8 +439,8 @@
   @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
   .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
-  <link rel="modulepreload" crossorigin href="/assets/app-body-DudoAEay.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
-<script type="module" crossorigin src="/assets/index-ZytJTaBG.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/app-body-CnhFvD_o.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
+<script type="module" crossorigin src="/assets/index-BSuW2nF8.js"></script>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash" style="background:radial-gradient(120% 52% at 50% 30%,rgba(52,211,153,.15),transparent 60%),radial-gradient(90% 42% at 50% 96%,rgba(56,189,248,.09),transparent 62%),linear-gradient(180deg,#070B12,#05080F 60%,#04070C)">
