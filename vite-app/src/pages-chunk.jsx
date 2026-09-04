@@ -4715,7 +4715,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
           const oncekiAyni = i>0 && akis[i-1] && !akis[i-1].__a && !akis[i-1].sistem && akis[i-1].user_id===m.user_id;
           return <div key={m.id} style={{alignSelf:benim?"flex-end":"flex-start",maxWidth:"82%",marginTop:oncekiAyni?1:8,display:"flex",gap:8,flexDirection:benim?"row-reverse":"row"}}>
             <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0,alignSelf:"flex-end",visibility:oncekiAyni?"hidden":"visible"}} dangerouslySetInnerHTML={{__html:svgAvatar(m.ad,30,m.foto)}}/>
-            <div style={{minWidth:0}}>
+            <div style={{minWidth:0,position:"relative"}}>
               {!oncekiAyni && <div style={{fontSize:10,color:T.textMut,marginBottom:3,margin:benim?"0 4px 3px 0":"0 0 3px 4px",display:"flex",alignItems:"center",gap:5,justifyContent:benim?"flex-end":"flex-start",flexDirection:benim?"row-reverse":"row"}}>
                 <b style={{color:T.textSoft}}>{m.ad}</b>{m.takim_ad && <span style={{display:"inline-flex",alignItems:"center",gap:4,color:T.accent2}}><span style={{width:14,height:14,display:"inline-block"}} dangerouslySetInnerHTML={{__html:svgAmblem(m.takim_ad,T.accent2,14,m.takim_logo)}}/>{m.takim_ad}</span>}
               </div>}
@@ -4731,16 +4731,16 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
               {Object.keys(grup).length>0 && <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap",justifyContent:benim?"flex-end":"flex-start"}}>
                 {Object.entries(grup).map(([em,d])=><span key={em} onClick={(e)=>{ e.stopPropagation(); tepkiVer(m,em); }} className="tap" style={{background:d.mine?T.accent+"33":T.bg2,border:"0.5px solid "+(d.mine?T.accent:T.line),borderRadius:12,padding:"1px 7px",fontSize:11,cursor:"pointer"}}>{em} {d.n}</span>)}
               </div>}
-              {/* Aksiyon menüsü */}
-              {secili===m.id && <div onClick={e=>e.stopPropagation()} style={{marginTop:6,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:14,padding:"7px 9px",display:"flex",flexWrap:"wrap",gap:8,alignItems:"center",boxShadow:"0 6px 20px rgba(0,0,0,.35)"}}>
-                {FL_EMOJILER.map(em=><span key={em} onClick={()=>tepkiVer(m,em)} className="tap" style={{fontSize:19,cursor:"pointer"}}>{em}</span>)}
+              {/* Aksiyon menüsü — mesajın ÜSTÜNDE açılır (giriş kutusunun arkasında kalmaz), açılınca otomatik görünüre kayar */}
+              {secili===m.id && <div ref={el=>{ if(el){ try{ el.scrollIntoView({block:"nearest",behavior:"smooth"}); }catch(e){} } }} onClick={e=>e.stopPropagation()} className="pop" style={{position:"absolute",bottom:"calc(100% + 6px)",zIndex:30,[benim?"right":"left"]:0,minWidth:212,maxWidth:"min(90vw,330px)",background:"rgba(16,24,36,.97)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",border:"0.5px solid "+T.line,borderRadius:16,padding:"8px 10px",display:"flex",flexWrap:"wrap",gap:10,alignItems:"center",boxShadow:"0 14px 34px -10px rgba(0,0,0,.7)"}}>
+                {FL_EMOJILER.map(em=><span key={em} onClick={()=>tepkiVer(m,em)} className="tap" style={{fontSize:21,cursor:"pointer",lineHeight:1}}>{em}</span>)}
                 <span style={{width:1,height:18,background:T.line}}/>
-                <button onClick={()=>{ setYanit(m); setSecili(null); }} className="tap" style={{background:"none",border:0,color:T.accent,fontSize:11,fontWeight:700}}>↩ Yanıtla</button>
+                <button onClick={()=>{ setYanit(m); setSecili(null); }} className="tap" style={{background:"none",border:0,color:T.accent,fontSize:11.5,fontWeight:700}}>↩ Yanıtla</button>
                 {benim
-                  ? <button onClick={()=>mesajSil(m)} className="tap" style={{background:"none",border:0,color:T.danger,fontSize:11,fontWeight:700}}>🗑 Sil</button>
-                  : <button onClick={()=>sikayet(m)} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:11,fontWeight:700}}>⚑ Şikâyet</button>}
-                {!benim && (ligYon) && <button onClick={()=>mesajSil(m)} className="tap" style={{background:"none",border:0,color:T.danger,fontSize:11,fontWeight:700}}>🗑 Kaldır</button>}
-                {modYetki && !m.sistem && <button onClick={()=>{ setModHedef(m); setModIhlal(0); Db.ihlalOzet(m.user_id,30).then(setModIhlal); setSecili(null); }} className="tap" style={{background:"none",border:0,color:T.gold,fontSize:11,fontWeight:800}}>🛡 Moderasyon</button>}
+                  ? <button onClick={()=>mesajSil(m)} className="tap" style={{background:"none",border:0,color:T.danger,fontSize:11.5,fontWeight:700}}>🗑 Sil</button>
+                  : <button onClick={()=>sikayet(m)} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:11.5,fontWeight:700}}>⚑ Şikâyet</button>}
+                {!benim && (ligYon) && <button onClick={()=>mesajSil(m)} className="tap" style={{background:"none",border:0,color:T.danger,fontSize:11.5,fontWeight:700}}>🗑 Kaldır</button>}
+                {modYetki && !m.sistem && <button onClick={()=>{ setModHedef(m); setModIhlal(0); Db.ihlalOzet(m.user_id,30).then(setModIhlal); setSecili(null); }} className="tap" style={{background:"none",border:0,color:T.gold,fontSize:11.5,fontWeight:800}}>🛡 Moderasyon</button>}
               </div>}
             </div>
           </div>;
