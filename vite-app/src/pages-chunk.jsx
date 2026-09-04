@@ -2165,7 +2165,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
           <div style={{fontSize:11,color:T.accent2,fontWeight:700,marginBottom:10}}>⚽ SON MAÇLAR</div>
           {sonMaclar.length===0 ? <div style={{fontSize:12,color:T.textMut}}>Henüz maç yok</div> :
             sonMaclar.map((m,i)=>{ const galip=m.benim>m.rakipS;
-              return <div key={i} className="tap" style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:i<sonMaclar.length-1?"0.5px solid "+T.line:"none"}}>
+              return <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:i<sonMaclar.length-1?"0.5px solid "+T.line:"none"}}>
                 <div style={{width:6,height:32,borderRadius:3,background:galip?T.accent:(m.benim===m.rakipS?T.textMut:T.danger)}}/>
                 <div style={{flex:1}}><div style={{fontSize:12,color:T.text}}>{o.takimAd} <span style={{color:T.accent}}>{m.benim}-{m.rakipS}</span> {m.rakip}</div><div style={{fontSize:10,color:T.textMut,marginTop:2}}>{m.gol>0?m.gol+" gol":"oynadı"}{m.kart?" · 🟥":""}</div></div>
                 <span style={{color:T.textMut,fontSize:16}}>›</span>
