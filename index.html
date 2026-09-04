@@ -503,7 +503,8 @@
         <path d="M100,44 L100,66 M156,86 L134,98 M134,146 L120,124 M66,146 L80,124 M44,86 L66,98" stroke="#0A1017" stroke-width="6" fill="none" stroke-linecap="round"/>
       </svg>
     </div>
-    <div style="font-size:52px;font-weight:800;letter-spacing:-1.5px;line-height:1;font-family:'Sora','Inter',sans-serif;background:linear-gradient(180deg,#EAFBF2,#5FE9A6 46%,#34D399 78%,#2ec3d6);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 20px rgba(52,211,153,.32))">ForzaLig</div>
+<!-- ⚡ LCP fix: solid renk (gradyan/saydam metni Chrome LCP SAYMIYOR → statik yazı ~0.8sn'de LCP olur). Görsel neredeyse aynı, premium emerald. -->
+    <div style="font-size:52px;font-weight:800;letter-spacing:-1.5px;line-height:1;font-family:'Sora','Inter',sans-serif;color:#6FEAB4;text-shadow:0 4px 20px rgba(52,211,153,.32)">ForzaLig</div>
     <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:16px 0 13px">
       <span style="width:44px;height:2px;background:linear-gradient(90deg,transparent,#34D399)"></span>
       <span style="width:7px;height:7px;transform:rotate(45deg);background:linear-gradient(135deg,#34D399,#38BDF8);box-shadow:0 0 10px rgba(52,211,153,.7)"></span>
@@ -13285,7 +13286,7 @@ function AcilisSplash({T, onBitti}){
       <rect x="58" y="246" width="104" height="46" style={{stroke:T.accent,fill:"none"}}/>
     </svg>
     <div className="fz-top" style={{position:"absolute",top:"calc(50% - 80px)",fontSize:46,zIndex:2}}>⚽</div>
-    <div className="fz-marka" style={{position:"absolute",top:"calc(50% + 14px)",fontFamily:T.fontDisplay,fontSize:34,fontWeight:800,color:T.accent,letterSpacing:1,textShadow:`0 0 22px ${T.accent}`,zIndex:2}}>ForzaLig</div>
+    <div className="fz-marka" style={{position:"absolute",top:"calc(50% + 14px)",fontFamily:T.fontDisplay,fontSize:34,fontWeight:800,background:`linear-gradient(180deg,#EAFBF2,${T.accent})`,WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent",letterSpacing:1,filter:`drop-shadow(0 0 22px ${T.accent}aa)`,zIndex:2}}>ForzaLig</div>
     <div className="fz-yuk" style={{position:"absolute",top:"calc(50% + 72px)",display:"flex",flexDirection:"column",alignItems:"center",gap:9,zIndex:2}}>
       <div style={{width:160,height:5,background:"rgba(255,255,255,.08)",borderRadius:3,overflow:"hidden"}}>
         <div className="fz-fill" style={{height:"100%",width:0,background:`linear-gradient(90deg, ${T.accent}, ${T.accent2||T.accent})`,borderRadius:3}}/>
