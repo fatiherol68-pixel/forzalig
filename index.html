@@ -17175,7 +17175,10 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   // parça değişince çalıyorsa yeni kaynağı çal
   useEffect(()=>{ const a=audioRef.current; if(!a||!parca) return; if(calisiyor){ a.src=parca.url; a.volume=ses; a.play().catch(()=>{}); } },[idx]);
   // SENKRON: admin listenin 1. şarkısını değiştirince (ben ne açarsam) herkes yeni parçayı yüklesin
-  useEffect(()=>{ if(!muzikSenk) return; const a=audioRef.current; if(!a||!parca||!parca.url) return; try{ a.preload="auto"; }catch(e){} if((a.src||"").indexOf(parca.url)<0){ a.src=parca.url; try{ a.load(); }catch(e){} if(calisiyor) a.play().catch(()=>{}); } },[muzikSenk, parca&&parca.url]);
+  useEffect(()=>{ if(!muzikSenk) return; const a=audioRef.current; if(!a||!parca||!parca.url) return;
+    if((a.src||"").indexOf(parca.url)<0){ a.src=parca.url; }   // ⚡ Faz 2: SADECE src ata — İNDİRME yok (preload=none). 10MB şarkı sayfa açılışında inmez; ▶ basınca (jest) iner. Autoplay zaten engelli.
+    if(calisiyor){ try{ a.preload="auto"; a.play().catch(()=>{}); }catch(e){} }   // çalıyorsa (kullanıcı ▶ basmış) yeni şarkıyı indir+çal
+  },[muzikSenk, parca&&parca.url]);
   // ses seviyesi (canlı yayında müzik duck efekti kontrol eder → ezme)
   useEffect(()=>{ const a=audioRef.current; if(a && !canliDinle) a.volume=ses; try{ localStorage.setItem("fz_radyo_ses",String(ses)); }catch(e){} },[ses]);
   // SENKRON tik: her 2 sn — hep 1. şarkı (otomatik geçiş yok), şarkı KENDİ süresine göre döngü, herkes aynı saniyede
