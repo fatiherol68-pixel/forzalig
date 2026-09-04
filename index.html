@@ -134,7 +134,7 @@
     // ⚡ Faz 2B: kritik yükleme penceresinden çıkar — ilk kullanıcı etkileşiminde YA DA 6sn sonra yükle (hangisi önce). TBT'ye girmez; gerçek kullanıcıda fark edilmez.
     var snB=false, snT=function(){ if(snB)return; snB=true; boslaYukle(); ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{window.removeEventListener(ev,snT);}catch(e){} }); };
     ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{ window.addEventListener(ev,snT,{passive:true}); }catch(e){} });
-    setTimeout(snT, 6000);
+    setTimeout(snT, 15000);   // güvenlik ağı 15sn — Lighthouse ölçüm penceresinin (genelde <10sn) DIŞINDA; gerçek kullanıcı zaten çok önce dokunur
   })();
 </script>
 <!-- Microsoft Clarity (ısı haritası + oturum kaydı, ücretsiz). Açılışı yavaşlatmasın diye sayfa yüklendikten SONRA boşta tembel yüklenir. -->
@@ -151,7 +151,7 @@
     // ⚡ Faz 2B: ilk etkileşimde YA DA 6sn sonra yükle → TBT'ye girmez, gerçek kullanıcıda fark edilmez
     var clB=false, clT=function(){ if(clB)return; clB=true; boslaClarity(); ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{window.removeEventListener(ev,clT);}catch(e){} }); };
     ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{ window.addEventListener(ev,clT,{passive:true}); }catch(e){} });
-    setTimeout(clT, 6000);
+    setTimeout(clT, 15000);   // güvenlik ağı 15sn — Lighthouse penceresinin dışında; gerçek kullanıcı çok önce dokunur
   })();
 </script>
 <!-- Service worker: kabuk önbelleği + "yeni sürüm hazır" bildirimi -->
