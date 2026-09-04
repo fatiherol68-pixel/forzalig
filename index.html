@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260904085734"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260904092251"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -422,15 +422,16 @@
   .prem-bar-fill { height:100%; border-radius:3px; }
   /* ===== FAZ 7 — Açılış (splash) animasyonları ===== */
   @keyframes fzCizil { from{stroke-dashoffset:900;} to{stroke-dashoffset:0;} }
-  .fz-saha line, .fz-saha rect, .fz-saha circle { stroke-dasharray:900; stroke-dashoffset:900; animation:fzCizil 1.3s ease-out .3s forwards; }
+  /* ⚡ Faz 1: koreografi sıkıştırıldı (~3.9sn → ~1.2sn), aynı görsel, snappy açılış */
+  .fz-saha line, .fz-saha rect, .fz-saha circle { stroke-dasharray:900; stroke-dashoffset:900; animation:fzCizil .65s ease-out .05s forwards; }
   @keyframes fzTopGel { 0%{opacity:0;transform:translateY(-90px) rotate(-50deg);} 60%{opacity:1;} 100%{opacity:1;transform:translateY(0) rotate(0);} }
-  .fz-top { animation:fzTopGel 1s cubic-bezier(.3,1.4,.5,1) 1.15s both; }
+  .fz-top { animation:fzTopGel .55s cubic-bezier(.3,1.4,.5,1) .4s both; }
   @keyframes fzMarka { 0%{opacity:0;letter-spacing:16px;filter:blur(7px);} 100%{opacity:1;letter-spacing:1px;filter:blur(0);} }
-  .fz-marka { animation:fzMarka .8s ease-out 1.9s both; }
+  .fz-marka { animation:fzMarka .45s ease-out .6s both; }
   @keyframes fzDoldur { from{width:0;} to{width:100%;} }
-  .fz-fill { animation:fzDoldur 1.5s ease-in-out 2.4s both; }
+  .fz-fill { animation:fzDoldur .6s ease-in-out .55s both; }
   @keyframes fzYukGor { from{opacity:0;} to{opacity:1;} }
-  .fz-yuk { animation:fzYukGor .5s ease 2.3s both; }
+  .fz-yuk { animation:fzYukGor .35s ease .5s both; }
   @keyframes fzSplashKapan { from{opacity:1;transform:scale(1);} to{opacity:0;transform:scale(1.18);visibility:hidden;} }
   .fz-splash-kapan { animation:fzSplashKapan .7s ease-in .1s forwards; }
   @keyframes fzGiris { from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:none;} }
@@ -474,8 +475,8 @@
   @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
   .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
-  <link rel="modulepreload" crossorigin href="/assets/app-body-BWWqiRMq.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
-<script type="module" crossorigin src="/assets/index-DPAVrfLf.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/app-body-9fBF1tj2.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
+<script type="module" crossorigin src="/assets/index-B6Zs2cfZ.js"></script>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash" style="background:radial-gradient(120% 52% at 50% 30%,rgba(52,211,153,.15),transparent 60%),radial-gradient(90% 42% at 50% 96%,rgba(56,189,248,.09),transparent 62%),linear-gradient(180deg,#070B12,#05080F 60%,#04070C)">
