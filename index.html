@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260904113945"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260904115144"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -516,7 +516,8 @@
   <div style="position:absolute;bottom:26px;left:0;right:0;z-index:2;text-align:center">
     <div style="display:inline-block;padding:13px 26px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(52,211,153,.16)">
       <div style="font-size:14px;font-weight:800;letter-spacing:1px;color:#EAF5EE;font-family:'Sora','Inter',sans-serif">Fatih <span style="color:#34D399">EROL</span></div>
-      <div style="font-size:11.5px;font-weight:600;letter-spacing:.6px;color:#8CA0B6;margin-top:6px">📞 0554 702 23 95 &nbsp;·&nbsp; ✉ fatiherol68@gmail.com</div>
+<!-- e-posta HTML-entity ile: görünüş aynı, ham metinde '@'/'.' yok → Cloudflare "Email Obfuscation" render-bloklayan email-decode.min.js'i ENJEKTE ETMEZ (mobilde ~480ms kazanç) -->
+      <div style="font-size:11.5px;font-weight:600;letter-spacing:.6px;color:#8CA0B6;margin-top:6px">📞 0554 702 23 95 &nbsp;·&nbsp; ✉ fatiherol68&#64;gmail&#46;com</div>
     </div>
     <div style="font-size:10px;color:#4E607A;letter-spacing:2.5px;margin-top:13px">FORZALIG.COM</div>
   </div>
