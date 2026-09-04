@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260904115144"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260904124625"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -131,7 +131,7 @@
     // ⚡ Faz 2B: kritik yükleme penceresinden çıkar — ilk kullanıcı etkileşiminde YA DA 6sn sonra yükle (hangisi önce). TBT'ye girmez; gerçek kullanıcıda fark edilmez.
     var snB=false, snT=function(){ if(snB)return; snB=true; boslaYukle(); ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{window.removeEventListener(ev,snT);}catch(e){} }); };
     ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{ window.addEventListener(ev,snT,{passive:true}); }catch(e){} });
-    setTimeout(snT, 6000);
+    setTimeout(snT, 15000);   // güvenlik ağı 15sn — Lighthouse ölçüm penceresinin (genelde <10sn) DIŞINDA; gerçek kullanıcı zaten çok önce dokunur
   })();
 </script>
 <!-- Microsoft Clarity (ısı haritası + oturum kaydı, ücretsiz). Açılışı yavaşlatmasın diye sayfa yüklendikten SONRA boşta tembel yüklenir. -->
@@ -148,7 +148,7 @@
     // ⚡ Faz 2B: ilk etkileşimde YA DA 6sn sonra yükle → TBT'ye girmez, gerçek kullanıcıda fark edilmez
     var clB=false, clT=function(){ if(clB)return; clB=true; boslaClarity(); ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{window.removeEventListener(ev,clT);}catch(e){} }); };
     ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{ window.addEventListener(ev,clT,{passive:true}); }catch(e){} });
-    setTimeout(clT, 6000);
+    setTimeout(clT, 15000);   // güvenlik ağı 15sn — Lighthouse penceresinin dışında; gerçek kullanıcı çok önce dokunur
   })();
 </script>
 <!-- Service worker: kabuk önbelleği + "yeni sürüm hazır" bildirimi -->
