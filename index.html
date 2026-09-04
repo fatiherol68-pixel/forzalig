@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260904124625"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260904140005"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -479,8 +479,8 @@
   @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
   .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
-  <link rel="modulepreload" crossorigin href="/assets/app-body-pwfgmZ4J.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
-<script type="module" crossorigin src="/assets/index-Do-hi_Fv.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/app-body-DKxlgJIt.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
+<script type="module" crossorigin src="/assets/index-BAdCXZ4U.js"></script>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash" style="background:radial-gradient(120% 52% at 50% 30%,rgba(52,211,153,.15),transparent 60%),radial-gradient(90% 42% at 50% 96%,rgba(56,189,248,.09),transparent 62%),linear-gradient(180deg,#070B12,#05080F 60%,#04070C)">
@@ -502,7 +502,8 @@
         <path d="M100,44 L100,66 M156,86 L134,98 M134,146 L120,124 M66,146 L80,124 M44,86 L66,98" stroke="#0A1017" stroke-width="6" fill="none" stroke-linecap="round"/>
       </svg>
     </div>
-    <div style="font-size:52px;font-weight:800;letter-spacing:-1.5px;line-height:1;font-family:'Sora','Inter',sans-serif;background:linear-gradient(180deg,#EAFBF2,#5FE9A6 46%,#34D399 78%,#2ec3d6);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 20px rgba(52,211,153,.32))">ForzaLig</div>
+<!-- ⚡ LCP fix: solid renk (gradyan/saydam metni Chrome LCP SAYMIYOR → statik yazı ~0.8sn'de LCP olur). Görsel neredeyse aynı, premium emerald. -->
+    <div style="font-size:52px;font-weight:800;letter-spacing:-1.5px;line-height:1;font-family:'Sora','Inter',sans-serif;color:#6FEAB4;text-shadow:0 4px 20px rgba(52,211,153,.32)">ForzaLig</div>
     <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:16px 0 13px">
       <span style="width:44px;height:2px;background:linear-gradient(90deg,transparent,#34D399)"></span>
       <span style="width:7px;height:7px;transform:rotate(45deg);background:linear-gradient(135deg,#34D399,#38BDF8);box-shadow:0 0 10px rgba(52,211,153,.7)"></span>
