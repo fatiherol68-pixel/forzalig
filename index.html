@@ -131,8 +131,10 @@
       document.head.appendChild(s);
     }
     var boslaYukle = function(){ (window.requestIdleCallback || function(f){ setTimeout(f, 1); })(baslat); };
-    if(document.readyState === "complete") boslaYukle();
-    else window.addEventListener("load", boslaYukle);
+    // ⚡ Faz 2B: kritik yükleme penceresinden çıkar — ilk kullanıcı etkileşiminde YA DA 6sn sonra yükle (hangisi önce). TBT'ye girmez; gerçek kullanıcıda fark edilmez.
+    var snB=false, snT=function(){ if(snB)return; snB=true; boslaYukle(); ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{window.removeEventListener(ev,snT);}catch(e){} }); };
+    ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{ window.addEventListener(ev,snT,{passive:true}); }catch(e){} });
+    setTimeout(snT, 6000);
   })();
 </script>
 <!-- Microsoft Clarity (ısı haritası + oturum kaydı, ücretsiz). Açılışı yavaşlatmasın diye sayfa yüklendikten SONRA boşta tembel yüklenir. -->
@@ -146,8 +148,10 @@
       })(window, document, "clarity", "script", "xpvbhgctj3");
     }
     var boslaClarity = function(){ (window.requestIdleCallback || function(f){ setTimeout(f, 1); })(clarityYukle); };
-    if(document.readyState === "complete") boslaClarity();
-    else window.addEventListener("load", boslaClarity);
+    // ⚡ Faz 2B: ilk etkileşimde YA DA 6sn sonra yükle → TBT'ye girmez, gerçek kullanıcıda fark edilmez
+    var clB=false, clT=function(){ if(clB)return; clB=true; boslaClarity(); ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{window.removeEventListener(ev,clT);}catch(e){} }); };
+    ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){ try{ window.addEventListener(ev,clT,{passive:true}); }catch(e){} });
+    setTimeout(clT, 6000);
   })();
 </script>
 <!-- Service worker: kabuk önbelleği + "yeni sürüm hazır" bildirimi -->
