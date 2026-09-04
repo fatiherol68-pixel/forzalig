@@ -4384,6 +4384,11 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   const [medyaYuk,setMedyaYuk]=useState(false);  // medya yükleniyor
   const kayitRef=useRef(null), kayitIptalRef=useRef(false);
   const aktifTakimId = kanal.startsWith("t:") ? kanal.slice(2) : null;
+  // ✨ CANLI "yazıyor…" göstergesi — broadcast (yeni tablo YOK, mevcut Realtime altyapısı)
+  const yaziKapsam = kulupMod ? ("k:"+(kulup&&kulup.id)) : ((turnuva&&turnuva.id)+":"+(aktifTakimId||"genel"));
+  const [yazanlar,setYazanlar]=useState([]);          // [{uid,ad,t}]
+  const yaziKanalRef=useRef(null); const yaziSonRef=useRef(0);
+  const acilisRef=useRef(Date.now());                 // yeni gelen mesajlara giriş animasyonu (eski geçmişe değil)
   // Bu kanalda gösterilecek aktif anketler (hedefteyse) — sohbet kartı olarak üstte
   const [kanalAnketler,setKanalAnketler]=useState([]);
   useEffect(()=>{ let a=true; if(!oturum){ setKanalAnketler([]); return; }
@@ -4507,6 +4512,18 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
     aboneRef.current=Db.sohbetDinle(turnuva.id, aktifTakimId, (m)=>{ setMesajlar(p=>{ if(p.some(x=>x.id===m.id)) return p; const yeni=[...p,m]; if(dipteRef.current || (oturum&&m.user_id===oturum.id)){ dibeKaydir(); } else setYeniVar(true); return yeni; }); if(oturum) Db.okumaKaydet(oturum.id, turnuva.id, aktifTakimId||"genel"); });
     return ()=>{ aktif=false; if(aboneRef.current){ Db.sohbetKapat(aboneRef.current); aboneRef.current=null; } };
   },[turnuva&&turnuva.id, kulup&&kulup.id, kanal]);
+
+  // ✨ "yazıyor…" kanalı — kanala göre abone ol, birinin yazdığını duy, 3.5sn'de sön
+  useEffect(()=>{ if(!sb||!oturum||(!turnuva&&!kulupMod)) return; let aktif=true;
+    const ch=sb.channel("yaziyor:"+yaziKapsam,{config:{broadcast:{self:false}}}); yaziKanalRef.current=ch;
+    ch.on("broadcast",{event:"yaziyor"},({payload})=>{ if(!aktif||!payload||!payload.uid||payload.uid===oturum.id) return;
+      setYazanlar(list=>{ const now=Date.now(); const kalan=(list||[]).filter(x=>x.uid!==payload.uid && now-x.t<3500); return [...kalan,{uid:payload.uid, ad:payload.ad||"Biri", t:now}]; }); });
+    ch.subscribe();
+    const tik=setInterval(()=>{ setYazanlar(list=>{ const now=Date.now(); const f=(list||[]).filter(x=>now-x.t<3500); return f.length===(list||[]).length?list:f; }); },1200);
+    return ()=>{ aktif=false; clearInterval(tik); try{ sb.removeChannel(ch); }catch(e){} yaziKanalRef.current=null; setYazanlar([]); };
+  },[yaziKapsam, oturum&&oturum.id]);
+  const yaziyorBildir=()=>{ const now=Date.now(); if(now-yaziSonRef.current<1800) return; yaziSonRef.current=now;
+    try{ yaziKanalRef.current && yaziKanalRef.current.send({type:"broadcast",event:"yaziyor",payload:{uid:(oturum&&oturum.id), ad:ad}}); }catch(e){} };
 
   // Okunmamış badge (genel + kendi takımım)
   // Tek dokunuş: tek aktif ligi olan kullanıcı Sohbet'e basınca direkt o ligin sohbetine girer
@@ -4713,13 +4730,14 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
           const benim=oturum&&m.user_id===oturum.id;
           const tepk=tepkiMap[m.id]||[]; const grup={}; tepk.forEach(x=>{ grup[x.emoji]=grup[x.emoji]||{n:0,mine:false}; grup[x.emoji].n++; if(oturum&&x.user_id===oturum.id) grup[x.emoji].mine=true; });
           const oncekiAyni = i>0 && akis[i-1] && !akis[i-1].__a && !akis[i-1].sistem && akis[i-1].user_id===m.user_id;
-          return <div key={m.id} style={{alignSelf:benim?"flex-end":"flex-start",maxWidth:"82%",marginTop:oncekiAyni?1:8,display:"flex",gap:8,flexDirection:benim?"row-reverse":"row"}}>
+          const yeniGeldi = m.olusma && (new Date(m.olusma).getTime() > acilisRef.current - 1500);
+          return <div key={m.id} className={yeniGeldi?"fz-msggir":undefined} style={{alignSelf:benim?"flex-end":"flex-start",maxWidth:"82%",marginTop:oncekiAyni?1:8,display:"flex",gap:8,flexDirection:benim?"row-reverse":"row"}}>
             <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0,alignSelf:"flex-end",visibility:oncekiAyni?"hidden":"visible"}} dangerouslySetInnerHTML={{__html:svgAvatar(m.ad,30,m.foto)}}/>
             <div style={{minWidth:0,position:"relative"}}>
               {!oncekiAyni && <div style={{fontSize:10,color:T.textMut,marginBottom:3,margin:benim?"0 4px 3px 0":"0 0 3px 4px",display:"flex",alignItems:"center",gap:5,justifyContent:benim?"flex-end":"flex-start",flexDirection:benim?"row-reverse":"row"}}>
                 <b style={{color:T.textSoft}}>{m.ad}</b>{m.takim_ad && <span style={{display:"inline-flex",alignItems:"center",gap:4,color:T.accent2}}><span style={{width:14,height:14,display:"inline-block"}} dangerouslySetInnerHTML={{__html:svgAmblem(m.takim_ad,T.accent2,14,m.takim_logo)}}/>{m.takim_ad}</span>}
               </div>}
-              <div onClick={(e)=>{ e.stopPropagation(); setSecili(secili===m.id?null:m.id); }} className="tap" style={{background:benim?T.accent:T.bg1,color:benim?T.bg0:T.text,border:benim?0:"0.5px solid "+T.line,borderRadius:16,borderBottomRightRadius:benim?5:16,borderBottomLeftRadius:benim?16:5,padding:"9px 13px",fontSize:13.5,lineHeight:1.4,wordBreak:"break-word",cursor:"pointer"}}>
+              <div onClick={(e)=>{ e.stopPropagation(); setSecili(secili===m.id?null:m.id); }} className="tap" style={{background:benim?("linear-gradient(135deg,"+T.accent+","+(T.accent2||T.accent)+")"):T.bg1,color:benim?T.bg0:T.text,border:benim?0:"0.5px solid "+T.line,borderRadius:16,borderBottomRightRadius:benim?5:16,borderBottomLeftRadius:benim?16:5,padding:"9px 13px",fontSize:13.5,lineHeight:1.4,wordBreak:"break-word",cursor:"pointer",boxShadow:benim?"0 6px 16px -8px "+T.accent+"aa":"none"}}>
                 {m.yanit_id && <div style={{borderLeft:"2px solid "+(benim?T.bg0:T.accent),paddingLeft:7,marginBottom:5,opacity:.85}}><div style={{fontSize:10,fontWeight:700}}>{m.yanit_ad}</div><div style={{fontSize:11,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:180}}>{m.yanit_metin}</div></div>}
                 {m.medya_tip==="foto" && m.medya_url && <img src={m.medya_url} onClick={(e)=>{ e.stopPropagation(); window.open(m.medya_url,"_blank"); }} alt="" style={{display:"block",width:200,maxWidth:"100%",maxHeight:260,objectFit:"cover",borderRadius:10,marginBottom:5,cursor:"pointer",background:"rgba(0,0,0,.2)"}}/>}
                 {m.medya_tip==="ses" && m.medya_url && <audio controls src={m.medya_url} onClick={e=>e.stopPropagation()} style={{display:"block",width:220,maxWidth:"100%",marginBottom:5,height:38}}/>}
@@ -4790,9 +4808,16 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
       </div>
      : (()=>{ const arac=(adminMi||modYetki)&&!saltOkunur; const bstil={width:38,height:38,borderRadius:"50%",background:T.bg1,border:"0.5px solid "+T.line,fontSize:15,display:"grid",placeItems:"center",flexShrink:0,cursor:"pointer"};
        return <div style={{flexShrink:0,display:"flex",flexDirection:"column",gap:8,padding:"10px 12px max(10px, calc(env(safe-area-inset-bottom) - var(--kb, 0px)))",borderTop:yonetimMod?"none":"0.5px solid "+T.line,background:T.bg0}}>
+        {/* ✨ yazıyor… göstergesi */}
+        {yazanlar.length>0 && <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 6px 2px",fontSize:11.5,color:T.accent2||T.accent,fontWeight:700}}>
+          <span style={{display:"inline-flex",alignItems:"center",gap:3,color:T.accent2||T.accent}}>
+            <span className="fz-yaznokta" style={{animationDelay:"0s"}}/><span className="fz-yaznokta" style={{animationDelay:".18s"}}/><span className="fz-yaznokta" style={{animationDelay:".36s"}}/>
+          </span>
+          <span style={{color:T.textMut}}>{yazanlar.length===1?(yazanlar[0].ad+" yazıyor…"):yazanlar.length===2?(yazanlar[0].ad+" ve "+yazanlar[1].ad+" yazıyor…"):"Birkaç kişi yazıyor…"}</span>
+        </div>}
         {/* Satır 1 — Mesaj yaz (herkeste aynı, ortada) */}
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <input id="fzMsgInput" value={metin} onChange={e=>{ setMetin(e.target.value); etiketKontrol(e.target.value, e.target.selectionStart); }} onFocus={()=>{ dipteRef.current=dipteMi(); setTimeout(dibeKaydir,300); }} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); setEtiketPanel(null); gonder(); } }} placeholder={medyaYuk?"Medya yükleniyor…":(yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…  @ ile etiketle")} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,outline:"none",fontFamily:"inherit",boxSizing:"border-box",fontSize:16}}/>
+          <input id="fzMsgInput" value={metin} onChange={e=>{ setMetin(e.target.value); etiketKontrol(e.target.value, e.target.selectionStart); if(e.target.value.trim()) yaziyorBildir(); }} onFocus={()=>{ dipteRef.current=dipteMi(); setTimeout(dibeKaydir,300); }} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); setEtiketPanel(null); gonder(); } }} placeholder={medyaYuk?"Medya yükleniyor…":(yonetimMod?"📢 Yönetim duyurusu yaz…":"Mesaj yaz…  @ ile etiketle")} style={{flex:1,minWidth:0,background:T.bg1,border:"0.5px solid "+(yonetimMod?T.gold+"66":T.line),borderRadius:22,padding:"12px 16px",color:T.text,outline:"none",fontFamily:"inherit",boxSizing:"border-box",fontSize:16}}/>
           <button onClick={gonder} disabled={gonderiliyor||!metin.trim()||medyaYuk} className="tap" style={{background:yonetimMod?T.gold:T.accent,color:T.bg0,border:0,borderRadius:"50%",width:46,height:46,fontSize:18,fontWeight:800,flexShrink:0,opacity:(gonderiliyor||!metin.trim()||medyaYuk)?.5:1}}>➤</button>
         </div>
         {/* Satır 2 — Yönetim araçları (yalnız admin/moderatör) */}
