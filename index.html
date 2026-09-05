@@ -1136,7 +1136,7 @@ const Paylas = {
   },
   async liste(){ // keşfet: tüm açık ligler
     if(!sb) return [];
-    try{ const {data,error}=await sb.from('paylasilan_ligler').select('slug,ad,sehir,guncelleme').order('guncelleme',{ascending:false}).limit(100);
+    try{ const {data,error}=await sb.from('paylasilan_ligler').select('slug,ad,sehir,sahip_id,guncelleme').order('guncelleme',{ascending:false}).limit(100);
       if(error){ console.warn('Paylas.liste:',error.message); return []; } return data||[]; }
     catch(e){ return []; }
   },
@@ -4209,6 +4209,8 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
     const seriKart=Object.keys(bySeri).map(sid=>{ const s=[...bySeri[sid]].sort((a,b)=>(b.sezonNo||0)-(a.sezonNo||0)); return s.find(x=>(x.durum||'aktif')!=='arsiv')||s[0]; });
     return [...seriKart, ...tekil];
   },[turnuvalar, seriByLig, seriSay]);
+  // Kendi yayınladığın ligler zaten üstte canlı kart olarak var → 'AÇIK' kopyası olarak TEKRAR gösterme (katalog karışmasın)
+  const acikGoster=useMemo(()=> (acikLigler||[]).filter(l=> !(oturum && l.sahip_id && l.sahip_id===oturum.id)), [acikLigler, oturum]);
 
   // tüm takımlar
   const tumTakimlar=useMemo(()=>{
@@ -4282,7 +4284,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"4px 2px 12px"}}>
         <div style={{display:"flex",alignItems:"center",gap:9}}>
           <span style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>Lig Kataloğu</span>
-          {(gosterilecekLigler.length+acikLigler.length)>0 && <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accent+"1e",border:"0.5px solid "+T.accent+"44",padding:"3px 9px",borderRadius:20}}>{gosterilecekLigler.length+acikLigler.length} Lig</span>}
+          {(gosterilecekLigler.length+acikGoster.length)>0 && <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accent+"1e",border:"0.5px solid "+T.accent+"44",padding:"3px 9px",borderRadius:20}}>{gosterilecekLigler.length+acikGoster.length} Lig</span>}
         </div>
         {ligKurAc && (ligKurYetki
           ? <button onClick={ligKurAc} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:11,padding:"9px 14px",fontSize:12.5,fontWeight:800}}>+ Lig Kur</button>
@@ -4290,7 +4292,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
       </div>
 
       {/* Herkese açık ligler */}
-      {acikLigler.filter(l=>!q||((l.ad||"")+" "+(l.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(l=>
+      {acikGoster.filter(l=>!q||((l.ad||"")+" "+(l.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(l=>
         <a key={l.slug} href={PAYLASIM_URL(l.slug)} className="tap kart-hover" style={{display:"flex",gap:12,alignItems:"center",background:T.bg1,borderRadius:16,padding:13,marginBottom:10,border:"0.5px solid "+T.gold+"44",textDecoration:"none",position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",inset:0,left:"auto",width:"55%",background:"radial-gradient(90% 120% at 90% 30%,"+T.gold+"22,transparent 60%)",pointerEvents:"none"}}/>
           <div style={{width:52,height:52,borderRadius:14,background:"linear-gradient(145deg,"+T.gold+","+T.gold+"99)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,position:"relative",zIndex:1}}>🏟️</div>
@@ -4303,7 +4305,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
       )}
 
       {/* Kullanıcının ligleri — zengin kartlar */}
-      {gosterilecekLigler.length===0 && acikLigler.length===0 && (yukleniyor
+      {gosterilecekLigler.length===0 && acikGoster.length===0 && (yukleniyor
         ? <div style={{textAlign:"center",padding:"26px 20px"}}>
             {[0,1].map(i=><div key={i} className="skel" style={{height:76,borderRadius:16,marginBottom:10}}/>)}
             <div style={{fontSize:12,color:T.textMut,marginTop:4}}>⏳ Ligler yükleniyor…</div>
