@@ -471,7 +471,8 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
               </div>
               {lider && oynanan>0 && <div style={{fontSize:11,color:T.gold,marginTop:6,fontWeight:700}}>🏆 {lider.ad}</div>}
             </div>
-            {!cokSezon && ilkTakimlar.length>0 && <div style={{display:"flex",flexShrink:0,paddingLeft:4}}>{ilkTakimlar.map((tk,i)=><div key={i} style={{marginLeft:i?-10:0,borderRadius:9,overflow:"hidden",border:"2px solid "+T.bg1}}><Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} renk2={tk.renk2} boy={28}/></div>)}</div>}
+            {!cokSezon && yetkili && <button onClick={e=>{e.stopPropagation(); setYeniSezonHedef(t);}} className="tap" title="Bu ligde yeni sezon aç" style={{flexShrink:0,display:"flex",alignItems:"center",gap:5,background:t.renk+"1e",color:t.renk,border:"0.5px solid "+t.renk+"66",borderRadius:20,padding:"7px 12px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>➕ Sezon</button>}
+            {!cokSezon && !yetkili && ilkTakimlar.length>0 && <div style={{display:"flex",flexShrink:0,paddingLeft:4}}>{ilkTakimlar.map((tk,i)=><div key={i} style={{marginLeft:i?-10:0,borderRadius:9,overflow:"hidden",border:"2px solid "+T.bg1}}><Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} renk2={tk.renk2} boy={28}/></div>)}</div>}
             <span style={{fontSize:18,color:cokSezon&&acik?t.renk:T.textMut,flexShrink:0,transition:"transform .3s",transform:cokSezon&&acik?"rotate(90deg)":"none"}}>›</span>
           </div>
          </div>
