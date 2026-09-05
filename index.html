@@ -6733,7 +6733,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
 
     {tab==="kurallar" && <LigKurallar turnuva={turnuva} T={T} yonetim={yonetim}/>}
 
-    {tab==="yonet" && yonetim && <><YonetimPaneli turnuva={turnuva} T={T} git={git} yonetim={yonetim} oturum={oturum}/><YardimciYonetim turnuva={turnuva} T={T} oturum={oturum} sahip={!!(oturum && ((turnuva.yonetici_id===oturum.id) || yonetim.adminMi))}/></>}
+    {tab==="yonet" && yonetim && <><YonetimPaneli turnuva={turnuva} T={T} git={git} yonetim={yonetim} oturum={oturum} onPaylas={onPaylas}/><YardimciYonetim turnuva={turnuva} T={T} oturum={oturum} sahip={!!(oturum && ((turnuva.yonetici_id===oturum.id) || yonetim.adminMi))}/></>}
   </div>;
 }
 
@@ -6990,7 +6990,7 @@ function BosUyari({T, metin, ikon, aksiyon, aksiyonMetin}){
 }
 
 /* FAZ 4 — Yönetim paneli: takım ekle/sil, maç ekle/fikstür, skor gir/sil */
-function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
+function YonetimPaneli({turnuva, T, git, yonetim, oturum, onPaylas}){
   const [yeniTakimAd,setYeniTakimAd]=useState("");
   const [macA,setMacA]=useState("");
   const [macB,setMacB]=useState("");
@@ -7043,17 +7043,24 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum}){
   const [lSponsor,setLSponsor]=useState(turnuva.sponsorAd||"");
   const [lSponsorE,setLSponsorE]=useState(turnuva.sponsorEmoji||"🏟️");
   const [lSlug,setLSlug]=useState(turnuva.paylasimSlug||"");
-  const ligKaydet=()=>{
+  const ligKaydet=async()=>{
     if(!lAd.trim())return;
     // Özel bağlantı adı (URL slug): Türkçe→ascii, rezerve/çakışma koruması. Paylaşınca forzalig.com/<slug> çalışır.
+    let yeniSlug=null;
     if(lSlug.trim()){
       const s=slugUret(lSlug);
       const rez=[...SEO_TOP,"gizlilik","icons","assets","davet","ankara-veteran-ligi","izmir-veteran-ligi"];
       if(s.length<3 || rez.includes(s)){ alert("Bu bağlantı adı kullanılamaz (en az 3 karakter; rezerve kelime olamaz). Başka bir ad dene."); return; }
-      turnuva.paylasimSlug=s; setLSlug(s);
+      turnuva.paylasimSlug=s; setLSlug(s); yeniSlug=s;
     }
     yonetim.ligGuncelle(turnuva, {ad:lAd.trim(), sehir:lSehir.trim(), ilce:lIlce.trim(), renk:lRenk, baslangic:lBaslangic, hedefTakim:lHedef, kisi:lKisi, sponsorAd:lSponsor.trim(), sponsorEmoji:lSponsorE});
     setLigAcik(false);
+    // Bağlantı adı verildiyse ligi HEMEN yayınla → temiz link anında çalışsın (iki-adım karışıklığı biter)
+    if(yeniSlug && onPaylas){
+      const r=await onPaylas(turnuva);
+      if(r && r.url){ try{ navigator.clipboard.writeText(r.url); }catch(e){} alert("✓ Yayınlandı — link kopyalandı:\n"+r.url+"\n\nBu adresi paylaşabilirsin, tıklayan direkt bu sezona gelir."); }
+      else if(r && r.hata){ alert("Kaydedildi ama yayınlanamadı: "+r.hata); }
+    }
   };
   const tk=turnuva.takimlar;
 
