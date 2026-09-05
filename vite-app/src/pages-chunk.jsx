@@ -343,6 +343,17 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
   };
   const sezonaGit=async(sid)=>{ try{ const L=await Db.ligYukle(sid); if(L) git({sayfa:"turnuva",turnuva:L}); }catch(e){} };
   const sezonBaslatKatalog=async(t, kimlik)=>{ setYeniSezonHedef(null); if(onYeniSezon) await onYeniSezon(t, kimlik); };
+  // Katalog kartları: her SERİ tek kart (aktif/en yüksek sezon). Arşiv sezonlar üstte değil, açılır listede.
+  const gosterilecekLigler=useMemo(()=>{
+    const bySeri={}, tekil=[];
+    (turnuvalar||[]).forEach(t=>{ if(!t) return;
+      const sid=seriByLig[t.id]||t.seriId;
+      if(sid && seriSay[sid]>1){ (bySeri[sid]=bySeri[sid]||[]).push(t); }
+      else if((t.durum||'aktif')!=='arsiv'){ tekil.push(t); }
+    });
+    const seriKart=Object.keys(bySeri).map(sid=>{ const s=[...bySeri[sid]].sort((a,b)=>(b.sezonNo||0)-(a.sezonNo||0)); return s.find(x=>(x.durum||'aktif')!=='arsiv')||s[0]; });
+    return [...seriKart, ...tekil];
+  },[turnuvalar, seriByLig, seriSay]);
 
   // tüm takımlar
   const tumTakimlar=useMemo(()=>{
@@ -416,7 +427,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"4px 2px 12px"}}>
         <div style={{display:"flex",alignItems:"center",gap:9}}>
           <span style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>Lig Kataloğu</span>
-          {(aktifTurnuvalar.length+acikLigler.length)>0 && <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accent+"1e",border:"0.5px solid "+T.accent+"44",padding:"3px 9px",borderRadius:20}}>{aktifTurnuvalar.length+acikLigler.length} Lig</span>}
+          {(gosterilecekLigler.length+acikLigler.length)>0 && <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accent+"1e",border:"0.5px solid "+T.accent+"44",padding:"3px 9px",borderRadius:20}}>{gosterilecekLigler.length+acikLigler.length} Lig</span>}
         </div>
         {ligKurAc && (ligKurYetki
           ? <button onClick={ligKurAc} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:11,padding:"9px 14px",fontSize:12.5,fontWeight:800}}>+ Lig Kur</button>
@@ -437,13 +448,13 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
       )}
 
       {/* Kullanıcının ligleri — zengin kartlar */}
-      {aktifTurnuvalar.length===0 && acikLigler.length===0 && (yukleniyor
+      {gosterilecekLigler.length===0 && acikLigler.length===0 && (yukleniyor
         ? <div style={{textAlign:"center",padding:"26px 20px"}}>
             {[0,1].map(i=><div key={i} className="skel" style={{height:76,borderRadius:16,marginBottom:10}}/>)}
             <div style={{fontSize:12,color:T.textMut,marginTop:4}}>⏳ Ligler yükleniyor…</div>
           </div>
         : <div style={{fontSize:12.5,color:T.textMut,textAlign:"center",padding:"30px 20px",lineHeight:1.6}}>Henüz lig yok.<br/>{ligKurAc?"Yukarıdan kendi ligini kurabilirsin.":"Bir lige katıldığında burada görünür."}</div>)}
-      {aktifTurnuvalar.filter(t=>!q||((t.ad||"")+" "+(t.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(t=>{
+      {gosterilecekLigler.filter(t=>!q||((t.ad||"")+" "+(t.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(t=>{
         const oynanan=t.maclar.filter(m=>m.oynandi).length;
         // Tembel (özet) ligler: takimlar/maclar dizileri boş gelir → sayıları özet alanlarından göster (0/0 görünmesin)
         const takimGoster=(t.takimSay!=null?t.takimSay:t.takimlar.length);
