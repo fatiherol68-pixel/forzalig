@@ -1,7 +1,7 @@
 import React from 'react';
 // ForzaLig sayfa kümesi — talep-üzerine (git ile gidilince). Bağımlılıklar main'den enjekte.
 export function make(D){
-  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kufurVar, macYorumUret, pick, posAd, qrData, rnd, sb, sesYukle, slotlariUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
+  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kufurVar, macYorumUret, pick, posAd, qrData, rnd, sb, sesYukle, slotlariUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
 
 function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi, bildirimListe}){
   const kariyereGit=()=>{
@@ -315,7 +315,7 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   </div>;
 }
 
-function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniyor, oturum, takimKurabilir, adminMi}){
+function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniyor, oturum, takimKurabilir, adminMi, onYeniSezon}){
   const [tab,setTab]=useState("lig");
   const [ara,setAra]=useState("");
   const [sira,setSira]=useState("gol"); // takım/oyuncu sıralama
@@ -325,6 +325,24 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
   // FAZ 9 — herkese açık (paylaşılan) ligler
   const [acikLigler,setAcikLigler]=useState([]);
   useEffect(()=>{ if(!sb) return; let a=true; Paylas.liste().then(l=>{ if(a) setAcikLigler(l||[]); }); return ()=>{a=false;}; },[]);
+
+  // ---- SEZON SERİSİ: hangi kart çok-sezonlu (açılır liste) ----
+  const [seriByLig,setSeriByLig]=useState({});   // ligId → seri_id
+  const [seriSay,setSeriSay]=useState({});        // seri_id → sezon adedi
+  const [acikSeri,setAcikSeri]=useState(null);    // açık akordeon (lig id)
+  const [sezonMap,setSezonMap]=useState({});      // seri_id → sezon dizisi (lazy)
+  const [yeniSezonHedef,setYeniSezonHedef]=useState(null); // YeniSezonPop için turnuva
+  useEffect(()=>{ if(!sb) return; let a=true; Db.serilerHam().then(rows=>{ if(!a) return;
+    const byLig={}, say={}; (rows||[]).forEach(r=>{ byLig[r.id]=r.seri_id; say[r.seri_id]=(say[r.seri_id]||0)+1; });
+    setSeriByLig(byLig); setSeriSay(say);
+  }); return ()=>{a=false;}; },[turnuvalar.length]);
+  const sezonAcTikla=async(t, sid)=>{
+    if(acikSeri===t.id){ setAcikSeri(null); return; }
+    setAcikSeri(t.id);
+    if(!sezonMap[sid]){ const d=await Db.sezonSerisi(sid, t.id); setSezonMap(p=>({...p,[sid]:d||[]})); }
+  };
+  const sezonaGit=async(sid)=>{ try{ const L=await Db.ligYukle(sid); if(L) git({sayfa:"turnuva",turnuva:L}); }catch(e){} };
+  const sezonBaslatKatalog=async(t, kimlik)=>{ setYeniSezonHedef(null); if(onYeniSezon) await onYeniSezon(t, kimlik); };
 
   // tüm takımlar
   const tumTakimlar=useMemo(()=>{
@@ -432,22 +450,63 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
         const macGoster=(t.maclar.length? oynanan : (t.macSay!=null?t.macSay:0));
         const lider=[...t.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
         const ilkTakimlar=(t.takimlar||[]).slice(0,3);
-        return <div key={t.id} onClick={()=>git({sayfa:"turnuva",turnuva:t})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",background:T.bg1,borderRadius:18,padding:14,marginBottom:11,border:"0.5px solid "+T.line,cursor:"pointer"}}>
+        const sid=seriByLig[t.id];
+        const cokSezon=!!(sid && seriSay[sid]>1);
+        const acik=acikSeri===t.id;
+        const yetkili=!!(adminMi || (oturum && t.yonetici_id===oturum.id));
+        const liste=cokSezon?(sezonMap[sid]||null):null;
+        return <div key={t.id} style={{marginBottom:11}}>
+         <div onClick={cokSezon?()=>sezonAcTikla(t,sid):()=>git({sayfa:"turnuva",turnuva:t})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",background:T.bg1,borderRadius:acik?"18px 18px 0 0":18,padding:14,border:"0.5px solid "+(acik?t.renk+"55":T.line),borderBottom:acik?"0":("0.5px solid "+T.line),cursor:"pointer",transition:"border-radius .2s"}}>
           <div style={{position:"absolute",inset:0,left:"auto",width:"58%",background:"radial-gradient(90% 120% at 92% 35%,"+(t.renk||T.accent)+"26,transparent 62%)",pointerEvents:"none"}}/>
           <div style={{display:"flex",gap:13,alignItems:"center",position:"relative",zIndex:1}}>
             <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={54}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:16,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
-              <div style={{display:"flex",gap:12,marginTop:6,flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
                 {t.sehir && <span style={{fontSize:11,color:T.textMut}}>📍 {t.sehir}</span>}
                 <span style={{fontSize:11,color:T.textMut}}>👥 {takimGoster} takım</span>
-                <span style={{fontSize:11,color:T.textMut}}>⚽ {macGoster} maç</span>
+                {cokSezon
+                  ? <span style={{fontSize:10,fontWeight:800,color:t.renk,background:t.renk+"1e",border:"0.5px solid "+t.renk+"55",borderRadius:20,padding:"2px 8px"}}>🗓️ {seriSay[sid]} Sezon</span>
+                  : <span style={{fontSize:11,color:T.textMut}}>⚽ {macGoster} maç</span>}
               </div>
               {lider && oynanan>0 && <div style={{fontSize:11,color:T.gold,marginTop:6,fontWeight:700}}>🏆 {lider.ad}</div>}
             </div>
-            {ilkTakimlar.length>0 && <div style={{display:"flex",flexShrink:0,paddingLeft:4}}>{ilkTakimlar.map((tk,i)=><div key={i} style={{marginLeft:i?-10:0,borderRadius:9,overflow:"hidden",border:"2px solid "+T.bg1}}><Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} renk2={tk.renk2} boy={28}/></div>)}</div>}
-            <span style={{fontSize:18,color:T.textMut,flexShrink:0}}>›</span>
+            {!cokSezon && ilkTakimlar.length>0 && <div style={{display:"flex",flexShrink:0,paddingLeft:4}}>{ilkTakimlar.map((tk,i)=><div key={i} style={{marginLeft:i?-10:0,borderRadius:9,overflow:"hidden",border:"2px solid "+T.bg1}}><Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} renk2={tk.renk2} boy={28}/></div>)}</div>}
+            <span style={{fontSize:18,color:cokSezon&&acik?t.renk:T.textMut,flexShrink:0,transition:"transform .3s",transform:cokSezon&&acik?"rotate(90deg)":"none"}}>›</span>
           </div>
+         </div>
+         {cokSezon && <div style={{display:"grid",gridTemplateRows:acik?"1fr":"0fr",transition:"grid-template-rows .34s cubic-bezier(.4,0,.2,1)"}}>
+          <div style={{overflow:"hidden"}}>
+           <div style={{background:T.bg1,border:"0.5px solid "+t.renk+"55",borderTop:0,borderRadius:"0 0 18px 18px",padding:"4px 13px 12px"}}>
+            <div style={{fontSize:9,letterSpacing:.6,fontWeight:700,color:T.textMut,margin:"8px 4px 6px"}}>SEZONLAR</div>
+            {liste==null
+              ? <div style={{padding:"14px",textAlign:"center",fontSize:11.5,color:T.textMut}}>⏳ Sezonlar yükleniyor…</div>
+              : <div style={{position:"relative",paddingLeft:6}}>
+                  <div style={{position:"absolute",left:19,top:10,bottom:12,width:2,background:T.line2,borderRadius:2}}/>
+                  {liste.map(s=>{ const canli=s.durum!=='arsiv';
+                    return <div key={s.id} onClick={()=>sezonaGit(s.id)} className="tap" style={{position:"relative",display:"flex",alignItems:"center",gap:11,padding:"7px 2px",cursor:"pointer"}}>
+                      <div style={{position:"relative",zIndex:1,flexShrink:0,boxShadow:"0 0 0 4px "+T.bg1,borderRadius:"50%"}}>
+                        {s.logo ? <Logo renk={s.renk} ad={s.ad} logo={s.logo} boy={28}/>
+                          : <div style={{width:28,height:28,borderRadius:"50%",background:s.renk,display:"grid",placeItems:"center",fontSize:12,fontWeight:800,color:"#fff"}}>{s.sezonNo}</div>}
+                      </div>
+                      <div style={{flex:1,minWidth:0,background:T.bg2,border:"0.5px solid "+(canli?s.renk+"55":T.line),borderRadius:11,padding:"8px 11px"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7}}>
+                          <span style={{fontSize:8.5,fontWeight:800,color:s.renk,background:s.renk+"1e",borderRadius:20,padding:"2px 7px",flexShrink:0}}>S{s.sezonNo}</span>
+                          <span style={{fontSize:12.5,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.ad}</span>
+                        </div>
+                        <div style={{fontSize:10.5,marginTop:3,fontWeight:600,display:"flex",alignItems:"center",gap:5,color:canli?T.accent:T.textMut}}>
+                          {canli ? <><span style={{width:6,height:6,borderRadius:"50%",background:T.accent,display:"inline-block"}}/>Şu an aktif sezon</>
+                            : (s.sampiyon ? <span style={{color:T.gold,fontWeight:700}}>🏆 Şampiyon: {s.sampiyon.ad}</span> : "📦 Arşiv · tamamlandı")}
+                        </div>
+                      </div>
+                      <span style={{fontSize:15,color:T.textMut,flexShrink:0}}>›</span>
+                    </div>;
+                  })}
+                </div>}
+            {yetkili && <div onClick={()=>setYeniSezonHedef(t)} className="tap" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginTop:8,marginLeft:34,padding:"11px",border:"1px dashed "+t.renk+"66",borderRadius:11,color:t.renk,fontSize:12,fontWeight:700,cursor:"pointer",background:t.renk+"0d"}}>➕ Yeni sezon aç <span style={{fontSize:9.5,color:T.textMut,fontWeight:600,background:T.bg2,borderRadius:20,padding:"2px 7px"}}>👑 yalnız yetkili</span></div>}
+           </div>
+          </div>
+         </div>}
         </div>;
       })}
     </div>}
@@ -493,6 +552,8 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
         {oynananlar.slice(0,30).map((m,i)=> <MacSatir key={"o"+i} m={m} T={T} git={git}/>)}
       </>}
     </div>}
+
+    {yeniSezonHedef && <YeniSezonPop turnuva={yeniSezonHedef} T={T} onKapat={()=>setYeniSezonHedef(null)} onBaslat={(kimlik)=>sezonBaslatKatalog(yeniSezonHedef, kimlik)}/>}
   </div>;
 }
 

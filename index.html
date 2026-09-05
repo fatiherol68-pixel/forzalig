@@ -1393,6 +1393,8 @@ const Db = {
   async kulupTopluSil(ids){ if(!sb||!ids||!ids.length) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('kulup_toplu_sil',{p_kulupler:ids}); if(error){ if(error.code==='42501'||/yetki|policy|permission|denied/i.test(error.message||'')) return {hata:'Yetkiniz bulunmuyor.'}; return {hata:error.message}; } return {ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   // ---- Faz 3: Sezon serisi (yeni sezon devri) + Faz 4: kariyer/tüm-zamanlar ----
   async yeniSezonBaslat(ligId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('yeni_sezon_baslat',{p_eski:ligId}); return error?{hata:error.message}:{ok:true, yeniId:data}; }catch(e){ return {hata:String(e)}; } },
+  // Seri üyelikleri — seri_id'si olan (yani çok-sezonlu seriye ait) TÜM ligler. Katalogda hangi kartın açılır-liste olacağını belirler. Tek küçük sorgu.
+  async serilerHam(){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('id,seri_id,sezon_no').not('seri_id','is',null).eq('silindi',false); return data||[]; }catch(e){ return []; } },
   // Sezon serisi — bir ligin tüm sezonları (seri_id bazlı) + her sezonun şampiyonu (stat_ozet'ten türetilir, ek sorgu yok).
   async sezonSerisi(seriId, kendiId){
     if(!sb) return [];
@@ -1927,6 +1929,7 @@ const Db = {
     yonetici_id:L.yonetici_id, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8, format:L.format||'tek',
     grupSayi:L.grup_sayi||0, sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
     evren:L.evren||null, kurallar:L.kurallar||"", takimlar:[], maclar:[], iliskisel:true, _ozet:true,
+    seriId:L.seri_id||null, sezonNo:L.sezon_no||1,
     takimSay:Number(L.takim_say||0)||0, macSay:Number(L.mac_say||0)||0, oyuncuSay:Number(L.oyuncu_say||0)||0,
     benim:L.sahiplik==='benim' }; },
   async liglerOzet(userId){
@@ -1938,7 +1941,7 @@ const Db = {
     }catch(e){
       // Fallback: RPC yoksa hafif tek sorgu (sayısız) — yine N+1 YOK
       try{
-        const kol='id,ad,yonetici_id,evren,durum,sehir,ilce,logo,renk,format,grup_sayi,kisi,sponsor_ad,sponsor_emoji,kurallar,silindi,olusturma';
+        const kol='id,ad,yonetici_id,evren,durum,sehir,ilce,logo,renk,format,grup_sayi,kisi,sponsor_ad,sponsor_emoji,kurallar,silindi,olusturma,seri_id,sezon_no';
         let q=await sb.from('ligler').select(kol).or('evren.not.is.null,durum.eq.aktif').order('olusturma',{ascending:false}).limit(500);
         let rows=(q.data||[]).filter(L=>!L.silindi);
         if(userId){ try{ const have=new Set(rows.map(r=>r.id)); let q2=await sb.from('ligler').select(kol).eq('yonetici_id',userId).limit(300); (q2.data||[]).forEach(L=>{ if(!L.silindi && !have.has(L.id)){ L._benim=true; rows.push(L); have.add(L.id); } }); }catch(e2){} }
@@ -2271,7 +2274,8 @@ function svgAvatar(ad, boy, foto){
 
 /* SVG amblem üreteci — her takım benzersiz logo */
 function svgAmblem(ad, renk, boy, logo, renkIki){
-  if(logo){ const f=String(logo).replace(/["'<>`\\]/g,""); if(/^(https?:|data:image\/)/i.test(f)) return `<img src="${f}" alt="" width="${boy}" height="${boy}" loading="lazy" decoding="async" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block;border-radius:50%">`; }
+  if(logo){ const f=String(logo).replace(/["'<>`\\]/g,""); if(/^(https?:|data:image\/)/i.test(f)) return `<img src="${f}" alt="" width="${boy}" height="${boy}" loading="lazy" decoding="async" style="width:${boy}px;height:${boy}px;object-fit:cover;display:block;border-radius:50%">`;
+    if(/^emoji:/.test(f)){ const e=f.slice(6)||"⚽"; const r2=renkIki||ikinciRenk(renk); return `<svg width="${boy}" height="${boy}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="48" fill="${renk}" stroke="${r2}" stroke-width="3"/><text x="50" y="53" font-size="52" text-anchor="middle" dominant-baseline="central">${e}</text></svg>`; } }
   const h=hash(ad);
   const tip=h%3; // kalkan, daire, baklava
   const harf=ad.replace(/[^A-Za-zÇĞİÖŞÜçğıöşü]/g,"")[0]||"F";
@@ -4164,7 +4168,7 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   </div>;
 }
 
-function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniyor, oturum, takimKurabilir, adminMi}){
+function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniyor, oturum, takimKurabilir, adminMi, onYeniSezon}){
   const [tab,setTab]=useState("lig");
   const [ara,setAra]=useState("");
   const [sira,setSira]=useState("gol"); // takım/oyuncu sıralama
@@ -4174,6 +4178,24 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
   // FAZ 9 — herkese açık (paylaşılan) ligler
   const [acikLigler,setAcikLigler]=useState([]);
   useEffect(()=>{ if(!sb) return; let a=true; Paylas.liste().then(l=>{ if(a) setAcikLigler(l||[]); }); return ()=>{a=false;}; },[]);
+
+  // ---- SEZON SERİSİ: hangi kart çok-sezonlu (açılır liste) ----
+  const [seriByLig,setSeriByLig]=useState({});   // ligId → seri_id
+  const [seriSay,setSeriSay]=useState({});        // seri_id → sezon adedi
+  const [acikSeri,setAcikSeri]=useState(null);    // açık akordeon (lig id)
+  const [sezonMap,setSezonMap]=useState({});      // seri_id → sezon dizisi (lazy)
+  const [yeniSezonHedef,setYeniSezonHedef]=useState(null); // YeniSezonPop için turnuva
+  useEffect(()=>{ if(!sb) return; let a=true; Db.serilerHam().then(rows=>{ if(!a) return;
+    const byLig={}, say={}; (rows||[]).forEach(r=>{ byLig[r.id]=r.seri_id; say[r.seri_id]=(say[r.seri_id]||0)+1; });
+    setSeriByLig(byLig); setSeriSay(say);
+  }); return ()=>{a=false;}; },[turnuvalar.length]);
+  const sezonAcTikla=async(t, sid)=>{
+    if(acikSeri===t.id){ setAcikSeri(null); return; }
+    setAcikSeri(t.id);
+    if(!sezonMap[sid]){ const d=await Db.sezonSerisi(sid, t.id); setSezonMap(p=>({...p,[sid]:d||[]})); }
+  };
+  const sezonaGit=async(sid)=>{ try{ const L=await Db.ligYukle(sid); if(L) git({sayfa:"turnuva",turnuva:L}); }catch(e){} };
+  const sezonBaslatKatalog=async(t, kimlik)=>{ setYeniSezonHedef(null); if(onYeniSezon) await onYeniSezon(t, kimlik); };
 
   // tüm takımlar
   const tumTakimlar=useMemo(()=>{
@@ -4281,22 +4303,63 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
         const macGoster=(t.maclar.length? oynanan : (t.macSay!=null?t.macSay:0));
         const lider=[...t.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
         const ilkTakimlar=(t.takimlar||[]).slice(0,3);
-        return <div key={t.id} onClick={()=>git({sayfa:"turnuva",turnuva:t})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",background:T.bg1,borderRadius:18,padding:14,marginBottom:11,border:"0.5px solid "+T.line,cursor:"pointer"}}>
+        const sid=seriByLig[t.id];
+        const cokSezon=!!(sid && seriSay[sid]>1);
+        const acik=acikSeri===t.id;
+        const yetkili=!!(adminMi || (oturum && t.yonetici_id===oturum.id));
+        const liste=cokSezon?(sezonMap[sid]||null):null;
+        return <div key={t.id} style={{marginBottom:11}}>
+         <div onClick={cokSezon?()=>sezonAcTikla(t,sid):()=>git({sayfa:"turnuva",turnuva:t})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",background:T.bg1,borderRadius:acik?"18px 18px 0 0":18,padding:14,border:"0.5px solid "+(acik?t.renk+"55":T.line),borderBottom:acik?"0":("0.5px solid "+T.line),cursor:"pointer",transition:"border-radius .2s"}}>
           <div style={{position:"absolute",inset:0,left:"auto",width:"58%",background:"radial-gradient(90% 120% at 92% 35%,"+(t.renk||T.accent)+"26,transparent 62%)",pointerEvents:"none"}}/>
           <div style={{display:"flex",gap:13,alignItems:"center",position:"relative",zIndex:1}}>
             <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={54}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:16,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
-              <div style={{display:"flex",gap:12,marginTop:6,flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
                 {t.sehir && <span style={{fontSize:11,color:T.textMut}}>📍 {t.sehir}</span>}
                 <span style={{fontSize:11,color:T.textMut}}>👥 {takimGoster} takım</span>
-                <span style={{fontSize:11,color:T.textMut}}>⚽ {macGoster} maç</span>
+                {cokSezon
+                  ? <span style={{fontSize:10,fontWeight:800,color:t.renk,background:t.renk+"1e",border:"0.5px solid "+t.renk+"55",borderRadius:20,padding:"2px 8px"}}>🗓️ {seriSay[sid]} Sezon</span>
+                  : <span style={{fontSize:11,color:T.textMut}}>⚽ {macGoster} maç</span>}
               </div>
               {lider && oynanan>0 && <div style={{fontSize:11,color:T.gold,marginTop:6,fontWeight:700}}>🏆 {lider.ad}</div>}
             </div>
-            {ilkTakimlar.length>0 && <div style={{display:"flex",flexShrink:0,paddingLeft:4}}>{ilkTakimlar.map((tk,i)=><div key={i} style={{marginLeft:i?-10:0,borderRadius:9,overflow:"hidden",border:"2px solid "+T.bg1}}><Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} renk2={tk.renk2} boy={28}/></div>)}</div>}
-            <span style={{fontSize:18,color:T.textMut,flexShrink:0}}>›</span>
+            {!cokSezon && ilkTakimlar.length>0 && <div style={{display:"flex",flexShrink:0,paddingLeft:4}}>{ilkTakimlar.map((tk,i)=><div key={i} style={{marginLeft:i?-10:0,borderRadius:9,overflow:"hidden",border:"2px solid "+T.bg1}}><Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} renk2={tk.renk2} boy={28}/></div>)}</div>}
+            <span style={{fontSize:18,color:cokSezon&&acik?t.renk:T.textMut,flexShrink:0,transition:"transform .3s",transform:cokSezon&&acik?"rotate(90deg)":"none"}}>›</span>
           </div>
+         </div>
+         {cokSezon && <div style={{display:"grid",gridTemplateRows:acik?"1fr":"0fr",transition:"grid-template-rows .34s cubic-bezier(.4,0,.2,1)"}}>
+          <div style={{overflow:"hidden"}}>
+           <div style={{background:T.bg1,border:"0.5px solid "+t.renk+"55",borderTop:0,borderRadius:"0 0 18px 18px",padding:"4px 13px 12px"}}>
+            <div style={{fontSize:9,letterSpacing:.6,fontWeight:700,color:T.textMut,margin:"8px 4px 6px"}}>SEZONLAR</div>
+            {liste==null
+              ? <div style={{padding:"14px",textAlign:"center",fontSize:11.5,color:T.textMut}}>⏳ Sezonlar yükleniyor…</div>
+              : <div style={{position:"relative",paddingLeft:6}}>
+                  <div style={{position:"absolute",left:19,top:10,bottom:12,width:2,background:T.line2,borderRadius:2}}/>
+                  {liste.map(s=>{ const canli=s.durum!=='arsiv';
+                    return <div key={s.id} onClick={()=>sezonaGit(s.id)} className="tap" style={{position:"relative",display:"flex",alignItems:"center",gap:11,padding:"7px 2px",cursor:"pointer"}}>
+                      <div style={{position:"relative",zIndex:1,flexShrink:0,boxShadow:"0 0 0 4px "+T.bg1,borderRadius:"50%"}}>
+                        {s.logo ? <Logo renk={s.renk} ad={s.ad} logo={s.logo} boy={28}/>
+                          : <div style={{width:28,height:28,borderRadius:"50%",background:s.renk,display:"grid",placeItems:"center",fontSize:12,fontWeight:800,color:"#fff"}}>{s.sezonNo}</div>}
+                      </div>
+                      <div style={{flex:1,minWidth:0,background:T.bg2,border:"0.5px solid "+(canli?s.renk+"55":T.line),borderRadius:11,padding:"8px 11px"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7}}>
+                          <span style={{fontSize:8.5,fontWeight:800,color:s.renk,background:s.renk+"1e",borderRadius:20,padding:"2px 7px",flexShrink:0}}>S{s.sezonNo}</span>
+                          <span style={{fontSize:12.5,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.ad}</span>
+                        </div>
+                        <div style={{fontSize:10.5,marginTop:3,fontWeight:600,display:"flex",alignItems:"center",gap:5,color:canli?T.accent:T.textMut}}>
+                          {canli ? <><span style={{width:6,height:6,borderRadius:"50%",background:T.accent,display:"inline-block"}}/>Şu an aktif sezon</>
+                            : (s.sampiyon ? <span style={{color:T.gold,fontWeight:700}}>🏆 Şampiyon: {s.sampiyon.ad}</span> : "📦 Arşiv · tamamlandı")}
+                        </div>
+                      </div>
+                      <span style={{fontSize:15,color:T.textMut,flexShrink:0}}>›</span>
+                    </div>;
+                  })}
+                </div>}
+            {yetkili && <div onClick={()=>setYeniSezonHedef(t)} className="tap" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginTop:8,marginLeft:34,padding:"11px",border:"1px dashed "+t.renk+"66",borderRadius:11,color:t.renk,fontSize:12,fontWeight:700,cursor:"pointer",background:t.renk+"0d"}}>➕ Yeni sezon aç <span style={{fontSize:9.5,color:T.textMut,fontWeight:600,background:T.bg2,borderRadius:20,padding:"2px 7px"}}>👑 yalnız yetkili</span></div>}
+           </div>
+          </div>
+         </div>}
         </div>;
       })}
     </div>}
@@ -4342,6 +4405,8 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
         {oynananlar.slice(0,30).map((m,i)=> <MacSatir key={"o"+i} m={m} T={T} git={git}/>)}
       </>}
     </div>}
+
+    {yeniSezonHedef && <YeniSezonPop turnuva={yeniSezonHedef} T={T} onKapat={()=>setYeniSezonHedef(null)} onBaslat={(kimlik)=>sezonBaslatKatalog(yeniSezonHedef, kimlik)}/>}
   </div>;
 }
 
@@ -11632,6 +11697,93 @@ function SezonSerisi({turnuva, T, git, gomulu}){
 }
 
 /* ============================================================
+   YENİ SEZON PANELİ — ad + logo (emoji+renk / resim yükle) — katalogdan açılır
+   ============================================================ */
+const SEZON_EMOJI=['⚽','🔥','🏆','⭐','🌌','🚀','👑','⚡','🦁','🐺','🌊','🎯'];
+function YeniSezonPop({turnuva, T, onKapat, onBaslat}){
+  const yeniNo=(turnuva.sezonNo||1)+1;
+  const yil=new Date().getFullYear();
+  const kokAd=(turnuva.ad||"").replace(/\s+\d{4}\s*Sezonu\s*$/i,"").replace(/\s+\d+\.\s*Sezon\s*$/i,"").trim();
+  const [ad,setAd]=useState("");
+  const [renk,setRenk]=useState(turnuva.renk||RENKLER[0]);
+  const [tip,setTip]=useState("emoji");         // emoji | resim
+  const [emoji,setEmoji]=useState("⚽");
+  const [resimUrl,setResimUrl]=useState("");
+  const [yuk,setYuk]=useState(false);
+  const [bekle,setBekle]=useState(false);
+  const oneriler=[kokAd+" "+(yil+1)+" Sezonu", kokAd+" "+yeniNo+". Sezon", kokAd+" Kış Sezonu"];
+  const onizLogo = (tip==="resim"&&resimUrl) ? resimUrl : "emoji:"+emoji;
+  const dosyaSec=async(e)=>{
+    const f=e.target.files&&e.target.files[0]; if(!f) return;
+    setYuk(true);
+    try{ const r=await fotoYukle(f,"logo"); if(r&&r.url){ setResimUrl(r.url); setTip("resim"); } else alert("Görsel yüklenemedi: "+((r&&r.hata)||"")); }
+    catch(err){ alert("Görsel yüklenemedi."); } finally{ setYuk(false); if(e.target) e.target.value=""; }
+  };
+  const baslat=async()=>{
+    if(bekle) return; setBekle(true);
+    const logo=(tip==="resim"&&resimUrl)?resimUrl:("emoji:"+emoji);
+    await onBaslat({ad:ad.trim(), renk, logo});
+    // başarılıysa parent kapatır+yönlendirir; başarısızsa tekrar denenebilir
+    setTimeout(()=>setBekle(false),2500);
+  };
+  const secBtn=(aktif)=>({flex:1,border:0,background:aktif?T.accent:"transparent",color:aktif?(T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textSoft,fontSize:12.5,fontWeight:700,padding:"9px",borderRadius:9,cursor:"pointer",fontFamily:"inherit"});
+  return <div onClick={onKapat} style={{position:"fixed",inset:0,zIndex:1200,background:"rgba(2,8,12,.66)",display:"flex",alignItems:"flex-end",justifyContent:"center",animation:"fadeIn .25s"}}>
+    <div onClick={e=>e.stopPropagation()} className="fz-msggir" style={{width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto",background:"linear-gradient(180deg,"+T.bg1+","+T.bg0+")",border:"0.5px solid "+T.line2,borderBottom:0,borderRadius:"20px 20px 0 0",padding:"10px 16px calc(20px + env(safe-area-inset-bottom))"}}>
+      <div style={{width:38,height:4,borderRadius:3,background:T.line2,margin:"2px auto 12px"}}/>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+        <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>🗓️ Yeni Sezon</div>
+        <span style={{fontSize:9.5,fontWeight:800,color:renk,background:renk+"1e",border:"0.5px solid "+renk+"55",borderRadius:20,padding:"2px 8px"}}>SEZON {yeniNo}</span>
+      </div>
+      <div style={{fontSize:11.5,color:T.textMut,marginBottom:15}}>{turnuva.ad} · takımlar taşınır, puanlar sıfırlanır, kariyer korunur</div>
+
+      <div style={{fontSize:10,letterSpacing:.5,fontWeight:700,color:T.textMut,margin:"0 2px 7px"}}>SEZON ADI</div>
+      <input value={ad} onChange={e=>setAd(e.target.value)} placeholder={turnuva.ad}
+        style={{width:"100%",boxSizing:"border-box",background:T.bg0,border:"0.5px solid "+T.line2,borderRadius:11,padding:12,color:T.text,fontSize:14,fontWeight:700,fontFamily:T.fontDisplay,outline:"none",marginBottom:8}}/>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+        {oneriler.map((s,i)=><span key={i} onClick={()=>setAd(s)} className="tap" style={{fontSize:10.5,fontWeight:700,color:T.textSoft,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:20,padding:"6px 10px",cursor:"pointer"}}>{s}</span>)}
+      </div>
+
+      <div style={{fontSize:10,letterSpacing:.5,fontWeight:700,color:T.textMut,margin:"0 2px 7px"}}>SEZON LOGOSU</div>
+      <div style={{display:"flex",gap:6,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:12,padding:4,marginBottom:12}}>
+        <button onClick={()=>setTip("emoji")} className="tap" style={secBtn(tip==="emoji")}>🎨 Renk + Emoji</button>
+        <button onClick={()=>setTip("resim")} className="tap" style={secBtn(tip==="resim")}>🖼️ Resim Yükle</button>
+      </div>
+
+      {/* canlı önizleme */}
+      <div style={{display:"flex",alignItems:"center",gap:12,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:12,padding:12,marginBottom:14}}>
+        <Logo renk={renk} ad={ad||turnuva.ad} logo={onizLogo} boy={50}/>
+        <div style={{minWidth:0}}><div style={{fontSize:14,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ad||turnuva.ad}</div><div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>önizleme</div></div>
+      </div>
+
+      {tip==="emoji"
+        ? <div className="fade-in">
+            <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:12}}>
+              {SEZON_EMOJI.map(e=><span key={e} onClick={()=>setEmoji(e)} className="tap" style={{width:38,height:38,display:"grid",placeItems:"center",fontSize:18,borderRadius:10,background:emoji===e?renk+"22":T.bg2,border:"1px solid "+(emoji===e?renk:T.line),cursor:"pointer"}}>{e}</span>)}
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+              {RENKLER.slice(0,8).map(r=><span key={r} onClick={()=>setRenk(r)} className="tap" style={{width:32,height:32,borderRadius:"50%",background:r,cursor:"pointer",border:renk===r?"3px solid "+T.text:"2px solid "+T.line}}/>)}
+            </div>
+          </div>
+        : <div className="fade-in">
+            <label style={{display:"block",border:"1.5px dashed "+T.line2,borderRadius:12,padding:"22px 14px",textAlign:"center",cursor:"pointer",background:T.bg0,marginBottom:14}}>
+              <input type="file" accept="image/*" onChange={dosyaSec} style={{display:"none"}}/>
+              <div style={{fontSize:26,marginBottom:6}}>{yuk?"⏳":"🖼️"}</div>
+              <div style={{fontSize:12.5,color:T.textSoft,fontWeight:700}}>{yuk?"Yükleniyor…":resimUrl?"✓ Yüklendi — değiştir":"Logo görselini seç"}</div>
+              <div style={{fontSize:10.5,color:T.textMut,marginTop:4}}>PNG · JPG · kare önerilir (futbolcu görselleriyle aynı yere yüklenir)</div>
+            </label>
+            <div style={{fontSize:10,letterSpacing:.5,fontWeight:700,color:T.textMut,margin:"0 2px 7px"}}>ARKA RENK (resim yoksa)</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+              {RENKLER.slice(0,8).map(r=><span key={r} onClick={()=>setRenk(r)} className="tap" style={{width:32,height:32,borderRadius:"50%",background:r,cursor:"pointer",border:renk===r?"3px solid "+T.text:"2px solid "+T.line}}/>)}
+            </div>
+          </div>}
+
+      <button onClick={baslat} disabled={bekle} className="tap" style={{width:"100%",border:0,borderRadius:13,padding:14,fontFamily:T.fontDisplay,fontSize:15,fontWeight:800,color:"#fff",background:renk,opacity:bekle?.7:1}}>{bekle?"⏳ Başlatılıyor…":"🚀 Sezon "+yeniNo+"'yi Başlat →"}</button>
+      <button onClick={onKapat} className="tap" style={{width:"100%",background:"transparent",color:T.textMut,border:0,padding:11,fontSize:12.5,marginTop:4,fontWeight:600}}>Vazgeç</button>
+    </div>
+  </div>;
+}
+
+/* ============================================================
    FAZ 4 — LİG KUR sihirbazı
    ============================================================ */
 function LigKur({T, git, ligKur, oturum}){
@@ -18639,7 +18791,7 @@ function App(){
     switch(nav.sayfa){
       case "ana": icerik=<AnaComp turnuvalar={turnuvalar.filter(t=>(t.durum||'aktif')!=='arsiv')} T={T} git={git} oturum={oturum} yukleniyor={liglerYuk} ligKurYetki={etkinLigKurYetkim} takimKurYetki={etkinTakimKurYetkim}/>; break;
       case "tumenler": icerik=<TumEnler turnuvalar={turnuvalar} T={T} git={git}/>; break;
-      case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} ligKurYetki={etkinLigKurYetkim} saltOkunur={saltOkunur} yukleniyor={liglerYuk} oturum={oturum} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
+      case "ligler": icerik=<Kesfet turnuvalar={turnuvalar} T={T} git={git} ligKurAc={oturum?()=>git({sayfa:"ligkur"}):null} ligKurYetki={etkinLigKurYetkim} saltOkunur={saltOkunur} yukleniyor={liglerYuk} oturum={oturum} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim} onYeniSezon={yeniSezon}/>; break;
       case "ligkur": icerik=<LigKur T={T} git={git} ligKur={ligKur} oturum={oturum}/>; break;
       case "turnuva": icerik=<TurnuvaSayfa turnuva={nav.turnuva} T={T} git={git} takipLig={takipLig} ligTakip={ligTakip} yonetim={ligYetkim(nav.turnuva)?{takimEkle,kulupLigeEkle,takimSil,takimDuzenle,macEkle,macSil,fikstürYap,dagit,grupTasi,oyuncuEkle,oyuncuTopluEkle,oyuncuDuzenle,oyuncuSil,excelTopluEkle,ligGuncelle,kupaSonraki,penGalipSec,ligArsivle,yeniSezon,ligSilTam,ligSilAdmin,adminMi,transferKabulEt,transferRedEt}:null} oturum={oturum} saltOkunur={saltOkunur} onPaylas={paylasLig} onPaylasKaldir={paylasKaldir} ilkTab={nav.tab}/>; break;
       case "takim": icerik=<TakimSayfa takim={nav.takim} turnuva={nav.turnuva} T={T} git={git} takipTakim={takipTakim} takimTakip={takimTakip} oturum={oturum} adminMi={etkinAdminMi}/>; break;
