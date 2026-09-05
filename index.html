@@ -902,6 +902,8 @@ const PAYLASIM_SLUG = (()=>{ try{ return new URLSearchParams(window.location.sea
 const DAVET_TOKEN = (()=>{ try{ return new URLSearchParams(window.location.search).get('davet')||null; }catch(e){ return null; } })();
 const DAVET_URL = (token)=>{ try{ return window.location.origin + window.location.pathname + '?davet=' + token; }catch(e){ return '?davet='+token; } };
 const PAYLASIM_URL = (slug)=>{ try{ return window.location.origin + window.location.pathname + '?lig=' + slug; }catch(e){ return '?lig='+slug; } };
+// TEMİZ paylaşım linki: forzalig.com/<slug> → 404.html bunu /?lig=<slug>'a yönlendirir (kök yolda). Sadece PAYLAŞIM gösteriminde kullanılır; iç gezinme ?lig= kalır.
+const PAYLASIM_URL_TEMIZ = (slug)=>{ try{ return window.location.origin + '/' + slug; }catch(e){ return '/'+slug; } };
 /* SEO/Routing — üst düzey sayfalar URL'e yazılır: F5'te kalır, deep-link, paylaşılabilir. */
 const SEO_TOP = ["ana","ligler","sohbet","profil","pazar","ayar","bildirim","takip","tumenler","admin"];
 const BASLANGIC_SAYFA = (()=>{ try{ const p=new URLSearchParams(location.search).get('p'); return SEO_TOP.includes(p)?p:null; }catch(e){ return null; } })();
@@ -6480,7 +6482,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   if(turnuva && turnuva._ozet) return <div className="fade-in" style={{padding:"80px 24px",textAlign:"center",color:T.textMut,fontSize:13.5}}>⏳ Lig yükleniyor…</div>;
   const [tab,setTab]=useState((ilkTab&&yonetim)?ilkTab:"genel");
   const [paylasAcik,setPaylasAcik]=useState(false);
-  const [paylasUrl,setPaylasUrl]=useState(turnuva.paylasimSlug?PAYLASIM_URL(turnuva.paylasimSlug):"");
+  const [paylasUrl,setPaylasUrl]=useState(turnuva.paylasimSlug?PAYLASIM_URL_TEMIZ(turnuva.paylasimSlug):"");
   const [paylasYuk,setPaylasYuk]=useState(false);
   const [paylasHata,setPaylasHata]=useState("");
   const [kopyalandi,setKopyalandi]=useState(false);
@@ -6491,7 +6493,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
       const r=await onPaylas(turnuva);
       setPaylasYuk(false);
       if(r&&r.url){ setPaylasUrl(r.url); } else { setPaylasHata((r&&r.hata)||"Yayınlanamadı."); }
-    } else { setPaylasUrl(PAYLASIM_URL(turnuva.paylasimSlug)); }
+    } else { setPaylasUrl(PAYLASIM_URL_TEMIZ(turnuva.paylasimSlug)); }
   };
   const kopyala=()=>{ try{ navigator.clipboard.writeText(paylasUrl); setKopyalandi(true); setTimeout(()=>setKopyalandi(false),1800); }catch(e){} };
   const cihazPaylas=()=>{ try{ if(navigator.share) navigator.share({title:turnuva.ad+" · ForzaLig", text:turnuva.ad+" ligini ForzaLig'de gör:", url:paylasUrl}); else kopyala(); }catch(e){} };
@@ -18175,7 +18177,7 @@ function App(){
       return {hata:m};
     }
     turnuva.paylasimSlug=r.slug; setTurnuvalar(p=>[...p]);
-    return {url:PAYLASIM_URL(r.slug), slug:r.slug};
+    return {url:PAYLASIM_URL_TEMIZ(r.slug), slug:r.slug};
   };
   const paylasKaldir=async(turnuva)=>{
     if(turnuva.paylasimSlug){ await Paylas.kaldir(turnuva.paylasimSlug); }

@@ -1,7 +1,7 @@
 import React from 'react';
 // ForzaLig sayfa kümesi — talep-üzerine (git ile gidilince). Bağımlılıklar main'den enjekte.
 export function make(D){
-  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kufurVar, macYorumUret, pick, posAd, qrData, rnd, sb, sesYukle, slotlariUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
+  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kufurVar, macYorumUret, pick, posAd, qrData, rnd, sb, sesYukle, slotlariUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
 
 function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi, bildirimListe}){
   const kariyereGit=()=>{
@@ -938,7 +938,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   if(turnuva && turnuva._ozet) return <div className="fade-in" style={{padding:"80px 24px",textAlign:"center",color:T.textMut,fontSize:13.5}}>⏳ Lig yükleniyor…</div>;
   const [tab,setTab]=useState((ilkTab&&yonetim)?ilkTab:"genel");
   const [paylasAcik,setPaylasAcik]=useState(false);
-  const [paylasUrl,setPaylasUrl]=useState(turnuva.paylasimSlug?PAYLASIM_URL(turnuva.paylasimSlug):"");
+  const [paylasUrl,setPaylasUrl]=useState(turnuva.paylasimSlug?PAYLASIM_URL_TEMIZ(turnuva.paylasimSlug):"");
   const [paylasYuk,setPaylasYuk]=useState(false);
   const [paylasHata,setPaylasHata]=useState("");
   const [kopyalandi,setKopyalandi]=useState(false);
@@ -949,7 +949,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
       const r=await onPaylas(turnuva);
       setPaylasYuk(false);
       if(r&&r.url){ setPaylasUrl(r.url); } else { setPaylasHata((r&&r.hata)||"Yayınlanamadı."); }
-    } else { setPaylasUrl(PAYLASIM_URL(turnuva.paylasimSlug)); }
+    } else { setPaylasUrl(PAYLASIM_URL_TEMIZ(turnuva.paylasimSlug)); }
   };
   const kopyala=()=>{ try{ navigator.clipboard.writeText(paylasUrl); setKopyalandi(true); setTimeout(()=>setKopyalandi(false),1800); }catch(e){} };
   const cihazPaylas=()=>{ try{ if(navigator.share) navigator.share({title:turnuva.ad+" · ForzaLig", text:turnuva.ad+" ligini ForzaLig'de gör:", url:paylasUrl}); else kopyala(); }catch(e){} };
