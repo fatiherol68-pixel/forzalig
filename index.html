@@ -1820,11 +1820,11 @@ const Db = {
             yas:(tam?yasHesap(tam.dogum):ac.yas), boy:(tam?tam.boy:ac.boy), kilo:(tam?tam.kilo:null), ayak:(tam&&tam.ayak)||ac.ayak,
             dogum:(tam&&tam.dogum)||null, bolge:(tam&&tam.bolge)||ac.bolge, uyruk:(tam&&tam.uyruk)||null,
             saglik:(tam&&tam.saglik)||ac.saglik, deger:(tam?tam.deger:ac.deger), sahip_user_id:(tam&&tam.sahip_user_id)||null,
-            foto:(tam&&tam.foto)||ac.foto||null,
+            foto:(tam&&tam.foto)||ac.foto||null, slug:(tam&&tam.slug)||null,
             gol:0,asist:0,mac:0,kurtaris:0,sari:0,kirmizi:0,mvp:0,dk:0,
             altin:0,gumus:0,forvet:0,ortasaha:0,defans:0,kaleci:0,centilmen:0,enerjik:0,macinGolu:0 };
         });
-        return { id:t.id, lisNo:t.lis_no, ad:t.ad, renk:t.renk, renk2:t.renk2||null, logo:t.logo||null, yonetici_id:t.yonetici_id||null, td:t.td||null, kulup_id:t.kulup_id||null, oyuncular, grup:t.grup||0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0,form:[] };
+        return { id:t.id, lisNo:t.lis_no, ad:t.ad, slug:t.slug||null, renk:t.renk, renk2:t.renk2||null, logo:t.logo||null, yonetici_id:t.yonetici_id||null, td:t.td||null, kulup_id:t.kulup_id||null, oyuncular, grup:t.grup||0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0,form:[] };
       });
       const maclar=mc.map(m=>{ const evT=takimlar.find(x=>x.id===m.ev_takim_id), depT=takimlar.find(x=>x.id===m.dep_takim_id);
         return { id:m.id, hafta:m.hafta, tur:m.tur, grup:m.grup, bye:m.bye, penGalip:m.pen_galip,
@@ -18387,6 +18387,7 @@ function App(){
   // DERİN LİNK GERİ-YÜKLEME: ?mac= / ?takim= / ?oyuncu= → veri yüklenince o sayfaya dön (tek sefer)
   const derinRestoreRef=useRef(false);
   const derinHedefRef=useRef(null);   // okunaklı link ile çözülen {tip,id} (takim/oyuncu) — turnuvalar dolunca açılır
+  const [derinTetik,setDerinTetik]=useState(0);   // gitRestore hedef koyunca derin-restore effect'ini tekrar çalıştır
   useEffect(()=>{
     if(derinRestoreRef.current) return;
     // Okunaklı link ile çözülmüş takım/oyuncu hedefi varsa onu da dene
@@ -18403,7 +18404,7 @@ function App(){
       if(takimHedef){ for(const t of turnuvalar){ const tk=(t.takimlar||[]).find(x=>String(x.id)===String(takimHedef)); if(tk){ derinRestoreRef.current=true; git({sayfa:"takim",takim:tk,turnuva:t}); temizle(); return; } } }
       if(oyuncuHedef){ for(const t of turnuvalar){ for(const tk of (t.takimlar||[])){ const o=(tk.oyuncular||[]).find(x=>String(x.player_id||x.id)===String(oyuncuHedef)); if(o){ derinRestoreRef.current=true; git({sayfa:"oyuncu",oyuncu:{...o,takimAd:tk.ad,turnuva:t.ad}}); temizle(); return; } } } }
     }catch(e){}
-  },[turnuvalar]);
+  },[turnuvalar, derinTetik]);
   // OKUNAKLI LİNK: forzalig.com/<slug> → 404.html → ?git=<slug>. Giriş yapılınca slug'ı çöz → varlığa git (+ adres çubuğunu /slug'a temizle).
   const gitRestoreRef=useRef(false);
   useEffect(()=>{ if(gitRestoreRef.current || !GIT_SLUG || !sb || !oturum) return;
@@ -18412,7 +18413,7 @@ function App(){
       try{
         const v=await Db.varlikBulSlug(GIT_SLUG);
         if(v && v.tip==='lig' && v.id){ const L=await Db.ligYukle(v.id); if(L){ try{turnuvaHesapla(L);}catch(e){} setTurnuvalar(p=> p.some(t=>t.id===L.id)? p.map(t=>t.id===L.id?L:t) : [L,...p]); git({sayfa:'turnuva',turnuva:L}); try{ history.replaceState(null,'','/'+GIT_SLUG); }catch(e){} return; } }
-        if(v && (v.tip==='takim' || v.tip==='oyuncu')){ derinHedefRef.current={tip:v.tip, id:v.id}; }  // sonraki aşamada turnuvalar dolunca açılır
+        if(v && (v.tip==='takim' || v.tip==='oyuncu')){ derinHedefRef.current={tip:v.tip, id:v.id}; setDerinTetik(x=>x+1); }  // turnuvalar dolunca derin-restore açar
       }catch(e){}
     })();
   },[oturum]);
