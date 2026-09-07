@@ -5,20 +5,21 @@
 <title>ForzaLig</title>
 <meta name="robots" content="noindex">
 <script>
-/* ForzaLig — SPA fallback: temiz lig bağlantısı  forzalig.com/<slug>  →  /?lig=<slug>
+/* ForzaLig — SPA fallback: okunaklı link  forzalig.com/<slug>  →  /?git=<slug>
    GitHub Pages bilinmeyen yollarda bu dosyayı sunar. Gerçek statik dizinler ve rezerve
-   sayfa adları atlanır. Davet linkleri (?davet=TOKEN) kök yolda (/) kaldığı için buraya
-   hiç düşmez → çakışma olmaz. */
+   sayfa adları atlanır. Uygulama ?git=<slug>'i çözer (lig/oyuncu/takım); giriş yapılmışsa
+   o varlığa gider, yapılmamışsa üye-ol/giriş ekranı gösterir.
+   Davet linkleri (?davet=TOKEN) kök yolda (/) kaldığı için buraya hiç düşmez. */
 (function(){
   try{
     var p = location.pathname.replace(/^\/+|\/+$/g, "");
     var rez = { gizlilik:1, icons:1, assets:1, ana:1, ligler:1, sohbet:1, profil:1,
-      pazar:1, ayar:1, bildirim:1, takip:1, tumenler:1, admin:1,
+      pazar:1, ayar:1, bildirim:1, takip:1, tumenler:1, admin:1, git:1, lig:1, oyuncu:1, takim:1, mac:1,
       "ankara-veteran-ligi":1, "izmir-veteran-ligi":1, "index.html":1, "404.html":1,
       "manifest.json":1, "sw.js":1, "favicon.ico":1, "robots.txt":1, "sitemap.xml":1, "og.png":1 };
     if (p && p.indexOf("/") < 0 && p.indexOf(".") < 0 && !rez[p]) {
       var q = location.search ? ("&" + location.search.slice(1)) : "";
-      location.replace("/?lig=" + encodeURIComponent(p) + q + location.hash);
+      location.replace("/?git=" + encodeURIComponent(p) + q + location.hash);
     } else {
       location.replace("/");
     }
