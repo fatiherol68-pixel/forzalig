@@ -910,7 +910,12 @@ const BASLANGIC_SAYFA = (()=>{ try{ const p=new URLSearchParams(location.search)
 const MAC_ID = (()=>{ try{ return new URLSearchParams(location.search).get('mac')||null; }catch(e){ return null; } })();
 const TAKIM_ID = (()=>{ try{ return new URLSearchParams(location.search).get('takim')||null; }catch(e){ return null; } })();
 const OYUNCU_ID = (()=>{ try{ return new URLSearchParams(location.search).get('oyuncu')||null; }catch(e){ return null; } })();
+const GIT_SLUG = (()=>{ try{ return new URLSearchParams(location.search).get('git')||null; }catch(e){ return null; } })(); // okunaklı link: forzalig.com/<slug> → 404.html → ?git=<slug>
 const URL_FOR = (n)=>{ try{ const base=location.pathname; if(!n||!n.sayfa) return base;
+  // OKUNAKLI LİNK: varlığın slug'ı varsa forzalig.com/<slug> (temiz yol). Yoksa eski parametrelere düşer (aynen çalışır).
+  if(n.sayfa==='turnuva' && n.turnuva && n.turnuva.slug) return '/'+n.turnuva.slug;
+  if(n.sayfa==='takim'   && n.takim   && n.takim.slug)   return '/'+n.takim.slug;
+  if(n.sayfa==='oyuncu'  && n.oyuncu  && n.oyuncu.slug)  return '/'+n.oyuncu.slug;
   let dp='';
   if(n.sayfa==='mac'&&n.mac&&n.mac.id!=null) dp='mac='+encodeURIComponent(n.mac.id);
   else if(n.sayfa==='takim'&&n.takim&&n.takim.id!=null) dp='takim='+encodeURIComponent(n.takim.id);
@@ -1395,6 +1400,10 @@ const Db = {
   async kulupTopluSil(ids){ if(!sb||!ids||!ids.length) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('kulup_toplu_sil',{p_kulupler:ids}); if(error){ if(error.code==='42501'||/yetki|policy|permission|denied/i.test(error.message||'')) return {hata:'Yetkiniz bulunmuyor.'}; return {hata:error.message}; } return {ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   // ---- Faz 3: Sezon serisi (yeni sezon devri) + Faz 4: kariyer/tüm-zamanlar ----
   async yeniSezonBaslat(ligId){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('yeni_sezon_baslat',{p_eski:ligId}); return error?{hata:error.message}:{ok:true, yeniId:data}; }catch(e){ return {hata:String(e)}; } },
+  // Okunaklı link çözücü: slug → {tip,id} (lig/takim/oyuncu). SECURITY DEFINER RPC.
+  async varlikBulSlug(slug){ if(!sb||!slug) return null; try{ const {data,error}=await sb.rpc('varlik_bul_slug',{p_slug:slug}); if(error) return null; const r=(data&&data[0])||null; return r?{tip:r.tip, id:r.id}:null; }catch(e){ return null; } },
+  // Lige slug ata (okunaklı link). Benzersizlik DB'de (unique index) korunur → çakışırsa hata döner.
+  async ligSlugYaz(ligId, slug){ if(!sb||!ligId) return {hata:"yok"}; try{ const {error}=await sb.from('ligler').update({slug:slug||null}).eq('id',ligId); if(error){ if(/duplicate|unique/i.test(error.message||'')) return {hata:'Bu bağlantı adı başka bir yerde kullanılıyor. Başka bir ad dene.'}; return {hata:error.message}; } return {ok:true}; }catch(e){ return {hata:String(e)}; } },
   // Seri üyelikleri — seri_id'si olan (yani çok-sezonlu seriye ait) TÜM ligler. Katalogda hangi kartın açılır-liste olacağını belirler. Tek küçük sorgu.
   async serilerHam(){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('id,seri_id,sezon_no').not('seri_id','is',null).eq('silindi',false); return data||[]; }catch(e){ return []; } },
   // Sezon serisi — bir ligin tüm sezonları (seri_id bazlı) + her sezonun şampiyonu (stat_ozet'ten türetilir, ek sorgu yok).
@@ -1830,7 +1839,7 @@ const Db = {
       });
       return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', logo:L.logo||null, yonetici_id:L.yonetici_id, takimlar, maclar, format:L.format||'tek',
         grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
-        seriId:L.seri_id||null, sezonNo:L.sezon_no||1,
+        seriId:L.seri_id||null, sezonNo:L.sezon_no||1, slug:L.slug||null,
         sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
         kurallarKilit:!!L.kurallar_kilit, kurallar:L.kurallar||"", iliskisel:true, _hafif:!!hafif };
     }catch(e){ console.warn('ligYukle',e); return null; }
@@ -1931,7 +1940,7 @@ const Db = {
     yonetici_id:L.yonetici_id, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8, format:L.format||'tek',
     grupSayi:L.grup_sayi||0, sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
     evren:L.evren||null, kurallar:L.kurallar||"", takimlar:[], maclar:[], iliskisel:true, _ozet:true,
-    seriId:L.seri_id||null, sezonNo:L.sezon_no||1,
+    seriId:L.seri_id||null, sezonNo:L.sezon_no||1, slug:L.slug||null,
     takimSay:Number(L.takim_say||0)||0, macSay:Number(L.mac_say||0)||0, oyuncuSay:Number(L.oyuncu_say||0)||0,
     benim:L.sahiplik==='benim' }; },
   async liglerOzet(userId){
@@ -1943,7 +1952,7 @@ const Db = {
     }catch(e){
       // Fallback: RPC yoksa hafif tek sorgu (sayısız) — yine N+1 YOK
       try{
-        const kol='id,ad,yonetici_id,evren,durum,sehir,ilce,logo,renk,format,grup_sayi,kisi,sponsor_ad,sponsor_emoji,kurallar,silindi,olusturma,seri_id,sezon_no';
+        const kol='id,ad,yonetici_id,evren,durum,sehir,ilce,logo,renk,format,grup_sayi,kisi,sponsor_ad,sponsor_emoji,kurallar,silindi,olusturma,seri_id,sezon_no,slug';
         let q=await sb.from('ligler').select(kol).or('evren.not.is.null,durum.eq.aktif').order('olusturma',{ascending:false}).limit(500);
         let rows=(q.data||[]).filter(L=>!L.silindi);
         if(userId){ try{ const have=new Set(rows.map(r=>r.id)); let q2=await sb.from('ligler').select(kol).eq('yonetici_id',userId).limit(300); (q2.data||[]).forEach(L=>{ if(!L.silindi && !have.has(L.id)){ L._benim=true; rows.push(L); have.add(L.id); } }); }catch(e2){} }
@@ -7047,21 +7056,25 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum, onPaylas}){
   const [lSlug,setLSlug]=useState(turnuva.paylasimSlug||"");
   const ligKaydet=async()=>{
     if(!lAd.trim())return;
-    // Özel bağlantı adı (URL slug): Türkçe→ascii, rezerve/çakışma koruması. Paylaşınca forzalig.com/<slug> çalışır.
+    // Okunaklı link (slug): Türkçe→ascii, rezerve kelime + benzersizlik koruması. Kaydedince forzalig.com/<slug> ÇALIŞIR (giriş gerekir).
     let yeniSlug=null;
     if(lSlug.trim()){
       const s=slugUret(lSlug);
-      const rez=[...SEO_TOP,"gizlilik","icons","assets","davet","ankara-veteran-ligi","izmir-veteran-ligi"];
+      const rez=[...SEO_TOP,"gizlilik","icons","assets","davet","ankara-veteran-ligi","izmir-veteran-ligi","lig","oyuncu","takim","mac","git"];
       if(s.length<3 || rez.includes(s)){ alert("Bu bağlantı adı kullanılamaz (en az 3 karakter; rezerve kelime olamaz). Başka bir ad dene."); return; }
-      turnuva.paylasimSlug=s; setLSlug(s); yeniSlug=s;
+      yeniSlug=s;
     }
     yonetim.ligGuncelle(turnuva, {ad:lAd.trim(), sehir:lSehir.trim(), ilce:lIlce.trim(), renk:lRenk, baslangic:lBaslangic, hedefTakim:lHedef, kisi:lKisi, sponsorAd:lSponsor.trim(), sponsorEmoji:lSponsorE});
     setLigAcik(false);
-    // Bağlantı adı verildiyse ligi HEMEN yayınla → temiz link anında çalışsın (iki-adım karışıklığı biter)
-    if(yeniSlug && onPaylas){
-      const r=await onPaylas(turnuva);
-      if(r && r.url){ try{ navigator.clipboard.writeText(r.url); }catch(e){} alert("✓ Yayınlandı — link kopyalandı:\n"+r.url+"\n\nBu adresi paylaşabilirsin, tıklayan direkt bu sezona gelir."); }
-      else if(r && r.hata){ alert("Kaydedildi ama yayınlanamadı: "+r.hata); }
+    // Bağlantı adı verildiyse lige KALICI slug yaz → temiz link anında çalışır (yayın/snapshot GEREKMEZ, katalog karışmaz)
+    if(yeniSlug){
+      const r=await Db.ligSlugYaz(turnuva.id, yeniSlug);
+      if(r && r.ok){ turnuva.slug=yeniSlug; setLSlug(yeniSlug);
+        const url=window.location.origin+'/'+yeniSlug;
+        try{ navigator.clipboard.writeText(url); }catch(e){}
+        try{ history.replaceState(null,'','/'+yeniSlug); }catch(e){}
+        alert("✓ Bağlantı adı kaydedildi — link kopyalandı:\n"+url+"\n\nBu adresi paylaşabilirsin; açan kişi giriş yaptıktan sonra bu ligi görür.");
+      } else { alert("Bağlantı adı kaydedilemedi: "+((r&&r.hata)||"")); }
     }
   };
   const tk=turnuva.takimlar;
@@ -18373,18 +18386,36 @@ function App(){
     if(dx>46 && Math.abs(dy)<70 && dt<1000){ try{ titret(6); }catch(_){} try{ geriRef.current(); }catch(_){} } };
   // DERİN LİNK GERİ-YÜKLEME: ?mac= / ?takim= / ?oyuncu= → veri yüklenince o sayfaya dön (tek sefer)
   const derinRestoreRef=useRef(false);
+  const derinHedefRef=useRef(null);   // okunaklı link ile çözülen {tip,id} (takim/oyuncu) — turnuvalar dolunca açılır
   useEffect(()=>{
     if(derinRestoreRef.current) return;
-    if(!(MAC_ID||TAKIM_ID||OYUNCU_ID)) return;
+    // Okunaklı link ile çözülmüş takım/oyuncu hedefi varsa onu da dene
+    const HT=derinHedefRef.current;
+    const takimHedef = TAKIM_ID || (HT&&HT.tip==='takim'?HT.id:null);
+    const oyuncuHedef = OYUNCU_ID || (HT&&HT.tip==='oyuncu'?HT.id:null);
+    if(!(MAC_ID||takimHedef||oyuncuHedef)) return;
     if(!turnuvalar||!turnuvalar.length) return;
     // NOT: ref'i ancak GERÇEKTEN yönlendirince kilitle — hedef lig/maç henüz yüklenmediyse
     // veri büyüdükçe tekrar dener (aksi halde ilk yüklemede bulunamayınca kalıcı takılırdı).
     try{
+      const temizle=()=>{ if(GIT_SLUG){ try{ history.replaceState(null,'','/'+GIT_SLUG); }catch(e){} } };
       if(MAC_ID){ for(const t of turnuvalar){ const mm=(t.maclar||[]).find(x=>String(x.id)===String(MAC_ID)); if(mm){ derinRestoreRef.current=true; git({sayfa:"mac",mac:mm,turnuva:t}); return; } } }
-      if(TAKIM_ID){ for(const t of turnuvalar){ const tk=(t.takimlar||[]).find(x=>String(x.id)===String(TAKIM_ID)); if(tk){ derinRestoreRef.current=true; git({sayfa:"takim",takim:tk,turnuva:t}); return; } } }
-      if(OYUNCU_ID){ for(const t of turnuvalar){ for(const tk of (t.takimlar||[])){ const o=(tk.oyuncular||[]).find(x=>String(x.player_id||x.id)===String(OYUNCU_ID)); if(o){ derinRestoreRef.current=true; git({sayfa:"oyuncu",oyuncu:{...o,takimAd:tk.ad,turnuva:t.ad}}); return; } } } }
+      if(takimHedef){ for(const t of turnuvalar){ const tk=(t.takimlar||[]).find(x=>String(x.id)===String(takimHedef)); if(tk){ derinRestoreRef.current=true; git({sayfa:"takim",takim:tk,turnuva:t}); temizle(); return; } } }
+      if(oyuncuHedef){ for(const t of turnuvalar){ for(const tk of (t.takimlar||[])){ const o=(tk.oyuncular||[]).find(x=>String(x.player_id||x.id)===String(oyuncuHedef)); if(o){ derinRestoreRef.current=true; git({sayfa:"oyuncu",oyuncu:{...o,takimAd:tk.ad,turnuva:t.ad}}); temizle(); return; } } } }
     }catch(e){}
   },[turnuvalar]);
+  // OKUNAKLI LİNK: forzalig.com/<slug> → 404.html → ?git=<slug>. Giriş yapılınca slug'ı çöz → varlığa git (+ adres çubuğunu /slug'a temizle).
+  const gitRestoreRef=useRef(false);
+  useEffect(()=>{ if(gitRestoreRef.current || !GIT_SLUG || !sb || !oturum) return;
+    gitRestoreRef.current=true;
+    (async()=>{
+      try{
+        const v=await Db.varlikBulSlug(GIT_SLUG);
+        if(v && v.tip==='lig' && v.id){ const L=await Db.ligYukle(v.id); if(L){ try{turnuvaHesapla(L);}catch(e){} setTurnuvalar(p=> p.some(t=>t.id===L.id)? p.map(t=>t.id===L.id?L:t) : [L,...p]); git({sayfa:'turnuva',turnuva:L}); try{ history.replaceState(null,'','/'+GIT_SLUG); }catch(e){} return; } }
+        if(v && (v.tip==='takim' || v.tip==='oyuncu')){ derinHedefRef.current={tip:v.tip, id:v.id}; }  // sonraki aşamada turnuvalar dolunca açılır
+      }catch(e){}
+    })();
+  },[oturum]);
   const veriUret=(a,b,c)=>{ setTurnuvalar(uretVeri(a,b,c)); setNav({sayfa:"ana"}); setNavGecmis([]); setTab("ana"); };
   const veriSil=()=>{ setTurnuvalar([]); setNav({sayfa:"ana"}); setNavGecmis([]); setTab("ana"); };
 
