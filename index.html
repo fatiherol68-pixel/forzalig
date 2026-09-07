@@ -17389,6 +17389,7 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
   const presCanalRef=useRef(null);
   const presIdRef=useRef((window.crypto&&crypto.randomUUID)?crypto.randomUUID():"d"+Date.now()+Math.random().toString(36).slice(2,6));
   const kimlikRef=useRef(kimlik);
+  const sonKimlikImzaRef=useRef("");   // presence spam koruması: sadece kimlik İÇERİĞİ değişince track() (referans değil)
   const presKayit=()=>{ const k=kimlikRef.current; return k?{uid:k.uid,ad:k.ad,takim:k.takim,renk:k.renk,t:Date.now()}:{uid:presIdRef.current,ad:"Misafir",takim:null,renk:null,t:Date.now()}; };
   // ===== CANLI TEPKİ (❤️) — dinleyici kalbe basınca herkeste (spiker dahil) uçan kalp + "kim attı" =====
   const [tepkiler,setTepkiler]=useState([]);
@@ -17430,7 +17431,11 @@ function RadyoCalarV2({T, barGizle, kimlik, adminMi}){
     document.addEventListener("visibilitychange",vh);
     return ()=>{ aktif=false; clearInterval(hb); try{ document.removeEventListener("visibilitychange",vh); }catch(e){} try{ kanal.untrack(); }catch(e){} try{ sb.removeChannel(kanal); }catch(e){} };
   },[]);
-  useEffect(()=>{ kimlikRef.current=kimlik; try{ presCanalRef.current&&presCanalRef.current.track(presKayit()); }catch(e){} },[kimlik]);
+  useEffect(()=>{ kimlikRef.current=kimlik;
+    // Presence rate-limit koruması: kimlik nesnesi her render değişse de İÇERİK aynıysa track() gönderme
+    const imza = kimlik ? [kimlik.uid,kimlik.ad,kimlik.takim,kimlik.renk].join("|") : "";
+    if(imza!==sonKimlikImzaRef.current){ sonKimlikImzaRef.current=imza; try{ presCanalRef.current&&presCanalRef.current.track(presKayit()); }catch(e){} }
+  },[kimlik]);
   const dinleyiciBenzersiz = (()=>{ const m={}; (dinleyiciler||[]).forEach(d=>{ if(d&&d.uid&&!m[d.uid]) m[d.uid]=d; }); return Object.keys(m).map(k=>m[k]); })();
   const dinleyiciSayi = dinleyiciBenzersiz.length;
   const [dinlAcik,setDinlAcik]=useState(false); const [istekAcik,setIstekAcik]=useState(false); const [istekMesaj,setIstekMesaj]=useState("");
