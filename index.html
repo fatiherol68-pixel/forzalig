@@ -369,6 +369,18 @@
   .prem-tap:active { transform: scale(.965); }
   /* Stagger — liste açılış dalgası */
   @keyframes staggerIn { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:none;} }
+  /* fl-stagger — doğrudan çocukları sırayla (dalga) belirir. Giriş sıralaması (Faz 1). */
+  .fl-stagger>*{animation:staggerIn .5s cubic-bezier(.2,.8,.3,1) both}
+  .fl-stagger>*:nth-child(1){animation-delay:.04s}
+  .fl-stagger>*:nth-child(2){animation-delay:.10s}
+  .fl-stagger>*:nth-child(3){animation-delay:.16s}
+  .fl-stagger>*:nth-child(4){animation-delay:.22s}
+  .fl-stagger>*:nth-child(5){animation-delay:.28s}
+  .fl-stagger>*:nth-child(6){animation-delay:.34s}
+  .fl-stagger>*:nth-child(7){animation-delay:.40s}
+  .fl-stagger>*:nth-child(8){animation-delay:.46s}
+  .fl-stagger>*:nth-child(n+9){animation-delay:.52s}
+  @media(prefers-reduced-motion:reduce){.fl-stagger>*{animation:none!important}}
   /* ANKET KARTI — premium giriş + parıltı + oy onayı */
   @keyframes fzAnketIn { from{opacity:0;transform:translateY(14px) scale(.98);} to{opacity:1;transform:none;} }
   @keyframes fzGlow { 0%,100%{box-shadow:0 8px 26px rgba(0,0,0,.35), 0 0 0 1px rgba(255,201,60,.20);} 50%{box-shadow:0 10px 32px rgba(255,201,60,.16), 0 0 0 1px rgba(255,201,60,.45);} }
@@ -4876,11 +4888,11 @@ function FidanKart({T}){
       </div>
       <div style={{position:"relative",display:"flex",alignItems:"baseline",gap:10,marginBottom:11}}>
         <div style={{display:"flex",alignItems:"baseline",gap:5}}>
-          <span style={{fontSize:34,fontWeight:900,color:T.accent,fontFamily:T.fontDisplay,lineHeight:1}}>{nf(fidan)}</span>
+          <span style={{fontSize:34,fontWeight:900,color:T.accent,fontFamily:T.fontDisplay,lineHeight:1}}><FlSayac deger={fidan}/></span>
           <span style={{fontSize:12,fontWeight:700,color:T.textSoft}}>fidan</span>
         </div>
         <div style={{marginLeft:"auto",textAlign:"right"}}>
-          <div style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1}}>{nf(toplamGol)}</div>
+          <div style={{fontSize:17,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1}}><FlSayac deger={toplamGol} sure={900}/></div>
           <div style={{fontSize:9.5,color:T.textMut,marginTop:2}}>toplam gol</div>
         </div>
       </div>
@@ -5306,7 +5318,7 @@ function EnKartV5({et, o, deg, br, renk, T, takim, onClick}){
         <div style={{fontSize:10.5,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{takim?(o.turnuva||""):(o.takimAd||o.turnuva||"")}</div>
       </div>
       <div style={{textAlign:"right",flexShrink:0}}>
-        <div style={{fontSize:22,fontWeight:900,color:renk,fontFamily:T.fontDisplay,lineHeight:1}}>{deg}</div>
+        <div style={{fontSize:22,fontWeight:900,color:renk,fontFamily:T.fontDisplay,lineHeight:1}}><FlSayac deger={deg}/></div>
         {br && <div style={{fontSize:8.5,color:T.textMut,textTransform:"uppercase",letterSpacing:.4,marginTop:2}}>{br}</div>}
       </div>
     </div>
