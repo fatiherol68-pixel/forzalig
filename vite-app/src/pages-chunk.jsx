@@ -1,7 +1,7 @@
 import React from 'react';
 // ForzaLig sayfa kümesi — talep-üzerine (git ile gidilince). Bağımlılıklar main'den enjekte.
 export function make(D){
-  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kufurVar, macYorumUret, pick, posAd, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
+  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kufurVar, macYorumUret, pick, posAd, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
 
 function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi, bildirimListe}){
   const kariyereGit=()=>{
@@ -1019,9 +1019,10 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   return <div className="fade-in" style={{paddingBottom:90}}>
     {/* PREMIUM KAPAK HERO */}
     <div style={{padding:"12px 14px 0"}}>
-      <div style={{position:"relative",overflow:"hidden",borderRadius:20,padding:"15px 16px 14px",border:"1px solid "+turnuva.renk+"55",
-        background:"radial-gradient(120% 150% at 88% 0%,"+turnuva.renk+"4d,transparent 55%), linear-gradient(160deg,"+T.bg1+","+T.bg0+" 72%)",boxShadow:"0 18px 46px rgba(0,0,0,.34)"}}>
-        <div style={{position:"absolute",inset:0,pointerEvents:"none",opacity:.55,background:"repeating-linear-gradient(115deg,transparent,transparent 22px,"+T.accent+"0A 22px,"+T.accent+"0A 24px)"}}/>
+      <div style={{position:"relative",overflow:"hidden",borderRadius:20,padding:"15px 16px 14px",border:"1px solid "+turnuva.renk+"66",background:T.bg0,boxShadow:"0 18px 46px rgba(0,0,0,.34)",minHeight:150}}>
+        {/* Lig kapağı — animasyonlu kimlik (tema: turnuva.kapak) */}
+        <KapakArka renk={turnuva.renk} kapak={turnuva.kapak}/>
+        <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.30),rgba(4,10,14,.12) 45%,rgba(4,10,14,.64))"}}/>
         {/* durum + stat şerit */}
         <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
           <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:9.5,fontWeight:800,letterSpacing:.6,color:durumRenk,background:durumRenk+"1e",border:"1px solid "+durumRenk+"44",borderRadius:20,padding:"4px 10px"}}>
@@ -1029,7 +1030,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
           </span>
           <div style={{display:"flex",gap:14,textAlign:"center"}}>
             {[["TAKIM",turnuva.takimlar.length],["HAFTA",sonHafta||"—"],["MAÇ",oynanan+"/"+toplamMac]].map(([k,v])=>
-              <div key={k}><div style={{fontSize:15,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1}}>{v}</div><div style={{fontSize:7.5,color:T.textSoft,letterSpacing:.5,marginTop:2}}>{k}</div></div>
+              <div key={k}><div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 1px 8px rgba(0,0,0,.6)"}}>{v}</div><div style={{fontSize:7.5,color:"#cfe4ea",letterSpacing:.5,marginTop:2,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div></div>
             )}
           </div>
         </div>
@@ -1037,8 +1038,8 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
         <div style={{position:"relative",display:"flex",alignItems:"center",gap:13,marginTop:14}}>
           <div style={{borderRadius:15,overflow:"hidden",flexShrink:0,boxShadow:"0 8px 20px rgba(0,0,0,.4)"}}><Logo renk={turnuva.renk} ad={turnuva.ad} logo={turnuva.logo} renk2={turnuva.renk2} boy={54}/></div>
           <div style={{minWidth:0}}>
-            <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
-            <div style={{fontSize:11,color:T.textSoft,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>📍 {turnuva.sehir}{turnuva.ilce?" · "+turnuva.ilce:""} · ⚽ {turnuva.kisi} kişi · {formatAd}</div>
+            <div style={{fontSize:20,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{turnuva.ad}</div>
+            <div style={{fontSize:11,color:"#e4f2f6",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textShadow:"0 1px 6px rgba(0,0,0,.6)"}}>📍 {turnuva.sehir}{turnuva.ilce?" · "+turnuva.ilce:""} · ⚽ {turnuva.kisi} kişi · {formatAd}</div>
           </div>
         </div>
         {/* aksiyonlar */}

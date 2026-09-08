@@ -304,6 +304,16 @@
   .satir-hover:active { transform: scale(.985); }
   @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
   .live-dot { animation: pulse 1.6s infinite; }
+  /* ===== LİG KAPAK (kimlik) animasyonları ===== */
+  .fz-kapak-orb{position:absolute;border-radius:50%;filter:blur(7px);opacity:.5;animation:fzKapGlow 5s ease-in-out infinite;pointer-events:none}
+  @keyframes fzKapGlow{0%,100%{opacity:.32;transform:scale(1)}50%{opacity:.72;transform:scale(1.18)}}
+  .fz-kapak-drift{background-size:230% 230%;animation:fzKapDrift 8s ease-in-out infinite}
+  @keyframes fzKapDrift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+  .fz-kapak-sweep{position:absolute;inset:0;pointer-events:none;animation:fzKapSweep 4.4s linear infinite}
+  @keyframes fzKapSweep{0%{transform:translateX(-115%)}55%,100%{transform:translateX(230%)}}
+  .fz-kapak-zoom{animation:fzKapZoom 14s ease-in-out infinite alternate}
+  @keyframes fzKapZoom{0%{transform:scale(1)}100%{transform:scale(1.12)}}
+  @media(prefers-reduced-motion:reduce){.fz-kapak-orb,.fz-kapak-drift,.fz-kapak-sweep,.fz-kapak-zoom{animation:none!important}}
   /* Premium diziliş animasyonları */
   @keyframes sahaGel { from{opacity:0;transform:translate(-50%,calc(-50% + 20px));} to{opacity:1;transform:translate(-50%,-50%);} }
   .saha-oyuncu { animation: sahaGel .5s ease both; }
@@ -1404,6 +1414,7 @@ const Db = {
   async varlikBulSlug(slug){ if(!sb||!slug) return null; try{ const {data,error}=await sb.rpc('varlik_bul_slug',{p_slug:slug}); if(error) return null; const r=(data&&data[0])||null; return r?{tip:r.tip, id:r.id}:null; }catch(e){ return null; } },
   // Lige slug ata (okunaklı link). Benzersizlik DB'de (unique index) korunur → çakışırsa hata döner.
   async ligSlugYaz(ligId, slug){ if(!sb||!ligId) return {hata:"yok"}; try{ const {error}=await sb.from('ligler').update({slug:slug||null}).eq('id',ligId); if(error){ if(/duplicate|unique/i.test(error.message||'')) return {hata:'Bu bağlantı adı başka bir yerde kullanılıyor. Başka bir ad dene.'}; return {hata:error.message}; } return {ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async ligKapakYaz(ligId, kapak){ if(!sb||!ligId) return {hata:"yok"}; try{ const {error}=await sb.from('ligler').update({kapak:kapak||null}).eq('id',ligId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   // Seri üyelikleri — seri_id'si olan (yani çok-sezonlu seriye ait) TÜM ligler. Katalogda hangi kartın açılır-liste olacağını belirler. Tek küçük sorgu.
   async serilerHam(){ if(!sb) return []; try{ const {data}=await sb.from('ligler').select('id,seri_id,sezon_no').not('seri_id','is',null).eq('silindi',false); return data||[]; }catch(e){ return []; } },
   // Sezon serisi — bir ligin tüm sezonları (seri_id bazlı) + her sezonun şampiyonu (stat_ozet'ten türetilir, ek sorgu yok).
@@ -1839,7 +1850,7 @@ const Db = {
       });
       return { id:L.id, ad:L.ad, renk:L.renk||'#34D399', logo:L.logo||null, yonetici_id:L.yonetici_id, takimlar, maclar, format:L.format||'tek',
         grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
-        seriId:L.seri_id||null, sezonNo:L.sezon_no||1, slug:L.slug||null,
+        seriId:L.seri_id||null, sezonNo:L.sezon_no||1, slug:L.slug||null, kapak:L.kapak||null,
         sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
         kurallarKilit:!!L.kurallar_kilit, kurallar:L.kurallar||"", iliskisel:true, _hafif:!!hafif };
     }catch(e){ console.warn('ligYukle',e); return null; }
@@ -1940,7 +1951,7 @@ const Db = {
     yonetici_id:L.yonetici_id, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8, format:L.format||'tek',
     grupSayi:L.grup_sayi||0, sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
     evren:L.evren||null, kurallar:L.kurallar||"", takimlar:[], maclar:[], iliskisel:true, _ozet:true,
-    seriId:L.seri_id||null, sezonNo:L.sezon_no||1, slug:L.slug||null,
+    seriId:L.seri_id||null, sezonNo:L.sezon_no||1, slug:L.slug||null, kapak:L.kapak||null,
     takimSay:Number(L.takim_say||0)||0, macSay:Number(L.mac_say||0)||0, oyuncuSay:Number(L.oyuncu_say||0)||0,
     benim:L.sahiplik==='benim' }; },
   async liglerOzet(userId){
@@ -1952,7 +1963,7 @@ const Db = {
     }catch(e){
       // Fallback: RPC yoksa hafif tek sorgu (sayısız) — yine N+1 YOK
       try{
-        const kol='id,ad,yonetici_id,evren,durum,sehir,ilce,logo,renk,format,grup_sayi,kisi,sponsor_ad,sponsor_emoji,kurallar,silindi,olusturma,seri_id,sezon_no,slug';
+        const kol='id,ad,yonetici_id,evren,durum,sehir,ilce,logo,renk,format,grup_sayi,kisi,sponsor_ad,sponsor_emoji,kurallar,silindi,olusturma,seri_id,sezon_no,slug,kapak';
         let q=await sb.from('ligler').select(kol).or('evren.not.is.null,durum.eq.aktif').order('olusturma',{ascending:false}).limit(500);
         let rows=(q.data||[]).filter(L=>!L.silindi);
         if(userId){ try{ const have=new Set(rows.map(r=>r.id)); let q2=await sb.from('ligler').select(kol).eq('yonetici_id',userId).limit(300); (q2.data||[]).forEach(L=>{ if(!L.silindi && !have.has(L.id)){ L._benim=true; rows.push(L); have.add(L.id); } }); }catch(e2){} }
@@ -3296,6 +3307,30 @@ const Motor = {
 /* ============================================================
    UI PARÇALARI (ortak bileşenler — her yerde aynı)
    ============================================================ */
+// ---- Lig kapağı (kimlik) renk yardımcıları + animasyonlu arka plan ----
+function _kapHx(h){ h=String(h||'#27AE60').replace('#',''); if(h.length===3)h=h.split('').map(c=>c+c).join(''); const n=parseInt(h,16)||0x27AE60; return {r:(n>>16)&255,g:(n>>8)&255,b:n&255}; }
+function kapKoyu(h,k){ const c=_kapHx(h),f=1-(k||.5); return `rgb(${Math.round(c.r*f)},${Math.round(c.g*f)},${Math.round(c.b*f)})`; }
+function kapAcik(h,k){ const c=_kapHx(h),f=k||.4; return `rgb(${Math.round(c.r+(255-c.r)*f)},${Math.round(c.g+(255-c.g)*f)},${Math.round(c.b+(255-c.b)*f)})`; }
+// Kapağın SADECE animasyonlu arka planı (absolute inset:0). position:relative+overflow:hidden bir kabın içine konur; içerik üstte.
+function KapakArka({renk, kapak}){
+  const c=renk||'#27AE60'; const tema=(kapak&&kapak.tema)||'isik'; const resim=kapak&&kapak.resim;
+  if(tema==='resim' && resim) return <>
+    <div className="fz-kapak-zoom" style={{position:'absolute',inset:0,backgroundImage:`url(${resim})`,backgroundSize:'cover',backgroundPosition:'center'}}/>
+    <div style={{position:'absolute',inset:0,background:`linear-gradient(120deg,${c}59,transparent 66%)`,mixBlendMode:'multiply'}}/>
+  </>;
+  if(tema==='neon'||tema==='dalga'){ const g=tema==='neon'?`linear-gradient(120deg,${kapKoyu(c,.66)},${c},${kapAcik(c,.4)},${c})`:`linear-gradient(60deg,${kapKoyu(c,.66)},${c},${kapAcik(c,.55)},${c})`;
+    return <div className="fz-kapak-drift" style={{position:'absolute',inset:0,background:g}}/>; }
+  if(tema==='saha') return <>
+    <div style={{position:'absolute',inset:0,background:`repeating-linear-gradient(112deg,${c},${c} 42px,${kapKoyu(c,.42)} 42px,${kapKoyu(c,.42)} 84px)`}}/>
+    <div className="fz-kapak-sweep" style={{background:'linear-gradient(105deg,transparent 34%,rgba(255,255,255,.22) 48%,transparent 62%)'}}/>
+  </>;
+  // isik (varsayılan) — koyu zemin + parlayan küreler (premium + okunaklı)
+  return <>
+    <div style={{position:'absolute',inset:0,background:kapKoyu(c,.72)}}/>
+    <span className="fz-kapak-orb" style={{left:'-14%',top:'-90%',width:'64%',paddingBottom:'64%',background:`radial-gradient(circle,${kapAcik(c,.28)},${c} 34%,transparent 70%)`}}/>
+    <span className="fz-kapak-orb" style={{right:'-10%',top:'-70%',width:'48%',paddingBottom:'48%',background:`radial-gradient(circle,${kapAcik(c,.22)},${c} 34%,transparent 70%)`,animationDelay:'1.6s'}}/>
+  </>;
+}
 function Logo({renk, boy=40, ad, logo, renk2}){
   return <div style={{width:boy,height:boy,flexShrink:0,borderRadius:"50%",overflow:"hidden",boxShadow:"inset 0 1px 1.5px rgba(255,255,255,.35), inset 0 -2px 4px rgba(0,0,0,.22), 0 1px 3px rgba(0,0,0,.28)"}} dangerouslySetInnerHTML={{__html: svgAmblem(ad||"F", renk, boy, logo, renk2)}}/>;
 }
@@ -6577,9 +6612,10 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   return <div className="fade-in" style={{paddingBottom:90}}>
     {/* PREMIUM KAPAK HERO */}
     <div style={{padding:"12px 14px 0"}}>
-      <div style={{position:"relative",overflow:"hidden",borderRadius:20,padding:"15px 16px 14px",border:"1px solid "+turnuva.renk+"55",
-        background:"radial-gradient(120% 150% at 88% 0%,"+turnuva.renk+"4d,transparent 55%), linear-gradient(160deg,"+T.bg1+","+T.bg0+" 72%)",boxShadow:"0 18px 46px rgba(0,0,0,.34)"}}>
-        <div style={{position:"absolute",inset:0,pointerEvents:"none",opacity:.55,background:"repeating-linear-gradient(115deg,transparent,transparent 22px,"+T.accent+"0A 22px,"+T.accent+"0A 24px)"}}/>
+      <div style={{position:"relative",overflow:"hidden",borderRadius:20,padding:"15px 16px 14px",border:"1px solid "+turnuva.renk+"66",background:T.bg0,boxShadow:"0 18px 46px rgba(0,0,0,.34)",minHeight:150}}>
+        {/* Lig kapağı — animasyonlu kimlik (tema: turnuva.kapak) */}
+        <KapakArka renk={turnuva.renk} kapak={turnuva.kapak}/>
+        <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.30),rgba(4,10,14,.12) 45%,rgba(4,10,14,.64))"}}/>
         {/* durum + stat şerit */}
         <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
           <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:9.5,fontWeight:800,letterSpacing:.6,color:durumRenk,background:durumRenk+"1e",border:"1px solid "+durumRenk+"44",borderRadius:20,padding:"4px 10px"}}>
@@ -6587,7 +6623,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
           </span>
           <div style={{display:"flex",gap:14,textAlign:"center"}}>
             {[["TAKIM",turnuva.takimlar.length],["HAFTA",sonHafta||"—"],["MAÇ",oynanan+"/"+toplamMac]].map(([k,v])=>
-              <div key={k}><div style={{fontSize:15,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1}}>{v}</div><div style={{fontSize:7.5,color:T.textSoft,letterSpacing:.5,marginTop:2}}>{k}</div></div>
+              <div key={k}><div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 1px 8px rgba(0,0,0,.6)"}}>{v}</div><div style={{fontSize:7.5,color:"#cfe4ea",letterSpacing:.5,marginTop:2,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div></div>
             )}
           </div>
         </div>
@@ -6595,8 +6631,8 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
         <div style={{position:"relative",display:"flex",alignItems:"center",gap:13,marginTop:14}}>
           <div style={{borderRadius:15,overflow:"hidden",flexShrink:0,boxShadow:"0 8px 20px rgba(0,0,0,.4)"}}><Logo renk={turnuva.renk} ad={turnuva.ad} logo={turnuva.logo} renk2={turnuva.renk2} boy={54}/></div>
           <div style={{minWidth:0}}>
-            <div style={{fontSize:20,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{turnuva.ad}</div>
-            <div style={{fontSize:11,color:T.textSoft,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>📍 {turnuva.sehir}{turnuva.ilce?" · "+turnuva.ilce:""} · ⚽ {turnuva.kisi} kişi · {formatAd}</div>
+            <div style={{fontSize:20,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{turnuva.ad}</div>
+            <div style={{fontSize:11,color:"#e4f2f6",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textShadow:"0 1px 6px rgba(0,0,0,.6)"}}>📍 {turnuva.sehir}{turnuva.ilce?" · "+turnuva.ilce:""} · ⚽ {turnuva.kisi} kişi · {formatAd}</div>
           </div>
         </div>
         {/* aksiyonlar */}
@@ -7062,6 +7098,14 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum, onPaylas}){
   const [lSponsor,setLSponsor]=useState(turnuva.sponsorAd||"");
   const [lSponsorE,setLSponsorE]=useState(turnuva.sponsorEmoji||"🏟️");
   const [lSlug,setLSlug]=useState(turnuva.paylasimSlug||"");
+  const [lKapak,setLKapak]=useState(turnuva.kapak||{tema:'isik',resim:null});
+  const [kapakYuk,setKapakYuk]=useState(false);
+  const kapakResimSec=async(dosya)=>{
+    if(!dosya) return; setKapakYuk(true);
+    try{ const r=await fotoYukle(dosya,"kapak", lKapak&&lKapak.resim); if(r&&r.url) setLKapak({tema:'resim',resim:r.url}); else alert("Görsel yüklenemedi: "+((r&&r.hata)||"")); }
+    catch(e){ alert("Görsel yüklenemedi: "+String(e)); }
+    setKapakYuk(false);
+  };
   const ligKaydet=async()=>{
     if(!lAd.trim())return;
     // Okunaklı link (slug): Türkçe→ascii, rezerve kelime + benzersizlik koruması. Kaydedince forzalig.com/<slug> ÇALIŞIR (giriş gerekir).
@@ -7074,6 +7118,8 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum, onPaylas}){
     }
     yonetim.ligGuncelle(turnuva, {ad:lAd.trim(), sehir:lSehir.trim(), ilce:lIlce.trim(), renk:lRenk, baslangic:lBaslangic, hedefTakim:lHedef, kisi:lKisi, sponsorAd:lSponsor.trim(), sponsorEmoji:lSponsorE});
     setLigAcik(false);
+    // Lig kapağı (animasyonlu kimlik) — kalıcı kaydet; anında sayfaya yansı
+    try{ const kk=await Db.ligKapakYaz(turnuva.id, lKapak); if(kk && kk.ok){ turnuva.kapak=lKapak; } }catch(e){}
     // Bağlantı adı verildiyse lige KALICI slug yaz → temiz link anında çalışır (yayın/snapshot GEREKMEZ, katalog karışmaz)
     if(yeniSlug){
       const r=await Db.ligSlugYaz(turnuva.id, yeniSlug);
@@ -7274,6 +7320,32 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum, onPaylas}){
             <span key={r} onClick={()=>setLRenk(r)} className="tap" style={{width:32,height:32,borderRadius:"50%",background:r,cursor:"pointer",border:lRenk===r?"3px solid "+T.text:"2px solid "+T.line}}/>
           )}
         </div>
+        <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:6}}>🎨 LİG KAPAĞI <span style={{color:T.textMut,fontWeight:400}}>— sayfa başındaki animasyonlu kimlik</span></div>
+        {/* Canlı önizleme — seçili tema + renk anında görünür */}
+        <div style={{position:"relative",height:88,borderRadius:12,overflow:"hidden",marginBottom:8,border:"0.5px solid "+T.line}}>
+          <KapakArka renk={lRenk} kapak={lKapak}/>
+          <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(4,10,14,.28),rgba(4,10,14,.10) 45%,rgba(4,10,14,.58))"}}/>
+          <div style={{position:"absolute",left:12,bottom:9,right:12,display:"flex",alignItems:"center",gap:9}}>
+            <Logo renk={lRenk} boy={34} ad={lAd||turnuva.ad} logo={turnuva.logo}/>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,textShadow:"0 1px 4px rgba(0,0,0,.7)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{lAd||turnuva.ad||"Lig Adı"}</div>
+              <div style={{fontSize:10,fontWeight:600,color:"#cfe4ea",textShadow:"0 1px 3px rgba(0,0,0,.7)"}}>{[lSehir,lIlce].filter(Boolean).join(" · ")||"önizleme"}</div>
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+          {[["isik","Işıklar"],["neon","Neon"],["dalga","Dalga"],["saha","Saha"]].map(([tk,ad])=>
+            <button key={tk} onClick={()=>setLKapak(p=>({tema:tk,resim:(p&&p.resim)||null}))} className="tap" style={{flex:"1 1 20%",minWidth:64,padding:"9px 0",borderRadius:9,fontSize:12,fontWeight:800,fontFamily:T.fontDisplay,
+              background:(lKapak&&lKapak.tema)===tk?T.accent:T.bg2,color:(lKapak&&lKapak.tema)===tk?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut,border:"0.5px solid "+((lKapak&&lKapak.tema)===tk?T.accent:T.line)}}>{ad}</button>
+          )}
+        </div>
+        <label className="tap" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"10px",borderRadius:10,cursor:"pointer",marginBottom:4,
+          background:(lKapak&&lKapak.tema)==="resim"?T.accent+"22":T.bg2,border:"0.5px dashed "+((lKapak&&lKapak.tema)==="resim"?T.accent:T.line),color:(lKapak&&lKapak.tema)==="resim"?T.accent:T.textSoft,fontSize:12.5,fontWeight:700}}>
+          {kapakYuk?"⏳ Yükleniyor…":(lKapak&&lKapak.tema)==="resim"&&lKapak.resim?"🖼️ Fotoğrafı değiştir":"🖼️ Kendi fotoğrafını yükle"}
+          <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; kapakResimSec(f); }}/>
+        </label>
+        <div style={{fontSize:9,color:T.textMut,marginBottom:14}}>Renk yukarıdaki "Logo Rengi"nden gelir. Fotoğraf yüklersen kapak otomatik "fotoğraf" olur.</div>
+
         <button onClick={ligKaydet} disabled={!lAd.trim()} className="tap" style={{width:"100%",padding:"12px",borderRadius:11,background:lAd.trim()?T.accent:T.bg2,color:lAd.trim()?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut,fontSize:14,fontWeight:800,border:"none"}}>💾 Değişiklikleri Kaydet</button>
       </div>}
     </div>
