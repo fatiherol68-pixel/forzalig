@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260908123437"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260908124457"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -447,13 +447,19 @@
      içerik NORMAL görünür (hiçbir şey kaybolmaz). 'hareket azaltma'da tamamen kapanır. */
   html.fl-reveal-on .fl-reveal{ opacity:0; transform:translateY(26px) scale(.985); filter:blur(4px); transition:opacity .72s cubic-bezier(.2,.7,.2,1), transform .72s cubic-bezier(.2,.7,.2,1), filter .55s ease; will-change:opacity,transform,filter; }
   html.fl-reveal-on .fl-reveal.gorunur{ opacity:1; transform:none; filter:none; }
-  /* Sinematik açılış — ilk ekrandaki bölümler DERİNLİKTEN öne, SIRAYLA gelir (cascade) */
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(1){transition-delay:.02s}
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(2){transition-delay:.09s}
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(3){transition-delay:.16s}
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(4){transition-delay:.23s}
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(5){transition-delay:.30s}
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(n+6){transition-delay:.34s}
+  /* Sinematik açılış — SADECE ilk açılışta (.fl-boot) bölümler DERİNLİKTEN öne, belirgin SIRAYLA gelir.
+     Boot bitince (2.4sn) kaydırma reveal'leri snappy kalır. */
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(1){transition-delay:.05s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(2){transition-delay:.19s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(3){transition-delay:.33s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(4){transition-delay:.47s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(5){transition-delay:.61s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(6){transition-delay:.75s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(n+7){transition-delay:.82s}
+  /* Sayfa giriş animasyonu — lig/takım/oyuncu açılınca hero belirgin şekilde belirir */
+  @keyframes flHeroGiris{0%{opacity:0;transform:translateY(24px) scale(.975);filter:blur(6px)}100%{opacity:1;transform:none;filter:none}}
+  .fl-hero-giris{animation:flHeroGiris .72s cubic-bezier(.2,.85,.25,1) both}
+  @media(prefers-reduced-motion:reduce){.fl-hero-giris{animation:none}}
   @media (prefers-reduced-motion:reduce){ html.fl-reveal-on .fl-reveal{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; } }
   /* FLIP — puan durumunda yükselen takım kısa yeşil parlar */
   @keyframes flYuksel{ 0%{ box-shadow:0 0 0 1px rgba(46,230,138,.55), 0 6px 22px rgba(46,230,138,.28);} 100%{ box-shadow:none;} }
@@ -522,8 +528,8 @@
   @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
   .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
-  <link rel="modulepreload" crossorigin href="/assets/app-body-DvS27th6.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
-<script type="module" crossorigin src="/assets/index-Dy_E9d_Q.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/app-body-CSKlc_9e.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
+<script type="module" crossorigin src="/assets/index-CGtnyln5.js"></script>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash" style="background:radial-gradient(120% 52% at 50% 30%,rgba(52,211,153,.15),transparent 60%),radial-gradient(90% 42% at 50% 96%,rgba(56,189,248,.09),transparent 62%),linear-gradient(180deg,#070B12,#05080F 60%,#04070C)">
