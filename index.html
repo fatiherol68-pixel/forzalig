@@ -7879,7 +7879,7 @@ function PuanDurumuTekli({turnuva, T, git}){
             <span style={{display:"flex",gap:2,justifyContent:"center",position:"relative"}}>
               {son5(t).map((f,i)=><span key={i} className="pop" style={{width:9,height:9,borderRadius:2,background:f==="G"?"#34D399":f==="M"?T.danger:T.gold}}/>)}
             </span>
-            <span className={samp?"vav-parla":""} style={{textAlign:"center",color:T.gold,fontWeight:800,fontFamily:T.fontDisplay,background:T.gold+(lider?"2a":samp?"22":"18"),borderRadius:6,padding:"3px 0",position:"relative"}}>{t.puan}</span>
+            <span className={samp?"vav-parla":""} style={{textAlign:"center",color:T.gold,fontWeight:800,fontFamily:T.fontDisplay,background:T.gold+(lider?"2a":samp?"22":"18"),borderRadius:6,padding:"3px 0",position:"relative"}}><FlSayac deger={t.puan}/></span>
           </div>;
         })}
       </div>
@@ -9031,6 +9031,10 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   const [kapakAcik,setKapakAcik]=useState(false);
   const [,setKapakTik]=useState(0); // kapak kaydedilince yeniden çiz
   const oyuncuKapakKaydet=async(k)=>{ o.kapak=k; setKapakTik(x=>x+1); const pid=o.player_id||(typeof o.id==="string"?o.id:null); if(sb && pid){ const r=await Db.oyuncuKapakYaz(pid, k); if(r&&r.hata) alert("Kapak kaydedilemedi: "+r.hata); } };
+  // FC Kart holografik eğim (Faz 3) — state YOK, ref ile doğrudan DOM (performans)
+  const fcKartRef=useRef(null), fcHoloRef=useRef(null);
+  const fcEgim=(e)=>{ try{ if(!flMotionAcik())return; const el=fcKartRef.current; if(!el)return; const r=el.getBoundingClientRect(); const x=(e.clientX-r.left)/r.width-.5, y=(e.clientY-r.top)/r.height-.5; el.style.transform="perspective(760px) rotateY("+(x*9).toFixed(2)+"deg) rotateX("+(-y*9).toFixed(2)+"deg)"; if(fcHoloRef.current){ fcHoloRef.current.style.opacity="1"; fcHoloRef.current.style.background="linear-gradient("+(112+x*46).toFixed(0)+"deg,transparent 32%,rgba(120,220,255,.30) "+(46+x*8).toFixed(0)+"%,rgba(180,140,255,.22) 56%,transparent 72%)"; } }catch(_){} };
+  const fcSifirla=()=>{ try{ const el=fcKartRef.current; if(el)el.style.transform="none"; if(fcHoloRef.current)fcHoloRef.current.style.opacity="0"; }catch(_){} };
   const [sahipYuk,setSahipYuk]=useState(false);
   const [sahipMesaj,setSahipMesaj]=useState("");
   const [kariyer,setKariyer]=useState(null); // Faz 4: tüm sezonların toplamı (player_id bazlı)
@@ -9245,10 +9249,11 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   return <div className="fade-in" style={{paddingBottom:90}}>
     {/* ===== KAPAK HERO ===== */}
     {kartMod ? (
-      /* FC KART MODU — köşede dev OVR + mevki, sinematik foto zemin */
-      <div className="vav-hero" style={{position:"relative",padding:"18px 16px 16px",background:T.bg0,overflow:"hidden",minHeight:196}}>
+      /* FC KART MODU — köşede dev OVR + mevki, sinematik foto zemin + holografik eğim */
+      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero" style={{position:"relative",padding:"18px 16px 16px",background:T.bg0,overflow:"hidden",minHeight:196,transition:"transform .18s ease",willChange:"transform"}}>
         <KapakArka renk={pozC} kapak={kapakCoz({tema:'kart',resim:oyKapak.resim||null}, o.foto)||{tema:'isik'}}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.40),rgba(4,10,14,.16) 42%,rgba(4,10,14,.70))"}}/>
+        <div ref={fcHoloRef} style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,opacity:0,transition:"opacity .25s",mixBlendMode:"screen"}}/>
         {kapakDuzBtn}
         <div style={{position:"relative",zIndex:2,display:"flex",alignItems:"center",gap:13}}>
           {/* FIFA tarzı reyting çipi */}

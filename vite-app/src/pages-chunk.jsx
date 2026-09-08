@@ -1,7 +1,7 @@
 import React from 'react';
 // ForzaLig sayfa kümesi — talep-üzerine (git ile gidilince). Bağımlılıklar main'den enjekte.
 export function make(D){
-  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FlSayac, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KapakDuzenle, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kapakCoz, kufurVar, macYorumUret, pick, posAd, pozKisa, pozRenk, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
+  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FlSayac, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KapakDuzenle, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, flMotionAcik, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kapakCoz, kufurVar, macYorumUret, pick, posAd, pozKisa, pozRenk, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
 
 function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi, bildirimListe}){
   const kariyereGit=()=>{
@@ -1739,6 +1739,10 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   const [kapakAcik,setKapakAcik]=useState(false);
   const [,setKapakTik]=useState(0); // kapak kaydedilince yeniden çiz
   const oyuncuKapakKaydet=async(k)=>{ o.kapak=k; setKapakTik(x=>x+1); const pid=o.player_id||(typeof o.id==="string"?o.id:null); if(sb && pid){ const r=await Db.oyuncuKapakYaz(pid, k); if(r&&r.hata) alert("Kapak kaydedilemedi: "+r.hata); } };
+  // FC Kart holografik eğim (Faz 3) — state YOK, ref ile doğrudan DOM (performans)
+  const fcKartRef=useRef(null), fcHoloRef=useRef(null);
+  const fcEgim=(e)=>{ try{ if(!flMotionAcik())return; const el=fcKartRef.current; if(!el)return; const r=el.getBoundingClientRect(); const x=(e.clientX-r.left)/r.width-.5, y=(e.clientY-r.top)/r.height-.5; el.style.transform="perspective(760px) rotateY("+(x*9).toFixed(2)+"deg) rotateX("+(-y*9).toFixed(2)+"deg)"; if(fcHoloRef.current){ fcHoloRef.current.style.opacity="1"; fcHoloRef.current.style.background="linear-gradient("+(112+x*46).toFixed(0)+"deg,transparent 32%,rgba(120,220,255,.30) "+(46+x*8).toFixed(0)+"%,rgba(180,140,255,.22) 56%,transparent 72%)"; } }catch(_){} };
+  const fcSifirla=()=>{ try{ const el=fcKartRef.current; if(el)el.style.transform="none"; if(fcHoloRef.current)fcHoloRef.current.style.opacity="0"; }catch(_){} };
   const [sahipYuk,setSahipYuk]=useState(false);
   const [sahipMesaj,setSahipMesaj]=useState("");
   const [kariyer,setKariyer]=useState(null); // Faz 4: tüm sezonların toplamı (player_id bazlı)
@@ -1953,10 +1957,11 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   return <div className="fade-in" style={{paddingBottom:90}}>
     {/* ===== KAPAK HERO ===== */}
     {kartMod ? (
-      /* FC KART MODU — köşede dev OVR + mevki, sinematik foto zemin */
-      <div className="vav-hero" style={{position:"relative",padding:"18px 16px 16px",background:T.bg0,overflow:"hidden",minHeight:196}}>
+      /* FC KART MODU — köşede dev OVR + mevki, sinematik foto zemin + holografik eğim */
+      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero" style={{position:"relative",padding:"18px 16px 16px",background:T.bg0,overflow:"hidden",minHeight:196,transition:"transform .18s ease",willChange:"transform"}}>
         <KapakArka renk={pozC} kapak={kapakCoz({tema:'kart',resim:oyKapak.resim||null}, o.foto)||{tema:'isik'}}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.40),rgba(4,10,14,.16) 42%,rgba(4,10,14,.70))"}}/>
+        <div ref={fcHoloRef} style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,opacity:0,transition:"opacity .25s",mixBlendMode:"screen"}}/>
         {kapakDuzBtn}
         <div style={{position:"relative",zIndex:2,display:"flex",alignItems:"center",gap:13}}>
           {/* FIFA tarzı reyting çipi */}
