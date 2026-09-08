@@ -1,7 +1,7 @@
 import React from 'react';
 // ForzaLig sayfa kümesi — talep-üzerine (git ile gidilince). Bağımlılıklar main'den enjekte.
 export function make(D){
-  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KapakDuzenle, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kapakCoz, kufurVar, macYorumUret, pick, posAd, pozKisa, pozRenk, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
+  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FlSayac, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KapakDuzenle, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kapakCoz, kufurVar, macYorumUret, pick, posAd, pozKisa, pozRenk, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
 
 function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi, bildirimListe}){
   const kariyereGit=()=>{
@@ -1030,7 +1030,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
           </span>
           <div style={{display:"flex",gap:14,textAlign:"center"}}>
             {[["TAKIM",turnuva.takimlar.length],["HAFTA",sonHafta||"—"],["MAÇ",oynanan+"/"+toplamMac]].map(([k,v])=>
-              <div key={k}><div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 1px 8px rgba(0,0,0,.6)"}}>{v}</div><div style={{fontSize:7.5,color:"#cfe4ea",letterSpacing:.5,marginTop:2,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div></div>
+              <div key={k}><div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 1px 8px rgba(0,0,0,.6)"}}><FlSayac deger={v}/></div><div style={{fontSize:7.5,color:"#cfe4ea",letterSpacing:.5,marginTop:2,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div></div>
             )}
           </div>
         </div>
@@ -1491,7 +1491,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
       <div style={{display:"flex",gap:12,marginTop:16,position:"relative",zIndex:2}}>
         {[["GALİBİYET",takim.g,"#34D399"],["PUAN",takim.puan,T.gold],["SIRA",takim.sira+".",takim.sira===1?T.gold:T.accent]].map(([k,v,c])=>
           <div key={k} style={{flex:1,textAlign:"center"}}>
-            <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{v}</div>
+            <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}><FlSayac deger={v}/></div>
             <div style={{fontSize:8.5,color:"#dceaf0",letterSpacing:1,marginTop:4,fontWeight:700,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div>
             <div className="vav-bar" style={{height:3,borderRadius:2,background:c+"4D",marginTop:6}}/>
           </div>
@@ -1975,7 +1975,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
         <div style={{display:"flex",gap:12,marginTop:15,position:"relative",zIndex:2}}>
           {[["GOL",o.gol,"#34D399"],["ASİST",o.asist,T.accent],["MVP",o.mvp,T.gold]].map(([k,v,c])=>
             <div key={k} style={{flex:1,textAlign:"center"}}>
-              <div className="vav-parla" style={{fontSize:26,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{v}</div>
+              <div className="vav-parla" style={{fontSize:26,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}><FlSayac deger={v}/></div>
               <div style={{fontSize:8.5,color:"#dceaf0",letterSpacing:1,marginTop:4,fontWeight:700,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div>
             </div>
           )}
@@ -2003,7 +2003,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
         <div style={{display:"flex",gap:12,marginTop:16,position:"relative",zIndex:2}}>
           {[["GOL",o.gol,"#34D399"],["ASİST",o.asist,T.accent],["MVP",o.mvp,T.gold]].map(([k,v,c])=>
             <div key={k} style={{flex:1,textAlign:"center"}}>
-              <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{v}</div>
+              <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}><FlSayac deger={v}/></div>
               <div style={{fontSize:8.5,color:"#dceaf0",letterSpacing:1,marginTop:4,fontWeight:700,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div>
               <div className="vav-bar" style={{height:3,borderRadius:2,background:c+"66",marginTop:6}}/>
             </div>
