@@ -6498,18 +6498,22 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   if(turnuva && turnuva._ozet) return <div className="fade-in" style={{padding:"80px 24px",textAlign:"center",color:T.textMut,fontSize:13.5}}>⏳ Lig yükleniyor…</div>;
   const [tab,setTab]=useState((ilkTab&&yonetim)?ilkTab:"genel");
   const [paylasAcik,setPaylasAcik]=useState(false);
-  const [paylasUrl,setPaylasUrl]=useState(turnuva.paylasimSlug?PAYLASIM_URL_TEMIZ(turnuva.paylasimSlug):"");
+  const [paylasUrl,setPaylasUrl]=useState(turnuva.slug?PAYLASIM_URL_TEMIZ(turnuva.slug):"");
   const [paylasYuk,setPaylasYuk]=useState(false);
   const [paylasHata,setPaylasHata]=useState("");
   const [kopyalandi,setKopyalandi]=useState(false);
+  // Paylaş = TEMİZ LİNKİ paylaş (forzalig.com/<slug>). Artık herkese-açık kopya (snapshot) YOK → katalog karışmaz, giriş gerekir.
   const paylasAc=async()=>{
     setPaylasAcik(true); setPaylasHata("");
-    if(!turnuva.paylasimSlug){
+    let sl=turnuva.slug;
+    if(!sl){                                   // güvenlik ağı: slug yoksa üret+kaydet (yeni ligler tetikleyiciyle zaten alır)
       setPaylasYuk(true);
-      const r=await onPaylas(turnuva);
+      const s=slugUret(turnuva.ad||"lig");
+      const r=await Db.ligSlugYaz(turnuva.id, s);
       setPaylasYuk(false);
-      if(r&&r.url){ setPaylasUrl(r.url); } else { setPaylasHata((r&&r.hata)||"Yayınlanamadı."); }
-    } else { setPaylasUrl(PAYLASIM_URL_TEMIZ(turnuva.paylasimSlug)); }
+      if(r&&r.ok){ turnuva.slug=s; sl=s; } else { setPaylasHata((r&&r.hata)||"Link oluşturulamadı."); return; }
+    }
+    setPaylasUrl(PAYLASIM_URL_TEMIZ(sl));
   };
   const kopyala=()=>{ try{ navigator.clipboard.writeText(paylasUrl); setKopyalandi(true); setTimeout(()=>setKopyalandi(false),1800); }catch(e){} };
   const cihazPaylas=()=>{ try{ if(navigator.share) navigator.share({title:turnuva.ad+" · ForzaLig", text:turnuva.ad+" ligini ForzaLig'de gör:", url:paylasUrl}); else kopyala(); }catch(e){} };
@@ -6609,8 +6613,8 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
       <div onClick={e=>e.stopPropagation()} className="fade-in" style={{width:"100%",maxWidth:460,background:T.bg1,borderRadius:"18px 18px 0 0",padding:"18px 18px calc(24px + env(safe-area-inset-bottom))",border:"0.5px solid "+T.line}}>
         <div style={{width:40,height:4,background:T.line,borderRadius:2,margin:"0 auto 14px"}}/>
         <div style={{fontFamily:T.fontDisplay,fontSize:17,fontWeight:800,color:T.text,marginBottom:4}}>🔗 Ligi Paylaş</div>
-        <div style={{fontSize:12,color:T.textMut,marginBottom:16}}>Bu linke tıklayan herkes ligi <b style={{color:T.accent}}>giriş yapmadan</b> görebilir (salt-okunur).</div>
-        {paylasYuk ? <div style={{textAlign:"center",padding:20,color:T.textMut,fontSize:13}}>⚽ Yayınlanıyor…</div> :
+        <div style={{fontSize:12,color:T.textMut,marginBottom:16}}>Bu linki paylaş; açan kişi <b style={{color:T.accent}}>giriş yaptıktan sonra</b> ligini görür. (Herkese-açık kopya çıkmaz, katalog karışmaz.)</div>
+        {paylasYuk ? <div style={{textAlign:"center",padding:20,color:T.textMut,fontSize:13}}>⚽ Link hazırlanıyor…</div> :
          paylasHata ? <div style={{fontSize:12,color:T.danger,background:T.danger+"18",borderRadius:10,padding:12,marginBottom:12}}>{paylasHata}</div> :
          <>
           {(()=>{ const d=qrData(paylasUrl); return d ? <div style={{display:"flex",justifyContent:"center",marginBottom:12}}>
@@ -6621,7 +6625,6 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
             <button onClick={kopyala} className="tap" style={{background:T.accent,color:T.bg0,border:0,borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{kopyalandi?"Kopyalandı ✓":"Kopyala"}</button>
           </div>
           <button onClick={cihazPaylas} className="tap" style={{width:"100%",background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:12,padding:13,fontSize:14,fontWeight:800,marginBottom:8}}>📲 Paylaş</button>
-          <button onClick={yayindanKaldir} className="tap" style={{width:"100%",background:"transparent",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:12,padding:11,fontSize:12.5,fontWeight:600}}>Yayından kaldır</button>
          </>}
         <button onClick={()=>setPaylasAcik(false)} className="tap" style={{width:"100%",background:"transparent",color:T.textMut,border:0,padding:10,fontSize:12.5,marginTop:6}}>Kapat</button>
       </div>
