@@ -450,13 +450,19 @@
      içerik NORMAL görünür (hiçbir şey kaybolmaz). 'hareket azaltma'da tamamen kapanır. */
   html.fl-reveal-on .fl-reveal{ opacity:0; transform:translateY(26px) scale(.985); filter:blur(4px); transition:opacity .72s cubic-bezier(.2,.7,.2,1), transform .72s cubic-bezier(.2,.7,.2,1), filter .55s ease; will-change:opacity,transform,filter; }
   html.fl-reveal-on .fl-reveal.gorunur{ opacity:1; transform:none; filter:none; }
-  /* Sinematik açılış — ilk ekrandaki bölümler DERİNLİKTEN öne, SIRAYLA gelir (cascade) */
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(1){transition-delay:.02s}
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(2){transition-delay:.09s}
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(3){transition-delay:.16s}
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(4){transition-delay:.23s}
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(5){transition-delay:.30s}
-  html.fl-reveal-on .fl-reveal.gorunur:nth-child(n+6){transition-delay:.34s}
+  /* Sinematik açılış — SADECE ilk açılışta (.fl-boot) bölümler DERİNLİKTEN öne, belirgin SIRAYLA gelir.
+     Boot bitince (2.4sn) kaydırma reveal'leri snappy kalır. */
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(1){transition-delay:.05s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(2){transition-delay:.19s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(3){transition-delay:.33s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(4){transition-delay:.47s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(5){transition-delay:.61s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(6){transition-delay:.75s}
+  html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(n+7){transition-delay:.82s}
+  /* Sayfa giriş animasyonu — lig/takım/oyuncu açılınca hero belirgin şekilde belirir */
+  @keyframes flHeroGiris{0%{opacity:0;transform:translateY(24px) scale(.975);filter:blur(6px)}100%{opacity:1;transform:none;filter:none}}
+  .fl-hero-giris{animation:flHeroGiris .72s cubic-bezier(.2,.85,.25,1) both}
+  @media(prefers-reduced-motion:reduce){.fl-hero-giris{animation:none}}
   @media (prefers-reduced-motion:reduce){ html.fl-reveal-on .fl-reveal{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; } }
   /* FLIP — puan durumunda yükselen takım kısa yeşil parlar */
   @keyframes flYuksel{ 0%{ box-shadow:0 0 0 1px rgba(46,230,138,.55), 0 6px 22px rgba(46,230,138,.28);} 100%{ box-shadow:none;} }
@@ -5786,6 +5792,8 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
       if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       if(!("IntersectionObserver" in window)) return;
       document.documentElement.classList.add("fl-reveal-on");
+      // Sinematik açılış: ilk mount'ta belirgin sıralı cascade → 2.4sn sonra snappy
+      try{ kok.classList.add("fl-boot"); setTimeout(()=>{ try{kok.classList.remove("fl-boot");}catch(_){} }, 2400); }catch(_){}
       io = new IntersectionObserver((giris)=>{
         giris.forEach(g=>{ if(g.isIntersecting){ g.target.classList.add("gorunur"); io.unobserve(g.target); } });
       }, {rootMargin:"0px 0px -7% 0px", threshold:0.05});
@@ -6804,7 +6812,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   return <div className="fade-in" style={{paddingBottom:90}}>
     {/* PREMIUM KAPAK HERO */}
     <div style={{padding:"12px 14px 0"}}>
-      <div style={{position:"relative",overflow:"hidden",borderRadius:20,padding:"15px 16px 14px",border:"1px solid "+turnuva.renk+"66",background:T.bg0,boxShadow:"0 18px 46px rgba(0,0,0,.34)",minHeight:150}}>
+      <div className="fl-hero-giris" style={{position:"relative",overflow:"hidden",borderRadius:20,padding:"15px 16px 14px",border:"1px solid "+turnuva.renk+"66",background:T.bg0,boxShadow:"0 18px 46px rgba(0,0,0,.34)",minHeight:150}}>
         {/* Lig kapağı — animasyonlu kimlik (tema: turnuva.kapak) */}
         <KapakArka renk={turnuva.renk} kapak={turnuva.kapak}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.30),rgba(4,10,14,.12) 45%,rgba(4,10,14,.64))"}}/>
@@ -8554,7 +8562,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
     <div style={{position:"absolute",top:0,left:0,right:0,height:280,background:"linear-gradient(180deg,"+takim.renk+"1c,transparent)",pointerEvents:"none",zIndex:0}}/>
     <div style={{position:"relative",zIndex:1}}>
     {/* ===== VAV HERO ===== */}
-    <div className="vav-hero" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168}}>
+    <div className="vav-hero fl-hero-giris" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168}}>
       {/* Takım kapağı — animasyonlu kimlik (tema: takim.kapak) */}
       <KapakArka renk={takim.renk} kapak={takim.kapak}/>
       <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.34),rgba(4,10,14,.12) 42%,rgba(4,10,14,.66))"}}/>
@@ -9298,7 +9306,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     {/* ===== KAPAK HERO ===== */}
     {kartMod ? (
       /* FC KART MODU — köşede dev OVR + mevki, sinematik foto zemin + holografik eğim */
-      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero" style={{position:"relative",padding:"18px 16px 16px",background:T.bg0,overflow:"hidden",minHeight:196,transition:"transform .18s ease",willChange:"transform"}}>
+      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero fl-hero-giris" style={{position:"relative",padding:"18px 16px 16px",background:T.bg0,overflow:"hidden",minHeight:196,transition:"transform .18s ease",willChange:"transform"}}>
         <KapakArka renk={pozC} kapak={kapakCoz({tema:'kart',resim:oyKapak.resim||null}, o.foto)||{tema:'isik'}}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.40),rgba(4,10,14,.16) 42%,rgba(4,10,14,.70))"}}/>
         <div ref={fcHoloRef} style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,opacity:0,transition:"opacity .25s",mixBlendMode:"screen"}}/>
@@ -9329,7 +9337,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
       </div>
     ) : (
       /* NORMAL KAPAK HERO — holografik eğim + parlama (her oyuncuda) */
-      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168,transition:"transform .18s ease",willChange:"transform"}}>
+      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero fl-hero-giris" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168,transition:"transform .18s ease",willChange:"transform"}}>
         <KapakArka renk={pozC} kapak={oyKapakArka}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.34),rgba(4,10,14,.12) 42%,rgba(4,10,14,.66))"}}/>
         <div ref={fcHoloRef} style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,opacity:0,transition:"opacity .25s",mixBlendMode:"screen"}}/>

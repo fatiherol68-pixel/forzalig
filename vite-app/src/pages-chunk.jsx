@@ -1019,7 +1019,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   return <div className="fade-in" style={{paddingBottom:90}}>
     {/* PREMIUM KAPAK HERO */}
     <div style={{padding:"12px 14px 0"}}>
-      <div style={{position:"relative",overflow:"hidden",borderRadius:20,padding:"15px 16px 14px",border:"1px solid "+turnuva.renk+"66",background:T.bg0,boxShadow:"0 18px 46px rgba(0,0,0,.34)",minHeight:150}}>
+      <div className="fl-hero-giris" style={{position:"relative",overflow:"hidden",borderRadius:20,padding:"15px 16px 14px",border:"1px solid "+turnuva.renk+"66",background:T.bg0,boxShadow:"0 18px 46px rgba(0,0,0,.34)",minHeight:150}}>
         {/* Lig kapağı — animasyonlu kimlik (tema: turnuva.kapak) */}
         <KapakArka renk={turnuva.renk} kapak={turnuva.kapak}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.30),rgba(4,10,14,.12) 45%,rgba(4,10,14,.64))"}}/>
@@ -1441,7 +1441,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
     <div style={{position:"absolute",top:0,left:0,right:0,height:280,background:"linear-gradient(180deg,"+takim.renk+"1c,transparent)",pointerEvents:"none",zIndex:0}}/>
     <div style={{position:"relative",zIndex:1}}>
     {/* ===== VAV HERO ===== */}
-    <div className="vav-hero" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168}}>
+    <div className="vav-hero fl-hero-giris" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168}}>
       {/* Takım kapağı — animasyonlu kimlik (tema: takim.kapak) */}
       <KapakArka renk={takim.renk} kapak={takim.kapak}/>
       <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.34),rgba(4,10,14,.12) 42%,rgba(4,10,14,.66))"}}/>
@@ -1960,7 +1960,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     {/* ===== KAPAK HERO ===== */}
     {kartMod ? (
       /* FC KART MODU — köşede dev OVR + mevki, sinematik foto zemin + holografik eğim */
-      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero" style={{position:"relative",padding:"18px 16px 16px",background:T.bg0,overflow:"hidden",minHeight:196,transition:"transform .18s ease",willChange:"transform"}}>
+      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero fl-hero-giris" style={{position:"relative",padding:"18px 16px 16px",background:T.bg0,overflow:"hidden",minHeight:196,transition:"transform .18s ease",willChange:"transform"}}>
         <KapakArka renk={pozC} kapak={kapakCoz({tema:'kart',resim:oyKapak.resim||null}, o.foto)||{tema:'isik'}}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.40),rgba(4,10,14,.16) 42%,rgba(4,10,14,.70))"}}/>
         <div ref={fcHoloRef} style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,opacity:0,transition:"opacity .25s",mixBlendMode:"screen"}}/>
@@ -1991,7 +1991,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
       </div>
     ) : (
       /* NORMAL KAPAK HERO — holografik eğim + parlama (her oyuncuda) */
-      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168,transition:"transform .18s ease",willChange:"transform"}}>
+      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero fl-hero-giris" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168,transition:"transform .18s ease",willChange:"transform"}}>
         <KapakArka renk={pozC} kapak={oyKapakArka}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.34),rgba(4,10,14,.12) 42%,rgba(4,10,14,.66))"}}/>
         <div ref={fcHoloRef} style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,opacity:0,transition:"opacity .25s",mixBlendMode:"screen"}}/>
