@@ -1,7 +1,7 @@
 import React from 'react';
 // ForzaLig sayfa kümesi — talep-üzerine (git ile gidilince). Bağımlılıklar main'den enjekte.
 export function make(D){
-  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kufurVar, macYorumUret, pick, posAd, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
+  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KapakDuzenle, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, fmtEuro, fotoYukle, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kapakCoz, kufurVar, macYorumUret, pick, posAd, pozKisa, pozRenk, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
 
 function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi, bildirimListe}){
   const kariyereGit=()=>{
@@ -1356,6 +1356,9 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
   // Teknik Direktör (takıma bağlı rol — yönetici/admin atar)
   const [td,setTd]=useState(takim.td||null);
   const [tdModal,setTdModal]=useState(false);
+  const [kapakAcik,setKapakAcik]=useState(false);
+  const [,setKapakTik]=useState(0); // kapak kaydedilince yeniden çiz
+  const takimKapakKaydet=async(k)=>{ takim.kapak=k; setKapakTik(x=>x+1); if(sb && typeof takim.id==="string"){ const r=await Db.takimKapakYaz(takim.id, k); if(r&&r.hata) alert("Kapak kaydedilemedi: "+r.hata); } };
   const [tdAd,setTdAd]=useState("");
   const tdKaydet=async(obj)=>{ takim.td=obj; setTd(obj); setTdModal(false); if(sb && typeof takim.id==="string"){ try{ await sb.from('takimlar').update({td:obj}).eq('id',takim.id); }catch(e){} } };
   const logoDegistir=async(e)=>{
@@ -1437,17 +1440,19 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
     <div style={{position:"absolute",top:0,left:0,right:0,height:280,background:"linear-gradient(180deg,"+takim.renk+"1c,transparent)",pointerEvents:"none",zIndex:0}}/>
     <div style={{position:"relative",zIndex:1}}>
     {/* ===== VAV HERO ===== */}
-    <div className="vav-hero" style={{position:"relative",padding:"20px 16px 18px",background:"linear-gradient(120deg,"+takim.renk+"59 0%,"+T.bg1+" 32%,"+takim.renk+"30 58%,"+T.bg1+" 100%)",overflow:"hidden"}}>
-      <div style={{position:"absolute",inset:0,background:"repeating-linear-gradient(115deg,transparent,transparent 22px,"+takim.renk+"0C 22px,"+takim.renk+"0C 24px)",pointerEvents:"none"}}/>
-      <div className="vav-supurme"/>
+    <div className="vav-hero" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168}}>
+      {/* Takım kapağı — animasyonlu kimlik (tema: takim.kapak) */}
+      <KapakArka renk={takim.renk} kapak={takim.kapak}/>
+      <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.34),rgba(4,10,14,.12) 42%,rgba(4,10,14,.66))"}}/>
+      {takimBenim && <button onClick={()=>setKapakAcik(true)} className="tap" style={{position:"absolute",top:12,right:12,zIndex:3,display:"flex",alignItems:"center",gap:5,background:"rgba(0,0,0,.4)",color:"#fff",border:"1px solid rgba(255,255,255,.28)",borderRadius:20,padding:"6px 11px",fontSize:11,fontWeight:700,backdropFilter:"blur(4px)"}}>🎨 Kapak</button>}
       {/* süzülen amblem + büyük başlık */}
-      <div style={{display:"flex",alignItems:"center",gap:14,position:"relative"}}>
+      <div style={{display:"flex",alignItems:"center",gap:14,position:"relative",zIndex:2}}>
         <div className="vav-suzul" style={{border:"3px solid "+takim.renk+"88",borderRadius:16,overflow:"hidden",boxShadow:"0 0 24px "+takim.renk+"66",flexShrink:0,background:T.bg2,position:"relative"}}><Logo renk={takim.renk} ad={takim.ad} logo={takim.logo} renk2={takim.renk2} boy={70}/>
           {takimBenim && <label className="tap" title="Logoyu değiştir" style={{position:"absolute",bottom:0,right:0,background:T.accent,color:T.bg0,width:24,height:24,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,cursor:"pointer",border:"2px solid "+T.bg0}}>{logoYuk?"⏳":"📷"}
             <input type="file" accept="image/*" onChange={logoDegistir} style={{display:"none"}}/></label>}</div>
         <div style={{minWidth:0}}>
-          <div style={{fontSize:24,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.15,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{takim.ad} <span style={{fontSize:11,background:T.accent+"22",color:T.accent,fontWeight:700,borderRadius:6,padding:"2px 8px"}}>{guvNotu}</span></div>
-          <div style={{fontSize:11,color:T.textSoft,marginTop:4}}>{takim.oyuncular.length} oyuncu · {takim.o} maç · ort. güç <b style={{color:takim.renk,fontFamily:T.fontDisplay}}>{ortGuc}</b></div>
+          <div style={{fontSize:24,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1.15,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",textShadow:"0 2px 10px rgba(0,0,0,.6)"}}>{takim.ad} <span style={{fontSize:11,background:"rgba(255,255,255,.18)",color:"#fff",fontWeight:700,borderRadius:6,padding:"2px 8px"}}>{guvNotu}</span></div>
+          <div style={{fontSize:11,color:"#e4f2f6",marginTop:4,textShadow:"0 1px 6px rgba(0,0,0,.6)"}}>{takim.oyuncular.length} oyuncu · {takim.o} maç · ort. güç <b style={{color:"#fff",fontFamily:T.fontDisplay}}>{ortGuc}</b></div>
           {(td||takimBenim) && <div style={{display:"flex",alignItems:"center",gap:6,marginTop:7,flexWrap:"wrap"}}>
             <span style={{fontSize:10.5,fontWeight:700,color:T.gold,background:T.gold+"1c",borderRadius:6,padding:"3px 9px"}}>🎯 TD: {td?td.ad:"atanmadı"}</span>
             {takimBenim && <button onClick={()=>{setTdAd(td?td.ad:"");setTdModal(true);}} className="tap" style={{fontSize:10,fontWeight:700,color:T.accent,background:"none",border:"0.5px solid "+T.line,borderRadius:6,padding:"3px 9px"}}>{td?"Değiştir":"Ata"}</button>}
@@ -1481,12 +1486,13 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
           })()}
         </div>
       </div>}
+      {kapakAcik && <KapakDuzenle T={T} renk={takim.renk} kapak={takim.kapak} kind="takim" ornekAd={takim.ad} ornekFoto={takim.logo} onKaydet={takimKapakKaydet} onKapat={()=>setKapakAcik(false)}/>}
       {/* parlayan büyük sayılar + ışıklı çubuklar */}
-      <div style={{display:"flex",gap:12,marginTop:16,position:"relative"}}>
+      <div style={{display:"flex",gap:12,marginTop:16,position:"relative",zIndex:2}}>
         {[["GALİBİYET",takim.g,"#34D399"],["PUAN",takim.puan,T.gold],["SIRA",takim.sira+".",takim.sira===1?T.gold:T.accent]].map(([k,v,c])=>
           <div key={k} style={{flex:1,textAlign:"center"}}>
-            <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1}}>{v}</div>
-            <div style={{fontSize:8.5,color:T.textSoft,letterSpacing:1,marginTop:4,fontWeight:700}}>{k}</div>
+            <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{v}</div>
+            <div style={{fontSize:8.5,color:"#dceaf0",letterSpacing:1,marginTop:4,fontWeight:700,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div>
             <div className="vav-bar" style={{height:3,borderRadius:2,background:c+"4D",marginTop:6}}/>
           </div>
         )}
@@ -1730,6 +1736,9 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
 
 function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turnuvalar, oturum, sahiplenme, onSahiplen, onTransfer, saltOkunur, adminMi}){
   const [duzenle,setDuzenle]=useState(false);
+  const [kapakAcik,setKapakAcik]=useState(false);
+  const [,setKapakTik]=useState(0); // kapak kaydedilince yeniden çiz
+  const oyuncuKapakKaydet=async(k)=>{ o.kapak=k; setKapakTik(x=>x+1); const pid=o.player_id||(typeof o.id==="string"?o.id:null); if(sb && pid){ const r=await Db.oyuncuKapakYaz(pid, k); if(r&&r.hata) alert("Kapak kaydedilemedi: "+r.hata); } };
   const [sahipYuk,setSahipYuk]=useState(false);
   const [sahipMesaj,setSahipMesaj]=useState("");
   const [kariyer,setKariyer]=useState(null); // Faz 4: tüm sezonların toplamı (player_id bazlı)
@@ -1933,35 +1942,76 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
 
   const SEKMELER=[["akis","Akış"],["genel","Genel"],["ist","İstatistik"],["mac","Maç Geçmişi"],["lisans","🎫 Lisans"]];
   const renkCifti = T.renkCifti||["#000","#fff"];
+  // Oyuncu kapağı — renk mevkiye göre; varsayılan: profil fotosu varsa otomatik kapak, yoksa ışıklar
+  const kapDuzKisi = !!(oturum && ((o.sahip_user_id && o.sahip_user_id===oturum.id) || adminMi));
+  const pozC = pozRenk(o.poz);
+  const oyKapak = o.kapak || (o.foto ? {tema:'otofoto',resim:null} : {tema:'isik',resim:null});
+  const kartMod = (oyKapak.tema==='kart');
+  const oyKapakArka = kapakCoz(oyKapak, o.foto) || {tema:'isik'};
+  const kapakDuzBtn = kapDuzKisi ? <button onClick={()=>setKapakAcik(true)} className="tap" style={{position:"absolute",top:12,right:12,zIndex:3,display:"flex",alignItems:"center",gap:5,background:"rgba(0,0,0,.4)",color:"#fff",border:"1px solid rgba(255,255,255,.28)",borderRadius:20,padding:"6px 11px",fontSize:11,fontWeight:700,backdropFilter:"blur(4px)"}}>🎨 Kapak</button> : null;
 
   return <div className="fade-in" style={{paddingBottom:90}}>
-    {/* ===== VAV HERO ===== */}
-    <div className="vav-hero" style={{position:"relative",padding:"20px 16px 18px",background:"linear-gradient(120deg,"+T.accent+"45 0%,"+T.bg1+" 32%,"+T.accent+"26 58%,"+T.bg1+" 100%)",overflow:"hidden"}}>
-      <div style={{position:"absolute",inset:0,background:"repeating-linear-gradient(115deg,transparent,transparent 22px,"+T.accent+"08 22px,"+T.accent+"08 24px)",pointerEvents:"none"}}/>
-      <div className="vav-supurme"/>
-      {/* süzülen avatar + büyük başlık */}
-      <div style={{display:"flex",alignItems:"center",gap:14,position:"relative"}}>
-        <div className="vav-suzul" style={{width:76,height:76,borderRadius:"50%",overflow:"hidden",border:"3px solid "+T.accent+"88",boxShadow:"0 0 22px "+T.accent+"55",flexShrink:0,background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,76,o.foto)}}/>
-        <div style={{minWidth:0}}>
-          <div style={{fontSize:24,fontWeight:800,color:T.text,fontFamily:T.fontDisplay,lineHeight:1.15,display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>{o.ad} <span style={{color:T.accent,fontSize:14}}>✔</span></div>
-          <div style={{fontSize:11,color:T.textSoft,marginTop:4}}>{o.poz} · {o.takimAd}</div>
-          <div style={{fontSize:12,marginTop:3,display:"flex",alignItems:"center",gap:8}}>
-            <span><span style={{color:T.gold}}>{"★".repeat(yildiz)}</span><span style={{color:T.line}}>{"★".repeat(5-yildiz)}</span></span>
-            <span style={{fontSize:10,color:T.textMut}}>OVR <b style={{color:T.gold,fontFamily:T.fontDisplay,fontSize:12}}>{o.ovr}</b></span>
+    {/* ===== KAPAK HERO ===== */}
+    {kartMod ? (
+      /* FC KART MODU — köşede dev OVR + mevki, sinematik foto zemin */
+      <div className="vav-hero" style={{position:"relative",padding:"18px 16px 16px",background:T.bg0,overflow:"hidden",minHeight:196}}>
+        <KapakArka renk={pozC} kapak={kapakCoz({tema:'kart',resim:oyKapak.resim||null}, o.foto)||{tema:'isik'}}/>
+        <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.40),rgba(4,10,14,.16) 42%,rgba(4,10,14,.70))"}}/>
+        {kapakDuzBtn}
+        <div style={{position:"relative",zIndex:2,display:"flex",alignItems:"center",gap:13}}>
+          {/* FIFA tarzı reyting çipi */}
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minWidth:66,padding:"9px 8px",borderRadius:15,background:"rgba(0,0,0,.34)",border:"1px solid "+pozC+"cc",boxShadow:"0 0 24px "+pozC+"66,inset 0 0 0 1px rgba(255,255,255,.08)"}}>
+            <div style={{fontSize:36,fontWeight:900,color:"#fff",fontFamily:T.fontDisplay,lineHeight:.85,textShadow:"0 2px 10px rgba(0,0,0,.6)"}}>{o.ovr}</div>
+            <div style={{fontSize:11.5,fontWeight:800,color:"#fff",letterSpacing:.6,marginTop:3,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{pozKisa(o.poz)}</div>
+            <div style={{fontSize:9,color:T.gold,marginTop:3,letterSpacing:-1}}>{"★".repeat(yildiz)}</div>
+          </div>
+          {/* net foto */}
+          <div style={{width:74,height:74,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:"3px solid rgba(255,255,255,.55)",boxShadow:"0 8px 20px rgba(0,0,0,.5)"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,74,o.foto)}}/>
+          <div style={{minWidth:0,flex:1}}>
+            <div style={{fontSize:19,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1.1,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",textShadow:"0 2px 10px rgba(0,0,0,.6)"}}>{o.ad} <span style={{color:"#fff",fontSize:13}}>✔</span></div>
+            <div style={{fontSize:11,color:"#e4f2f6",marginTop:4,textShadow:"0 1px 5px rgba(0,0,0,.6)"}}>{o.poz} · {o.takimAd}</div>
           </div>
         </div>
+        <div style={{display:"flex",gap:12,marginTop:15,position:"relative",zIndex:2}}>
+          {[["GOL",o.gol,"#34D399"],["ASİST",o.asist,T.accent],["MVP",o.mvp,T.gold]].map(([k,v,c])=>
+            <div key={k} style={{flex:1,textAlign:"center"}}>
+              <div className="vav-parla" style={{fontSize:26,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{v}</div>
+              <div style={{fontSize:8.5,color:"#dceaf0",letterSpacing:1,marginTop:4,fontWeight:700,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div>
+            </div>
+          )}
+        </div>
       </div>
-      {/* parlayan büyük sayılar + ışıklı çubuklar */}
-      <div style={{display:"flex",gap:12,marginTop:16,position:"relative"}}>
-        {[["GOL",o.gol,"#34D399"],["ASİST",o.asist,T.accent],["MVP",o.mvp,T.gold]].map(([k,v,c])=>
-          <div key={k} style={{flex:1,textAlign:"center"}}>
-            <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1}}>{v}</div>
-            <div style={{fontSize:8.5,color:T.textSoft,letterSpacing:1,marginTop:4,fontWeight:700}}>{k}</div>
-            <div className="vav-bar" style={{height:3,borderRadius:2,background:c+"4D",marginTop:6}}/>
+    ) : (
+      /* NORMAL KAPAK HERO */
+      <div className="vav-hero" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168}}>
+        <KapakArka renk={pozC} kapak={oyKapakArka}/>
+        <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.34),rgba(4,10,14,.12) 42%,rgba(4,10,14,.66))"}}/>
+        {kapakDuzBtn}
+        {/* süzülen avatar + büyük başlık */}
+        <div style={{display:"flex",alignItems:"center",gap:14,position:"relative",zIndex:2}}>
+          <div className="vav-suzul" style={{width:76,height:76,borderRadius:"50%",overflow:"hidden",border:"3px solid rgba(255,255,255,.5)",boxShadow:"0 8px 22px rgba(0,0,0,.5)",flexShrink:0,background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,76,o.foto)}}/>
+          <div style={{minWidth:0}}>
+            <div style={{fontSize:24,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1.15,display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",textShadow:"0 2px 10px rgba(0,0,0,.6)"}}>{o.ad} <span style={{color:"#fff",fontSize:14}}>✔</span></div>
+            <div style={{fontSize:11,color:"#e4f2f6",marginTop:4,textShadow:"0 1px 6px rgba(0,0,0,.6)"}}>{o.poz} · {o.takimAd}</div>
+            <div style={{fontSize:12,marginTop:4,display:"flex",alignItems:"center",gap:8}}>
+              <span><span style={{color:T.gold}}>{"★".repeat(yildiz)}</span><span style={{color:"rgba(255,255,255,.28)"}}>{"★".repeat(5-yildiz)}</span></span>
+              <span style={{fontSize:10,color:"#dceaf0",textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>OVR <b style={{color:T.gold,fontFamily:T.fontDisplay,fontSize:12}}>{o.ovr}</b></span>
+            </div>
           </div>
-        )}
+        </div>
+        {/* parlayan büyük sayılar */}
+        <div style={{display:"flex",gap:12,marginTop:16,position:"relative",zIndex:2}}>
+          {[["GOL",o.gol,"#34D399"],["ASİST",o.asist,T.accent],["MVP",o.mvp,T.gold]].map(([k,v,c])=>
+            <div key={k} style={{flex:1,textAlign:"center"}}>
+              <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{v}</div>
+              <div style={{fontSize:8.5,color:"#dceaf0",letterSpacing:1,marginTop:4,fontWeight:700,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div>
+              <div className="vav-bar" style={{height:3,borderRadius:2,background:c+"66",marginTop:6}}/>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    )}
+    {kapakAcik && <KapakDuzenle T={T} renk={pozC} kapak={o.kapak} kind="oyuncu" ornekAd={o.ad} ornekFoto={o.foto} onKaydet={oyuncuKapakKaydet} onKapat={()=>setKapakAcik(false)}/>}
 
     {/* AKSIYON */}
     <div style={{display:"flex",justifyContent:"flex-end",gap:7,padding:"10px 14px 0"}}>
