@@ -462,7 +462,12 @@
   /* Sayfa giriş animasyonu — lig/takım/oyuncu açılınca hero belirgin şekilde belirir */
   @keyframes flHeroGiris{0%{opacity:0;transform:translateY(24px) scale(.975)}100%{opacity:1;transform:none}}
   .fl-hero-giris{animation:flHeroGiris .72s cubic-bezier(.2,.85,.25,1) both}
-  @media(prefers-reduced-motion:reduce){.fl-hero-giris{animation:none!important;opacity:1!important}}
+  /* Açılışta üstten net bir ışık süpürür — "sayfa açılıyor" hissi (tek sefer) */
+  .fl-hero-giris::after{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;border-radius:inherit;overflow:hidden;
+    background:linear-gradient(105deg,transparent 36%,rgba(255,255,255,.42) 50%,rgba(180,225,255,.20) 56%,transparent 64%);
+    transform:translateX(-135%) skewX(-14deg);animation:flAcilisSweep 1s ease-out .12s 1 both}
+  @keyframes flAcilisSweep{0%{transform:translateX(-135%) skewX(-14deg)}100%{transform:translateX(240%) skewX(-14deg)}}
+  @media(prefers-reduced-motion:reduce){.fl-hero-giris{animation:none!important;opacity:1!important}.fl-hero-giris::after{display:none}}
   @media (prefers-reduced-motion:reduce){ html.fl-reveal-on .fl-reveal{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; } }
   /* FLIP — puan durumunda yükselen takım kısa yeşil parlar */
   @keyframes flYuksel{ 0%{ box-shadow:0 0 0 1px rgba(46,230,138,.55), 0 6px 22px rgba(46,230,138,.28);} 100%{ box-shadow:none;} }
