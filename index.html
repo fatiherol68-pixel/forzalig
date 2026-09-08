@@ -448,8 +448,8 @@
   /* ===== KAYDIRINCA BELİREN BÖLÜMLER (scroll-reveal) — premium his =====
      Güvenli: sadece JS engine 'fl-reveal-on' sınıfını eklerse gizler. JS çalışmazsa
      içerik NORMAL görünür (hiçbir şey kaybolmaz). 'hareket azaltma'da tamamen kapanır. */
-  html.fl-reveal-on .fl-reveal{ opacity:0; transform:translateY(26px) scale(.985); filter:blur(4px); transition:opacity .72s cubic-bezier(.2,.7,.2,1), transform .72s cubic-bezier(.2,.7,.2,1), filter .55s ease; will-change:opacity,transform,filter; }
-  html.fl-reveal-on .fl-reveal.gorunur{ opacity:1; transform:none; filter:none; }
+  html.fl-reveal-on .fl-reveal{ opacity:0; transform:translateY(26px) scale(.985); transition:opacity .72s cubic-bezier(.2,.7,.2,1), transform .72s cubic-bezier(.2,.7,.2,1); will-change:opacity,transform; }
+  html.fl-reveal-on .fl-reveal.gorunur{ opacity:1; transform:none; }
   /* Sinematik açılış — SADECE ilk açılışta (.fl-boot) bölümler DERİNLİKTEN öne, belirgin SIRAYLA gelir.
      Boot bitince (2.4sn) kaydırma reveal'leri snappy kalır. */
   html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(1){transition-delay:.05s}
@@ -460,9 +460,9 @@
   html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(6){transition-delay:.75s}
   html.fl-reveal-on .fl-boot .fl-reveal.gorunur:nth-child(n+7){transition-delay:.82s}
   /* Sayfa giriş animasyonu — lig/takım/oyuncu açılınca hero belirgin şekilde belirir */
-  @keyframes flHeroGiris{0%{opacity:0;transform:translateY(24px) scale(.975);filter:blur(6px)}100%{opacity:1;transform:none;filter:none}}
+  @keyframes flHeroGiris{0%{opacity:0;transform:translateY(24px) scale(.975)}100%{opacity:1;transform:none}}
   .fl-hero-giris{animation:flHeroGiris .72s cubic-bezier(.2,.85,.25,1) both}
-  @media(prefers-reduced-motion:reduce){.fl-hero-giris{animation:none}}
+  @media(prefers-reduced-motion:reduce){.fl-hero-giris{animation:none!important;opacity:1!important}}
   @media (prefers-reduced-motion:reduce){ html.fl-reveal-on .fl-reveal{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; } }
   /* FLIP — puan durumunda yükselen takım kısa yeşil parlar */
   @keyframes flYuksel{ 0%{ box-shadow:0 0 0 1px rgba(46,230,138,.55), 0 6px 22px rgba(46,230,138,.28);} 100%{ box-shadow:none;} }
