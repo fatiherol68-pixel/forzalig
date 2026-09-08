@@ -57,7 +57,7 @@
 <!-- Sentry hata izleme: DSN doluysa, sayfa yüklendikten SONRA boşta tembel yüklenir (açılış hızını etkilemez). -->
 <script>
   window.__FL_SENTRY_DSN = "https://b32c8ee7debe3979c3751c186de7e639@o4511704229281792.ingest.de.sentry.io/4511704256479312"; // Sentry projesi DSN'i (boşsa Sentry kapalı)
-  window.__FL_RELEASE = "20260908064347"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
+  window.__FL_RELEASE = "20260908074431"; // derle.js bunu sürüm damgasıyla değiştirir → Sentry "release" (kaynakta placeholder kalır)
   // Push bildirim VAPID public anahtarı (boşsa telefon push'u KAPALI; app-içi bildirim yine çalışır).
   // Üretmek için: npx web-push generate-vapid-keys → public key'i buraya, private'ı Supabase Edge Function secret'ına.
   window.__FL_VAPID_PUBLIC = "BLYy3N_SDkwLvq-MOdHfiR8-mDIgZcYM21gzP4h8oFYIgvAA-oxwsSMl4oZky7Nlz5hhpeqO4HbJ7qYs6ui5fz8";
@@ -301,6 +301,16 @@
   .satir-hover:active { transform: scale(.985); }
   @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
   .live-dot { animation: pulse 1.6s infinite; }
+  /* ===== LİG KAPAK (kimlik) animasyonları ===== */
+  .fz-kapak-orb{position:absolute;border-radius:50%;filter:blur(7px);opacity:.5;animation:fzKapGlow 5s ease-in-out infinite;pointer-events:none}
+  @keyframes fzKapGlow{0%,100%{opacity:.32;transform:scale(1)}50%{opacity:.72;transform:scale(1.18)}}
+  .fz-kapak-drift{background-size:230% 230%;animation:fzKapDrift 8s ease-in-out infinite}
+  @keyframes fzKapDrift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+  .fz-kapak-sweep{position:absolute;inset:0;pointer-events:none;animation:fzKapSweep 4.4s linear infinite}
+  @keyframes fzKapSweep{0%{transform:translateX(-115%)}55%,100%{transform:translateX(230%)}}
+  .fz-kapak-zoom{animation:fzKapZoom 14s ease-in-out infinite alternate}
+  @keyframes fzKapZoom{0%{transform:scale(1)}100%{transform:scale(1.12)}}
+  @media(prefers-reduced-motion:reduce){.fz-kapak-orb,.fz-kapak-drift,.fz-kapak-sweep,.fz-kapak-zoom{animation:none!important}}
   /* Premium diziliş animasyonları */
   @keyframes sahaGel { from{opacity:0;transform:translate(-50%,calc(-50% + 20px));} to{opacity:1;transform:translate(-50%,-50%);} }
   .saha-oyuncu { animation: sahaGel .5s ease both; }
@@ -479,8 +489,8 @@
   @keyframes fzAkisIn { from{ opacity:0; transform:translateY(-3px); } to{ opacity:1; transform:none; } }
   .fz-akis-satir { animation: fzAkisIn .3s ease both; }
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; } }</style>
-  <link rel="modulepreload" crossorigin href="/assets/app-body-CyXHCoQt.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
-<script type="module" crossorigin src="/assets/index-1GtGEKdm.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/app-body-HPNXGkvL.js"><link rel="modulepreload" crossorigin href="/assets/vendor-BMMhkeon.js">
+<script type="module" crossorigin src="/assets/index-DZEf90M7.js"></script>
 </head>
 <body>
 <div id="root"><div id="fz-onsplash" style="background:radial-gradient(120% 52% at 50% 30%,rgba(52,211,153,.15),transparent 60%),radial-gradient(90% 42% at 50% 96%,rgba(56,189,248,.09),transparent 62%),linear-gradient(180deg,#070B12,#05080F 60%,#04070C)">
