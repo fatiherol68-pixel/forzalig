@@ -1992,7 +1992,12 @@ const Db = {
   // RADYO PARÇA İSTEKLERİ (redesign) — sistem_ayar 'radyo_istek' JSON dizisi. Yeni tablo YOK.
   async radyoIstekOku(){ if(!sb) return []; try{ const {data,error}=await sb.from('sistem_ayar').select('deger').eq('anahtar','radyo_istek').maybeSingle(); if(error||!data||!data.deger) return []; try{ const a=JSON.parse(data.deger); return Array.isArray(a)?a:[]; }catch(e){ return []; } }catch(e){ return []; } },
   async radyoIstekYaz(liste){ return await this.ayarYaz('radyo_istek', JSON.stringify(Array.isArray(liste)?liste.slice(-40):[])); },
-  async radyoIstekEkle(istek){ try{ const l=await this.radyoIstekOku(); l.push(istek); const r=await this.radyoIstekYaz(l); return r; }catch(e){ return {hata:String(e)}; } },
+  async radyoIstekEkle(istek){ if(!sb||!istek) return {hata:"yok"}; try{
+    // Dinleyiciler sistem_ayar'a yazamaz (RLS admin_mi) → SECURITY DEFINER RPC ile gönder (herkes çalışır)
+    const {data,error}=await sb.rpc('radyo_istek_gonder',{p_sarki:istek.sarki||"Parça", p_url:istek.url||null, p_ad:istek.ad||"Dinleyici", p_takim:istek.takim||null, p_renk:istek.renk||null});
+    if(error) return {hata:error.message};
+    return {ok:!!data};
+  }catch(e){ return {hata:String(e)}; } },
   // DEPOLAMA KOTASI — güvenli: storage boyutu SECURITY DEFINER SQL fonksiyonundan (service-role sırrı FRONTEND'DE YOK).
   async radyoDepoStat(){ if(!sb) return null; try{ const {data,error}=await sb.rpc('radyo_depo_stat'); if(error) return {hata:error.message}; return data||null; }catch(e){ return {hata:String(e)}; } },
   // EGRESS (aylık trafik) — SADECE opsiyonel Edge Function varsa (Management API PAT server-side secret). Yoksa null döner, UI '—' gösterir.
