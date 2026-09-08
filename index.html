@@ -1028,6 +1028,47 @@ async function fotoYukle(dosya, klasor, eskiUrl){
     return {url:(data&&data.publicUrl)||""};
   }catch(e){ return {hata:String(e&&e.message||e)}; }
 }
+/* GENİŞ görsel küçültme — KARE KIRPMA YOK, en-boy oranı korunur, uzun kenar max 1400px.
+   Kapak (banner) için: cover ile her kutuya oturur, tüm sahne görünür. */
+function resimGenis(dosya, maxBoy=1400, kalite=0.84){
+  return new Promise((res,rej)=>{
+    try{
+      const img=new Image(); const url=URL.createObjectURL(dosya);
+      img.onload=()=>{
+        let w=img.width, h=img.height;
+        const olcek=Math.min(1, maxBoy/Math.max(w,h));
+        w=Math.max(1,Math.round(w*olcek)); h=Math.max(1,Math.round(h*olcek));
+        const c=document.createElement("canvas"); c.width=w; c.height=h;
+        const ctx=c.getContext("2d"); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
+        ctx.drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        const tur=_webpDestek()?"image/webp":"image/jpeg";
+        c.toBlob(b=> b?res(b):rej(new Error("kucultme")), tur, kalite);
+      };
+      img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error("resim okunamadi")); };
+      img.src=url;
+    }catch(e){ rej(e); }
+  });
+}
+/* Kapak yükleme — geniş (kırpmasız) hat. fotoYukle'nin KARE kırpması kapağı bozuyordu. */
+async function kapakYukle(dosya, eskiUrl){
+  if(!sb) return {hata:"Giriş gerekli (bulut kapalı)."};
+  if(!dosya) return {hata:"Dosya yok."};
+  if(dosya.size>15*1024*1024) return {hata:"Fotoğraf çok büyük (max 15MB)."};
+  try{
+    let uid=null; try{ uid=((await sb.auth.getUser()).data.user||{}).id||null; }catch(e){}
+    if(!uid) return {hata:"Giriş gerekli."};
+    const kucuk = await resimGenis(dosya);
+    const ext = (kucuk.type==="image/webp")?"webp":"jpg";
+    const uuid = (window.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now()+"-"+Math.random().toString(36).slice(2,10));
+    const yol = uid+"/kapak/"+uuid+"."+ext;
+    const {error}=await sb.storage.from("fotolar").upload(yol, kucuk, {contentType:kucuk.type, upsert:false});
+    if(error) return {hata:error.message};
+    const {data}=sb.storage.from("fotolar").getPublicUrl(yol);
+    try{ if(eskiUrl){ const p=String(eskiUrl).split("/fotolar/")[1]; if(p && p.indexOf(uid+"/")===0){ await sb.storage.from("fotolar").remove([decodeURIComponent(p.split("?")[0])]); } } }catch(e){}
+    return {url:(data&&data.publicUrl)||""};
+  }catch(e){ return {hata:String(e&&e.message||e)}; }
+}
 /* Ses yükleme (sohbet medyası) — küçültme yok, ses MIME, güvenli isim, 20MB sınır */
 async function sesYukle(blob){
   if(!sb) return {hata:"Giriş gerekli (bulut kapalı)."};
@@ -3316,7 +3357,7 @@ function KapakArka({renk, kapak}){
   const c=renk||'#27AE60'; const tema=(kapak&&kapak.tema)||'isik'; const resim=kapak&&kapak.resim;
   if(tema==='resim' && resim) return <>
     <div className="fz-kapak-zoom" style={{position:'absolute',inset:0,backgroundImage:`url(${resim})`,backgroundSize:'cover',backgroundPosition:'center'}}/>
-    <div style={{position:'absolute',inset:0,background:`linear-gradient(120deg,${c}59,transparent 66%)`,mixBlendMode:'multiply'}}/>
+    <div style={{position:'absolute',inset:0,background:`linear-gradient(120deg,${c}33,transparent 55%)`,mixBlendMode:'multiply'}}/>
   </>;
   if(tema==='neon'||tema==='dalga'){ const g=tema==='neon'?`linear-gradient(120deg,${kapKoyu(c,.66)},${c},${kapAcik(c,.4)},${c})`:`linear-gradient(60deg,${kapKoyu(c,.66)},${c},${kapAcik(c,.55)},${c})`;
     return <div className="fz-kapak-drift" style={{position:'absolute',inset:0,background:g}}/>; }
@@ -7102,7 +7143,7 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum, onPaylas}){
   const [kapakYuk,setKapakYuk]=useState(false);
   const kapakResimSec=async(dosya)=>{
     if(!dosya) return; setKapakYuk(true);
-    try{ const r=await fotoYukle(dosya,"kapak", lKapak&&lKapak.resim); if(r&&r.url) setLKapak({tema:'resim',resim:r.url}); else alert("Görsel yüklenemedi: "+((r&&r.hata)||"")); }
+    try{ const r=await kapakYukle(dosya, lKapak&&lKapak.resim); if(r&&r.url) setLKapak({tema:'resim',resim:r.url}); else alert("Görsel yüklenemedi: "+((r&&r.hata)||"")); }
     catch(e){ alert("Görsel yüklenemedi: "+String(e)); }
     setKapakYuk(false);
   };
