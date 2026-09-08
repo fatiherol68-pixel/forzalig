@@ -448,9 +448,20 @@
   /* ===== KAYDIRINCA BELİREN BÖLÜMLER (scroll-reveal) — premium his =====
      Güvenli: sadece JS engine 'fl-reveal-on' sınıfını eklerse gizler. JS çalışmazsa
      içerik NORMAL görünür (hiçbir şey kaybolmaz). 'hareket azaltma'da tamamen kapanır. */
-  html.fl-reveal-on .fl-reveal{ opacity:0; transform:translateY(24px); transition:opacity .72s cubic-bezier(.2,.7,.2,1), transform .72s cubic-bezier(.2,.7,.2,1); will-change:opacity,transform; }
-  html.fl-reveal-on .fl-reveal.gorunur{ opacity:1; transform:none; }
-  @media (prefers-reduced-motion:reduce){ html.fl-reveal-on .fl-reveal{ opacity:1 !important; transform:none !important; transition:none !important; } }
+  html.fl-reveal-on .fl-reveal{ opacity:0; transform:translateY(26px) scale(.985); filter:blur(4px); transition:opacity .72s cubic-bezier(.2,.7,.2,1), transform .72s cubic-bezier(.2,.7,.2,1), filter .55s ease; will-change:opacity,transform,filter; }
+  html.fl-reveal-on .fl-reveal.gorunur{ opacity:1; transform:none; filter:none; }
+  /* Sinematik açılış — ilk ekrandaki bölümler DERİNLİKTEN öne, SIRAYLA gelir (cascade) */
+  html.fl-reveal-on .fl-reveal.gorunur:nth-child(1){transition-delay:.02s}
+  html.fl-reveal-on .fl-reveal.gorunur:nth-child(2){transition-delay:.09s}
+  html.fl-reveal-on .fl-reveal.gorunur:nth-child(3){transition-delay:.16s}
+  html.fl-reveal-on .fl-reveal.gorunur:nth-child(4){transition-delay:.23s}
+  html.fl-reveal-on .fl-reveal.gorunur:nth-child(5){transition-delay:.30s}
+  html.fl-reveal-on .fl-reveal.gorunur:nth-child(n+6){transition-delay:.34s}
+  @media (prefers-reduced-motion:reduce){ html.fl-reveal-on .fl-reveal{ opacity:1 !important; transform:none !important; filter:none !important; transition:none !important; } }
+  /* FLIP — puan durumunda yükselen takım kısa yeşil parlar */
+  @keyframes flYuksel{ 0%{ box-shadow:0 0 0 1px rgba(46,230,138,.55), 0 6px 22px rgba(46,230,138,.28);} 100%{ box-shadow:none;} }
+  .fl-yukselen{ animation:flYuksel 1.25s ease; }
+  @media (prefers-reduced-motion:reduce){ .fl-yukselen{ animation:none; } }
   /* Grafik çubukları: bölüm görünür alana girince tabandan yukarı büyüsün */
   @keyframes flCubBuyu{ from{ transform:scaleY(0); } to{ transform:scaleY(1); } }
   html.fl-reveal-on .fl-reveal .flcub-bar{ transform-box:fill-box; transform-origin:50% 100%; transform:scaleY(0); }
@@ -7792,6 +7803,28 @@ function GrupTablo({takimlar, T, git, turnuva}){
 
 function PuanDurumuTekli({turnuva, T, git}){
   const takimlar = turnuva.takimlar; // zaten sıralı: puan→averaj→atılan gol
+  // ===== FLIP — sıra değişince satırlar eski yerlerinden yeni yerlerine kayar =====
+  const satirRef = useRef({});
+  const flipRef = useRef({pos:null, sira:null});
+  React.useLayoutEffect(()=>{
+    try{
+      const azalt = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const ids = takimlar.map(t=>t.id);
+      const yeniPos = {}; ids.forEach(id=>{ const el=satirRef.current[id]; if(el) yeniPos[id]=el.getBoundingClientRect().top; });
+      const onceki = flipRef.current;
+      if(onceki.pos && onceki.sira && !azalt){
+        const degisti = onceki.sira.length===ids.length && onceki.sira.some((id,i)=>id!==ids[i]);
+        if(degisti){
+          ids.forEach(id=>{ const el=satirRef.current[id]; if(!el) return; const eski=onceki.pos[id], yeni=yeniPos[id];
+            if(eski!=null && yeni!=null){ const d=eski-yeni; if(Math.abs(d)>1){ el.style.transition="none"; el.style.transform="translateY("+d+"px)";
+              requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ el.style.transition="transform .6s cubic-bezier(.4,0,.2,1)"; el.style.transform=""; }); }); } }
+          });
+          ids.forEach((id,i)=>{ const eskiIdx=onceki.sira.indexOf(id); if(eskiIdx>i){ const el=satirRef.current[id]; if(el){ el.classList.remove("fl-yukselen"); void el.offsetWidth; el.classList.add("fl-yukselen"); setTimeout(()=>{ try{el.classList.remove("fl-yukselen");}catch(_){}} ,1300); } } });
+        }
+      }
+      flipRef.current = {pos:yeniPos, sira:ids};
+    }catch(e){}
+  });
   const n = takimlar.length;
   const lider = takimlar[0];
   const ikinci = takimlar[1]||lider;
@@ -7877,7 +7910,7 @@ function PuanDurumuTekli({turnuva, T, git}){
           const lider=t.sira===1;
           const seritRenk = samp?T.gold : dusme?T.danger : "transparent";
           const av=t.ag-t.yg;
-          return <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva})} className={"tap prem-tap"+(lider?" vav-hero":"")}
+          return <div key={t.id} ref={el=>{ if(el) satirRef.current[t.id]=el; }} onClick={()=>git({sayfa:"takim",takim:t,turnuva})} className={"tap prem-tap"+(lider?" vav-hero":"")}
             style={{position:"relative",display:"grid",gridTemplateColumns:"20px minmax(96px,1fr) 22px 22px 22px 26px 26px 56px 30px",gap:2,alignItems:"center",
               background:lider?`linear-gradient(120deg, ${T.gold}3a, ${T.bg1} 42%, ${T.gold}22 70%, ${T.bg1})`:samp?T.gold+"12":dusme?T.danger+"10":T.bg1,borderRadius:9,padding:"8px 8px 8px 11px",marginBottom:4,fontSize:11,overflow:"hidden",
               boxShadow:lider?`0 4px 20px ${T.gold}33`:"none"}}>
