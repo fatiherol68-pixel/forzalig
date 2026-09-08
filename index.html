@@ -3399,6 +3399,15 @@ function kapakCoz(kapak, fallbackFoto){
   if((k.tema==='otofoto'||k.tema==='kart') && !k.resim && fallbackFoto) return {tema:k.tema, resim:fallbackFoto};
   return k;
 }
+// Portal — modal'ı doğrudan <body>'ye taşır → üst katmanların (transform/zIndex) stacking
+// tuzağından kurtulur, radyo çubuğu/alt menü ÜSTÜNE biner (mobilde kesilme/scroll sorunu biter).
+function Portal({children}){
+  const el=useRef(null);
+  if(!el.current && typeof document!=='undefined') el.current=document.createElement('div');
+  useEffect(()=>{ const n=el.current; if(!n) return; document.body.appendChild(n); return ()=>{ try{document.body.removeChild(n);}catch(e){} }; },[]);
+  if(!el.current || typeof ReactDOM==='undefined' || !ReactDOM.createPortal) return children;
+  return ReactDOM.createPortal(children, el.current);
+}
 // Ortak kapak düzenleme penceresi (takım + oyuncu). Temalar + fotoğraf yükleme + canlı önizleme.
 function KapakDuzenle({T, renk, kapak, kind, ornekAd, ornekFoto, onKaydet, onKapat}){
   const [k,setK]=useState(kapak||{tema:kind==='oyuncu'?'otofoto':'isik',resim:null});
@@ -3410,8 +3419,8 @@ function KapakDuzenle({T, renk, kapak, kind, ornekAd, ornekFoto, onKaydet, onKap
   const kaydet=async()=>{ setKayit(true); try{ await onKaydet(k); }catch(e){} setKayit(false); onKapat(); };
   const onizle=kapakCoz(k, ornekFoto);
   const beyaz=T.renkCifti&&T.renkCifti[1]==="#FFFFFF";
-  return <div onClick={onKapat} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.66)",zIndex:1700,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-    <div onClick={e=>e.stopPropagation()} className="fade-in" style={{width:"100%",maxWidth:460,maxHeight:"88vh",overflowY:"auto",background:T.bg1,borderRadius:"18px 18px 0 0",padding:"16px 16px calc(20px + env(safe-area-inset-bottom))",border:"0.5px solid "+T.line}}>
+  return <Portal><div onClick={onKapat} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.66)",zIndex:5000,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+    <div onClick={e=>e.stopPropagation()} className="fade-in" style={{width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto",WebkitOverflowScrolling:"touch",background:T.bg1,borderRadius:"18px 18px 0 0",padding:"16px 16px calc(20px + env(safe-area-inset-bottom))",border:"0.5px solid "+T.line}}>
       <div style={{width:40,height:4,background:T.line,borderRadius:2,margin:"0 auto 14px"}}/>
       <div style={{fontFamily:T.fontDisplay,fontSize:16,fontWeight:800,color:T.text,marginBottom:3}}>🎨 {kind==='takim'?"Takım Kapağı":"Oyuncu Kapağı"}</div>
       <div style={{fontSize:11.5,color:T.textMut,marginBottom:13}}>Bir tema seç ya da fotoğraf yükle. Sayfa başındaki animasyonlu kimlik.</div>
@@ -3447,7 +3456,7 @@ function KapakDuzenle({T, renk, kapak, kind, ornekAd, ornekFoto, onKaydet, onKap
         <button onClick={onKapat} className="tap" style={{background:T.bg2,color:T.textMut,border:"0.5px solid "+T.line,borderRadius:11,padding:"12px 16px",fontSize:13,fontWeight:700}}>Vazgeç</button>
       </div>
     </div>
-  </div>;
+  </div></Portal>;
 }
 function Logo({renk, boy=40, ad, logo, renk2}){
   return <div style={{width:boy,height:boy,flexShrink:0,borderRadius:"50%",overflow:"hidden",boxShadow:"inset 0 1px 1.5px rgba(255,255,255,.35), inset 0 -2px 4px rgba(0,0,0,.22), 0 1px 3px rgba(0,0,0,.28)"}} dangerouslySetInnerHTML={{__html: svgAmblem(ad||"F", renk, boy, logo, renk2)}}/>;
