@@ -3461,6 +3461,35 @@ function KapakDuzenle({T, renk, kapak, kind, ornekAd, ornekFoto, onKaydet, onKap
 function Logo({renk, boy=40, ad, logo, renk2}){
   return <div style={{width:boy,height:boy,flexShrink:0,borderRadius:"50%",overflow:"hidden",boxShadow:"inset 0 1px 1.5px rgba(255,255,255,.35), inset 0 -2px 4px rgba(0,0,0,.22), 0 1px 3px rgba(0,0,0,.28)"}} dangerouslySetInnerHTML={{__html: svgAmblem(ad||"F", renk, boy, logo, renk2)}}/>;
 }
+/* MOTION TEMELİ — hareket azalt tercihini ve global açık/kapalı bayrağı tek yerden oku */
+var _flAzalt=(function(){ try{ return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } })();
+function flMotionAcik(){ if(_flAzalt) return false; try{ return localStorage.getItem('fl_motion')!=='0'; }catch(e){ return true; } }
+/* FlSayac — rakam 0'dan (veya önceki değerden) hedefe yumuşakça sayar; görünür olunca tetiklenir,
+   değer değişince yeniden animasyonlanır. Üst öğenin stilini KORUR (span). Sayısal değilse aynen basar. */
+function FlSayac({deger, sure=650, ondalik=0, sonek="", onek="", style, className}){
+  const to=Number(deger);
+  const sayisal=isFinite(to);
+  const [g,setG]=useState(sayisal?0:deger);
+  const ref=useRef(null); const sonRef=useRef(0); const gorRef=useRef(false);
+  useEffect(()=>{
+    if(!sayisal){ setG(deger); return; }
+    function calistir(){
+      var from=sonRef.current;
+      if(!flMotionAcik()){ sonRef.current=to; setG(to); return; }
+      var d=Math.max(220,sure), st=null;
+      function step(ts){ if(!st)st=ts; var p=Math.min(1,(ts-st)/d); var e=1-Math.pow(1-p,3); var v=from+(to-from)*e; setG(v); if(p<1) requestAnimationFrame(step); else sonRef.current=to; }
+      requestAnimationFrame(step);
+    }
+    if(!gorRef.current){
+      if(ref.current && 'IntersectionObserver' in window){
+        var io=new IntersectionObserver(function(es){ es.forEach(function(en){ if(en.isIntersecting && !gorRef.current){ gorRef.current=true; calistir(); io.disconnect(); } }); },{threshold:.25});
+        io.observe(ref.current); return function(){ io.disconnect(); };
+      } else { gorRef.current=true; calistir(); }
+    } else { calistir(); }
+  },[to, sayisal]);
+  var goster = sayisal ? (onek + (ondalik>0 ? Number(g).toFixed(ondalik) : Math.round(g)) + sonek) : g;
+  return <span ref={ref} className={className} style={style}>{goster}</span>;
+}
 
 function Avatar({o, boy=44, T}){
   return <div style={{width:boy,height:boy,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html: svgAvatar(o.ad, boy, o.foto)}}/>;
@@ -6750,7 +6779,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
           </span>
           <div style={{display:"flex",gap:14,textAlign:"center"}}>
             {[["TAKIM",turnuva.takimlar.length],["HAFTA",sonHafta||"—"],["MAÇ",oynanan+"/"+toplamMac]].map(([k,v])=>
-              <div key={k}><div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 1px 8px rgba(0,0,0,.6)"}}>{v}</div><div style={{fontSize:7.5,color:"#cfe4ea",letterSpacing:.5,marginTop:2,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div></div>
+              <div key={k}><div style={{fontSize:15,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 1px 8px rgba(0,0,0,.6)"}}><FlSayac deger={v}/></div><div style={{fontSize:7.5,color:"#cfe4ea",letterSpacing:.5,marginTop:2,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div></div>
             )}
           </div>
         </div>
@@ -8517,7 +8546,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
       <div style={{display:"flex",gap:12,marginTop:16,position:"relative",zIndex:2}}>
         {[["GALİBİYET",takim.g,"#34D399"],["PUAN",takim.puan,T.gold],["SIRA",takim.sira+".",takim.sira===1?T.gold:T.accent]].map(([k,v,c])=>
           <div key={k} style={{flex:1,textAlign:"center"}}>
-            <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{v}</div>
+            <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}><FlSayac deger={v}/></div>
             <div style={{fontSize:8.5,color:"#dceaf0",letterSpacing:1,marginTop:4,fontWeight:700,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div>
             <div className="vav-bar" style={{height:3,borderRadius:2,background:c+"4D",marginTop:6}}/>
           </div>
@@ -9226,7 +9255,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
         <div style={{display:"flex",gap:12,marginTop:15,position:"relative",zIndex:2}}>
           {[["GOL",o.gol,"#34D399"],["ASİST",o.asist,T.accent],["MVP",o.mvp,T.gold]].map(([k,v,c])=>
             <div key={k} style={{flex:1,textAlign:"center"}}>
-              <div className="vav-parla" style={{fontSize:26,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{v}</div>
+              <div className="vav-parla" style={{fontSize:26,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}><FlSayac deger={v}/></div>
               <div style={{fontSize:8.5,color:"#dceaf0",letterSpacing:1,marginTop:4,fontWeight:700,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div>
             </div>
           )}
@@ -9254,7 +9283,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
         <div style={{display:"flex",gap:12,marginTop:16,position:"relative",zIndex:2}}>
           {[["GOL",o.gol,"#34D399"],["ASİST",o.asist,T.accent],["MVP",o.mvp,T.gold]].map(([k,v,c])=>
             <div key={k} style={{flex:1,textAlign:"center"}}>
-              <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}>{v}</div>
+              <div className="vav-parla" style={{fontSize:27,fontWeight:800,color:c,fontFamily:T.fontDisplay,lineHeight:1,textShadow:"0 2px 10px rgba(0,0,0,.55)"}}><FlSayac deger={v}/></div>
               <div style={{fontSize:8.5,color:"#dceaf0",letterSpacing:1,marginTop:4,fontWeight:700,textShadow:"0 1px 4px rgba(0,0,0,.6)"}}>{k}</div>
               <div className="vav-bar" style={{height:3,borderRadius:2,background:c+"66",marginTop:6}}/>
             </div>
