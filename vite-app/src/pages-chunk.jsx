@@ -1023,6 +1023,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
         {/* Lig kapağı — animasyonlu kimlik (tema: turnuva.kapak) */}
         <KapakArka renk={turnuva.renk} kapak={turnuva.kapak}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.30),rgba(4,10,14,.12) 45%,rgba(4,10,14,.64))"}}/>
+        <div className="fl-glint"/>
         {/* durum + stat şerit */}
         <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
           <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:9.5,fontWeight:800,letterSpacing:.6,color:durumRenk,background:durumRenk+"1e",border:"1px solid "+durumRenk+"44",borderRadius:20,padding:"4px 10px"}}>
@@ -1444,6 +1445,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
       {/* Takım kapağı — animasyonlu kimlik (tema: takim.kapak) */}
       <KapakArka renk={takim.renk} kapak={takim.kapak}/>
       <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.34),rgba(4,10,14,.12) 42%,rgba(4,10,14,.66))"}}/>
+      <div className="fl-glint"/>
       {takimBenim && <button onClick={()=>setKapakAcik(true)} className="tap" style={{position:"absolute",top:12,right:12,zIndex:3,display:"flex",alignItems:"center",gap:5,background:"rgba(0,0,0,.4)",color:"#fff",border:"1px solid rgba(255,255,255,.28)",borderRadius:20,padding:"6px 11px",fontSize:11,fontWeight:700,backdropFilter:"blur(4px)"}}>🎨 Kapak</button>}
       {/* süzülen amblem + büyük başlık */}
       <div style={{display:"flex",alignItems:"center",gap:14,position:"relative",zIndex:2}}>
@@ -1962,6 +1964,7 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
         <KapakArka renk={pozC} kapak={kapakCoz({tema:'kart',resim:oyKapak.resim||null}, o.foto)||{tema:'isik'}}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.40),rgba(4,10,14,.16) 42%,rgba(4,10,14,.70))"}}/>
         <div ref={fcHoloRef} style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,opacity:0,transition:"opacity .25s",mixBlendMode:"screen"}}/>
+        <div className="fl-glint"/>
         {kapakDuzBtn}
         <div style={{position:"relative",zIndex:2,display:"flex",alignItems:"center",gap:13}}>
           {/* FIFA tarzı reyting çipi */}
@@ -1987,10 +1990,12 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
         </div>
       </div>
     ) : (
-      /* NORMAL KAPAK HERO */
-      <div className="vav-hero" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168}}>
+      /* NORMAL KAPAK HERO — holografik eğim + parlama (her oyuncuda) */
+      <div ref={fcKartRef} onPointerMove={fcEgim} onPointerLeave={fcSifirla} className="vav-hero" style={{position:"relative",padding:"20px 16px 18px",background:T.bg0,overflow:"hidden",minHeight:168,transition:"transform .18s ease",willChange:"transform"}}>
         <KapakArka renk={pozC} kapak={oyKapakArka}/>
         <div style={{position:"absolute",inset:0,pointerEvents:"none",background:"linear-gradient(180deg,rgba(4,10,14,.34),rgba(4,10,14,.12) 42%,rgba(4,10,14,.66))"}}/>
+        <div ref={fcHoloRef} style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,opacity:0,transition:"opacity .25s",mixBlendMode:"screen"}}/>
+        <div className="fl-glint"/>
         {kapakDuzBtn}
         {/* süzülen avatar + büyük başlık */}
         <div style={{display:"flex",alignItems:"center",gap:14,position:"relative",zIndex:2}}>
