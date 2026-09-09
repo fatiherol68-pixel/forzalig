@@ -3713,7 +3713,7 @@ function Ayarlar({T, stilKey, setStilKey, renkKey, setRenkKey, veriUret, veriSil
         })}
       </div>
 
-      <div style={{fontSize:10.5,color:T.textMut,marginTop:12,lineHeight:1.5,background:"linear-gradient(120deg,"+T.accent+"12,"+T.bg1+")",borderRadius:10,padding:"10px 12px",border:"0.5px solid "+T.accent+"33"}}>👑 Süper admin: seçtiğin görünüm <b style={{color:T.accent}}>sitenin tamamına</b> uygulanır — tüm kullanıcılar (bütün cihazlarda) aynı anda bunu görür. 10 tema dünyası × 6 renk = 60 kombinasyon.</div>
+      <div style={{fontSize:10.5,color:T.textMut,marginTop:12,lineHeight:1.5,background:"linear-gradient(120deg,"+T.accent+"12,"+T.bg1+")",borderRadius:10,padding:"10px 12px",border:"0.5px solid "+T.accent+"33"}}>👑 Süper admin: seçtiğin görünüm <b style={{color:T.accent}}>sitenin tamamına</b> uygulanır — tüm kullanıcılar (bütün cihazlarda) aynı anda bunu görür. 15 tema dünyası × 6 renk = 90 kombinasyon.</div>
       </> : <div style={{fontSize:11.5,color:T.textMut,marginTop:6,lineHeight:1.6,background:T.bg1,borderRadius:12,padding:"14px",border:"0.5px solid "+T.line}}>
         Site görünümünü <b style={{color:T.text}}>süper admin</b> belirler. Şu anki görünüm: <b style={{color:T.accent}}>{(STILLER[stilKey]||{}).ad}{renkKey&&RENK_TEMA[renkKey]?" + "+RENK_TEMA[renkKey].ad:""}</b>
       </div>}
