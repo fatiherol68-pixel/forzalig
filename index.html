@@ -12414,6 +12414,8 @@ function PushAyar({T, oturum}){
   const [durum,setDurum]=useState("bilinmiyor"); // acik | kapali | destek_yok | ayarli_degil
   const [mesgul,setMesgul]=useState(false);
   const vapid=(typeof window!=="undefined"&&window.__FL_VAPID_PUBLIC)||"";
+  const iOS = typeof navigator!=="undefined" && /iP(hone|ad|od)/.test(navigator.userAgent||"");
+  const standalone = typeof window!=="undefined" && ((window.navigator&&window.navigator.standalone) || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
   useEffect(()=>{
     (async()=>{
       if(!("serviceWorker" in navigator)||!("PushManager" in window)){ setDurum("destek_yok"); return; }
@@ -12444,9 +12446,15 @@ function PushAyar({T, oturum}){
     <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 4px"}}><span style={{width:28,height:28,borderRadius:8,background:T.accent2+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>📲</span><span style={{fontSize:13,fontWeight:700,color:T.text}}>Telefon Bildirimleri</span></div>
     <div style={{background:T.bg1,borderRadius:12,padding:"14px",border:"0.5px solid "+T.line}}>
       {durum==="ayarli_degil"
-        ? <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.5}}>Telefon push bildirimi henüz kurulmadı (VAPID anahtarı gerekiyor). Uygulama içi 🔔 bildirimler zaten çalışıyor. Kurulum tamamlanınca burası aktif olacak.</div>
+        ? <div style={{fontSize:11.5,color:T.textMut,lineHeight:1.5}}>Uygulama içi 🔔 bildirimler çalışıyor. Telefon kilit-ekranı push'u bu cihazda henüz hazır değil.</div>
         : <>
-          <div style={{fontSize:12,color:T.textSoft,lineHeight:1.5,marginBottom:10}}>Uygulama kapalıyken bile transfer/maç bildirimleri telefonuna düşsün.{" "}<span style={{color:T.textMut}}>(iPhone'da: önce uygulamayı ana ekrana ekle.)</span></div>
+          {iOS && !standalone
+            ? <div style={{background:T.accent+"12",border:"1px solid "+T.accent+"44",borderRadius:11,padding:"12px 13px",marginBottom:10}}>
+                <div style={{fontSize:12.5,fontWeight:800,color:T.text,marginBottom:6}}>📱 iPhone'da bildirim için 2 adım</div>
+                <div style={{fontSize:12,color:T.textSoft,lineHeight:1.6}}>1️⃣ Alttaki <b style={{color:T.text}}>Paylaş</b> <span style={{fontSize:13}}>􀈂</span> → <b style={{color:T.text}}>Ana Ekrana Ekle</b><br/>2️⃣ ForzaLig'i ana ekrandan aç → buradan <b style={{color:T.accent}}>Bildirimleri Aç</b></div>
+                <div style={{fontSize:10.5,color:T.textMut,marginTop:7}}>iPhone'da push yalnızca uygulama ana ekrana eklenince çalışır — Apple kuralı.</div>
+              </div>
+            : <div style={{fontSize:12,color:T.textSoft,lineHeight:1.5,marginBottom:10}}>Uygulama kapalıyken bile maç sonucu, rakip ilanı ve transfer bildirimleri telefonuna düşsün.</div>}
           <button onClick={durum==="acik"?kapat:ac} disabled={mesgul} className="tap" style={{width:"100%",background:durum==="acik"?T.bg2:T.accent2,color:durum==="acik"?T.textSoft:"#04070C",border:durum==="acik"?"0.5px solid "+T.line:0,borderRadius:10,padding:11,fontSize:13,fontWeight:800,opacity:mesgul?.6:1}}>{mesgul?"…":durum==="acik"?"🔕 Bildirimleri Kapat":"🔔 Bildirimleri Aç"}</button>
         </>}
     </div>
@@ -17834,7 +17842,17 @@ function IlanVerModal({T, tip, takimlar, oturum, onKapat, onOk}){
     const il={ tip, user_id:oturum.id, takim_id:sec?sec.takim_id:null, takim_ad:takimAd, takim_logo:sec?sec.takim_logo:null, takim_renk:sec?sec.takim_renk:null, lig_id:sec?sec.lig_id:null, lig_ad:sec?sec.lig_ad:null, sehir:sehir.trim()||null, tarih_text:tarih.trim(), aciklama:aciklama.trim()||null };
     if(eksik){ il.pozisyon=poz; il.adet=Number(adet)||1; il.kalici=kalici; } else if(oyuncuMu){ il.pozisyon=poz; il.kalici=kalici; } else { il.saha=saha.trim()||null; il.seviye=seviye; }
     const r=await Db.ilanOlustur(il); setKaydet(false);
-    if(r.ok){ alert("✅ İlan yayınlandı!"); onOk(); } else alert("Olmadı: "+(r.hata||""));
+    if(r.ok){
+      // ÇEVREYE PUSH — ilan açılınca ligdeki herkese bildirim (telefon kilit ekranına düşer).
+      try{ if(il.lig_id){
+        const bA = tip==="rakip" ? `🆚 ${il.takim_ad} rakip arıyor` : tip==="eksik" ? `🙋 ${il.takim_ad} oyuncu arıyor` : `🏃 ${il.takim_ad||benad} maça geliyor`;
+        const bM = tip==="rakip" ? `${il.sehir?il.sehir+" · ":""}${il.tarih_text||"maç ayarlıyor"} — meydan oku! 🆚`
+                 : tip==="eksik" ? `${il.pozisyon?il.pozisyon+" · ":""}${il.tarih_text||"kadro arıyor"} — geliyorum de! 🙋`
+                 : `${il.pozisyon?il.pozisyon+" · ":""}${il.sehir?il.sehir+" · ":""}takım arıyor — çağır! 📞`;
+        Db.ligBildirim(il.lig_id, null, bA, bM, r.id);
+      } }catch(e){}
+      alert("✅ İlan yayınlandı! Ligdekilere bildirim gitti."); onOk();
+    } else alert("Olmadı: "+(r.hata||""));
   };
   const inp={width:"100%",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px 12px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"};
   const lbl={fontSize:11,color:T.textMut,fontWeight:700,margin:"12px 2px 6px",display:"block"};
@@ -18763,6 +18781,8 @@ function App(){
   // ÇEKİRDEK — app-içi bildirim (gerçek, Supabase tabanlı)
   const [gercekBildirim,setGercekBildirim]=useState([]); // {id,tip,baslik,metin,link_tip,link_id,okundu,olusma}
   const okunmamis = gercekBildirim.filter(b=>!b.okundu).length;
+  // #3 — APP İKONU ROZETİ: okunmamış bildirim sayısı telefon ikonuna düşer (destekleyen cihazlarda)
+  useEffect(()=>{ try{ if("setAppBadge" in navigator){ if(okunmamis>0) navigator.setAppBadge(okunmamis); else if("clearAppBadge" in navigator) navigator.clearAppBadge(); } }catch(e){} },[okunmamis]);
   // FAZ 8 — online oturum & bulut senkron
   const [oturum,setOturum]=useState(null);      // supabase kullanıcı (null=çıkış)
   const [bulutDurum,setBulutDurum]=useState(""); // kısa senkron göstergesi
@@ -19752,7 +19772,7 @@ function App(){
       const enler=Object.entries(mac.ratingler||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([ad,p])=>({ad, p}));
       const kart={tip:"mac", takimA:mac.takimA, takimB:mac.takimB, skorA, skorB, mvp:mac.mvp||null, hafta:mac.hafta||null, macId:mac.id, goller, oduller, enler};
       (async()=>{ try{
-        await Db.bildirimDagit({ ligId:turnuva.id, takimIds:[mac.takimAId,mac.takimBId], senderId:(oturum&&oturum.id)||null, baslik:`⚽ ${(turnuva.ad||"Lig")} · Maç Sonucu`, metin:ozet, linkId:mac.id, sistemTip:"mac", kart, kanallar:{inapp:true, ligSohbet:true, takimSohbet:true, email:true} });
+        await Db.bildirimDagit({ ligId:turnuva.id, takimIds:[mac.takimAId,mac.takimBId], senderId:(oturum&&oturum.id)||null, baslik:`⚽ Maç bitti! · ${(turnuva.ad||"Lig")}`, metin:ozet, linkId:mac.id, sistemTip:"mac", kart, kanallar:{inapp:true, ligSohbet:true, takimSohbet:true, email:true} });
         try{ await sb.from('maclar').update({bildirildi:true}).eq('id',mac.id); }catch(e){}
         // 🏆 Lider değişimi + 📊 Hafta tamamlandı → SADECE lig sohbeti (takımları boğma) + zil
         try{
