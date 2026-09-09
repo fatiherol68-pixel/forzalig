@@ -5839,7 +5839,7 @@ function AnaSayfaV7({turnuvalar, T, git, oturum, yukleniyor, ligKurYetki, takimK
     return ()=>{ try{ io&&io.disconnect(); mo&&mo.disconnect(); if(zaman)clearTimeout(zaman); }catch(e){} };
   },[turnuvalar]);
 
-  // ---- GERÇEK VERİ (hepsi guard'lı) ----
+  // ---- GERÇEK VERİ (V6 ile paralel — hepsi guard'lı) ----
   const tumO = Motor.tumOyuncular(turnuvalar||[]);
   const dolu = (turnuvalar||[]).filter(t=>t.takimlar && t.takimlar.length>0);
   const ligSay = (turnuvalar||[]).length;
@@ -5847,15 +5847,67 @@ function AnaSayfaV7({turnuvalar, T, git, oturum, yukleniyor, ligKurYetki, takimK
   const topMac = (turnuvalar||[]).reduce((s,t)=>s+(t.macSay!=null?t.macSay:(t.maclar?t.maclar.length:0)),0);
   const topOyuncu = (turnuvalar||[]).reduce((s,t)=>s+(t.oyuncuSay!=null?t.oyuncuSay:(t.takimlar?t.takimlar.reduce((a,tk)=>a+((tk.oyuncular&&tk.oyuncular.length)||0),0):0)),0) || tumO.length;
   const golK = Motor.golKrallari(turnuvalar||[],5);
+  const asistK = Motor.asistKrallari(turnuvalar||[],3);
+  const kurtarisK = Motor.kurtarisKrallari(turnuvalar||[],2);
   const uid = oturum && oturum.id;
-  let benimO=null; if(uid){ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ const f=(tk.oyuncular||[]).find(o=>o.sahip_user_id===uid); if(f){benimO=f;break;} } if(benimO)break; } }
+  let benimO=null, benimTk=null, benimTkT=null;
+  if(uid){ for(const t of (turnuvalar||[])){ for(const tk of (t.takimlar||[])){ const f=(tk.oyuncular||[]).find(o=>o.sahip_user_id===uid); if(f){benimO=f;benimTk=tk;benimTkT=t;break;} } if(benimO)break; } }
+  const [onbirTip,setOnbirTip]=useState("altin");
+  const [serbestO,setSerbestO]=useState(null);
+  const [icerik,setIcerik]=useState({sponsorlar:[],haberler:[],iletisim:null});
   const aktif = useMemo(()=>{
     if(!dolu.length) return null;
     if(uid){ for(const t of dolu){ for(const tk of (t.takimlar||[])){ if((tk.oyuncular||[]).some(o=>o.sahip_user_id===uid)) return t; } } }
     return [...dolu].sort((a,b)=>(b.maclar?b.maclar.length:0)-(a.maclar?a.maclar.length:0))[0];
   },[turnuvalar, uid]);
+  useEffect(()=>{ let a=true; if(oturum&&oturum.id&&!benimO){ Db.benimOyuncu(oturum.id).then(o=>{ if(a)setSerbestO(o); }); } else setSerbestO(null); return ()=>{a=false;}; },[oturum&&oturum.id, !!benimO]);
+  useEffect(()=>{ let a=true; Db.ayarlarOku().then(ay=>{ if(!a||!ay)return; const jl=(k)=>{try{const v=JSON.parse(ay[k]||"[]");return Array.isArray(v)?v:[];}catch(e){return [];}}; let ilet=null; try{ilet=ay.iletisim?JSON.parse(ay.iletisim):null;}catch(e){} setIcerik({sponsorlar:jl('sponsorlar'),haberler:jl('haberler'),iletisim:ilet}); }); return ()=>{a=false;}; },[]);
+  // türev veriler
   const tablo = aktif ? [...aktif.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0)||((b.ag||0)-(b.yg||0))-((a.ag||0)-(a.yg||0))) : [];
+  const lider = tablo[0]||null; const ikinci = tablo[1]||lider; const fark = (lider&&ikinci)?((lider.puan||0)-(ikinci.puan||0)):0;
+  const ilk5 = tablo.slice(0,5);
   const sonMaclar = aktif ? [...aktif.maclar].filter(m=>m.oynandi!==false && m.skorA!=null).reverse().slice(0,3) : [];
+  const enGolluMac = (aktif&&aktif.maclar.length) ? [...aktif.maclar].filter(m=>m.skorA!=null).sort((a,b)=>(b.skorA+b.skorB)-(a.skorA+a.skorB))[0] : null;
+  const enFarkliMac = (aktif&&aktif.maclar.length) ? [...aktif.maclar].filter(m=>m.skorA!=null).sort((a,b)=>Math.abs(b.skorA-b.skorB)-Math.abs(a.skorA-a.skorB))[0] : null;
+  const topGolLig = aktif ? aktif.maclar.reduce((s,m)=>s+(m.skorA||0)+(m.skorB||0),0) : 0;
+  const ortGolLig = aktif ? (topGolLig/Math.max(1,aktif.maclar.length)).toFixed(1) : "0";
+  const enCokGolTakim = tablo.length ? [...tablo].sort((a,b)=>(b.ag||0)-(a.ag||0))[0] : null;
+  const enCokYiyen = tablo.length ? [...tablo].sort((a,b)=>(b.yg||0)-(a.yg||0))[0] : null;
+  const parseT=(s)=>{ if(!s) return null; try{ const d=new Date(s); return isNaN(d.getTime())?null:d; }catch(e){ return null; } };
+  const bugunStr = (()=>{ try{ return new Date().toISOString().slice(0,10); }catch(e){ return ""; } })();
+  const yaklasan = aktif ? aktif.maclar.filter(m=>m.oynandi===false).sort((a,b)=>((a.hafta||0)-(b.hafta||0))).slice(0,4) : [];
+  const bugunMac = aktif ? aktif.maclar.filter(m=>m.tarih && String(m.tarih).slice(0,10)===bugunStr) : [];
+  const haftaOnce = Date.now()-7*864e5;
+  const buHaftaMac = aktif ? aktif.maclar.filter(m=>{ const d=parseT(m.tarih); return (m.oynandi!==false)&&d&&d.getTime()>=haftaOnce; }) : [];
+  const buHaftaGol = buHaftaMac.reduce((s,m)=>s+(m.skorA||0)+(m.skorB||0),0);
+  const oynananlar = aktif ? [...aktif.maclar].filter(m=>m.oynandi!==false).reverse() : [];
+  let macMerkez=[], macMerkezTip="oynanan";
+  if(bugunMac.length>0){ macMerkez=bugunMac.slice(0,3); macMerkezTip="bugun"; }
+  else if(yaklasan.length>0){ macMerkez=yaklasan.slice(0,3); macMerkezTip="yaklasan"; }
+  else { macMerkez=oynananlar.slice(0,3); macMerkezTip="oynanan"; }
+  const ozet = (aktif&&lider) ? [
+    {ik:"🏆", t: fark>0?`${lider.ad} liderlikte — ikinci sıraya ${fark} puan fark var.`:`${lider.ad} liderlikte.`},
+    golK[0] && {ik:"⚽", t:`Gol kralı: ${golK[0].ad} (${golK[0].gol} gol).`},
+    enCokGolTakim && {ik:"💥", t:`En golcü takım ${enCokGolTakim.ad} — ${enCokGolTakim.ag} gol attı.`},
+    enCokYiyen && {ik:"⚠️", t:`${enCokYiyen.ad} savunmada zorlanıyor — ${enCokYiyen.yg} gol yedi.`},
+  ].filter(Boolean) : [];
+  const vitrin = (Motor.enlerVitrin ? Motor.enlerVitrin(turnuvalar||[]) : {}) || {};
+  const spotAday = vitrin.gol||vitrin.asist||vitrin.formEn||vitrin.mvp||null;
+  const spotFull = spotAday ? (tumO.find(p=>p.id===spotAday.id)||spotAday) : null;
+  const yukselenTakim = (()=>{ if(!aktif||!aktif.takimlar) return null; const pu=(t)=>(t.form||[]).slice(-5).reduce((s,f)=>s+(f==="G"?3:f==="B"?1:0),0); return [...aktif.takimlar].map(t=>({t,p:pu(t)})).sort((a,b)=>b.p-a.p)[0]; })();
+  const saat = new Date().getHours();
+  const selam = saat<5?"İyi geceler":saat<12?"Günaydın":saat<18?"Merhaba":saat<23?"İyi akşamlar":"İyi geceler";
+  const bugunTar = new Date().toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric",weekday:"long"});
+  const benad = (benimO&&benimO.ad) || (oturum&&((oturum.user_metadata&&(oturum.user_metadata.ad||oturum.user_metadata.full_name||oturum.user_metadata.name))||(oturum.email&&String(oturum.email).split("@")[0]))) || "";
+  const benfoto = (benimO&&benimO.foto)||(oturum&&oturum.user_metadata&&(oturum.user_metadata.avatar_url||oturum.user_metadata.picture))||null;
+  const benimSonraki = (benimO&&benimTk&&benimTkT)?(benimTkT.maclar||[]).find(m=>m.oynandi===false&&(m.takimA===benimTk.ad||m.takimB===benimTk.ad)):null;
+  const serbestKart = serbestO ? (()=>{ const nk=serbestO.nitelik||{}; const kl=serbestO.kulup||{}; return {ad:serbestO.ad_soyad||serbestO.takma_ad||benad, foto:serbestO.foto||benfoto, ovr:serbestO.ovr||62, poz:serbestO.poz, gol:0,asist:0,kurtaris:0,mac:0,mvp:0, takimAd:kl.ad||"", renk:kl.renk||T.accent, logo:kl.logo||null}; })() : null;
+  const otoHaber = (aktif&&lider) ? [
+    {tip:"haber",baslik:lider.ad+" zirvede",metin:(lider.o||0)+" maçta "+(lider.g||0)+" galibiyet."+(fark>0?(" İkinciye "+fark+" puan fark."):""),tarih:"bugün"},
+    golK[0]&&{tip:"haber",baslik:"Gol kralı: "+golK[0].ad,metin:golK[0].gol+" gol ile listenin zirvesinde.",tarih:"bugün"},
+  ].filter(Boolean) : [];
+  const haberlerListe = [...(icerik.haberler||[]), ...otoHaber].slice(0,6);
+  const oyuncuGit=(o)=>{ if(o&&git)git({sayfa:"oyuncu",oyuncu:{...o}}); };
   const yildiz = benimO || golK[0] || null;
   const kesfet = (turnuvalar||[]).filter(t=>t.takimlar && t.takimlar.length>0).slice(0,6);
 
@@ -5930,6 +5982,32 @@ function AnaSayfaV7({turnuvalar, T, git, oturum, yukleniyor, ligKurYetki, takimK
       </div>
     </Sec>
 
+    {/* 1b — KİŞİSEL KART (giriş yapan kullanıcı) */}
+    {oturum && (benimO||serbestKart) && <Sec style={{paddingTop:10,paddingBottom:10}}>
+      <div style={{textAlign:"center",marginBottom:14}}>
+        <div style={{fontSize:11,color:T.accent,fontWeight:800,letterSpacing:1,textTransform:"uppercase"}}>{selam} 👋 · Senin kartın</div>
+        <div style={{fontFamily:T.fontDisplay,fontSize:20,fontWeight:800,color:"#fff",marginTop:3}}>{(benimO&&benimO.ad)||(serbestKart&&serbestKart.ad)||benad}</div>
+      </div>
+      {FifaKart(benimO||serbestKart)}
+      {benimO && <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center",marginTop:14,maxWidth:430,marginInline:"auto"}}>
+        {benimTk && <div onClick={()=>git&&git({sayfa:"takim",takim:benimTk,turnuva:benimTkT})} className="tap kart-hover" style={{flex:"1 1 150px",display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px",cursor:"pointer"}}>
+          {amblem(benimTk.ad,benimTk.renk||T.accent,26)}
+          <div style={{minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800}}>TAKIMIN</div><div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimTk.ad}{benimTk.puan!=null?" · "+benimTk.puan+" p":""}</div></div>
+        </div>}
+        {benimSonraki && <div onClick={()=>git&&git({sayfa:"mac",mac:benimSonraki,turnuva:benimTkT})} className="tap kart-hover" style={{flex:"1 1 150px",display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px",cursor:"pointer"}}>
+          <span style={{fontSize:16}}>📅</span>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800}}>SIRADAKİ MAÇIN</div><div style={{fontSize:12,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{benimSonraki.takimA} - {benimSonraki.takimB}</div></div>
+        </div>}
+        {benimTk && (benimTk.form||[]).length>0 && <div style={{flex:"1 1 150px",display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"10px 11px"}}>
+          <span style={{fontSize:15}}>📈</span>
+          <div style={{minWidth:0}}><div style={{fontSize:9.5,color:T.accent,fontWeight:800}}>TAKIM FORMU</div>
+            <div style={{display:"flex",gap:3,marginTop:3}}>{(benimTk.form||[]).slice(-5).map((f,i)=><span key={i} style={{width:16,height:16,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#06140d",background:f==="G"?"#34D399":f==="B"?T.gold:T.danger}}>{f}</span>)}</div>
+          </div>
+        </div>}
+      </div>}
+      {!benimO && serbestKart && <p style={{fontSize:12,color:T.textMut,textAlign:"center",marginTop:10,maxWidth:"40ch",marginInline:"auto"}}>Bir lige katılınca maç istatistiklerin (gol · asist · maç) ve reytingin tam burada işlenir.</p>}
+    </Sec>}
+
     {/* 2 — KİMİN İÇİN */}
     <Sec style={{paddingTop:8,paddingBottom:8}}>
       <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
@@ -5943,16 +6021,47 @@ function AnaSayfaV7({turnuvalar, T, git, oturum, yukleniyor, ligKurYetki, takimK
     {(ligSay>0 || topMac>0) && <Sec>
       <Eyb>Canlı nabız</Eyb>
       <Bas>Gerçek veriyle çalışan platform</Bas>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12,margin:"20px 0 8px"}}>
+      {aktif && <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:8,background:T.accent+"14",border:"0.5px solid "+T.accent+"33",borderRadius:20,padding:"6px 12px"}}>
+        <span style={{width:6,height:6,borderRadius:"50%",background:T.accent}} className="fz-nabiz"/>
+        {buHaftaMac.length>0
+          ? <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu hafta <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaMac.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>+{buHaftaGol}</b> gol</span>
+          : <span style={{fontSize:11.5,color:T.textSoft,fontWeight:600}}>Bu sezon <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{oynananlar.length}</b> maç · <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{topGolLig}</b> gol</span>}
+      </div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12,margin:"18px 0 8px"}}>
         {[["Aktif lig",ligSay],["Takım",topTakim],["Oyuncu",topOyuncu],["Oynanan maç",topMac]].map((x,i)=>
           <div key={i} style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:14,padding:"16px 16px"}}>
             <div style={{fontFamily:T.fontDisplay,fontSize:32,fontWeight:800,color:T.gold,lineHeight:1}}><FlSayac deger={x[1]||0} sure={1100}/></div>
             <div style={{fontSize:12,color:T.textMut,marginTop:6}}>{x[0]}</div>
           </div>)}
       </div>
-      {sonMaclar.length>0 && <div style={{marginTop:16}}>
-        <div style={{fontSize:12,color:T.textMut,fontWeight:700,marginBottom:10,letterSpacing:.5}}>SON MAÇLAR</div>
-        <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:6}}>{sonMaclar.map((m,i)=>MacKarti(m,i))}</div>
+      {aktif && <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginTop:4}}>
+        {[["⚽",topGolLig,"toplam gol"],["📊",ortGolLig,"maç başı gol"],lider&&["🏆",lider.puan,(lider.ad||"").slice(0,12)+" · puan"],golK[0]&&["🎯",golK[0].gol,"gol kralı golü"]].filter(Boolean).map((x,i)=>
+          <div key={i} style={{background:T.bg0+"66",border:"0.5px solid "+T.line,borderRadius:12,padding:"11px 12px"}}>
+            <div style={{fontSize:13,marginBottom:3}}>{x[0]}</div>
+            <div style={{fontFamily:T.fontDisplay,fontSize:22,fontWeight:800,color:T.accent,lineHeight:1}}>{x[1]}</div>
+            <div style={{fontSize:9.5,color:T.textMut,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{x[2]}</div>
+          </div>)}
+      </div>}
+
+      {macMerkez.length>0 && <div style={{marginTop:22}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:11}}>
+          <span style={{fontSize:12,color:T.textMut,fontWeight:700,letterSpacing:.5}}>MAÇ MERKEZİ</span>
+          {bugunMac.length>0 && <span style={{fontSize:10,fontWeight:800,color:T.danger,background:T.danger+"16",border:"0.5px solid "+T.danger+"44",borderRadius:20,padding:"3px 9px"}}>BUGÜN · {bugunMac.length}</span>}
+          {bugunMac.length===0 && yaklasan.length>0 && <span style={{fontSize:10,fontWeight:800,color:T.accent,background:T.accent+"16",border:"0.5px solid "+T.accent+"44",borderRadius:20,padding:"3px 9px"}}>YAKLAŞAN · {yaklasan.length}</span>}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}>
+          {macMerkez.map((m,i)=>{ const oyn=m.oynandi!==false;
+            return <div key={m.id||i} onClick={()=>git&&git({sayfa:"mac",mac:m,turnuva:aktif})} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:9,background:"linear-gradient(120deg,"+(macMerkezTip==="bugun"?T.danger:T.accent)+"12,"+T.bg1+" 55%)",border:"0.5px solid "+(macMerkezTip==="bugun"?T.danger:T.accent)+"30",borderRadius:12,padding:"11px 12px",cursor:"pointer"}}>
+              <div style={{width:50,flexShrink:0,textAlign:"center"}}><div style={{fontSize:9,color:macMerkezTip==="bugun"?T.danger:T.accent,fontWeight:800}}>{macMerkezTip==="bugun"?(m.saat||"BUGÜN"):("H"+(m.hafta||"-"))}</div></div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>{amblem(m.takimA,m.renkA||T.accent,18)}<span style={{fontSize:12,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.takimA}</span></div>
+                <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0,marginTop:4}}>{amblem(m.takimB,m.renkB||T.danger,18)}<span style={{fontSize:12,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.takimB}</span></div>
+              </div>
+              {oyn ? <div style={{flexShrink:0,fontFamily:T.fontDisplay,fontSize:15,fontWeight:800,color:T.text,textAlign:"center",lineHeight:1.25}}><div>{m.skorA}</div><div>{m.skorB}</div></div>
+                   : <div style={{flexShrink:0,fontSize:10,fontWeight:800,color:T.accent,background:T.accent+"18",borderRadius:8,padding:"5px 9px"}}>VS</div>}
+            </div>;
+          })}
+        </div>
       </div>}
     </Sec>}
 
@@ -5982,12 +6091,132 @@ function AnaSayfaV7({turnuvalar, T, git, oturum, yukleniyor, ligKurYetki, takimK
       </div>
     </Sec>}
 
+    {/* 5b — LİGLERİN ENLERİ */}
+    {spotFull && <Sec>
+      <Eyb>Liglerin enleri</Eyb>
+      <Bas>Haftanın yıldızı & kategori liderleri</Bas>
+      <div onClick={()=>oyuncuGit(spotFull)} className="tap kart-hover" style={{position:"relative",overflow:"hidden",display:"flex",alignItems:"center",gap:14,background:"linear-gradient(120deg,"+T.gold+"2e,"+T.bg1+" 52%)",border:"1px solid "+T.gold+"55",borderRadius:16,padding:"15px 16px",margin:"18px 0 12px",cursor:"pointer"}}>
+        <Avatar o={spotFull} boy={58} T={T}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:9.5,color:T.gold,fontWeight:800,letterSpacing:.4,marginBottom:3}}>👑 HAFTANIN YILDIZI</div>
+          <div style={{fontFamily:T.fontDisplay,fontSize:19,fontWeight:800,color:"#fff",lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{spotFull.ad}</div>
+          <div style={{fontSize:11.5,color:T.textSoft,marginTop:3}}>{(spotFull.gol!=null?spotFull.gol+" gol":"")}{(spotFull.asist?" · "+spotFull.asist+" asist":"")}</div>
+        </div>
+        {spotFull.ovr!=null && <div style={{flexShrink:0,textAlign:"center",background:T.gold+"1e",borderRadius:12,padding:"8px 13px",border:"0.5px solid "+T.gold+"44"}}><div style={{fontFamily:T.fontDisplay,fontSize:24,fontWeight:800,color:T.gold,lineHeight:1}}>{spotFull.ovr}</div><div style={{fontSize:8,color:T.textMut,marginTop:2}}>OVR</div></div>}
+      </div>
+      {(()=>{ const enler=[
+        {et:"Gol Kralı",ik:"⚽",o:vitrin.gol,deg:vitrin.gol&&vitrin.gol.gol,br:"gol",renk:T.accent,tur:"o"},
+        {et:"Asist Kralı",ik:"🎯",o:vitrin.asist,deg:vitrin.asist&&vitrin.asist.asist,br:"asist",renk:T.accent2||T.accent,tur:"o"},
+        {et:"En İyi Kaleci",ik:"🧤",o:vitrin.kaleci,deg:vitrin.kaleci&&vitrin.kaleci.kurtaris,br:"kurt.",renk:T.gold,tur:"o"},
+        {et:"En Çok MVP",ik:"⭐",o:vitrin.mvp,deg:vitrin.mvp&&vitrin.mvp.mvp,br:"kez",renk:T.gold,tur:"o"},
+        {et:"En Formda",ik:"📈",o:vitrin.formEn,deg:vitrin.formEn&&vitrin.formEn.ovr,br:"OVR",renk:T.accent,tur:"o"},
+        {et:"En Golcü Takım",ik:"🏆",o:vitrin.golcuTakim,deg:vitrin.golcuTakim&&vitrin.golcuTakim.ag,br:"gol",renk:T.gold,tur:"t"},
+      ].filter(x=>x.o&&x.deg!=null);
+      if(!enler.length) return null;
+      return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12}}>
+        {enler.map((x,i)=><div key={i} onClick={()=> x.tur==="o"?oyuncuGit(x.o):(git&&git({sayfa:"takim",takim:x.o,turnuva:aktif}))} className="tap kart-hover" style={{position:"relative",borderRadius:16,overflow:"hidden",background:"linear-gradient(165deg,"+x.renk+"30,"+T.bg1+" 60%)",border:"1px solid "+x.renk+"55",padding:"13px 12px 14px",textAlign:"center",cursor:"pointer"}}>
+          <div style={{position:"absolute",top:9,left:11,fontSize:14}}>{x.ik}</div>
+          <div style={{margin:"14px auto 7px",display:"flex",justifyContent:"center"}}>{x.tur==="o"?<Avatar o={x.o} boy={50} T={T}/>:amblem(x.o.ad,x.o.renk||x.renk,50)}</div>
+          <div style={{fontSize:12.5,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{x.o.ad}</div>
+          <div style={{fontSize:8.5,color:x.renk,textTransform:"uppercase",letterSpacing:.4,marginTop:2,fontWeight:800}}>{x.et}</div>
+          <div style={{fontFamily:T.fontDisplay,fontSize:22,fontWeight:800,color:x.renk,marginTop:4,lineHeight:1}}>{x.deg}<span style={{fontSize:8.5,color:T.textMut,fontWeight:700}}>{x.br==="OVR"?"":(" "+x.br)}</span></div>
+        </div>)}
+      </div>; })()}
+      <div style={{marginTop:14}}>{cta("Tüm Enler (40+ kategori)", ()=>{ try{git({sayfa:"tumenler"});}catch(e){} }, false)}</div>
+    </Sec>}
+
+    {/* 5c — HAFTANIN 11'İ */}
+    {(()=>{ const onbir = (aktif && Motor.ideal11) ? Motor.ideal11(aktif, onbirTip) : null;
+      if(!aktif || !onbir || !onbir.length) return null;
+      const renk = onbirTip==="altin"?T.gold:"#cbd5e1"; const pk={Kaleci:"KL",Defans:"DF",OrtaSaha:"OS",Forvet:"FV"};
+      return <Sec style={{paddingTop:8}}>
+        <Eyb>Haftanın 11'i</Eyb>
+        <Bas>Altın & Gümüş kadro</Bas>
+        <div style={{display:"flex",gap:8,margin:"16px 0 14px",maxWidth:340}}>
+          {[["altin","🥇 Altın 11",T.gold],["gumus","🥈 Gümüş 11","#cbd5e1"]].map(x=>
+            <span key={x[0]} onClick={()=>setOnbirTip(x[0])} className="tap" style={{flex:1,textAlign:"center",fontSize:12,fontWeight:800,padding:"9px",borderRadius:11,cursor:"pointer",background:onbirTip===x[0]?x[2]+"22":T.bg1,color:onbirTip===x[0]?x[2]:T.textMut,border:"1px solid "+(onbirTip===x[0]?x[2]+"66":T.line)}}>{x[1]}</span>)}
+        </div>
+        <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:6}}>
+          {onbir.map((o,i)=><div key={o.id||i} onClick={()=>oyuncuGit({...o,turnuva:aktif.ad})} className="tap kart-hover" style={{flexShrink:0,width:112,borderRadius:14,overflow:"hidden",position:"relative",background:"linear-gradient(165deg,"+renk+"30,"+T.bg1+" 62%)",border:"1px solid "+renk+"55",padding:"12px 9px 13px",textAlign:"center",cursor:"pointer"}}>
+            <div style={{position:"absolute",top:7,left:9,fontSize:8.5,fontWeight:800,color:renk}}>{pk[o.poz]||""}</div>
+            {o.ovr!=null && <div style={{position:"absolute",top:6,right:9,fontFamily:T.fontDisplay,fontSize:15,fontWeight:800,color:renk,lineHeight:1}}>{o.ovr}</div>}
+            <div style={{margin:"16px auto 6px",display:"flex",justifyContent:"center"}}><Avatar o={o} boy={46} T={T}/></div>
+            <div style={{fontSize:11,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
+            <div style={{fontSize:8.5,color:T.textMut,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.takimAd||""}</div>
+          </div>)}
+        </div>
+      </Sec>; })()}
+
+    {/* 5d — YÜKSELEN TAKIM + BU HAFTA */}
+    {aktif && (yukselenTakim&&yukselenTakim.t || enGolluMac) && <Sec style={{paddingTop:8}}>
+      <Eyb>Bu hafta</Eyb>
+      <Bas>Öne çıkanlar</Bas>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginTop:18}}>
+        {yukselenTakim && yukselenTakim.t && <div onClick={()=>git&&git({sayfa:"takim",takim:yukselenTakim.t,turnuva:aktif})} className="tap kart-hover" style={{background:"linear-gradient(120deg,#34D3993a,"+T.bg1+" 45%)",border:"1px solid #34D39955",borderRadius:14,padding:14,cursor:"pointer"}}>
+          <div style={{fontSize:9,color:"#34D399",fontWeight:800,marginBottom:9}}>📈 YÜKSELEN TAKIM</div>
+          <div style={{display:"flex",alignItems:"center",gap:9}}>{amblem(yukselenTakim.t.ad,yukselenTakim.t.renk||T.accent,34)}<div style={{minWidth:0}}><div style={{fontSize:13,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{yukselenTakim.t.ad}</div><div style={{fontSize:9.5,color:"#34D399"}}>son 5 maçta <b style={{fontFamily:T.fontDisplay}}>{yukselenTakim.p}</b> puan</div></div></div>
+        </div>}
+        {enGolluMac && <OneCikan ik="⚽" et="EN GOLLÜ MAÇ" ana={`${enGolluMac.takimA} ${enGolluMac.skorA}-${enGolluMac.skorB} ${enGolluMac.takimB}`} alt={(enGolluMac.skorA+enGolluMac.skorB)+" gol"} T={T} onClick={git?()=>git({sayfa:"mac",mac:enGolluMac,turnuva:aktif}):null}/>}
+        {enFarkliMac && <OneCikan ik="🎯" et="EN FARKLI MAÇ" ana={`${enFarkliMac.takimA} ${enFarkliMac.skorA}-${enFarkliMac.skorB} ${enFarkliMac.takimB}`} alt={Math.abs(enFarkliMac.skorA-enFarkliMac.skorB)+" fark"} T={T} onClick={git?()=>git({sayfa:"mac",mac:enFarkliMac,turnuva:aktif}):null}/>}
+        <OneCikan ik="📊" et="LİG TEMPOSU" ana={(aktif.maclar.length)+" maç"} alt={topGolLig+" gol · ort "+ortGolLig} T={T}/>
+      </div>
+    </Sec>}
+
     {/* 6 — PUAN DURUMU (mevcut bileşen) */}
     {aktif && tablo.length>0 && <Sec>
       <Eyb>Puan durumu</Eyb>
       <Bas style={{marginBottom:6}}>Canlı, otomatik işleyen tablo</Bas>
       <div style={{marginTop:14}}><PuanDurumuTekli turnuva={aktif} T={T} git={git}/></div>
     </Sec>}
+
+    {/* 6b — KRALLAR + HAFTANIN ÖZETİ */}
+    {aktif && golK.length>0 && <Sec style={{paddingTop:8}}>
+      <Eyb>Krallar & özet</Eyb>
+      <Bas>Lider isimler</Bas>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:16,marginTop:18}}>
+        <div>
+          <div style={{fontSize:12,color:T.textMut,fontWeight:700,marginBottom:10,letterSpacing:.5}}>⚽ GOL KRALI</div>
+          {golK.slice(0,5).map((o,i)=><div key={o.id||i} onClick={()=>oyuncuGit(o)} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:i===0?T.accent+"12":T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:4,border:i===0?"1px solid "+T.accent+"33":"1px solid "+T.line,cursor:"pointer"}}>
+            <span style={{width:18,textAlign:"center",color:i===0?T.accent:T.textMut,fontWeight:700,fontSize:i<3?14:13}}>{i<3?["🥇","🥈","🥉"][i]:(i+1)}</span>
+            <Avatar o={o} boy={i===0?36:30} T={T}/>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div><div style={{fontSize:11,color:T.textMut}}>{o.takimAd||""}</div></div>
+            <span style={{fontFamily:T.fontDisplay,fontSize:18,fontWeight:800,color:T.accent}}>{o.gol}</span>
+          </div>)}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {asistK[0] && <LiderMiniKart ik="🎯" et="ASİST KRALI" o={asistK[0]} alan="asist" birim="asist" renk={T.accent2||T.accent} T={T} git={git}/>}
+          {kurtarisK[0] && <LiderMiniKart ik="🧤" et="EN İYİ KALECİ" o={kurtarisK[0]} alan="kurtaris" birim="kurtarış" renk={T.gold} T={T} git={git}/>}
+          {ozet.length>0 && <div style={{background:"linear-gradient(160deg,"+T.bg1+","+T.bg2+")",borderRadius:14,padding:14,border:"1px solid "+T.line}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}><span style={{fontSize:14}}>✨</span><span style={{fontSize:12,fontWeight:700,color:T.text}}>Haftanın Özeti</span><span style={{fontSize:8,color:T.textMut,background:T.bg2,fontWeight:800,padding:"2px 6px",borderRadius:5,letterSpacing:.5,border:"0.5px solid "+T.line}}>OTOMATİK</span></div>
+            {ozet.map((o,i)=><div key={i} style={{display:"flex",gap:9,padding:"7px 0",borderTop:i>0?"1px solid "+T.line:"none"}}><span style={{fontSize:14,flexShrink:0}}>{o.ik}</span><span style={{fontSize:12,color:T.textSoft,lineHeight:1.4}}>{o.t}</span></div>)}
+          </div>}
+        </div>
+      </div>
+      <div className="kpi-2x2" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginTop:16}}>
+        <KpiMini ik="🏟️" buyuk={topMac} et="maç oynandı" renk={T.accent} T={T}/>
+        <KpiMini ik="👥" buyuk={tumO.length} et="aktif oyuncu" renk={T.accent2||T.accent} T={T}/>
+        <KpiMini ik="🏅" buyuk={topTakim} et="takım sayısı" renk={T.gold} T={T}/>
+        <KpiMini ik="⚽" buyuk={topGolLig} et={"toplam gol · ort "+ortGolLig} renk={T.danger} T={T}/>
+      </div>
+    </Sec>}
+
+    {/* 6c — LİG İSTATİSTİKLERİ (grafikler) */}
+    {aktif && oynananlar.length>=3 && (()=>{
+      const hg={}; aktif.maclar.forEach(m=>{ if(m.oynandi===false)return; const h=m.hafta||0; hg[h]=(hg[h]||0)+(m.skorA||0)+(m.skorB||0); });
+      const haftaVeri=Object.keys(hg).map(Number).sort((a,b)=>a-b).slice(-10).map(h=>({lbl:"H"+h, v:hg[h]}));
+      const takimVeri=[...aktif.takimlar].sort((a,b)=>(b.ag||0)-(a.ag||0)).slice(0,6).map(t=>({lbl:(t.ad||"?").slice(0,3).toUpperCase(), v:t.ag||0, renk:t.renk}));
+      if(haftaVeri.length<2) return null;
+      const kutu={background:"linear-gradient(160deg,"+T.bg1+","+T.bg2+")",border:"1px solid "+T.line,borderRadius:15,padding:"13px 13px 9px"};
+      const bas={display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:9};
+      const bt={fontFamily:T.fontDisplay,fontWeight:700,fontSize:13,color:T.text};
+      return <Sec style={{paddingTop:8}}>
+        <Eyb>Lig istatistikleri</Eyb>
+        <Bas style={{marginBottom:16}}>Grafiklerle lig</Bas>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+          <div style={kutu}><div style={bas}><span style={bt}>Haftalık Gol Trendi</span><span style={{fontSize:9.5,color:T.textMut}}>{aktif.ad}</span></div><CubukGrafik veri={haftaVeri} T={T} renk={T.accent}/></div>
+          <div style={kutu}><div style={bas}><span style={bt}>En Golcü Takımlar</span><span style={{fontSize:9.5,color:T.textMut}}>attığı gol</span></div><CubukGrafik veri={takimVeri} T={T} renk={T.accent2||T.accent}/></div>
+        </div>
+      </Sec>; })()}
 
     {/* 7 — KEŞFET */}
     {kesfet.length>0 && <Sec>
@@ -6003,6 +6232,35 @@ function AnaSayfaV7({turnuvalar, T, git, oturum, yukleniyor, ligKurYetki, takimK
       </div>
       <div style={{marginTop:16}}>{cta("Tüm ligleri gör", ()=>{ try{git({sayfa:"ligler"});}catch(e){} }, false)}</div>
     </Sec>}
+
+    {/* 7b — CANLI AKIŞ (tüm ligler) */}
+    {(()=>{ const akis=[]; (turnuvalar||[]).forEach(t=>{ (t.maclar||[]).forEach(m=>{ if(m.oynandi===false||(m.skorA==null&&m.skorB==null))return; const d=parseT(m.tarih); const ts=d?d.getTime():((m.hafta||0)*3600000); akis.push({t,m,lig:t.ad,ts,gol:(m.skorA||0)+(m.skorB||0)}); }); });
+      akis.sort((a,b)=>b.ts-a.ts); const list=akis.slice(0,7); if(list.length<2) return null;
+      return <Sec style={{paddingTop:8}}>
+        <Eyb>Canlı akış · tüm ligler</Eyb>
+        <Bas>Son hareketler</Bas>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:16}}>
+          {list.map((it,i)=>{ const m=it.m; const atesli=it.gol>=5;
+            return <div key={i} onClick={()=>git&&git({sayfa:"mac",mac:m,turnuva:it.t})} className="tap" style={{display:"flex",alignItems:"center",gap:10,background:atesli?"linear-gradient(120deg,"+T.danger+"14,"+T.bg1+" 60%)":T.bg1,border:"0.5px solid "+(atesli?T.danger+"33":T.line),borderRadius:12,padding:"9px 11px",cursor:"pointer"}}>
+              <span style={{fontSize:16,width:26,textAlign:"center",flexShrink:0}}>{atesli?"🔥":"⚽"}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
+                  {amblem(m.takimA,m.renkA||T.accent,17)}<span style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:90}}>{m.takimA}</span>
+                  <span style={{fontFamily:T.fontDisplay,fontSize:13,fontWeight:800,color:T.text,flexShrink:0}}>{m.skorA}-{m.skorB}</span>
+                  <span style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:90}}>{m.takimB}</span>{amblem(m.takimB,m.renkB||T.danger,17)}
+                </div>
+                <div style={{fontSize:9.5,color:T.textMut,marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}><span style={{display:"inline-block",width:4,height:4,borderRadius:"50%",background:T.accent,marginRight:5,verticalAlign:"middle"}}/>{it.lig}{m.mvp?" · ⭐ "+m.mvp:""}</div>
+              </div>
+              <span style={{color:T.textMut,fontSize:15,flexShrink:0}}>›</span>
+            </div>;
+          })}
+        </div>
+      </Sec>; })()}
+
+    {/* 7c — HABERLER / SPONSORLAR / İLETİŞİM (içerik varsa) */}
+    {haberlerListe.length>0 && <Sec style={{paddingTop:8}}><Eyb>Haberler & duyurular</Eyb><div style={{marginTop:14}}><HaberVitrin haberler={haberlerListe} T={T}/></div></Sec>}
+    {(icerik.sponsorlar&&icerik.sponsorlar.length>0) && <Sec style={{paddingTop:8}}><Eyb>Sponsorlar</Eyb><div style={{marginTop:14}}><SponsorSerit sponsorlar={icerik.sponsorlar} T={T}/></div></Sec>}
+    {icerik.iletisim && <Sec style={{paddingTop:8}}><Eyb>İletişim</Eyb><div style={{marginTop:14}}><IletisimBar iletisim={icerik.iletisim} T={T}/></div></Sec>}
 
     {/* 8 — MOBİL / PWA + KAPANIŞ CTA */}
     <Sec style={{textAlign:"center"}}>
