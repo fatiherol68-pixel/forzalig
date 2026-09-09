@@ -4866,6 +4866,10 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
                   {gol.map((g,gi)=><div key={gi} style={{fontSize:10.5,color:T.textSoft,display:"flex",gap:6}}><span>⚽</span><span style={{flex:1}}>{g.ad}</span><span style={{color:T.textMut}}>{g.dk?g.dk+"'":""}</span></div>)}
                 </div>}
                 {k.mvp && <div style={{fontSize:10.5,color:T.gold,textAlign:"center",marginTop:8,fontWeight:700}}>⭐ MVP: {k.mvp}</div>}
+                {Array.isArray(k.oduller) && k.oduller.length>0 && <div style={{marginTop:8,paddingTop:8,borderTop:"0.5px solid "+T.line,display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center"}}>
+                  {k.oduller.map((o,oi)=><span key={oi} style={{fontSize:9.5,color:T.textSoft,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:8,padding:"2px 7px"}}>{o.e}: <b style={{color:T.text}}>{o.ad}</b></span>)}
+                </div>}
+                {Array.isArray(k.enler) && k.enler.length>0 && <div style={{fontSize:10,color:T.accent2,textAlign:"center",marginTop:8,fontWeight:700}}>📈 Maçın en iyileri: {k.enler.map((e)=>e.ad+" "+(e.p!=null?Number(e.p).toFixed(1):"")).join("  ·  ")}</div>}
                 <div style={{fontSize:9.5,color:T.accent2,textAlign:"center",marginTop:9,fontWeight:700}}>📰 Gazete · afiş · kadro · puan durumu →</div>
                 <div style={{fontSize:9,color:T.textMut,textAlign:"center",marginTop:4}}>{zaman(m.olusma)}</div>
               </div>;
