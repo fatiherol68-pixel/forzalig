@@ -19238,16 +19238,32 @@ function App(){
       const gA=stil.acik?.10:(stil.neon?.30:.22), gB=stil.acik?.07:(stil.neon?.20:.15);
       r.setProperty("--glowA",`rgba(${ar},${ag},${ab},${gA})`);
       r.setProperty("--glowB",`rgba(${br},${bg},${bb},${gB})`);
-      // SAHNE ARKA PLANI — temaya göre GÜÇLÜ renkli gradyan (düz siyah yerine "dünya" hissi).
-      // Köşelerden accent/accent2 ışıması + zemin derinliği. Tema değişince arka plan gerçekten dönüşür.
-      const s1=stil.acik?.14:(stil.neon?.40:.32), s2=stil.acik?.10:(stil.neon?.30:.24);
-      const grad=`radial-gradient(1300px 780px at 88% -12%, rgba(${ar},${ag},${ab},${s1}), transparent 55%),`
-        +`radial-gradient(1100px 720px at -2% 112%, rgba(${br},${bg},${bb},${s2}), transparent 52%),`
-        +`radial-gradient(900px 900px at 50% 120%, rgba(${ar},${ag},${ab},${stil.acik?.05:.10}), transparent 60%),`
-        +`linear-gradient(160deg, ${T.bg1} 0%, ${T.bg0} 50%, ${T.bg0} 100%)`;
+      // SAHNE ARKA PLANI — HER TEMA KENDİ RENGİNE GÖRE BENZERSİZ DÜNYA.
+      // Saha=çim çizgileri, Gece=yayın grid, Şampiyon=spot ışığı, Siber=neon grid,
+      // Ateş=lav ışıması, Okyanus/Mercan=dalga, Karbon=fiber, Prizma=bantlar, Kızıl=derbi çizgi vs.
+      // Hepsi temanın accent/accent2/zemin renklerinden türer → performanslı (durağan CSS), akıcı.
+      const A=(a)=>`rgba(${ar},${ag},${ab},${a})`, B=(a)=>`rgba(${br},${bg},${bb},${a})`;
+      const b0=T.bg0, b1=T.bg1, b2=T.bg2||T.bg1;
+      const SAHNE={
+        zumrut:`radial-gradient(circle at 50% 24%, transparent 86px, ${A(.09)} 88px, transparent 93px), repeating-linear-gradient(90deg, ${b0} 0 58px, ${b1} 58px 116px), radial-gradient(130% 80% at 50% 124%, ${A(.16)}, transparent 60%)`,
+        gece:`repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 1px, transparent 1px 4px), linear-gradient(90deg, ${A(.06)} 1px, transparent 1px) 0 0/44px 44px, radial-gradient(120% 62% at 82% -6%, ${A(.22)}, transparent 55%), linear-gradient(160deg, ${b1}, ${b0})`,
+        aydinlik:`radial-gradient(82% 55% at 86% -12%, ${A(.12)}, transparent 55%), radial-gradient(72% 50% at 0% 112%, ${A(.07)}, transparent 55%), linear-gradient(160deg, ${b0}, ${b2})`,
+        enerji:`radial-gradient(130% 82% at 50% 126%, ${A(.34)}, transparent 60%), repeating-linear-gradient(118deg, transparent 0 22px, ${A(.045)} 22px 24px), linear-gradient(160deg, ${b1}, ${b0})`,
+        cam:`radial-gradient(150% 55% at 15% -4%, ${A(.22)}, transparent 55%), radial-gradient(150% 55% at 92% 42%, ${B(.15)}, transparent 55%), radial-gradient(170% 60% at 50% 126%, ${A(.20)}, transparent 60%), linear-gradient(160deg, ${b1}, ${b0})`,
+        karbon:`repeating-linear-gradient(45deg, ${b0} 0 3px, ${b1} 3px 6px), repeating-linear-gradient(-45deg, rgba(255,255,255,.015) 0 3px, transparent 3px 6px)`,
+        prizma:`linear-gradient(125deg, ${A(.16)} 0 11%, transparent 11% 25%, ${B(.14)} 25% 35%, transparent 35% 52%, ${A(.10)} 52% 60%, transparent 60%), radial-gradient(120% 70% at 82% -8%, ${A(.20)}, transparent 55%), linear-gradient(160deg, ${b1}, ${b0})`,
+        sinyal:`linear-gradient(0deg, ${A(.05)} 1px, transparent 1px) 0 0/48px 48px, linear-gradient(90deg, ${A(.05)} 1px, transparent 1px) 0 0/48px 48px, radial-gradient(85% 52% at 86% -12%, ${A(.11)}, transparent 55%), linear-gradient(160deg, ${b0}, ${b2})`,
+        sampiyon:`radial-gradient(120% 85% at 50% -18%, ${A(.30)}, transparent 52%), repeating-conic-gradient(from 0deg at 50% -12%, ${A(.06)} 0 5deg, transparent 5deg 11deg), linear-gradient(160deg, ${b1}, ${b0})`,
+        oyun:`repeating-linear-gradient(135deg, ${A(.10)} 0 26px, transparent 26px 52px), radial-gradient(120% 80% at 50% 124%, ${A(.20)}, transparent 60%), linear-gradient(160deg, ${b1}, ${b0})`,
+        kagit:`radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px) 0 0/9px 9px, radial-gradient(72% 50% at 82% -4%, ${A(.09)}, transparent 55%), linear-gradient(160deg, ${b0}, ${b2})`,
+        siber:`linear-gradient(${A(.13)} 1px, transparent 1px) 0 0/100% 34px, linear-gradient(90deg, ${B(.11)} 1px, transparent 1px) 0 0/34px 100%, radial-gradient(105% 55% at 50% 122%, ${A(.30)}, transparent 60%), linear-gradient(160deg, ${b1}, ${b0})`,
+        celik:`repeating-linear-gradient(100deg, rgba(255,255,255,.02) 0 2px, transparent 2px 5px), radial-gradient(120% 70% at 85% -8%, ${A(.16)}, transparent 55%), linear-gradient(160deg, ${b1}, ${b0})`,
+        mercan:`radial-gradient(150% 55% at 20% -4%, ${A(.22)}, transparent 55%), radial-gradient(150% 55% at 90% 45%, ${B(.15)}, transparent 55%), radial-gradient(160% 60% at 50% 126%, ${A(.16)}, transparent 60%), linear-gradient(160deg, ${b1}, ${b0})`,
+        amber:`radial-gradient(120% 78% at 50% -10%, ${A(.28)}, transparent 55%), repeating-linear-gradient(100deg, transparent 0 24px, ${A(.03)} 24px 26px), linear-gradient(160deg, ${b1}, ${b0})`,
+      };
+      const grad = SAHNE[stilKey] || `radial-gradient(1200px 720px at 85% -10%, ${A(.28)}, transparent 55%), linear-gradient(160deg, ${b1}, ${b0})`;
       r.setProperty("--sahne-bg", grad);
       document.body.style.background=grad;
-      document.body.style.backgroundAttachment="fixed";
     }catch(e){ document.body.style.background=T.bg0; }
     // stil imzası → global CSS kancaları (büyük harf / neon / açık / cam)
     document.body.classList.toggle("stil-buyukharf", !!stil.buyukHarf);
