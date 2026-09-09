@@ -17454,7 +17454,9 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
         {!secModu && (()=>{ const seen=new Set(); const ligTak=[];
           (turnuvalar||[]).forEach(t=>{ if(!t) return; (t.takimlar||[]).forEach(tk=>{ if(!tk) return; const key=String(tk.id||(tk.ad+"@"+t.id)); if(seen.has(key)) return; seen.add(key); ligTak.push({tk,t}); }); });
           // ayrıca lige bağlı olmayan kulüpleri de göster (varsa)
-          const mineIds=new Set((liste||[]).map(c=>c.id)); const kulupTak=(tumListe||[]).filter(c=>c&&!mineIds.has(c.id));
+          // AYIKLA: ligde zaten görünen kulüpleri (kulup_id) tekrar "kulüp" olarak GÖSTERME → duplicate önlenir
+          const ligKulupIds=new Set(ligTak.map(({tk})=>tk&&tk.kulup_id).filter(Boolean));
+          const mineIds=new Set((liste||[]).map(c=>c.id)); const kulupTak=(tumListe||[]).filter(c=>c&&!mineIds.has(c.id)&&!ligKulupIds.has(c.id));
           if(!ligTak.length && !kulupTak.length) return null;
           return <div style={{marginTop:18}}>
             <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.5,margin:"2px 2px 8px",textTransform:"uppercase"}}>Tüm Takımlar · {ligTak.length+kulupTak.length}</div>
