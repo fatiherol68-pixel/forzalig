@@ -1782,6 +1782,7 @@ const Db = {
   async pushSil(endpoint){ if(!sb) return; try{ await sb.from('push_abonelikleri').delete().eq('endpoint',endpoint); }catch(e){} },
   // ---- PAZAR İLANLARI (rakip bul / eksik oyuncu) ----
   async ilanOlustur(il){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('pazar_ilanlari').insert(il).select('id').single(); return error?{hata:error.message}:{ok:true,id:data.id}; }catch(e){ return {hata:String(e)}; } },
+  async ilanDuyur(ilanId){ if(!sb||!sb.rpc) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('ilan_duyur',{p_ilan_id:ilanId}); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
   async ilanlar(tip, sehir){ if(!sb) return []; try{ let q=sb.from('pazar_ilanlari').select('*').eq('tip',tip).eq('durum','aktif').order('olusma',{ascending:false}).limit(100); if(sehir) q=q.eq('sehir',sehir); const {data,error}=await q; return error?[]:(data||[]); }catch(e){ return []; } },
   async ilanlarim(userId){ if(!sb) return []; try{ const {data}=await sb.from('pazar_ilanlari').select('*').eq('user_id',userId).order('olusma',{ascending:false}); return data||[]; }catch(e){ return []; } },
   async ilanYanitVer(ilanId, ad, mesaj){ if(!sb) return {hata:"yok"}; try{ const u=(await sb.auth.getUser()).data.user; const {error}=await sb.from('ilan_yanitlari').insert({ilan_id:ilanId, user_id:u.id, ad:ad||null, mesaj:mesaj||null}); if(error){ if(/duplicate|unique/i.test(error.message)) return {hata:"Bu ilana zaten yanıt verdin."}; return {hata:error.message}; } return {ok:true}; }catch(e){ return {hata:String(e)}; } },
@@ -17841,18 +17842,17 @@ function IlanVerModal({T, tip, takimlar, oturum, onKapat, onOk}){
     setKaydet(true);
     const il={ tip, user_id:oturum.id, takim_id:sec?sec.takim_id:null, takim_ad:takimAd, takim_logo:sec?sec.takim_logo:null, takim_renk:sec?sec.takim_renk:null, lig_id:sec?sec.lig_id:null, lig_ad:sec?sec.lig_ad:null, sehir:sehir.trim()||null, tarih_text:tarih.trim(), aciklama:aciklama.trim()||null };
     if(eksik){ il.pozisyon=poz; il.adet=Number(adet)||1; il.kalici=kalici; } else if(oyuncuMu){ il.pozisyon=poz; il.kalici=kalici; } else { il.saha=saha.trim()||null; il.seviye=seviye; }
-    const r=await Db.ilanOlustur(il); setKaydet(false);
+    const r=await Db.ilanOlustur(il);
     if(r.ok){
-      // ÇEVREYE PUSH — ilan açılınca ligdeki herkese bildirim (telefon kilit ekranına düşer).
-      try{ if(il.lig_id){
-        const bA = tip==="rakip" ? `🆚 ${il.takim_ad} rakip arıyor` : tip==="eksik" ? `🙋 ${il.takim_ad} oyuncu arıyor` : `🏃 ${il.takim_ad||benad} maça geliyor`;
-        const bM = tip==="rakip" ? `${il.sehir?il.sehir+" · ":""}${il.tarih_text||"maç ayarlıyor"} — meydan oku! 🆚`
-                 : tip==="eksik" ? `${il.pozisyon?il.pozisyon+" · ":""}${il.tarih_text||"kadro arıyor"} — geliyorum de! 🙋`
-                 : `${il.pozisyon?il.pozisyon+" · ":""}${il.sehir?il.sehir+" · ":""}takım arıyor — çağır! 📞`;
-        Db.ligBildirim(il.lig_id, null, bA, bM, r.id);
-      } }catch(e){}
-      alert("✅ İlan yayınlandı! Ligdekilere bildirim gitti."); onOk();
-    } else alert("Olmadı: "+(r.hata||""));
+      // ŞEHİR BAZLI PUSH — ilan aynı şehirdeki kullanıcılara bildirim gider (kendisi hariç). Başlık/metni sunucu üretir.
+      let dagit=0;
+      try{ const d=await Db.ilanDuyur(r.id); if(d&&d.ok) dagit=d.adet||0; }catch(e){}
+      setKaydet(false);
+      alert(dagit>0
+        ? ("✅ İlan yayınlandı! "+dagit+" kişiye bildirim gitti 📲")
+        : "✅ İlan yayınlandı! (Aynı şehirde bildirilecek kayıtlı kullanıcı yok — ilan Pazar'da görünüyor.)");
+      onOk();
+    } else { setKaydet(false); alert("Olmadı: "+(r.hata||"")); }
   };
   const inp={width:"100%",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px 12px",color:T.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"};
   const lbl={fontSize:11,color:T.textMut,fontWeight:700,margin:"12px 2px 6px",display:"block"};
