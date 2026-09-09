@@ -2274,6 +2274,41 @@ const STILLER = {
     accent:"#FF4D64", accent2:"#E02843", gold:"#F5C24B", danger:"#FF8A3D",
     fontBody:"'Inter', sans-serif", fontDisplay:"'Oswald', sans-serif", renkCifti:["#FF4D64","#1E0810"], neon:true
   },
+  // 11 — KAĞIT: sıcak krem açık tema, terrakota — editoryal (3. açık)
+  kagit: {
+    ad:"Kağıt", bg0:"#F5EFE2", bg1:"#FFFDF8", bg2:"#EDE5D4", line:"#E0D6C2",
+    text:"#241C12", textMut:"#6E6353", textSoft:"#4A4032",
+    accent:"#C2410C", accent2:"#9A6A1E", gold:"#B8860B", danger:"#C0392B",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Playfair Display', serif", renkCifti:["#C2410C","#FFFFFF"], acik:true
+  },
+  // 12 — SİBER: koyu mor-siyah + sıcak magenta neon (siberpunk)
+  siber: {
+    ad:"Siber", bg0:"#150A22", bg1:"#241238", bg2:"#1C0E2D", line:"#3C2058",
+    text:"#F6EAFF", textMut:"#A98FC6", textSoft:"#D0B8EC",
+    accent:"#FF2DAA", accent2:"#00E5FF", gold:"#FFD84D", danger:"#FF5D7A",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#FF2DAA","#150A22"], neon:true
+  },
+  // 13 — ÇELİK: grafit endüstriyel + lime sportif vurgu
+  celik: {
+    ad:"Çelik", bg0:"#161A20", bg1:"#212831", bg2:"#1B222A", line:"#343E49",
+    text:"#EAEEF3", textMut:"#8894A2", textSoft:"#B8C2CE",
+    accent:"#C6F24E", accent2:"#8FD32E", gold:"#E6C15A", danger:"#FF6B6B",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Oswald', sans-serif", renkCifti:["#C6F24E","#12161B"]
+  },
+  // 14 — MERCAN: koyu arduvaz + sıcak mercan/somon vurgu
+  mercan: {
+    ad:"Mercan", bg0:"#0E1A20", bg1:"#17282F", bg2:"#122128", line:"#25414A",
+    text:"#EAF3F5", textMut:"#8AA3AC", textSoft:"#B6D0D6",
+    accent:"#FF7A5C", accent2:"#FF9E7D", gold:"#F2CE6B", danger:"#FF5B5B",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#FF7A5C","#0A1418"]
+  },
+  // 15 — AMBER: sıcak kömür zemin + amber altın vurgu (lüks)
+  amber: {
+    ad:"Amber", bg0:"#17130A", bg1:"#251E11", bg2:"#1D160B", line:"#45371A",
+    text:"#F7F0E2", textMut:"#B3A585", textSoft:"#D8C9A6",
+    accent:"#FFB300", accent2:"#E68A00", gold:"#FFD54F", danger:"#FF5B4D",
+    fontBody:"'Inter', sans-serif", fontDisplay:"'Sora', sans-serif", renkCifti:["#FFB300","#171006"]
+  },
 };
 /* RENK katmanı — sadece vurgu (accent) + renkCifti değişir; stilin bg/yazı/font'u kalır */
 const RENK_TEMA = {
@@ -12530,7 +12565,7 @@ function Ayarlar({T, stilKey, setStilKey, renkKey, setRenkKey, veriUret, veriSil
         })}
       </div>
 
-      <div style={{fontSize:10.5,color:T.textMut,marginTop:12,lineHeight:1.5,background:"linear-gradient(120deg,"+T.accent+"12,"+T.bg1+")",borderRadius:10,padding:"10px 12px",border:"0.5px solid "+T.accent+"33"}}>👑 Süper admin: seçtiğin görünüm <b style={{color:T.accent}}>sitenin tamamına</b> uygulanır — tüm kullanıcılar (bütün cihazlarda) aynı anda bunu görür. 10 tema dünyası × 6 renk = 60 kombinasyon.</div>
+      <div style={{fontSize:10.5,color:T.textMut,marginTop:12,lineHeight:1.5,background:"linear-gradient(120deg,"+T.accent+"12,"+T.bg1+")",borderRadius:10,padding:"10px 12px",border:"0.5px solid "+T.accent+"33"}}>👑 Süper admin: seçtiğin görünüm <b style={{color:T.accent}}>sitenin tamamına</b> uygulanır — tüm kullanıcılar (bütün cihazlarda) aynı anda bunu görür. 15 tema dünyası × 6 renk = 90 kombinasyon.</div>
       </> : <div style={{fontSize:11.5,color:T.textMut,marginTop:6,lineHeight:1.6,background:T.bg1,borderRadius:12,padding:"14px",border:"0.5px solid "+T.line}}>
         Site görünümünü <b style={{color:T.text}}>süper admin</b> belirler. Şu anki görünüm: <b style={{color:T.accent}}>{(STILLER[stilKey]||{}).ad}{renkKey&&RENK_TEMA[renkKey]?" + "+RENK_TEMA[renkKey].ad:""}</b>
       </div>}
