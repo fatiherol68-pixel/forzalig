@@ -17462,6 +17462,38 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
     <span style={{color:T.textMut,fontSize:20}}>{secModu?"":"›"}</span>
   </div>; };
 
+  // BİRLEŞİK TAKIM LİSTESİ — lig takımları + lig-siz kulüpler, TEK liste, her takım BİR kez (kulup_id ile tekilleştir)
+  const birlesikTakimlar=(()=>{
+    const map=new Map();
+    (turnuvalar||[]).forEach(t=>{ if(!t)return; (t.takimlar||[]).forEach(tk=>{ if(!tk)return; const key=String(tk.kulup_id||("t:"+tk.id)); if(map.has(key))return;
+      map.set(key,{tip:'lig', tk, t, ad:tk.ad, renk:tk.renk, renk2:tk.renk2, logo:tk.logo, alt:'🏆 '+t.ad+(tk.oyuncular?(' · '+tk.oyuncular.length+' oyuncu'):''), benim:!!((oturum&&tk.yonetici_id===oturum.id)||adminMi), kulupId:tk.kulup_id||null}); }); });
+    const kulupler=[...((liste||[]).map(c=>({...c,benim:true}))), ...((tumListe||[]).filter(c=>c&&!(liste||[]).some(x=>x.id===c.id)))];
+    kulupler.forEach(c=>{ if(!c)return; const key=String(c.id); if(map.has(key))return; map.set(key,{tip:'kulup', c, ad:c.ad, renk:c.renk, renk2:c.renk2, logo:c.logo, alt:(c.benim?'⚽ Takımın':(c.katildi?'⚽ Oyuncu olarak katıldın':'Takım'))+((c.oyuncuSay!=null)?(' · '+c.oyuncuSay+' oyuncu'):''), benim:!!c.benim, kulupId:c.id}); });
+    return [...map.values()];
+  })();
+  // Bir takıma tıkla → TAM takım sayfası (lig-siz kulüp için sanal turnuva; TakimSayfa aynen çalışır)
+  const takimAc=async(item)=>{
+    if(!item) return;
+    if(item.tip==='lig'){ git({sayfa:'takim', takim:item.tk, turnuva:item.t}); return; }
+    const c=item.c; let kad=[]; try{ kad=await Db.kulupKadro(c.id); }catch(e){}
+    const oyuncular=(kad||[]).map(p=>({ id:p.player_id, player_id:p.player_id, ad:p.ad||'Oyuncu', poz:p.mevki||null, no:p.forma_no||null,
+      ovr:p.ovr||60, pac:null,sho:null,pas:null,dri:null,def:null,phy:null, renk:c.renk||null, foto:p.foto||null, slug:null, kapak:null, sahip_user_id:null,
+      gol:0,asist:0,mac:0,kurtaris:0,sari:0,kirmizi:0,mvp:0,dk:0, altin:0,gumus:0,forvet:0,ortasaha:0,defans:0,kaleci:0,centilmen:0,enerjik:0,macinGolu:0 }));
+    const yon=c.sahip_user_id||(c.benim?(oturum&&oturum.id):null)||null;
+    const takim={ id:'kulup-'+c.id, lisNo:null, ad:c.ad, slug:null, renk:c.renk||'#22E07A', renk2:c.renk2||null, logo:c.logo||null, kapak:c.kapak||null, yonetici_id:yon, td:c.td||null, kulup_id:c.id, oyuncular, grup:0, o:0,g:0,b:0,m:0,ag:0,yg:0,puan:0,sira:1,form:[] };
+    const turnuva={ id:'kuluplig-'+c.id, ad:c.ad, renk:c.renk||'#22E07A', logo:c.logo||null, yonetici_id:yon, takimlar:[takim], maclar:[], format:'tek', grupSayi:0, sehir:null, ilce:null, kisi:7, seriId:null, sezonNo:1, slug:null, kapak:null, sponsorAd:null, sponsorEmoji:null, durum:'aktif', kurallarKilit:false, kurallar:'', iliskisel:false, _hafif:false, _kulupSanal:true };
+    git({sayfa:'takim', takim, turnuva});
+  };
+  const KART2=(item)=>{ const rk=item.renk||T.accent; const selKey=item.kulupId||item.ad; const secli=secili2.has(selKey);
+    const onCard=()=>{ if(secModu){ if(item.kulupId) secTogle(item.kulupId); } else takimAc(item); };
+    return <div key={item.tip+':'+(item.kulupId||item.ad)} onClick={onCard} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:12,background:secli?T.danger+"14":T.bg1,border:(secli?"1px solid "+T.danger:"0.5px solid "+T.line),borderRadius:14,padding:13,marginBottom:9,cursor:"pointer"}}>
+      {secModu && item.kulupId && <span style={{width:22,height:22,borderRadius:6,border:"2px solid "+(secli?T.danger:T.line),background:secli?T.danger:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#fff",flexShrink:0,fontWeight:800}}>{secli?"✓":""}</span>}
+      <Logo renk={rk} ad={item.ad} logo={item.logo} renk2={item.renk2} boy={40}/>
+      <div style={{flex:1,minWidth:0}}><div style={{fontSize:15,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.ad}</div><div style={{fontSize:11,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.alt}</div></div>
+      {!secModu && item.benim && item.tip==='kulup' && <span onClick={e=>{e.stopPropagation(); kadroYukle(item.c);}} title="Yönet (davet · oyuncu ekle · lige katıl)" className="tap" style={{fontSize:15,color:T.textMut,padding:"4px 7px",flexShrink:0}}>⚙️</span>}
+      <span style={{color:T.textMut,fontSize:20,flexShrink:0}}>{secModu?"":"›"}</span>
+    </div>; };
+
   return <div style={{maxWidth:520,margin:"0 auto",padding:embedded?"4px 0 40px":"14px 14px 90px"}}>
     {(sec || !embedded) && <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
       <span onClick={()=>sec?setSec(null):git({sayfa:"profil"})} className="tap" style={{fontSize:22,color:T.textSoft,cursor:"pointer"}}>‹</span>
@@ -17478,9 +17510,9 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
 
     {!sec ? <>
       {liste===null ? <div style={{color:T.textMut,fontSize:13,padding:20,textAlign:"center"}}>Yükleniyor…</div> : <>
-        {liste.length>0 && <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.5,margin:"2px 2px 8px",textTransform:"uppercase"}}>Takımlarım</div>}
-        {liste.length===0 && !kur && <div style={{textAlign:"center",padding:"18px 10px 4px",color:T.textMut}}><div style={{fontSize:32,marginBottom:6}}>🛡️</div><div style={{fontSize:13,color:T.textSoft,lineHeight:1.6}}>{yetkili?"Henüz takımın yok — aşağıdan kur.":"Henüz bir takıma katılmadın. Aşağıdaki takımlara göz atabilir, davet linkiyle katılabilirsin."}</div></div>}
-        {liste.map(KART)}
+        {birlesikTakimlar.length>0 && <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.5,margin:"2px 2px 8px",textTransform:"uppercase"}}>Takımlar · {birlesikTakimlar.length}</div>}
+        {birlesikTakimlar.length===0 && !kur && <div style={{textAlign:"center",padding:"18px 10px 4px",color:T.textMut}}><div style={{fontSize:32,marginBottom:6}}>🛡️</div><div style={{fontSize:13,color:T.textSoft,lineHeight:1.6}}>{yetkili?"Henüz takım yok — aşağıdan kur.":"Henüz takım yok. Yetkili biri kurunca burada görünür."}</div></div>}
+        {birlesikTakimlar.map(KART2)}
         {kur ? <div style={{background:T.bg1,border:"1px solid "+T.line,borderRadius:14,padding:14,marginTop:6}}>
           <input value={ad} onChange={e=>setAd(e.target.value)} placeholder="Takım adı · örn. Şimşekler FC" style={IN}/>
           <div style={{display:"flex",alignItems:"center",gap:10,margin:"11px 0"}}>
@@ -17494,24 +17526,6 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
         </div> : (yetkili
           ? <button onClick={()=>{setKur(true);setMesaj("");}} className="tap" style={{...BTN,width:"100%",marginTop:6}}>＋ Takım Kur</button>
           : <button title="Takım oluşturma yetkiniz bulunmuyor." aria-disabled="true" onClick={e=>{e.preventDefault();e.stopPropagation();}} style={{...BTN,width:"100%",marginTop:6,opacity:.4,cursor:"not-allowed"}}>＋ Takım Kur</button>)}
-        {/* TÜM TAKIMLAR — liglerdeki takımlar (demo/evren dahil), tıkla → takım sayfası (oyuncular gibi) */}
-        {!secModu && (()=>{ const seen=new Set(); const ligTak=[];
-          (turnuvalar||[]).forEach(t=>{ if(!t) return; (t.takimlar||[]).forEach(tk=>{ if(!tk) return; const key=String(tk.id||(tk.ad+"@"+t.id)); if(seen.has(key)) return; seen.add(key); ligTak.push({tk,t}); }); });
-          // ayrıca lige bağlı olmayan kulüpleri de göster (varsa)
-          // AYIKLA: ligde zaten görünen kulüpleri (kulup_id) tekrar "kulüp" olarak GÖSTERME → duplicate önlenir
-          const ligKulupIds=new Set(ligTak.map(({tk})=>tk&&tk.kulup_id).filter(Boolean));
-          const mineIds=new Set((liste||[]).map(c=>c.id)); const kulupTak=(tumListe||[]).filter(c=>c&&!mineIds.has(c.id)&&!ligKulupIds.has(c.id));
-          if(!ligTak.length && !kulupTak.length) return null;
-          return <div style={{marginTop:18}}>
-            <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.5,margin:"2px 2px 8px",textTransform:"uppercase"}}>Tüm Takımlar · {ligTak.length+kulupTak.length}</div>
-            {ligTak.map(({tk,t})=><div key={String(tk.id)+"@"+t.id} onClick={()=>git({sayfa:"takim",takim:tk,turnuva:t})} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:12,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:14,padding:13,marginBottom:9,cursor:"pointer"}}>
-              <Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} renk2={tk.renk2} boy={40}/>
-              <div style={{flex:1,minWidth:0}}><div style={{fontSize:15,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tk.ad}</div><div style={{fontSize:11,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>🏆 {t.ad}{tk.oyuncular?" · "+tk.oyuncular.length+" oyuncu":""}</div></div>
-              <span style={{color:T.textMut,fontSize:20}}>›</span>
-            </div>)}
-            {kulupTak.map(KART)}
-          </div>;
-        })()}
       </>}
     </> : <>
       {/* DÜZENLE (ad/renk/logo) — süper admin/yönetici */}
