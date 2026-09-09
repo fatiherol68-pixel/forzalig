@@ -325,6 +325,9 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
   // FAZ 9 — herkese açık (paylaşılan) ligler
   const [acikLigler,setAcikLigler]=useState([]);
   useEffect(()=>{ if(!sb) return; let a=true; Paylas.liste().then(l=>{ if(a) setAcikLigler(l||[]); }); return ()=>{a=false;}; },[]);
+  // Lig-siz kulüp oyuncuları — "Oyuncular" sekmesinde de görünsün (katalog tam olsun)
+  const [kulupOy,setKulupOy]=useState([]);
+  useEffect(()=>{ if(!sb) return; let a=true; Db.tumKulupOyuncular().then(l=>{ if(a) setKulupOy(l||[]); }); return ()=>{a=false;}; },[]);
 
   // ---- SEZON SERİSİ: hangi kart çok-sezonlu (açılır liste) ----
   const [seriByLig,setSeriByLig]=useState({});   // ligId → seri_id
@@ -362,7 +365,12 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
     const arr=[]; turnuvalar.forEach(t=>t.takimlar.forEach(tk=>arr.push({...tk,turnuva:t.ad,_t:t}))); return arr;
   },[turnuvalar]);
   // tüm oyuncular
-  const tumOyuncular=useMemo(()=> Motor.tumOyuncular(turnuvalar),[turnuvalar]);
+  const tumOyuncular=useMemo(()=>{
+    const lig=Motor.tumOyuncular(turnuvalar);
+    const varId=new Set(lig.map(o=>o.id||o.player_id));
+    const eksik=(kulupOy||[]).filter(o=>o && !varId.has(o.id||o.player_id));
+    return [...lig, ...eksik];
+  },[turnuvalar, kulupOy]);
   // tüm maçlar
   const tumMaclar=useMemo(()=>{ const arr=[]; turnuvalar.forEach(t=>t.maclar.forEach(m=>arr.push({...m,_lig:t.ad,_t:t}))); return arr; },[turnuvalar]);
   // takım durum (şampiyon/lider)
