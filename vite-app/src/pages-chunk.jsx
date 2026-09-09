@@ -5203,6 +5203,15 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
   const kulupKur=async()=>{ const a=(ad||"").trim(); if(!a){ setMesaj("⚠️ Takım adı gerekli"); return; } setBekle(true); const r=await Db.kulupKur(oturum.id,{ad:a,renk}); setBekle(false); if(r&&r.ok){ setAd(""); setKur(false); setMesaj(""); await yenile(); kadroYukle(r.kulup); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   const oyuncuEkle=async()=>{ const a=(oy||"").trim(); if(!a||!sec) return; setBekle(true); const r=await Db.kulupOyuncuEkle(sec.id,a,oyMevki||null,null); setBekle(false); if(r&&r.ok){ setOy(""); setOyMevki(""); kadroYukle(sec); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   const oyuncuCikar=async(p)=>{ if(!sec) return; if(!confirm(p.ad+" oyuncusunu takımdan çıkar? Serbest kalır (istatistikleri korunur).")) return; const r=await Db.kulupOyuncuSerbest(sec.id,p.player_id); if(r&&r.ok){ kadroYukle(sec); setMesaj("✓ "+p.ad+" takımdan çıkarıldı (serbest kaldı, istatistik korundu)"); } else setMesaj("Olmadı: "+((r&&r.hata)||"yetki yok")); };
+  // Kadro oyuncusuna tıkla → oyuncu sayfası (lige bağlı olmasa da anında açılır)
+  const oyuncuAc=async(p)=>{ const pid=p&&p.player_id; if(!pid) return;
+    let bulunan=null, bulunanT=null;
+    (turnuvalar||[]).forEach(t=>{ ((t&&t.takimlar)||[]).forEach(tk=>{ ((tk&&tk.oyuncular)||[]).forEach(o=>{ if(o&&(o.id===pid||o.player_id===pid)){ bulunan=o; bulunanT=t; } }); }); });
+    if(bulunan){ git({sayfa:"oyuncu", oyuncu:{...bulunan, turnuva:(bulunanT&&bulunanT.ad)||bulunan.turnuva, takimAd:bulunan.takimAd||(sec&&sec.ad)||null}}); return; }
+    let o=null; try{ o=await Db.oyuncuById(pid); }catch(e){}
+    if(!o) o={id:pid, player_id:pid, ad:p.ad||'Oyuncu', poz:p.mevki||null, foto:p.foto||null, ovr:p.ovr||null, gol:0,asist:0,mvp:0,mac:0};
+    git({sayfa:"oyuncu", oyuncu:{...o, takimAd:(sec&&sec.ad)||null}});
+  };
   const ligeEkle=async(t)=>{ if(!sec) return; setBekle(true); const r=await Db.kulupLigeKatil(sec.id,t.id,null); setBekle(false); setLigSec(false); if(r&&r.ok){ setMesaj("✓ "+sec.ad+" · “"+t.ad+"” ligine eklendi ("+kadro.length+" oyuncu otomatik geldi)"); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
   const davetUret=async()=>{ if(!sec) return; setDavetLink("üretiliyor…"); const r=await Db.kulupDavetiUret(sec.id); setDavetLink(r.ok?DAVET_URL(r.token):("Hata: "+(r.hata||""))); setDavetKopya(false); };
   const davetKopyala=()=>{ try{ navigator.clipboard.writeText(davetLink); setDavetKopya(true); setTimeout(()=>setDavetKopya(false),1500); }catch(e){} };
@@ -5316,14 +5325,15 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
             <span style={{flex:1,textAlign:"left",minWidth:0}}><span style={{display:"block",fontSize:13.5}}>Detaylı Takım Sayfası →</span><span style={{display:"block",fontSize:10,opacity:.85,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad} · kadro · istatistik · maçlar</span></span>
           </button>)}
         </div>;
-        return <div style={{marginBottom:14,background:T.bg1,border:"0.5px dashed "+T.line,borderRadius:12,padding:"11px 13px",fontSize:11,color:T.textMut,lineHeight:1.5}}>📊 <b>Detaylı istatistik sayfası</b> (sekmeler · maçlar) bu takım <b>bir ligde oynayınca</b> açılır.{benimKulup?" Aşağıdan lige ekle → maç oyna → dolsun.":""}</div>;
+        return <div style={{marginBottom:14,background:T.bg1,border:"0.5px dashed "+T.line,borderRadius:12,padding:"11px 13px",fontSize:11,color:T.textMut,lineHeight:1.5}}>✅ <b>Takım sayfası hazır</b> — kadro &amp; profil burada. 📊 Fikstür, puan durumu ve maç istatistikleri takım <b>bir ligde oynayınca</b> otomatik dolar.{benimKulup?" Aşağıdan lige ekleyebilirsin.":""}</div>;
       })()}
       {/* KADRO */}
       <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.5,margin:"2px 2px 8px",textTransform:"uppercase"}}>Kadro · {kadro.length} oyuncu</div>
-      {kadro.map(p=><div key={p.player_id} style={{display:"flex",alignItems:"center",gap:10,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"9px 11px",marginBottom:6}}>
+      {kadro.map(p=><div key={p.player_id} onClick={()=>oyuncuAc(p)} className="tap kart-hover" style={{display:"flex",alignItems:"center",gap:10,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"9px 11px",marginBottom:6,cursor:"pointer"}}>
         <div style={{width:26,height:26,borderRadius:"50%",overflow:"hidden",flexShrink:0}} dangerouslySetInnerHTML={{__html:svgAvatar(p.ad,26,p.foto)}}/>
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.ad}</div>{p.mevki&&<div style={{fontSize:10,color:T.textMut}}>{p.mevki}</div>}</div>
-        {benimKulup && <span onClick={()=>oyuncuCikar(p)} className="tap" style={{fontSize:11,color:T.danger,cursor:"pointer",padding:"4px 6px"}}>✕</span>}
+        {benimKulup && <span onClick={e=>{e.stopPropagation(); oyuncuCikar(p);}} className="tap" style={{fontSize:11,color:T.danger,cursor:"pointer",padding:"4px 6px"}}>✕</span>}
+        <span style={{color:T.textMut,fontSize:16,flexShrink:0}}>›</span>
       </div>)}
       {kadro.length===0 && <div style={{fontSize:11.5,color:T.textMut,textAlign:"center",padding:"10px 0"}}>Kadro boş. {benimKulup?"Davet linkiyle oyuncu ekleyebilirsin.":""}</div>}
       {/* isim yaz-ekle — sadece yönetici */}
