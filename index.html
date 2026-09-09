@@ -12417,6 +12417,8 @@ function PushAyar({T, oturum}){
   const vapid=(typeof window!=="undefined"&&window.__FL_VAPID_PUBLIC)||"";
   const iOS = typeof navigator!=="undefined" && /iP(hone|ad|od)/.test(navigator.userAgent||"");
   const standalone = typeof window!=="undefined" && ((window.navigator&&window.navigator.standalone) || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
+  const [bolge,setBolge]=useState(()=>{ try{ return JSON.parse(localStorage.getItem('fl_bildirim_bolge')||'{}')||{}; }catch(e){ return {}; } });
+  const bolgeKaydet=(y)=>{ setBolge(p=>{ const n={...p,...y}; try{ localStorage.setItem('fl_bildirim_bolge',JSON.stringify(n)); }catch(e){} return n; }); };
   useEffect(()=>{
     (async()=>{
       if(!("serviceWorker" in navigator)||!("PushManager" in window)){ setDurum("destek_yok"); return; }
@@ -12458,6 +12460,20 @@ function PushAyar({T, oturum}){
             : <div style={{fontSize:12,color:T.textSoft,lineHeight:1.5,marginBottom:10}}>Uygulama kapalıyken bile maç sonucu, rakip ilanı ve transfer bildirimleri telefonuna düşsün.</div>}
           <button onClick={durum==="acik"?kapat:ac} disabled={mesgul} className="tap" style={{width:"100%",background:durum==="acik"?T.bg2:T.accent2,color:durum==="acik"?T.textSoft:"#04070C",border:durum==="acik"?"0.5px solid "+T.line:0,borderRadius:10,padding:11,fontSize:13,fontWeight:800,opacity:mesgul?.6:1}}>{mesgul?"…":durum==="acik"?"🔕 Bildirimleri Kapat":"🔔 Bildirimleri Aç"}</button>
         </>}
+    </div>
+    {/* #3 — BİLDİRİM BÖLGESİ (temel — ligler çoğalınca sadece seçilen bölge bildirilir) */}
+    <div style={{background:T.bg1,borderRadius:12,padding:"14px",border:"0.5px solid "+T.line,marginTop:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
+        <span style={{fontSize:15}}>📍</span>
+        <span style={{fontSize:13,fontWeight:700,color:T.text}}>Bildirim Bölgesi</span>
+        <span style={{fontSize:9,color:T.textMut,background:T.bg2||T.bg0,fontWeight:800,padding:"2px 6px",borderRadius:5,letterSpacing:.5,border:"0.5px solid "+T.line}}>YAKINDA</span>
+      </div>
+      <div style={{fontSize:11.5,color:T.textSoft,lineHeight:1.5,marginBottom:10}}>Ligler çoğaldıkça yalnızca seçtiğin <b style={{color:T.text}}>şehir/semt</b>in ilan bildirimleri gelsin — gereksiz bildirim yağmuru olmasın.</div>
+      <div style={{display:"flex",gap:8}}>
+        <input value={bolge.sehir||""} onChange={e=>bolgeKaydet({sehir:e.target.value})} placeholder="Şehir (ör. İstanbul)" style={{flex:1,minWidth:0,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:9,padding:"10px 11px",color:T.text,fontSize:12.5,outline:"none",fontFamily:"inherit"}}/>
+        <input value={bolge.semt||""} onChange={e=>bolgeKaydet({semt:e.target.value})} placeholder="Semt (ör. Kadıköy)" style={{flex:1,minWidth:0,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:9,padding:"10px 11px",color:T.text,fontSize:12.5,outline:"none",fontFamily:"inherit"}}/>
+      </div>
+      {(bolge.sehir||bolge.semt) && <div style={{fontSize:10.5,color:T.accent,marginTop:8,fontWeight:600}}>✓ Kaydedildi — bölge filtresi devreye girince kullanılacak.</div>}
     </div>
   </div>;
 }
