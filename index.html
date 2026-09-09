@@ -5995,7 +5995,7 @@ function AnaSayfaV7({turnuvalar, T, git, oturum, yukleniyor, ligKurYetki, takimK
     color:primary?(T.bg0||"#04140c"):T.text,border:primary?0:("1px solid "+(T.line2||T.line)),
     boxShadow:primary?`0 12px 30px -8px ${T.accent}66`:"none",marginRight:10,marginBottom:8}}>{label}</span>;
 
-  return <div ref={kokRef} className="fade-in" style={{background:T.bg0,minHeight:"100vh",overflow:"hidden"}}>
+  return <div ref={kokRef} className="fade-in" style={{background:"transparent",minHeight:"100vh",overflow:"hidden"}}>
 
     {/* 1 — HERO */}
     <div className="fl-atmos" style={{position:"absolute",top:0,left:0,right:0,height:560,pointerEvents:"none",
@@ -19238,8 +19238,17 @@ function App(){
       const gA=stil.acik?.10:(stil.neon?.30:.22), gB=stil.acik?.07:(stil.neon?.20:.15);
       r.setProperty("--glowA",`rgba(${ar},${ag},${ab},${gA})`);
       r.setProperty("--glowB",`rgba(${br},${bg},${bb},${gB})`);
-    }catch(e){}
-    document.body.style.background=T.bg0;
+      // SAHNE ARKA PLANI — temaya göre GÜÇLÜ renkli gradyan (düz siyah yerine "dünya" hissi).
+      // Köşelerden accent/accent2 ışıması + zemin derinliği. Tema değişince arka plan gerçekten dönüşür.
+      const s1=stil.acik?.14:(stil.neon?.40:.32), s2=stil.acik?.10:(stil.neon?.30:.24);
+      const grad=`radial-gradient(1300px 780px at 88% -12%, rgba(${ar},${ag},${ab},${s1}), transparent 55%),`
+        +`radial-gradient(1100px 720px at -2% 112%, rgba(${br},${bg},${bb},${s2}), transparent 52%),`
+        +`radial-gradient(900px 900px at 50% 120%, rgba(${ar},${ag},${ab},${stil.acik?.05:.10}), transparent 60%),`
+        +`linear-gradient(160deg, ${T.bg1} 0%, ${T.bg0} 50%, ${T.bg0} 100%)`;
+      r.setProperty("--sahne-bg", grad);
+      document.body.style.background=grad;
+      document.body.style.backgroundAttachment="fixed";
+    }catch(e){ document.body.style.background=T.bg0; }
     // stil imzası → global CSS kancaları (büyük harf / neon / açık / cam)
     document.body.classList.toggle("stil-buyukharf", !!stil.buyukHarf);
     document.body.classList.toggle("stil-neon", !!stil.neon);
@@ -19859,7 +19868,7 @@ function App(){
     }
     window.scrollTo(0,0); };
 
-  return <div style={{minHeight:"100vh",background:T.bg0,fontFamily:T.fontBody}}>
+  return <div style={{minHeight:"100vh",background:"var(--sahne-bg, "+T.bg0+")",fontFamily:T.fontBody}}>
     {/* 👁 DESTEK MODU ŞERİDİ — her zaman üstte, tek tık çıkış (sticky, içeriği iter) */}
     {destek && <div style={{position:"sticky",top:0,zIndex:2500,background:"linear-gradient(90deg,#7a5f1a,#b8901f)",color:"#fff",padding:"calc(8px + env(safe-area-inset-top)) 13px 8px",display:"flex",alignItems:"center",gap:10,boxShadow:"0 3px 14px rgba(0,0,0,.35)"}}>
       <span style={{fontSize:17,flexShrink:0}}>👁</span>
