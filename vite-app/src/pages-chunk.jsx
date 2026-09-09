@@ -5059,8 +5059,9 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   </div>;
 }
 
-function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
-  const [tab,setTab]=useState(ilkTip==="eksik"?"eksik":ilkTip==="oyuncu"?"oyuncu":"rakip");
+function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab}){
+  const [tab,setTab]=useState(ilkTip==="eksik"?"eksik":ilkTip==="oyuncu"?"oyuncu":(["rakip","eksik","oyuncu"].includes(acilTab)?acilTab:"rakip"));
+  const [vurgu,setVurgu]=useState(null); // derin-linkle açılan ilan → kısa süre parla
   const [sehir,setSehir]=useState("");
   const [rakip,setRakip]=useState([]);
   const [eksik,setEksik]=useState([]);
@@ -5083,6 +5084,11 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
   const ilanlarimYenile=async()=>{ if(oturum) setIlanlarim(await Db.ilanlarim(oturum.id)); };
   useEffect(()=>{ yenile(); },[tab]);
   useEffect(()=>{ ilanlarimYenile(); },[]);
+  // Bildirimden gelindiyse (acilId) → liste dolunca o ilana kaydır ve kısa süre vurgula
+  useEffect(()=>{ if(!acilId||yuk) return;
+    const z=setTimeout(()=>{ try{ const el=document.getElementById("ilan-"+acilId); if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); setVurgu(acilId); setTimeout(()=>setVurgu(v=>v===acilId?null:v),2800); } }catch(e){} },240);
+    return ()=>clearTimeout(z);
+  },[acilId,yuk,tab]);
 
   const yanitla=async(il, mesaj)=>{ if(!oturum){ alert("Yanıt için giriş yap."); return; } const r=await Db.ilanYanitVer(il.id, benad, mesaj||null); if(r.ok){ alert(il.tip==="rakip"?"🆚 Meydan okundu! İlan sahibine bildirim gitti.":il.tip==="oyuncu"?"📞 İlgilendiğini bildirdin! Oyuncuya bildirim gitti.":"🙋 'Geliyorum' dedin! Kaptana bildirim gitti."); } else alert(r.hata||"Gönderilemedi"); };
 
@@ -5096,7 +5102,8 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
     const rozet=oyuncuMu?"Maça Gelir":acil?"Oyuncu Arıyor":"Rakip Arıyor";
     const btn=oyuncuMu?"📞 İlgileniyorum":acil?"🙋 Geliyorum":"🆚 Meydan Oku";
     const chip={fontSize:11.5,color:T.text,background:T.bg2||T.bg0,border:"0.5px solid "+T.line,padding:"6px 10px",borderRadius:9};
-    return <div key={il.id} style={{position:"relative",overflow:"hidden",background:T.bg1,border:"0.5px solid "+(acil?T.danger+"44":T.line),borderRadius:16,padding:14,marginBottom:11}}>
+    const vurgulu=vurgu===il.id;
+    return <div key={il.id} id={"ilan-"+il.id} style={{position:"relative",overflow:"hidden",background:T.bg1,border:"0.5px solid "+(vurgulu?anaRenk:(acil?T.danger+"44":T.line)),borderRadius:16,padding:14,marginBottom:11,boxShadow:vurgulu?("0 0 0 2px "+anaRenk+", 0 10px 30px -8px "+anaRenk+"66"):"none",transition:"box-shadow .3s, border-color .3s"}}>
       <div style={{position:"absolute",inset:0,left:"auto",width:"55%",background:"radial-gradient(90% 120% at 90% 20%,"+anaRenk+"1e,transparent 60%)",pointerEvents:"none"}}/>
       <div style={{position:"relative",zIndex:1}}>
         <div style={{display:"flex",alignItems:"center",gap:11}}>

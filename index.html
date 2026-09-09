@@ -965,6 +965,9 @@ const MAC_ID = (()=>{ try{ return new URLSearchParams(location.search).get('mac'
 const TAKIM_ID = (()=>{ try{ return new URLSearchParams(location.search).get('takim')||null; }catch(e){ return null; } })();
 const OYUNCU_ID = (()=>{ try{ return new URLSearchParams(location.search).get('oyuncu')||null; }catch(e){ return null; } })();
 const GIT_SLUG = (()=>{ try{ return new URLSearchParams(location.search).get('git')||null; }catch(e){ return null; } })(); // okunaklı link: forzalig.com/<slug> → 404.html → ?git=<slug>
+const PAZAR_LINK = (()=>{ try{ return new URLSearchParams(location.search).get('pazar')||null; }catch(e){ return null; } })(); // bildirim derin-linki: ?pazar=<tip>:<ilanId> → Pazar'da o ilana git
+// "tip:uuid" (veya sade "uuid") → {tip, id}
+const PAZAR_COZ = (s)=>{ if(!s) return null; const i=String(s).indexOf(':'); const tip=i>=0?s.slice(0,i):null; const id=i>=0?s.slice(i+1):s; return {tip:(["rakip","eksik","oyuncu"].includes(tip)?tip:null), id}; };
 const URL_FOR = (n)=>{ try{ const base=location.pathname; if(!n||!n.sayfa) return base;
   // OKUNAKLI LİNK: varlığın slug'ı varsa forzalig.com/<slug> (temiz yol). Yoksa eski parametrelere düşer (aynen çalışır).
   if(n.sayfa==='turnuva' && n.turnuva && n.turnuva.slug) return '/'+n.turnuva.slug;
@@ -17093,7 +17096,7 @@ function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
   const [yuk,setYuk]=useState(false);
   const ikonlar={transfer_istek:"🔄",transfer_onay:"✅",transfer_ret:"🚫",mac:"⚽",sohbet:"💬",duyuru:"📢",katilim:"🙋",rakip_yanit:"🆚",eksik_yanit:"🙋",oyuncu_yanit:"🏃",rakip_karar:"✅",eksik_karar:"✅",oyuncu_karar:"✅"};
   const zamanKisa=(iso)=>{ try{ const d=new Date(iso), fark=(Date.now()-d.getTime())/1000; if(fark<60) return "az önce"; if(fark<3600) return Math.floor(fark/60)+" dk"; if(fark<86400) return Math.floor(fark/3600)+" sa"; return d.toLocaleDateString("tr-TR"); }catch(e){ return ""; } };
-  const ac=async(b)=>{ if(!b.okundu){ await Db.bildirimOku(b.id); yenile&&yenile(); } if(b.link_tip==="pazar"){ git({sayfa:"pazar"}); return; } if(b.link_tip==="turnuva"&&b.link_id){ const t=(turnuvalar||[]).find(x=>x.id===b.link_id); if(t){ const yonetimeGit=["transfer_istek","katilim"].includes(b.tip); git({sayfa:"turnuva",turnuva:t,tab:yonetimeGit?"yonet":undefined}); return; } } git({sayfa:"ana"}); };
+  const ac=async(b)=>{ if(!b.okundu){ await Db.bildirimOku(b.id); yenile&&yenile(); } if(b.link_tip==="pazar"){ const _p=PAZAR_COZ(b.link_id); git({sayfa:"pazar", pazarTab:(_p&&_p.tip)||null, pazarAcil:(_p&&_p.id)||null}); return; } if(b.link_tip==="turnuva"&&b.link_id){ const t=(turnuvalar||[]).find(x=>x.id===b.link_id); if(t){ const yonetimeGit=["transfer_istek","katilim"].includes(b.tip); git({sayfa:"turnuva",turnuva:t,tab:yonetimeGit?"yonet":undefined}); return; } } git({sayfa:"ana"}); };
   const hepsiOku=async()=>{ setYuk(true); await Db.bildirimHepsiOku(); await (yenile&&yenile()); setYuk(false); };
   const sil=async(b)=>{ await Db.bildirimSil(b.id); yenile&&yenile(); };
   const varmi=(liste&&liste.length>0);
@@ -17698,8 +17701,9 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
 }
 
 // ==================== TRANSFER PAZARI (müsait oyuncular) ====================
-function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
-  const [tab,setTab]=useState(ilkTip==="eksik"?"eksik":ilkTip==="oyuncu"?"oyuncu":"rakip");
+function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab}){
+  const [tab,setTab]=useState(ilkTip==="eksik"?"eksik":ilkTip==="oyuncu"?"oyuncu":(["rakip","eksik","oyuncu"].includes(acilTab)?acilTab:"rakip"));
+  const [vurgu,setVurgu]=useState(null); // derin-linkle açılan ilan → kısa süre parla
   const [sehir,setSehir]=useState("");
   const [rakip,setRakip]=useState([]);
   const [eksik,setEksik]=useState([]);
@@ -17722,6 +17726,11 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
   const ilanlarimYenile=async()=>{ if(oturum) setIlanlarim(await Db.ilanlarim(oturum.id)); };
   useEffect(()=>{ yenile(); },[tab]);
   useEffect(()=>{ ilanlarimYenile(); },[]);
+  // Bildirimden gelindiyse (acilId) → liste dolunca o ilana kaydır ve kısa süre vurgula
+  useEffect(()=>{ if(!acilId||yuk) return;
+    const z=setTimeout(()=>{ try{ const el=document.getElementById("ilan-"+acilId); if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); setVurgu(acilId); setTimeout(()=>setVurgu(v=>v===acilId?null:v),2800); } }catch(e){} },240);
+    return ()=>clearTimeout(z);
+  },[acilId,yuk,tab]);
 
   const yanitla=async(il, mesaj)=>{ if(!oturum){ alert("Yanıt için giriş yap."); return; } const r=await Db.ilanYanitVer(il.id, benad, mesaj||null); if(r.ok){ alert(il.tip==="rakip"?"🆚 Meydan okundu! İlan sahibine bildirim gitti.":il.tip==="oyuncu"?"📞 İlgilendiğini bildirdin! Oyuncuya bildirim gitti.":"🙋 'Geliyorum' dedin! Kaptana bildirim gitti."); } else alert(r.hata||"Gönderilemedi"); };
 
@@ -17735,7 +17744,8 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip}){
     const rozet=oyuncuMu?"Maça Gelir":acil?"Oyuncu Arıyor":"Rakip Arıyor";
     const btn=oyuncuMu?"📞 İlgileniyorum":acil?"🙋 Geliyorum":"🆚 Meydan Oku";
     const chip={fontSize:11.5,color:T.text,background:T.bg2||T.bg0,border:"0.5px solid "+T.line,padding:"6px 10px",borderRadius:9};
-    return <div key={il.id} style={{position:"relative",overflow:"hidden",background:T.bg1,border:"0.5px solid "+(acil?T.danger+"44":T.line),borderRadius:16,padding:14,marginBottom:11}}>
+    const vurgulu=vurgu===il.id;
+    return <div key={il.id} id={"ilan-"+il.id} style={{position:"relative",overflow:"hidden",background:T.bg1,border:"0.5px solid "+(vurgulu?anaRenk:(acil?T.danger+"44":T.line)),borderRadius:16,padding:14,marginBottom:11,boxShadow:vurgulu?("0 0 0 2px "+anaRenk+", 0 10px 30px -8px "+anaRenk+"66"):"none",transition:"box-shadow .3s, border-color .3s"}}>
       <div style={{position:"absolute",inset:0,left:"auto",width:"55%",background:"radial-gradient(90% 120% at 90% 20%,"+anaRenk+"1e,transparent 60%)",pointerEvents:"none"}}/>
       <div style={{position:"relative",zIndex:1}}>
         <div style={{display:"flex",alignItems:"center",gap:11}}>
@@ -19422,6 +19432,25 @@ function App(){
       }catch(e){}
     })();
   },[oturum]);
+  // BİLDİRİM DERİN-LİNKİ (soğuk açılış): ?pazar=<tip>:<ilanId> → Pazar'da o ilana git+kaydır (tek sefer)
+  const pazarLinkRef=useRef(false);
+  useEffect(()=>{ if(pazarLinkRef.current||!PAZAR_LINK) return; pazarLinkRef.current=true;
+    const p=PAZAR_COZ(PAZAR_LINK); if(!p) return;
+    git({sayfa:"pazar", pazarTab:p.tip, pazarAcil:p.id});
+    try{ history.replaceState(null,'',location.pathname); }catch(e){}
+  },[]);
+  // BİLDİRİM DERİN-LİNKİ (uygulama açıkken): SW tıklama mesajı → aynı sekmede yönlendir
+  useEffect(()=>{ if(!('serviceWorker' in navigator)) return;
+    const isle=(ev)=>{ try{
+      const link=ev&&ev.data&&ev.data.fzGit; if(!link) return;
+      const qi=String(link).indexOf('?'); if(qi<0) return;
+      const qs=new URLSearchParams(String(link).slice(qi+1));
+      const pz=qs.get('pazar');
+      if(pz){ const p=PAZAR_COZ(pz); if(p){ git({sayfa:"pazar", pazarTab:p.tip, pazarAcil:p.id}); } }
+    }catch(e){} };
+    navigator.serviceWorker.addEventListener('message',isle);
+    return ()=>{ try{ navigator.serviceWorker.removeEventListener('message',isle); }catch(e){} };
+  },[]);
   const veriUret=(a,b,c)=>{ setTurnuvalar(uretVeri(a,b,c)); setNav({sayfa:"ana"}); setNavGecmis([]); setTab("ana"); };
   const veriSil=()=>{ setTurnuvalar([]); setNav({sayfa:"ana"}); setNavGecmis([]); setTab("ana"); };
 
@@ -19891,7 +19920,7 @@ function App(){
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
       case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
       case "sohbet": icerik=<SohbetSayfa T={T} git={git} geri={geri} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} kulup={nav.kulup} adminMi={etkinAdminMi} turnuvalar={turnuvalar} saltOkunur={saltOkunur}/>; break;
-      case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni}/>; break;
+      case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni} acilId={nav.pazarAcil} acilTab={nav.pazarTab}/>; break;
       case "profil": icerik = <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil} destekBilgi={destek?{uid:destek.uid, ad:destek.ad, profil:destekProfil, adminMi:destekAdminMi}:null} bildirimListe={gercekBildirim}/>; break;
       case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
       case "sorun": icerik=<SorunBildir T={T} git={git} oturum={oturum} teshis={teshisUret()}/>; break;

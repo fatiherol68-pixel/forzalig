@@ -32,24 +32,30 @@ self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { baslik: "ForzaLig", metin: (e.data && e.data.text()) || "" }; }
   const baslik = d.baslik || "ForzaLig";
-  e.waitUntil(
-    self.registration.showNotification(baslik, {
-      body: d.metin || "",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      data: { link: d.link || "/" },
-      tag: d.tag || "forzalig",
-    })
-  );
+  const secenek = {
+    body: d.metin || "",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: { link: d.link || "/" },
+    tag: d.tag || "forzalig",
+  };
+  // Büyük görsel (takım logosu / maç görseli) — varsa bildirim açılınca gösterilir
+  if (d.gorsel && /^https?:\/\//.test(d.gorsel)) secenek.image = d.gorsel;
+  e.waitUntil(self.registration.showNotification(baslik, secenek));
 });
 
-// Bildirime tıklanınca uygulamayı aç / öne getir
+// Bildirime tıklanınca: açık uygulama varsa O SAYFAYA yönlendir + öne getir; yoksa hedef linkle aç
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const hedef = (e.notification.data && e.notification.data.link) || "/";
   e.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((liste) => {
-      for (const c of liste) { if ("focus" in c) return c.focus(); }
+      for (const c of liste) {
+        if ("focus" in c) {
+          try { c.postMessage({ fzGit: hedef }); } catch (x) {}
+          return c.focus();
+        }
+      }
       if (self.clients.openWindow) return self.clients.openWindow(hedef);
     })
   );
