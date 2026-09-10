@@ -8550,7 +8550,7 @@ function PuanDurumuTekli({turnuva, T, git}){
              y:{ ticks:{color:T.textMut,font:{size:9}}, grid:{color:T.line} } }
   };
 
-  return <div className="fade-in" style={{padding:"10px 14px"}}>
+  return <div className="fade-in" style={{padding:"10px 9px"}}>
 
     {/* 4 KPI ŞERİDİ */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
@@ -8587,7 +8587,7 @@ function PuanDurumuTekli({turnuva, T, git}){
       <div>🔥 Bir ayda {gcfg.bonEs1}+ maç → +{gcfg.bonP1} bonus · {gcfg.bonEs2}+ maç → +{gcfg.bonP2} bonus</div>
     </div>}
     <div>
-        <div style={{display:"grid",gridTemplateColumns:"20px 1fr 17px 16px 16px 16px 22px 25px 62px 14px",gap:2,padding:"0 8px 6px",fontSize:8.5,color:T.textMut,fontWeight:800,letterSpacing:.2}}>
+        <div style={{display:"grid",gridTemplateColumns:"20px 1fr 16px 15px 15px 15px 22px 25px 62px 20px",gap:2,padding:"0 3px 6px",fontSize:8.5,color:T.textMut,fontWeight:800,letterSpacing:.2}}>
           <span>#</span><span>TAKIM</span>
           <span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>G</span>
           <span style={{textAlign:"center"}}>B</span><span style={{textAlign:"center"}}>M</span>
@@ -8601,16 +8601,16 @@ function PuanDurumuTekli({turnuva, T, git}){
           const av=t.ag-t.yg;
           return <React.Fragment key={t.id}>
             <div ref={el=>{ if(el) satirRef.current[t.id]=el; }} onClick={()=>setAcikTakim(acik?null:t.id)} className={"tap prem-tap"+(lider&&!acik?" vav-hero":"")}
-              style={{position:"relative",display:"grid",gridTemplateColumns:"20px 1fr 17px 16px 16px 16px 22px 25px 62px 14px",gap:2,alignItems:"center",
-                background:acik?(T.bg2||T.bg1):(lider?`linear-gradient(120deg, ${T.gold}3a, ${T.bg1} 42%, ${T.gold}22 70%, ${T.bg1})`:samp?T.gold+"12":dusme?T.danger+"10":T.bg1),borderRadius:acik?"9px 9px 0 0":9,padding:"9px 6px 9px 11px",marginBottom:acik?0:4,fontSize:11.5,overflow:"hidden",
+              style={{position:"relative",display:"grid",gridTemplateColumns:"20px 1fr 16px 15px 15px 15px 22px 25px 62px 20px",gap:2,alignItems:"center",
+                background:acik?(T.bg2||T.bg1):(lider?`linear-gradient(120deg, ${T.gold}3a, ${T.bg1} 42%, ${T.gold}22 70%, ${T.bg1})`:samp?T.gold+"12":dusme?T.danger+"10":T.bg1),borderRadius:acik?"9px 9px 0 0":9,padding:"9px 3px 9px 8px",marginBottom:acik?0:4,fontSize:11.5,overflow:"hidden",
                 boxShadow:lider&&!acik?`0 4px 20px ${T.gold}33`:"none"}}>
               {lider && !acik && <div className="vav-supurme"/>}
               <div style={{position:"absolute",left:0,top:0,bottom:0,width:lider?4:3,background:seritRenk,zIndex:1}}/>
               <span style={{color:samp?T.gold:dusme?T.danger:T.textSoft,fontWeight:800,fontSize:13,position:"relative"}}>{lider?"🏆":t.sira}</span>
-              <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0,position:"relative"}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={22}/>
-                <span style={{minWidth:0}}><span style={{color:T.text,fontWeight:lider?800:600,fontSize:12.5,lineHeight:1.12,wordBreak:"break-word"}}>{t.ad}</span>
-                  {gucMod && t.kalibre && <span style={{fontSize:8,fontWeight:800,color:"#8b95a6",background:"rgba(139,149,166,.18)",borderRadius:5,padding:"1px 4px",marginLeft:5,whiteSpace:"nowrap"}}>⚪{t._mc}/{gcfg.isinma}</span>}
-                  {gucMod && !t.kalibre && t.bonusTop>0 && <span style={{fontSize:8,fontWeight:800,color:T.gold,background:T.gold+"22",borderRadius:5,padding:"1px 4px",marginLeft:5,whiteSpace:"nowrap"}}>🔥+{t.bonusTop}</span>}</span></div>
+              <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0,position:"relative"}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={22}/>
+                <span style={{minWidth:0,display:"flex",flexDirection:"column",gap:1}}><span style={{color:T.text,fontWeight:lider?800:600,fontSize:12.5,lineHeight:1.12,wordBreak:"break-word"}}>{t.ad}</span>
+                  {gucMod && t.kalibre && <span style={{alignSelf:"flex-start",fontSize:8,fontWeight:800,color:"#8b95a6",background:"rgba(139,149,166,.18)",borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap"}}>⚪ {t._mc}/{gcfg.isinma}</span>}
+                  {gucMod && !t.kalibre && t.bonusTop>0 && <span style={{alignSelf:"flex-start",fontSize:8,fontWeight:800,color:T.gold,background:T.gold+"22",borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap"}}>🔥 +{t.bonusTop}</span>}</span></div>
               <span style={{textAlign:"center",color:T.textSoft,position:"relative"}}>{t.o}</span>
               <span style={{textAlign:"center",color:"#34D399",fontWeight:700,position:"relative"}}>{t.g}</span>
               <span style={{textAlign:"center",color:T.gold,fontWeight:700,position:"relative"}}>{t.b}</span>
@@ -8620,7 +8620,7 @@ function PuanDurumuTekli({turnuva, T, git}){
               <span style={{display:"flex",gap:2,justifyContent:"center",position:"relative"}}>
                 {son5(t).map((f,i)=><span key={i} style={{width:11,height:11,borderRadius:3,display:"grid",placeItems:"center",fontSize:7,fontWeight:800,color:"#fff",background:f==="G"?"#22b364":f==="M"?T.danger:T.gold}}>{f==="G"?"✓":f==="M"?"✕":"○"}</span>)}
               </span>
-              <span style={{textAlign:"center",color:acik?T.accent:T.textMut,fontSize:11,position:"relative",transition:"transform .2s",transform:acik?"rotate(180deg)":"none"}}>▾</span>
+              <span style={{display:"grid",placeItems:"center",position:"relative"}}><span style={{width:18,height:18,borderRadius:6,display:"grid",placeItems:"center",background:acik?T.accent:T.accent+"22",color:acik?"#fff":T.accent,fontSize:13,fontWeight:900,lineHeight:1,transition:"transform .2s, background .2s",transform:acik?"rotate(180deg)":"none"}}>▾</span></span>
             </div>
             {acik && <div style={{background:T.bg2||T.bg1,border:"0.5px solid "+T.line,borderTop:0,borderRadius:"0 0 9px 9px",padding:"2px 10px 9px",marginBottom:4}}>
               <div onClick={(e)=>{e.stopPropagation(); git({sayfa:"takim",takim:t,turnuva});}} className="tap" style={{display:"flex",alignItems:"center",gap:7,padding:"8px 3px",cursor:"pointer"}}>
