@@ -1863,6 +1863,7 @@ const Db = {
         yonetici_id:yoneticiId, ad:T.ad, ulke:'TR', sehir:T.sehir||'', ilce:T.ilce||null,
         renk:T.renk||null, format:T.format||'tek', grup_sayi:T.grupSayi||0, kisi:T.kisi||8,
         sponsor_ad:T.sponsorAd||null, sponsor_emoji:T.sponsorEmoji||null, fikstur_tipi:T.format||'tek',
+        puan_sistemi:T.puanSistemi||null,   // Serbest demo → Güç Puanı config
         evren: evren||null   // demo evren marker (gerçek lig = null)
       }).select('id').single();
       if(e1) return {hata:e1.message};
@@ -1894,7 +1895,7 @@ const Db = {
         const mvpPid=(mc.mvp||mc.mvpId)?cozPid(mc.mvpTakim,mc.mvp,mc.mvpId):null;
         const {data:mRow,error:e5}=await sb.from('maclar').insert({
           lig_id:ligId, ev_takim_id:evId, dep_takim_id:depId, hafta:(mc.hafta??null), tur:(mc.tur??null),
-          grup:(mc.grup??null), bye:!!mc.bye, pen_galip:mc.penGalip||null,
+          grup:(mc.grup??null), bye:!!mc.bye, pen_galip:mc.penGalip||null, tarih:(mc.tarih||null),
           ev_skor:(mc.skorA==null?null:mc.skorA), dep_skor:(mc.skorB==null?null:mc.skorB),
           oynandi:!!mc.oynandi, sure:mc.sure||60, dizilis_ev:mc.dizilisA||null, dizilis_dep:mc.dizilisB||null,
           kadro_ev:mc.kadroA||null, kadro_dep:mc.kadroB||null, istatistik:mc.istatistik||null,
@@ -2679,7 +2680,23 @@ function uretVeri(turnuvaSayisi=5, takimPerTurnuva=9, oyuncuPerTakim=12, opts={}
     const oran = (opts.oynanmaOran==null?1:Math.max(0,Math.min(1,opts.oynanmaOran))); // oynanmış maç oranı
     const fixtures=[];
     const eslestir=(list)=>{ for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){ fixtures.push({A:list[i],B:list[j],grup:list[i].grup||0}); if(fmt==="cift") fixtures.push({A:list[j],B:list[i],grup:list[i].grup||0}); } };
-    if(grupSay){ for(let g=0;g<grupSay;g++) eslestir(takimlar.filter(tk=>tk.grup===g)); }
+    if(fmt==="serbest"){
+      // SERBEST + Güç Puanı demo — DEĞİŞKEN maç sayısı (kimi çok, kimi az → kalibrasyon/bonus) + gerçek TARİH (Eylül-Kasım)
+      const n=takimlar.length;
+      const kalan=takimlar.map((_,i)=> Math.max(3, Math.round(4 + (n-i)/n*18 + (Math.random()*4-2)) ));   // ~3..22, azalan
+      const gunler=[]; const bas=new Date(2026,8,1); for(let d=0; d<80; d++){ gunler.push(new Date(bas.getTime()+d*86400000).toISOString().slice(0,10)); }
+      let guard=0;
+      while(guard++ < n*40){
+        const idx=[...Array(n).keys()].filter(i=>kalan[i]>0);
+        if(idx.length<2) break;
+        idx.sort((a,b)=>kalan[b]-kalan[a]);
+        const a=idx[0], b=idx[1+Math.floor(Math.random()*Math.min(idx.length-1,6))];
+        if(a===b) continue;
+        kalan[a]--; kalan[b]--;
+        fixtures.push({A:takimlar[a], B:takimlar[b], grup:0, tarih:pick(gunler)});
+      }
+      fixtures.sort((x,y)=> x.tarih<y.tarih?-1:x.tarih>y.tarih?1:0);
+    } else if(grupSay){ for(let g=0;g<grupSay;g++) eslestir(takimlar.filter(tk=>tk.grup===g)); }
     else eslestir(takimlar);
     fixtures.forEach((fx,idx)=>{ fx.hafta=idx+1; });
     const oynananSay = Math.round(fixtures.length*oran);
@@ -2696,7 +2713,7 @@ function uretVeri(turnuvaSayisi=5, takimPerTurnuva=9, oyuncuPerTakim=12, opts={}
     fixtures.forEach((fx,fi)=>{
       const A=fx.A, B=fx.B, hafta=fx.hafta;
       if(fi>=oynananSay){ // henüz oynanmamış maç (fikstürde duruyor)
-        maclar.push({id:macId++, hafta, grup:fx.grup, takimA:A.ad, takimB:B.ad, renkA:A.renk, renkB:B.renk, skorA:null, skorB:null, olaylar:[], oynandi:false, takimAId:A.id, takimBId:B.id, sure:60});
+        maclar.push({id:macId++, hafta, grup:fx.grup, tarih:fx.tarih||'', takimA:A.ad, takimB:B.ad, renkA:A.renk, renkB:B.renk, skorA:null, skorB:null, olaylar:[], oynandi:false, takimAId:A.id, takimBId:B.id, sure:60});
         return;
       }
         // —— GERÇEKÇİ SİMÜLASYON —— skor takım gücü + mevki + form + EV AVANTAJI'na göre (rastgele değil)
@@ -2760,7 +2777,7 @@ function uretVeri(turnuvaSayisi=5, takimPerTurnuva=9, oyuncuPerTakim=12, opts={}
         // maç istatistiği de üret (gazete/afişte dolu görünsün)
         const macIst = istatistikUret(sA, sB);
         const dA=dizUret(A), dB=dizUret(B);
-        const yeniMacObj={id:macId++, hafta, grup:fx.grup, takimA:A.ad, takimB:B.ad, renkA:A.renk, renkB:B.renk, skorA:sA, skorB:sB, olaylar, kaleciler:macKaleciler, mvp:mvpO?mvpO.ad:null, mvpId:mvpO?mvpO.id:null, mvpTakim:mvpTk.ad, oduller:macOdul, odullerId:macOdulId, istatistik:macIst, oynandi:true, takimAId:A.id, takimBId:B.id, sure:60, dizilisA:dA.ad, dizilisB:dB.ad, kadroA:dA.kadro, kadroB:dB.kadro, hakem:pick(HAKEM_ADLARI)};
+        const yeniMacObj={id:macId++, hafta, grup:fx.grup, tarih:fx.tarih||'', takimA:A.ad, takimB:B.ad, renkA:A.renk, renkB:B.renk, skorA:sA, skorB:sB, olaylar, kaleciler:macKaleciler, mvp:mvpO?mvpO.ad:null, mvpId:mvpO?mvpO.id:null, mvpTakim:mvpTk.ad, oduller:macOdul, odullerId:macOdulId, istatistik:macIst, oynandi:true, takimAId:A.id, takimBId:B.id, sure:60, dizilisA:dA.ad, dizilisB:dB.ad, kadroA:dA.kadro, kadroB:dB.kadro, hakem:pick(HAKEM_ADLARI)};
         yeniMacObj.ratingler = ratingHesapla(yeniMacObj, A, B);
         maclar.push(yeniMacObj);
     });
@@ -2771,6 +2788,7 @@ function uretVeri(turnuvaSayisi=5, takimPerTurnuva=9, oyuncuPerTakim=12, opts={}
     turnuvalar.push({
       id:t+1, ad:tAdSlug, renk: pick(RENKLER),
       takimlar, maclar, format:fmt, grupSayi:grupSay, kisi,
+      puanSistemi: fmt==='serbest' ? Object.assign({}, GUC_VARSAYILAN) : null,   // Serbest demo → Güç Puanı otomatik açık
       sehir: pick(["İstanbul","Ankara","İzmir","Bursa","Antalya"])
     });
   }
