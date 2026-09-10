@@ -19102,7 +19102,15 @@ function App(){
   //   Arka planda çalışır → boot hızını etkilemez. Yeni/sonradan eklenen ligler de otomatik gelir. =====
   useEffect(()=>{ if(!adminMi || !oturum || destek) return; let aktif=true;
     // 4 sn geciktir → Realtime/radyo kanalı önce kurulsun (ağır yükleme bağlantıyı boğmasın)
-    const t=setTimeout(()=>{ Db.liglerYukle(null, true).then(hepsi=>{ if(!aktif || !Array.isArray(hepsi) || !hepsi.length) return; hepsi.forEach(x=>{ try{ turnuvaHesapla(x); }catch(e){} }); setTurnuvalar(hepsi); }).catch(()=>{}); }, 4000);
+    const t=setTimeout(()=>{ Promise.all([Db.liglerYukle(null, true), Db.liglerEvrenHepsi(120)]).then(([hepsi, evrenL])=>{
+      if(!aktif) return;
+      // GERÇEK ligler + yayınlanan EVREN (demo) ligleri BİRLEŞTİR → evren ligi (takım+maç dolu) kaybolmasın.
+      let birlesik = Array.isArray(hepsi) ? hepsi.slice() : [];
+      if(Array.isArray(evrenL) && evrenL.length){ const varId=new Set(birlesik.map(x=>x&&x.id)); evrenL.forEach(l=>{ if(l && !varId.has(l.id)) birlesik.push(l); }); }
+      if(!birlesik.length) return;
+      birlesik.forEach(x=>{ try{ turnuvaHesapla(x); }catch(e){} });
+      setTurnuvalar(birlesik);
+    }).catch(()=>{}); }, 4000);
     return ()=>{ aktif=false; clearTimeout(t); };
   },[adminMi, oturum && oturum.id, destek]);
   // 👁 DESTEK MODU — kullanıcı gözünden görüntüle. Oturum DEVRALINMAZ (admin kendi oturumunda kalır).
