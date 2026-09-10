@@ -8476,7 +8476,7 @@ function PuanDurumuTekli({turnuva, T, git}){
   const [acikTakim,setAcikTakim] = useState(null);  // accordion — açık takımın son 3 maçı
   const son3=(t)=>(t.form||[]).slice(-3);
   const takimSon3=(t)=> (turnuva.maclar||[]).filter(m=>m.oynandi && m.skorA!=null && (m.takimAId===t.id||m.takimBId===t.id))
-    .sort((a,b)=> (String(b.tarih||'')).localeCompare(String(a.tarih||'')) || (b.hafta||0)-(a.hafta||0)).slice(0,3);
+    .sort((a,b)=> (String(b.tarih||'')).localeCompare(String(a.tarih||'')) || (b.hafta||0)-(a.hafta||0)).slice(0,5);
   const macGun=(m)=>{ const t=String(m.tarih||''); if(t.length>=10 && t.indexOf('-')>=0) return t.slice(8,10)+"."+t.slice(5,7); return m.hafta?(m.hafta+". hf"):""; };
   // ===== FLIP — sıra değişince satırlar eski yerlerinden yeni yerlerine kayar =====
   const satirRef = useRef({});
@@ -8587,12 +8587,12 @@ function PuanDurumuTekli({turnuva, T, git}){
       <div>🔥 Bir ayda {gcfg.bonEs1}+ maç → +{gcfg.bonP1} bonus · {gcfg.bonEs2}+ maç → +{gcfg.bonP2} bonus</div>
     </div>}
     <div>
-        <div style={{display:"grid",gridTemplateColumns:"20px 1fr 18px 17px 17px 17px 24px 26px 46px 15px",gap:2,padding:"0 8px 6px",fontSize:8.5,color:T.textMut,fontWeight:800,letterSpacing:.2}}>
+        <div style={{display:"grid",gridTemplateColumns:"20px 1fr 17px 16px 16px 16px 22px 25px 62px 14px",gap:2,padding:"0 8px 6px",fontSize:8.5,color:T.textMut,fontWeight:800,letterSpacing:.2}}>
           <span>#</span><span>TAKIM</span>
           <span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>G</span>
           <span style={{textAlign:"center"}}>B</span><span style={{textAlign:"center"}}>M</span>
           <span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
-          <span style={{textAlign:"center"}}>SON 3</span><span/>
+          <span style={{textAlign:"center"}}>SON 5</span><span/>
         </div>
         {takimlar.map(t=>{
           const samp=t.sira<=sampSinir, dusme=t.sira>dusmeSinir;
@@ -8601,7 +8601,7 @@ function PuanDurumuTekli({turnuva, T, git}){
           const av=t.ag-t.yg;
           return <React.Fragment key={t.id}>
             <div ref={el=>{ if(el) satirRef.current[t.id]=el; }} onClick={()=>setAcikTakim(acik?null:t.id)} className={"tap prem-tap"+(lider&&!acik?" vav-hero":"")}
-              style={{position:"relative",display:"grid",gridTemplateColumns:"20px 1fr 18px 17px 17px 17px 24px 26px 46px 15px",gap:2,alignItems:"center",
+              style={{position:"relative",display:"grid",gridTemplateColumns:"20px 1fr 17px 16px 16px 16px 22px 25px 62px 14px",gap:2,alignItems:"center",
                 background:acik?(T.bg2||T.bg1):(lider?`linear-gradient(120deg, ${T.gold}3a, ${T.bg1} 42%, ${T.gold}22 70%, ${T.bg1})`:samp?T.gold+"12":dusme?T.danger+"10":T.bg1),borderRadius:acik?"9px 9px 0 0":9,padding:"9px 6px 9px 11px",marginBottom:acik?0:4,fontSize:11.5,overflow:"hidden",
                 boxShadow:lider&&!acik?`0 4px 20px ${T.gold}33`:"none"}}>
               {lider && !acik && <div className="vav-supurme"/>}
@@ -8618,7 +8618,7 @@ function PuanDurumuTekli({turnuva, T, git}){
               <span style={{textAlign:"center",color:av>=0?"#34D399":T.danger,fontWeight:700,position:"relative"}}>{av>=0?"+":""}{av}</span>
               <span className={samp?"vav-parla":""} style={{textAlign:"center",color:T.gold,fontWeight:800,fontFamily:T.fontDisplay,fontSize:13.5,background:T.gold+(lider?"2a":samp?"22":"18"),borderRadius:6,padding:"3px 0",position:"relative"}}><FlSayac deger={t.puan}/></span>
               <span style={{display:"flex",gap:2,justifyContent:"center",position:"relative"}}>
-                {son3(t).map((f,i)=><span key={i} style={{width:13,height:13,borderRadius:4,display:"grid",placeItems:"center",fontSize:8,fontWeight:800,color:"#fff",background:f==="G"?"#22b364":f==="M"?T.danger:T.gold}}>{f==="G"?"✓":f==="M"?"✕":"○"}</span>)}
+                {son5(t).map((f,i)=><span key={i} style={{width:11,height:11,borderRadius:3,display:"grid",placeItems:"center",fontSize:7,fontWeight:800,color:"#fff",background:f==="G"?"#22b364":f==="M"?T.danger:T.gold}}>{f==="G"?"✓":f==="M"?"✕":"○"}</span>)}
               </span>
               <span style={{textAlign:"center",color:acik?T.accent:T.textMut,fontSize:11,position:"relative",transition:"transform .2s",transform:acik?"rotate(180deg)":"none"}}>▾</span>
             </div>
@@ -8628,7 +8628,7 @@ function PuanDurumuTekli({turnuva, T, git}){
                 <span style={{flex:1,fontSize:11.5,fontWeight:700,color:T.text}}>{t.ad} — takım sayfası</span>
                 <span style={{color:T.accent,fontSize:16}}>›</span>
               </div>
-              <div style={{fontSize:8.5,fontWeight:800,letterSpacing:.4,color:T.textMut,margin:"3px 3px 7px"}}>SON 3 MAÇ — dokun, maça git</div>
+              <div style={{fontSize:8.5,fontWeight:800,letterSpacing:.4,color:T.textMut,margin:"3px 3px 7px"}}>SON 5 MAÇ — dokun, maça git</div>
               {takimSon3(t).length===0
                 ? <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:"8px 0"}}>Henüz oynanmış maç yok.</div>
                 : takimSon3(t).map(m=>{
