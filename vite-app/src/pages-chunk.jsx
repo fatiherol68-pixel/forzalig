@@ -4429,7 +4429,28 @@ function DavetKatil({T, token, oturum, girisYap}){
   const [detay,setDetay]=useState(false);
   const [mesaj,setMesaj]=useState(""); const [yuk,setYuk]=useState(false); const [fotoYuk,setFotoYuk]=useState(false);
   const [oyuncuLink,setOyuncuLink]=useState(""); const [kopyalandi,setKopyalandi]=useState(false);
+  const [onDolduruldu,setOnDolduruldu]=useState(false); // profildeki oyuncu kartından otomatik dolduruldu mu
   useEffect(()=>{ let a=true; (async()=>{ const d=await Db.davetGetir(token); if(a) setDavet(d); })(); return ()=>{a=false;}; },[token]);
+  // Giriş yapmış + zaten oyuncu kartı olan kullanıcı → formu profilinden otomatik doldur (sıfırdan girmesin).
+  useEffect(()=>{ let a=true;
+    if(!oturum || !davet || davet===undefined || !davet.aktif) return;
+    if(!(davet.tip==="oyuncu"||davet.tip==="kulup")) return;
+    (async()=>{
+      const kart=await Db.benimOyuncu(oturum.id);
+      if(!a || !kart) return;   // kartı yoksa (ilk kez) → boş form kalır
+      setOnDolduruldu(true);
+      setAd(prev=>prev||kart.ad_soyad||kart.takma_ad||"");
+      if(kart.poz) setPoz(kart.poz);
+      if(kart.forma_no!=null) setNo(prev=>prev||String(kart.forma_no));
+      if(kart.foto) setFoto(prev=>prev||kart.foto);
+      if(kart.dogum) setDogum(prev=>prev||String(kart.dogum).slice(0,10));
+      if(kart.boy!=null) setBoy(prev=>prev||String(kart.boy));
+      if(kart.kilo!=null) setKilo(prev=>prev||String(kart.kilo));
+      if(kart.uyruk) setUyruk(kart.uyruk);
+      if(kart.ayak) setAyak(kart.ayak);
+    })();
+    return ()=>{a=false;};
+  },[oturum, davet]);
   const cik=()=>{ try{ window.location.href=window.location.origin+window.location.pathname; }catch(e){} };
   const googleGiris=async()=>{ if(!sb){ if(girisYap)girisYap(); return; } try{ const {error}=await sb.auth.signInWithOAuth({provider:"google", options:{redirectTo: window.location.href}}); if(error && girisYap) girisYap(); }catch(e){ if(girisYap)girisYap(); } };
   const dosyaSec=async(e, klasor, setUrl)=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; setFotoYuk(true); setMesaj("Fotoğraf yükleniyor…"); const r=await fotoYukle(f, klasor); setFotoYuk(false); e.target.value=""; if(r&&r.url){ setUrl(r.url); setMesaj(""); } else setMesaj("❌ Fotoğraf yüklenemedi: "+((r&&r.hata)||"")); };
@@ -4516,6 +4537,7 @@ function DavetKatil({T, token, oturum, girisYap}){
             {mesaj && <div style={{fontSize:12,color:/❌/.test(mesaj)?T.danger:T.textSoft,textAlign:"center",marginTop:10}}>{mesaj}</div>}
           </div>
         : <div>
+            {onDolduruldu && <div style={{background:T.accent+"14",border:"0.5px solid "+T.accent+"44",borderRadius:11,padding:"9px 11px",marginBottom:12,fontSize:11.5,color:T.accent,lineHeight:1.5,textAlign:"center"}}>✓ Bilgilerin <b>profilinden dolduruldu</b>. Gözden geçir; gerekirse fotoğraf/isim değiştir, sonra <b>Katıl</b>.</div>}
             <div style={{display:"flex",justifyContent:"center",marginBottom:12}}>
               <div style={{position:"relative"}}>
                 <div style={{width:82,height:82,borderRadius:"50%",overflow:"hidden",border:"2px solid "+T.accent2+"88",background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(ad||"?",82,foto)}}/>
