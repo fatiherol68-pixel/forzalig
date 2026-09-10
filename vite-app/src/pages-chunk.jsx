@@ -1378,6 +1378,11 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
   // Teknik Direktör (takıma bağlı rol — yönetici/admin atar)
   const [td,setTd]=useState(takim.td||null);
   const [tdModal,setTdModal]=useState(false);
+  // Oyuncu davet linki (takım sayfasından — yetkili üretir/paylaşır)
+  const [davetModal,setDavetModal]=useState(false);
+  const [davetLink,setDavetLink]=useState(""); const [davetKopya,setDavetKopya]=useState(false);
+  const davetAc=async()=>{ setDavetModal(true); setDavetLink("üretiliyor…"); setDavetKopya(false); const r=await Db.davetOlustur(turnuva.id,'oyuncu',takim.id); setDavetLink((r&&r.ok)?DAVET_URL(r.token):("Hata: "+((r&&r.hata)||"olmadı"))); };
+  const davetKopyala=()=>{ try{ navigator.clipboard.writeText(davetLink); setDavetKopya(true); setTimeout(()=>setDavetKopya(false),1500); }catch(e){} };
   const [kapakAcik,setKapakAcik]=useState(false);
   const [,setKapakTik]=useState(0); // kapak kaydedilince yeniden çiz
   const takimKapakKaydet=async(k)=>{ takim.kapak=k; setKapakTik(x=>x+1); if(sb && typeof takim.id==="string"){ const r=await Db.takimKapakYaz(takim.id, k); if(r&&r.hata) alert("Kapak kaydedilemedi: "+r.hata); } };
@@ -1532,11 +1537,25 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
       </div>
     </div>
     {/* AKSIYON */}
-    <div style={{display:"flex",justifyContent:"flex-end",gap:8,padding:"10px 14px 0"}}>
+    <div style={{display:"flex",justifyContent:"flex-end",gap:8,padding:"10px 14px 0",flexWrap:"wrap"}}>
+      {tdYetkili && turnuva && turnuva.iliskisel && typeof takim.id==="string" &&
+        <button onClick={davetAc} className="tap" style={{background:T.accent2,color:"#04070C",border:0,borderRadius:20,padding:"0 16px",height:34,fontSize:12,fontWeight:800}}>🔗 Davet linki</button>}
       {oturum && turnuva && turnuva.iliskisel && (takimBenim || (takim.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===oturum.id)) &&
         <button onClick={()=>git({sayfa:"sohbet",turnuva,takim})} className="tap" style={{background:"transparent",color:T.accent2,border:"1px solid "+T.accent2,borderRadius:20,padding:"0 16px",height:34,fontSize:12,fontWeight:700}}>💬 Sohbet</button>}
       <button onClick={()=>takimTakip&&takimTakip(takim.id)} className="tap" style={{background:takimTakipte?T.accent:"transparent",color:takimTakipte?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,border:"1px solid "+T.accent,borderRadius:20,padding:"0 16px",height:34,fontSize:12,fontWeight:700}}>{takimTakipte?"✓ Takipte":"+ Takip et"}</button>
     </div>
+    {davetModal && <div onClick={()=>setDavetModal(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.62)",zIndex:1600,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} className="fade-in" style={{width:"100%",maxWidth:420,background:T.bg1,borderRadius:16,padding:"18px 16px calc(18px + env(safe-area-inset-bottom))",border:"0.5px solid "+T.line}}>
+        <div style={{fontSize:15,fontWeight:800,color:T.text,marginBottom:4}}>🔗 Oyuncu Davet Linki</div>
+        <div style={{fontSize:11,color:T.textMut,marginBottom:12,lineHeight:1.5}}>Bu linki oyunculara (WhatsApp'tan) yolla — açan kişi bilgilerini girip <b style={{color:T.accent2}}>{takim.ad}</b> takımına katılır. Sen TD atamadıysan <b>ilk katılan</b> otomatik teknik direktör (yetkili) olur.</div>
+        {/^https?:/.test(davetLink) && qrData(davetLink) && <img src={qrData(davetLink)} alt="QR" style={{width:148,height:148,borderRadius:12,margin:"0 auto 12px",display:"block",background:"#fff",padding:6}}/>}
+        <div style={{background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:"10px",fontSize:11,color:T.accent2,wordBreak:"break-all",lineHeight:1.4,marginBottom:11}}>{davetLink}</div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={davetKopyala} disabled={!/^https?:/.test(davetLink)} className="tap" style={{flex:1,background:T.accent,color:T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":"#04070C",border:0,borderRadius:10,padding:"11px",fontSize:13,fontWeight:800,opacity:/^https?:/.test(davetLink)?1:.6}}>{davetKopya?"✓ Kopyalandı":"📋 Kopyala"}</button>
+          <button onClick={()=>setDavetModal(false)} className="tap" style={{background:T.bg2,color:T.textSoft,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px 16px",fontSize:13,fontWeight:700}}>Kapat</button>
+        </div>
+      </div>
+    </div>}
     {/* SEKME ŞERİDİ */}
     <div style={{display:"flex",padding:"8px 8px 0",borderBottom:"1px solid "+T.line,overflowX:"auto"}}>
       {SEKMELER.map(([k,ad])=>
