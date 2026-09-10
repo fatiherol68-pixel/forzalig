@@ -61,7 +61,8 @@ try {
 fs.writeFileSync(path.join(VITE, 'src/app-body.jsx'),
 `import React from 'react';
 import * as ReactDOMClient from 'react-dom/client';
-const ReactDOM = ReactDOMClient;                       // kod ReactDOM.createRoot kullanıyor
+import { createPortal } from 'react-dom';               // react-dom/client createPortal'ı export ETMEZ → ayrı al
+const ReactDOM = Object.assign({}, ReactDOMClient, { createPortal }); // kod ReactDOM.createRoot + createPortal kullanıyor
 if (typeof window !== 'undefined') { window.React = React; window.ReactDOM = ReactDOM; }
 
 // ==================== ForzaLig uygulama kodu (index.html babel bloğu) ====================
