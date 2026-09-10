@@ -969,6 +969,13 @@ const PAZAR_LINK = (()=>{ try{ return new URLSearchParams(location.search).get('
 // "tip:uuid" (veya sade "uuid") → {tip, id}
 const PAZAR_COZ = (s)=>{ if(!s) return null; const i=String(s).indexOf(':'); const tip=i>=0?s.slice(0,i):null; const id=i>=0?s.slice(i+1):s; return {tip:(["rakip","eksik","oyuncu"].includes(tip)?tip:null), id}; };
 let __sahneIlk=true; // PERFORMANS: sahne (dokulu) arka planı ilk yüklemede geciktir → LCP/Speed Index hızlansın
+// ===== GÜÇ PUANI (Serbest Lig'e özel dinamik puanlama) — opt-in, varsayılan KAPALI =====
+const GUC_VARSAYILAN={mod:"guc",isinma:5,galY:3,galK:4,galS:5,magY:3,magK:2,magS:1,ber:1,esKir:10,esSiy:40,bonEs1:6,bonP1:10,bonEs2:9,bonP2:14};
+const gucAktif=(t)=> !!(t && t.format==='serbest' && t.puanSistemi && t.puanSistemi.mod==='guc');
+const gucCfg=(t)=> Object.assign({}, GUC_VARSAYILAN, (t&&t.puanSistemi)||{});
+const gucKat=(p,c)=> p>=c.esSiy?'siyah': p>=c.esKir?'kirmizi':'yesil';
+const GUC_RENK={yesil:"#2BE07C", kirmizi:"#E5484D", siyah:"#c7ccd6"};
+const GUC_ROZET={yesil:"🟢 Yeşil", kirmizi:"🔴 Kırmızı", siyah:"⚫ Siyah"};
 const URL_FOR = (n)=>{ try{ const base=location.pathname; if(!n||!n.sayfa) return base;
   // OKUNAKLI LİNK: varlığın slug'ı varsa forzalig.com/<slug> (temiz yol). Yoksa eski parametrelere düşer (aynen çalışır).
   if(n.sayfa==='turnuva' && n.turnuva && n.turnuva.slug) return '/'+n.turnuva.slug;
@@ -1971,7 +1978,7 @@ const Db = {
         grupSayi:L.grup_sayi||0, sehir:L.sehir, ilce:L.ilce, kisi:L.kisi||8,
         seriId:L.seri_id||null, sezonNo:L.sezon_no||1, slug:L.slug||null, kapak:L.kapak||null,
         sponsorAd:L.sponsor_ad, sponsorEmoji:L.sponsor_emoji, durum:L.durum||'aktif',
-        kurallarKilit:!!L.kurallar_kilit, kurallar:L.kurallar||"", iliskisel:true, _hafif:!!hafif };
+        kurallarKilit:!!L.kurallar_kilit, kurallar:L.kurallar||"", puanSistemi:L.puan_sistemi||null, iliskisel:true, _hafif:!!hafif };
     }catch(e){ console.warn('ligYukle',e); return null; }
   },
   // Ağır maç detayı — maç açılınca VEYA aşamalı yüklemede 2. fazda tembel gelir.
@@ -2951,6 +2958,7 @@ function turnuvaHesapla(turnuva){
   // Player ID omurgası: önce benzersiz id ile bul (aynı isim karışmaz), yoksa isme düş (eski/demo veri uyumu)
   const bulOId=(id)=>{ if(id==null||id==="") return null; const s=String(id); for(const tk of turnuva.takimlar){ const o=tk.oyuncular.find(x=>String(x.player_id||x.id)===s || String(x.id)===s); if(o)return o; } return null; };
   const coz=(id,ad)=> bulOId(id) || (ad?bulO(ad):null);
+  const gucMod=gucAktif(turnuva), gcfg=gucMod?gucCfg(turnuva):null;   // Serbest Lig — Güç Puanı açık mı?
   turnuva.maclar.filter(mc=>mc.oynandi && mc.skorA!=null).forEach(mc=>{
     const A=turnuva.takimlar.find(t=>t.id===mc.takimAId)||turnuva.takimlar.find(t=>t.ad===mc.takimA);
     const B=turnuva.takimlar.find(t=>t.id===mc.takimBId)||turnuva.takimlar.find(t=>t.ad===mc.takimB);
@@ -2958,9 +2966,9 @@ function turnuvaHesapla(turnuva){
     const sA=mc.skorA, sB=mc.skorB;
     const sure=mc.sure?parseInt(mc.sure):60; // maç süresi (varsayılan 60 dk)
     A.o++;B.o++;A.ag+=sA;A.yg+=sB;B.ag+=sB;B.yg+=sA;
-    if(sA>sB){A.g++;B.m++;A.puan+=3;A.form.push("G");B.form.push("M");}
-    else if(sB>sA){B.g++;A.m++;B.puan+=3;B.form.push("G");A.form.push("M");}
-    else {A.b++;B.b++;A.puan++;B.puan++;A.form.push("B");B.form.push("B");}
+    if(sA>sB){A.g++;B.m++;A.form.push("G");B.form.push("M");if(!gucMod){A.puan+=3;}}
+    else if(sB>sA){B.g++;A.m++;B.form.push("G");A.form.push("M");if(!gucMod){B.puan+=3;}}
+    else {A.b++;B.b++;A.form.push("B");B.form.push("B");if(!gucMod){A.puan++;B.puan++;}}
     A.oyuncular.forEach(o=>o.mac++); B.oyuncular.forEach(o=>o.mac++);
 
     // —— OYNAMA SÜRESİ —— kadro (saha 11) tam süre başlar; değişiklikler dakikayı ayarlar
@@ -3005,6 +3013,37 @@ function turnuvaHesapla(turnuva){
       mc.kaleciler.forEach(kl=>{ if(kl.ad||kl.id){ const k=coz(kl.id, kl.ad); const n=parseInt(kl.kurtaris)||0; if(k) k.kurtaris=(k.kurtaris||0)+n; } });
     }
   });
+  // ===== GÜÇ PUANI — kronolojik dinamik hesap (Serbest Lig, opt-in). Klasik sayaç/gol/oyuncu-istatistik yukarıda hazır. =====
+  if(gucMod){
+    turnuva.takimlar.forEach(tk=>{ tk.puan=0; tk.form=[]; tk._mc=0; tk._ay={}; tk._bonusAy={}; tk.bonusTop=0; });
+    const oyn=turnuva.maclar.filter(mc=>mc.oynandi && mc.skorA!=null);
+    // kronolojik sırala: tarih varsa ona göre, yoksa mevcut sıra (stabil)
+    const sirali=oyn.map((mc,i)=>({mc,i})).sort((a,b)=>{ const ta=a.mc.tarih||'', tb=b.mc.tarih||'';
+      if(ta&&tb){ if(ta<tb)return -1; if(ta>tb)return 1; } else if(ta&&!tb) return -1; else if(!ta&&tb) return 1; return a.i-b.i; }).map(x=>x.mc);
+    sirali.forEach(mc=>{
+      const A=turnuva.takimlar.find(t=>t.id===mc.takimAId)||turnuva.takimlar.find(t=>t.ad===mc.takimA);
+      const B=turnuva.takimlar.find(t=>t.id===mc.takimBId)||turnuva.takimlar.find(t=>t.ad===mc.takimB);
+      if(!A||!B) return;
+      const sA=mc.skorA, sB=mc.skorB, ay=(mc.tarih||'').slice(0,7);
+      const kA=gucKat(A.puan,gcfg), kB=gucKat(B.puan,gcfg);   // maç ANINDAKİ renk
+      A._mc++; B._mc++;
+      [[A,kB,sA,sB],[B,kA,sB,sA]].forEach(([tk,rakipRenk,att,yed])=>{
+        const isin = tk._mc<=gcfg.isinma;   // ilk N maç ısınma → klasik 3/1/0
+        let p;
+        if(att>yed) p = isin ? gcfg.galY : (rakipRenk==='siyah'?gcfg.galS:rakipRenk==='kirmizi'?gcfg.galK:gcfg.galY);
+        else if(att<yed) p = isin ? 0 : -(rakipRenk==='siyah'?gcfg.magS:rakipRenk==='kirmizi'?gcfg.magK:gcfg.magY);
+        else p = gcfg.ber;
+        tk.puan += p; if(tk.puan<0) tk.puan=0;   // taban 0
+        tk.form.push(att>yed?"G":att<yed?"M":"B");
+      });
+      [A,B].forEach(tk=>{ if(!ay) return;   // aylık bonus (o ay eşiğe ulaşınca hemen) — maç tarihi gerekir
+        tk._ay[ay]=(tk._ay[ay]||0)+1;
+        const due = tk._ay[ay]>=gcfg.bonEs2?gcfg.bonP2 : tk._ay[ay]>=gcfg.bonEs1?gcfg.bonP1 : 0, prev=tk._bonusAy[ay]||0;
+        if(due>prev){ tk.puan+=(due-prev); tk._bonusAy[ay]=due; tk.bonusTop+=(due-prev); }
+      });
+    });
+    turnuva.takimlar.forEach(tk=>{ tk.kalibre = tk._mc < gcfg.isinma; tk.kategori = gucKat(tk.puan,gcfg); });
+  }
   // sıralama: tüm lig genel; gruplu ise grup içi sıra da hesaplanır
   turnuva.takimlar.sort((a,b)=> b.puan-a.puan || (b.ag-b.yg)-(a.ag-a.yg) || b.ag-a.ag);
   turnuva.takimlar.forEach((tk,i)=>tk.sira=i+1);
@@ -7852,6 +7891,10 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum, onPaylas}){
   const [lSlug,setLSlug]=useState(turnuva.paylasimSlug||"");
   const [lKapak,setLKapak]=useState(turnuva.kapak||{tema:'isik',resim:null});
   const [kapakYuk,setKapakYuk]=useState(false);
+  // GÜÇ PUANI (Serbest Lig) — aç/kapa + config
+  const [gpAcik,setGpAcik]=useState(gucAktif(turnuva));
+  const [gp,setGp]=useState(()=> Object.assign({}, GUC_VARSAYILAN, turnuva.puanSistemi||{}));
+  const gpDegis=(k,d,mn,mx)=> setGp(g=>{ const v={...g}; v[k]=Math.max(mn,Math.min(mx,(v[k]||0)+d)); if(v.esSiy<=v.esKir)v.esSiy=v.esKir+1; if(v.bonEs2<=v.bonEs1)v.bonEs2=v.bonEs1+1; return v; });
   const kapakResimSec=async(dosya)=>{
     if(!dosya) return; setKapakYuk(true);
     try{ const r=await kapakYukle(dosya, lKapak&&lKapak.resim); if(r&&r.url) setLKapak({tema:'resim',resim:r.url}); else alert("Görsel yüklenemedi: "+((r&&r.hata)||"")); }
@@ -7868,7 +7911,10 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum, onPaylas}){
       if(s.length<3 || rez.includes(s)){ alert("Bu bağlantı adı kullanılamaz (en az 3 karakter; rezerve kelime olamaz). Başka bir ad dene."); return; }
       yeniSlug=s;
     }
-    yonetim.ligGuncelle(turnuva, {ad:lAd.trim(), sehir:lSehir.trim(), ilce:lIlce.trim(), renk:lRenk, baslangic:lBaslangic, hedefTakim:lHedef, kisi:lKisi, sponsorAd:lSponsor.trim(), sponsorEmoji:lSponsorE});
+    const gpKaydet = (turnuva.format==='serbest' && gpAcik) ? Object.assign({}, gp, {mod:'guc'}) : null;
+    turnuva.puanSistemi = gpKaydet;   // motor bunu okur (camelCase)
+    yonetim.ligGuncelle(turnuva, {ad:lAd.trim(), sehir:lSehir.trim(), ilce:lIlce.trim(), renk:lRenk, baslangic:lBaslangic, hedefTakim:lHedef, kisi:lKisi, sponsorAd:lSponsor.trim(), sponsorEmoji:lSponsorE, puan_sistemi:gpKaydet});
+    try{ turnuvaHesapla(turnuva); }catch(e){}   // puan durumu anında yeni sisteme göre
     setLigAcik(false);
     // Lig kapağı (animasyonlu kimlik) — kalıcı kaydet; anında sayfaya yansı
     try{ const kk=await Db.ligKapakYaz(turnuva.id, lKapak); if(kk && kk.ok){ turnuva.kapak=lKapak; } }catch(e){}
@@ -8056,6 +8102,47 @@ function YonetimPaneli({turnuva, T, git, yonetim, oturum, onPaylas}){
           )}
         </div>
         <div style={{fontSize:9,color:T.textMut,marginBottom:12,marginTop:-8}}>ℹ️ Tüm maçlarda iki takım da bu sayıda olur.</div>
+
+        {turnuva.format==='serbest' && (()=>{
+          const St=({lbl,k,mn,mx,dot,pre})=> <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"7px 8px 7px 11px",marginBottom:6}}>
+            <span style={{fontSize:11.5,color:T.textSoft,display:"flex",alignItems:"center",gap:6,minWidth:0}}>{dot&&<span style={{width:9,height:9,borderRadius:"50%",background:dot,flexShrink:0}}/>}<span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{lbl}</span></span>
+            <span style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
+              <button onClick={()=>gpDegis(k,-1,mn,mx)} className="tap" style={{width:26,height:26,borderRadius:7,background:T.bg2,color:T.text,fontSize:15,fontWeight:800,border:"0.5px solid "+T.line}}>−</button>
+              <span style={{minWidth:34,textAlign:"center",fontWeight:800,color:T.accent,fontSize:14,fontFamily:T.fontDisplay}}>{(pre||"")}{gp[k]}</span>
+              <button onClick={()=>gpDegis(k,1,mn,mx)} className="tap" style={{width:26,height:26,borderRadius:7,background:T.bg2,color:T.text,fontSize:15,fontWeight:800,border:"0.5px solid "+T.line}}>+</button>
+            </span>
+          </div>;
+          const Bas=({t})=><div style={{fontSize:9.5,color:T.textMut,fontWeight:800,letterSpacing:.5,margin:"9px 2px 5px"}}>{t}</div>;
+          return <div style={{marginBottom:14,padding:12,borderRadius:12,background:T.bg2,border:"1px solid "+(gpAcik?T.accent+"88":T.line)}}>
+            <div onClick={()=>setGpAcik(v=>!v)} className="tap" style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}>
+              <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:800,color:T.text}}>⚡ Güç Puanı <span style={{fontSize:9,fontWeight:800,color:gpAcik?T.accent:T.textMut,background:(gpAcik?T.accent:T.textMut)+"22",borderRadius:6,padding:"2px 6px",marginLeft:4}}>{gpAcik?"AÇIK":"KAPALI"}</span></div><div style={{fontSize:10,color:T.textMut,marginTop:2}}>Rakibin gücüne göre dinamik puan · sadece bu Serbest Lig'e</div></div>
+              <div style={{width:44,height:26,borderRadius:20,background:gpAcik?T.accent:T.bg1,border:"1px solid "+(gpAcik?T.accent:T.line),position:"relative",flexShrink:0,transition:"background .2s"}}>
+                <div style={{position:"absolute",top:2,left:gpAcik?20:2,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+              </div>
+            </div>
+            {gpAcik && <div style={{marginTop:12}}>
+              <St lbl="İlk kaç maç normal (ısınma)" k="isinma" mn={0} mx={15}/>
+              <Bas t="🏆 GALİBİYET — rakibin rengine göre"/>
+              <St lbl="Yeşil'i yen" k="galY" mn={0} mx={20} dot={GUC_RENK.yesil} pre="+"/>
+              <St lbl="Kırmızı'yı yen" k="galK" mn={0} mx={20} dot={GUC_RENK.kirmizi} pre="+"/>
+              <St lbl="Siyah'ı yen" k="galS" mn={0} mx={20} dot={GUC_RENK.siyah} pre="+"/>
+              <Bas t="💔 MAĞLUBİYET — kaç puan yakar"/>
+              <St lbl="Yeşil'e yenil" k="magY" mn={0} mx={10} dot={GUC_RENK.yesil} pre="−"/>
+              <St lbl="Kırmızı'ya yenil" k="magK" mn={0} mx={10} dot={GUC_RENK.kirmizi} pre="−"/>
+              <St lbl="Siyah'a yenil" k="magS" mn={0} mx={10} dot={GUC_RENK.siyah} pre="−"/>
+              <Bas t="🤝 BERABERLİK & 🎨 RENK EŞİĞİ"/>
+              <St lbl="Beraberlik puanı" k="ber" mn={0} mx={5} pre="+"/>
+              <St lbl="Kırmızı eşiği (bu puandan)" k="esKir" mn={1} mx={60} dot={GUC_RENK.kirmizi}/>
+              <St lbl="Siyah eşiği (bu puandan)" k="esSiy" mn={5} mx={120} dot={GUC_RENK.siyah}/>
+              <Bas t="🔥 AYLIK BONUS — o ay yapılan maç"/>
+              <St lbl="Ayda kaç maç → bonus" k="bonEs1" mn={2} mx={30}/>
+              <St lbl="Bonus puanı" k="bonP1" mn={0} mx={40} pre="+"/>
+              <St lbl="Ayda kaç maç → büyük bonus" k="bonEs2" mn={3} mx={40}/>
+              <St lbl="Büyük bonus puanı" k="bonP2" mn={0} mx={60} pre="+"/>
+              <div style={{fontSize:9,color:T.textMut,marginTop:9,lineHeight:1.55}}>ℹ️ Kaydedince tüm sezon <b>yeni ayara göre</b> yeniden hesaplanır. İlk <b>{gp.isinma}</b> maç normal (3/1/0). Bonus için maçlara <b>tarih</b> girilmiş olmalı. Kaydetmeden çıkarsan değişmez.</div>
+            </div>}
+          </div>;
+        })()}
 
         <div style={{fontSize:11,color:T.gold,fontWeight:700,marginBottom:6}}>💰 SPONSOR <span style={{color:T.textMut,fontWeight:400}}>(opsiyonel)</span></div>
         <div style={{display:"flex",gap:8,marginBottom:6}}>
@@ -8362,6 +8449,8 @@ function GrupTablo({takimlar, T, git, turnuva}){
 
 function PuanDurumuTekli({turnuva, T, git}){
   const takimlar = turnuva.takimlar; // zaten sıralı: puan→averaj→atılan gol
+  const gucMod = gucAktif(turnuva), gcfg = gucMod?gucCfg(turnuva):null;   // Serbest Lig — Güç Puanı açık mı?
+  const [gucNasil,setGucNasil] = useState(false);   // kural açıklaması aç/kapa
   // ===== FLIP — sıra değişince satırlar eski yerlerinden yeni yerlerine kayar =====
   const satirRef = useRef({});
   const flipRef = useRef({pos:null, sira:null});
@@ -8454,7 +8543,22 @@ function PuanDurumuTekli({turnuva, T, git}){
     </div>
 
     {/* PUAN TABLOSU — FatihPro tam sütun: # takım M G B Mğ AG YG Av P SON5 */}
-    <div style={{fontSize:13,fontWeight:700,color:T.text,margin:"0 4px 8px"}}>🏆 Puan Tablosu</div>
+    <div style={{display:"flex",alignItems:"center",gap:8,margin:"0 4px 8px"}}>
+      <span style={{fontSize:13,fontWeight:700,color:T.text}}>🏆 Puan Tablosu</span>
+      {gucMod && <span style={{fontSize:9,fontWeight:800,color:T.accent,background:T.accent+"1e",border:"0.5px solid "+T.accent+"55",borderRadius:20,padding:"2px 8px",letterSpacing:.3}}>⚡ GÜÇ PUANI</span>}
+      {gucMod && <span onClick={()=>setGucNasil(v=>!v)} className="tap" style={{marginLeft:"auto",fontSize:10,fontWeight:700,color:T.textMut,textDecoration:"underline",cursor:"pointer"}}>nasıl çalışır?</span>}
+    </div>
+    {gucMod && gucNasil && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 13px",margin:"0 0 12px",fontSize:11,color:T.textSoft,lineHeight:1.6}}>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:9}}>
+        <span style={{flex:1,minWidth:88,background:T.bg2,border:"0.5px solid "+GUC_RENK.yesil+"55",borderRadius:9,padding:"6px 8px"}}><b style={{color:GUC_RENK.yesil}}>🟢 Yeşil</b><br/><span style={{fontSize:9.5,color:T.textMut}}>0–{gcfg.esKir-1} puan</span></span>
+        <span style={{flex:1,minWidth:88,background:T.bg2,border:"0.5px solid "+GUC_RENK.kirmizi+"55",borderRadius:9,padding:"6px 8px"}}><b style={{color:GUC_RENK.kirmizi}}>🔴 Kırmızı</b><br/><span style={{fontSize:9.5,color:T.textMut}}>{gcfg.esKir}–{gcfg.esSiy-1} puan</span></span>
+        <span style={{flex:1,minWidth:88,background:T.bg2,border:"0.5px solid rgba(255,255,255,.22)",borderRadius:9,padding:"6px 8px"}}><b style={{color:GUC_RENK.siyah}}>⚫ Siyah</b><br/><span style={{fontSize:9.5,color:T.textMut}}>{gcfg.esSiy}+ puan</span></span>
+      </div>
+      <div>🏆 <b style={{color:T.text}}>Kazanınca:</b> güçlüyü yenmek çok kazandırır — 🟢+{gcfg.galY} · 🔴+{gcfg.galK} · ⚫+{gcfg.galS}</div>
+      <div>💔 <b style={{color:T.text}}>Kaybedince:</b> güçlüye yenilmek az yakar — 🟢−{gcfg.magY} · 🔴−{gcfg.magK} · ⚫−{gcfg.magS}</div>
+      <div>🤝 Beraberlik +{gcfg.ber} · 🛡️ 0 puan altına düşülmez · ⚡ İlk {gcfg.isinma} maç normal (3/1/0)</div>
+      <div>🔥 Bir ayda {gcfg.bonEs1}+ maç → +{gcfg.bonP1} bonus · {gcfg.bonEs2}+ maç → +{gcfg.bonP2} bonus</div>
+    </div>}
     <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{minWidth:430}}>
         <div style={{display:"grid",gridTemplateColumns:"20px minmax(96px,1fr) 22px 22px 22px 26px 26px 56px 30px",gap:2,padding:"0 8px 6px",fontSize:9,color:T.textMut,fontWeight:700,letterSpacing:.2}}>
@@ -8467,7 +8571,7 @@ function PuanDurumuTekli({turnuva, T, git}){
         {takimlar.map(t=>{
           const samp=t.sira<=sampSinir, dusme=t.sira>dusmeSinir;
           const lider=t.sira===1;
-          const seritRenk = samp?T.gold : dusme?T.danger : "transparent";
+          const seritRenk = gucMod ? (t.kalibre?"#6b7688":(GUC_RENK[t.kategori]||T.textMut)) : (samp?T.gold : dusme?T.danger : "transparent");
           const av=t.ag-t.yg;
           return <div key={t.id} ref={el=>{ if(el) satirRef.current[t.id]=el; }} onClick={()=>git({sayfa:"takim",takim:t,turnuva})} className={"tap prem-tap"+(lider?" vav-hero":"")}
             style={{position:"relative",display:"grid",gridTemplateColumns:"20px minmax(96px,1fr) 22px 22px 22px 26px 26px 56px 30px",gap:2,alignItems:"center",
@@ -8476,7 +8580,9 @@ function PuanDurumuTekli({turnuva, T, git}){
             {lider && <div className="vav-supurme"/>}
             <div style={{position:"absolute",left:0,top:0,bottom:0,width:lider?4:3,background:seritRenk,zIndex:1}}/>
             <span style={{color:samp?T.gold:dusme?T.danger:T.textSoft,fontWeight:700,position:"relative"}}>{lider?"🏆":t.sira}</span>
-            <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0,position:"relative"}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,fontWeight:lider?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0,position:"relative"}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,fontWeight:lider?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span>
+              {gucMod && t.kalibre && <span style={{flexShrink:0,fontSize:8,fontWeight:800,color:"#8b95a6",background:"rgba(139,149,166,.18)",borderRadius:5,padding:"1px 4px"}}>⚪{t._mc}/{gcfg.isinma}</span>}
+              {gucMod && !t.kalibre && t.bonusTop>0 && <span style={{flexShrink:0,fontSize:8,fontWeight:800,color:T.gold,background:T.gold+"22",borderRadius:5,padding:"1px 4px"}}>🔥+{t.bonusTop}</span>}</div>
             <span style={{textAlign:"center",color:T.textSoft,position:"relative"}}>{t.o}</span>
             <span style={{textAlign:"center",color:"#34D399",position:"relative"}}>{t.g}</span>
             <span style={{textAlign:"center",color:T.gold,position:"relative"}}>{t.b}</span>
@@ -8491,11 +8597,18 @@ function PuanDurumuTekli({turnuva, T, git}){
       </div>
     </div>
 
-    {/* BÖLGE AÇIKLAMA */}
-    <div style={{display:"flex",gap:14,justifyContent:"center",margin:"8px 0 16px",fontSize:10,color:T.textMut}}>
-      <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:T.gold}}/>Şampiyonluk/Avrupa</span>
-      {dusmeAdet>0 && <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:T.danger}}/>Düşme hattı</span>}
-    </div>
+    {/* BÖLGE / KATEGORİ AÇIKLAMA */}
+    {gucMod
+      ? <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",margin:"8px 0 16px",fontSize:10,color:T.textMut}}>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:GUC_RENK.yesil}}/>Yeşil (zayıf)</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:GUC_RENK.kirmizi}}/>Kırmızı (orta)</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:GUC_RENK.siyah}}/>Siyah (güçlü)</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:"#8b95a6"}}/>Kalibrasyon</span>
+        </div>
+      : <div style={{display:"flex",gap:14,justifyContent:"center",margin:"8px 0 16px",fontSize:10,color:T.textMut}}>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:T.gold}}/>Şampiyonluk/Avrupa</span>
+          {dusmeAdet>0 && <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:T.danger}}/>Düşme hattı</span>}
+        </div>}
 
     {/* PODYUM */}
     <div style={{fontSize:13,fontWeight:700,color:T.text,margin:"0 4px 10px"}}>🥇 Zirve</div>
@@ -19555,7 +19668,7 @@ function App(){
   // Lig bilgilerini güncelle
   const ligGuncelle=(turnuva, alanlar)=>{
     Object.assign(turnuva, alanlar);
-    if(iliskiselMi(turnuva)){ const db={}; if(alanlar.ad!=null)db.ad=alanlar.ad; if(alanlar.renk!=null)db.renk=alanlar.renk; if(alanlar.sehir!=null)db.sehir=alanlar.sehir; if(alanlar.ilce!=null)db.ilce=alanlar.ilce; if(alanlar.logo!=null)db.logo=alanlar.logo; if(alanlar.bitisTarihi!=null)db.bitis_tarihi=alanlar.bitisTarihi; if(alanlar.kurallar!=null)db.kurallar=alanlar.kurallar; if(Object.keys(db).length) Db.ligGuncelle(turnuva.id, db); }
+    if(iliskiselMi(turnuva)){ const db={}; if(alanlar.ad!=null)db.ad=alanlar.ad; if(alanlar.renk!=null)db.renk=alanlar.renk; if(alanlar.sehir!=null)db.sehir=alanlar.sehir; if(alanlar.ilce!=null)db.ilce=alanlar.ilce; if(alanlar.logo!=null)db.logo=alanlar.logo; if(alanlar.bitisTarihi!=null)db.bitis_tarihi=alanlar.bitisTarihi; if(alanlar.kurallar!=null)db.kurallar=alanlar.kurallar; if(alanlar.puan_sistemi!==undefined)db.puan_sistemi=alanlar.puan_sistemi; if(Object.keys(db).length) Db.ligGuncelle(turnuva.id, db); }
     guncelle();
   };
   // Maç Gazetesi görünümü — lig varsayılanı + üye kilidi (yetkili belirler)
