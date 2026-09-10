@@ -8473,6 +8473,11 @@ function PuanDurumuTekli({turnuva, T, git}){
   const takimlar = turnuva.takimlar; // zaten sıralı: puan→averaj→atılan gol
   const gucMod = gucAktif(turnuva), gcfg = gucMod?gucCfg(turnuva):null;   // Serbest Lig — Güç Puanı açık mı?
   const [gucNasil,setGucNasil] = useState(false);   // kural açıklaması aç/kapa
+  const [acikTakim,setAcikTakim] = useState(null);  // accordion — açık takımın son 3 maçı
+  const son3=(t)=>(t.form||[]).slice(-3);
+  const takimSon3=(t)=> (turnuva.maclar||[]).filter(m=>m.oynandi && m.skorA!=null && (m.takimAId===t.id||m.takimBId===t.id))
+    .sort((a,b)=> (String(b.tarih||'')).localeCompare(String(a.tarih||'')) || (b.hafta||0)-(a.hafta||0)).slice(0,3);
+  const macGun=(m)=>{ const t=String(m.tarih||''); if(t.length>=10 && t.indexOf('-')>=0) return t.slice(8,10)+"."+t.slice(5,7); return m.hafta?(m.hafta+". hf"):""; };
   // ===== FLIP — sıra değişince satırlar eski yerlerinden yeni yerlerine kayar =====
   const satirRef = useRef({});
   const flipRef = useRef({pos:null, sira:null});
@@ -8581,42 +8586,73 @@ function PuanDurumuTekli({turnuva, T, git}){
       <div>🤝 Beraberlik +{gcfg.ber} · 🛡️ 0 puan altına düşülmez · ⚡ İlk {gcfg.isinma} maç normal (3/1/0)</div>
       <div>🔥 Bir ayda {gcfg.bonEs1}+ maç → +{gcfg.bonP1} bonus · {gcfg.bonEs2}+ maç → +{gcfg.bonP2} bonus</div>
     </div>}
-    <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-      <div style={{minWidth:352}}>
-        <div style={{display:"grid",gridTemplateColumns:"20px minmax(96px,1fr) 22px 22px 22px 26px 26px 56px 30px",gap:2,padding:"0 8px 6px",fontSize:9,color:T.textMut,fontWeight:700,letterSpacing:.2}}>
+    <div>
+        <div style={{display:"grid",gridTemplateColumns:"20px 1fr 18px 17px 17px 17px 24px 26px 46px 15px",gap:2,padding:"0 8px 6px",fontSize:8.5,color:T.textMut,fontWeight:800,letterSpacing:.2}}>
           <span>#</span><span>TAKIM</span>
           <span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>G</span>
           <span style={{textAlign:"center"}}>B</span><span style={{textAlign:"center"}}>M</span>
-          <span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>SON 5</span>
-          <span style={{textAlign:"center"}}>P</span>
+          <span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
+          <span style={{textAlign:"center"}}>SON 3</span><span/>
         </div>
         {takimlar.map(t=>{
           const samp=t.sira<=sampSinir, dusme=t.sira>dusmeSinir;
-          const lider=t.sira===1;
+          const lider=t.sira===1; const acik=acikTakim===t.id;
           const seritRenk = gucMod ? (t.kalibre?"#8b95a6":gucKatRenk(t.kategori,T)) : (samp?T.gold : dusme?T.danger : "transparent");
           const av=t.ag-t.yg;
-          return <div key={t.id} ref={el=>{ if(el) satirRef.current[t.id]=el; }} onClick={()=>git({sayfa:"takim",takim:t,turnuva})} className={"tap prem-tap"+(lider?" vav-hero":"")}
-            style={{position:"relative",display:"grid",gridTemplateColumns:"20px minmax(96px,1fr) 22px 22px 22px 26px 26px 56px 30px",gap:2,alignItems:"center",
-              background:lider?`linear-gradient(120deg, ${T.gold}3a, ${T.bg1} 42%, ${T.gold}22 70%, ${T.bg1})`:samp?T.gold+"12":dusme?T.danger+"10":T.bg1,borderRadius:9,padding:"8px 8px 8px 11px",marginBottom:4,fontSize:11,overflow:"hidden",
-              boxShadow:lider?`0 4px 20px ${T.gold}33`:"none"}}>
-            {lider && <div className="vav-supurme"/>}
-            <div style={{position:"absolute",left:0,top:0,bottom:0,width:lider?4:3,background:seritRenk,zIndex:1}}/>
-            <span style={{color:samp?T.gold:dusme?T.danger:T.textSoft,fontWeight:700,position:"relative"}}>{lider?"🏆":t.sira}</span>
-            <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0,position:"relative"}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,fontWeight:lider?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span>
-              {gucMod && t.kalibre && <span style={{flexShrink:0,fontSize:8,fontWeight:800,color:"#8b95a6",background:"rgba(139,149,166,.18)",borderRadius:5,padding:"1px 4px"}}>⚪{t._mc}/{gcfg.isinma}</span>}
-              {gucMod && !t.kalibre && t.bonusTop>0 && <span style={{flexShrink:0,fontSize:8,fontWeight:800,color:T.gold,background:T.gold+"22",borderRadius:5,padding:"1px 4px"}}>🔥+{t.bonusTop}</span>}</div>
-            <span style={{textAlign:"center",color:T.textSoft,position:"relative"}}>{t.o}</span>
-            <span style={{textAlign:"center",color:"#34D399",position:"relative"}}>{t.g}</span>
-            <span style={{textAlign:"center",color:T.gold,position:"relative"}}>{t.b}</span>
-            <span style={{textAlign:"center",color:T.danger,position:"relative"}}>{t.m}</span>
-            <span style={{textAlign:"center",color:av>=0?"#34D399":T.danger,fontWeight:600,position:"relative"}}>{av>=0?"+":""}{av}</span>
-            <span style={{display:"flex",gap:2,justifyContent:"center",position:"relative"}}>
-              {son5(t).map((f,i)=><span key={i} className="pop" style={{width:9,height:9,borderRadius:2,background:f==="G"?"#34D399":f==="M"?T.danger:T.gold}}/>)}
-            </span>
-            <span className={samp?"vav-parla":""} style={{textAlign:"center",color:T.gold,fontWeight:800,fontFamily:T.fontDisplay,background:T.gold+(lider?"2a":samp?"22":"18"),borderRadius:6,padding:"3px 0",position:"relative"}}><FlSayac deger={t.puan}/></span>
-          </div>;
+          return <React.Fragment key={t.id}>
+            <div ref={el=>{ if(el) satirRef.current[t.id]=el; }} onClick={()=>setAcikTakim(acik?null:t.id)} className={"tap prem-tap"+(lider&&!acik?" vav-hero":"")}
+              style={{position:"relative",display:"grid",gridTemplateColumns:"20px 1fr 18px 17px 17px 17px 24px 26px 46px 15px",gap:2,alignItems:"center",
+                background:acik?(T.bg2||T.bg1):(lider?`linear-gradient(120deg, ${T.gold}3a, ${T.bg1} 42%, ${T.gold}22 70%, ${T.bg1})`:samp?T.gold+"12":dusme?T.danger+"10":T.bg1),borderRadius:acik?"9px 9px 0 0":9,padding:"9px 6px 9px 11px",marginBottom:acik?0:4,fontSize:11.5,overflow:"hidden",
+                boxShadow:lider&&!acik?`0 4px 20px ${T.gold}33`:"none"}}>
+              {lider && !acik && <div className="vav-supurme"/>}
+              <div style={{position:"absolute",left:0,top:0,bottom:0,width:lider?4:3,background:seritRenk,zIndex:1}}/>
+              <span style={{color:samp?T.gold:dusme?T.danger:T.textSoft,fontWeight:800,fontSize:13,position:"relative"}}>{lider?"🏆":t.sira}</span>
+              <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0,position:"relative"}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={22}/>
+                <span style={{minWidth:0}}><span style={{color:T.text,fontWeight:lider?800:600,fontSize:12.5,lineHeight:1.12,wordBreak:"break-word"}}>{t.ad}</span>
+                  {gucMod && t.kalibre && <span style={{fontSize:8,fontWeight:800,color:"#8b95a6",background:"rgba(139,149,166,.18)",borderRadius:5,padding:"1px 4px",marginLeft:5,whiteSpace:"nowrap"}}>⚪{t._mc}/{gcfg.isinma}</span>}
+                  {gucMod && !t.kalibre && t.bonusTop>0 && <span style={{fontSize:8,fontWeight:800,color:T.gold,background:T.gold+"22",borderRadius:5,padding:"1px 4px",marginLeft:5,whiteSpace:"nowrap"}}>🔥+{t.bonusTop}</span>}</span></div>
+              <span style={{textAlign:"center",color:T.textSoft,position:"relative"}}>{t.o}</span>
+              <span style={{textAlign:"center",color:"#34D399",fontWeight:700,position:"relative"}}>{t.g}</span>
+              <span style={{textAlign:"center",color:T.gold,fontWeight:700,position:"relative"}}>{t.b}</span>
+              <span style={{textAlign:"center",color:T.danger,fontWeight:700,position:"relative"}}>{t.m}</span>
+              <span style={{textAlign:"center",color:av>=0?"#34D399":T.danger,fontWeight:700,position:"relative"}}>{av>=0?"+":""}{av}</span>
+              <span className={samp?"vav-parla":""} style={{textAlign:"center",color:T.gold,fontWeight:800,fontFamily:T.fontDisplay,fontSize:13.5,background:T.gold+(lider?"2a":samp?"22":"18"),borderRadius:6,padding:"3px 0",position:"relative"}}><FlSayac deger={t.puan}/></span>
+              <span style={{display:"flex",gap:2,justifyContent:"center",position:"relative"}}>
+                {son3(t).map((f,i)=><span key={i} style={{width:13,height:13,borderRadius:4,display:"grid",placeItems:"center",fontSize:8,fontWeight:800,color:"#fff",background:f==="G"?"#22b364":f==="M"?T.danger:T.gold}}>{f==="G"?"✓":f==="M"?"✕":"○"}</span>)}
+              </span>
+              <span style={{textAlign:"center",color:acik?T.accent:T.textMut,fontSize:11,position:"relative",transition:"transform .2s",transform:acik?"rotate(180deg)":"none"}}>▾</span>
+            </div>
+            {acik && <div style={{background:T.bg2||T.bg1,border:"0.5px solid "+T.line,borderTop:0,borderRadius:"0 0 9px 9px",padding:"2px 10px 9px",marginBottom:4}}>
+              <div onClick={(e)=>{e.stopPropagation(); git({sayfa:"takim",takim:t,turnuva});}} className="tap" style={{display:"flex",alignItems:"center",gap:7,padding:"8px 3px",cursor:"pointer"}}>
+                <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={18}/>
+                <span style={{flex:1,fontSize:11.5,fontWeight:700,color:T.text}}>{t.ad} — takım sayfası</span>
+                <span style={{color:T.accent,fontSize:16}}>›</span>
+              </div>
+              <div style={{fontSize:8.5,fontWeight:800,letterSpacing:.4,color:T.textMut,margin:"3px 3px 7px"}}>SON 3 MAÇ — dokun, maça git</div>
+              {takimSon3(t).length===0
+                ? <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:"8px 0"}}>Henüz oynanmış maç yok.</div>
+                : takimSon3(t).map(m=>{
+                    const evBiz=m.takimAId===t.id, bizS=evBiz?m.skorA:m.skorB, rakS=evBiz?m.skorB:m.skorA;
+                    const sn=bizS>rakS?"G":bizS<rakS?"M":"B";
+                    const tA=turnuva.takimlar.find(x=>x.id===m.takimAId), tB=turnuva.takimlar.find(x=>x.id===m.takimBId);
+                    return <div key={m.id} onClick={(e)=>{e.stopPropagation(); git({sayfa:"mac",mac:m,turnuva});}} className="tap" style={{display:"flex",alignItems:"center",gap:8,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:10,padding:"8px 9px",marginBottom:6,cursor:"pointer"}}>
+                      <span style={{width:20,height:20,borderRadius:6,flexShrink:0,display:"grid",placeItems:"center",fontSize:11,fontWeight:800,color:"#fff",background:sn==="G"?"#22b364":sn==="M"?T.danger:T.gold}}>{sn}</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11.5,fontWeight:600,color:T.text}}>
+                          <Logo renk={m.renkA} ad={m.takimA} logo={tA&&tA.logo} boy={15}/>
+                          <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:76}}>{m.takimA}</span>
+                          <span style={{fontFamily:T.fontDisplay,fontWeight:800,padding:"0 3px",whiteSpace:"nowrap"}}>{m.skorA}-{m.skorB}</span>
+                          <Logo renk={m.renkB} ad={m.takimB} logo={tB&&tB.logo} boy={15}/>
+                          <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:76}}>{m.takimB}</span>
+                        </div>
+                        <div style={{fontSize:9,color:T.textMut,marginTop:3}}>📅 {macGun(m)}</div>
+                      </div>
+                      <span style={{color:T.textMut,fontSize:15,flexShrink:0}}>›</span>
+                    </div>;
+                  })}
+            </div>}
+          </React.Fragment>;
         })}
-      </div>
     </div>
 
     {/* BÖLGE / KATEGORİ AÇIKLAMA */}
