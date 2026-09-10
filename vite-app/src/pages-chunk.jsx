@@ -1361,6 +1361,19 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
   const [sekme,setSekme]=useState("akis");
   // Kaptan kendi takımının logosunu değiştirebilir (RLS: takim_yoneticim)
   const takimBenim = !!(oturum && ((takim.yonetici_id && takim.yonetici_id===oturum.id) || adminMi));
+  // Yetki (TD = takımın yetkilisi): süper admin + lig yöneticisi + takım yöneticisi (yonetici_id) atayabilir/çıkarabilir.
+  const ligYoneticisi = !!(oturum && turnuva && turnuva.yonetici_id && turnuva.yonetici_id===oturum.id);
+  const tdYetkili = !!(adminMi || ligYoneticisi || (takim.yonetici_id && oturum && takim.yonetici_id===oturum.id));
+  const cikarabilir = tdYetkili; // takim_yoneticim aynası — oyuncu_cikar RPC sunucuda tekrar doğrular
+  const [,setKadroTik]=useState(0);
+  const kadrodanCikarHizli=async(o)=>{
+    if(!confirm(o.ad+" oyuncusunu takımdan çıkar?\n\nKadrodan düşer, geçmiş maç ve istatistikleri korunur; oyuncuya bildirim gider.")) return;
+    if(typeof o.id==="string"){
+      const r=await Db.oyuncuCikar(o.id, takim.id);
+      if(!(r&&r.ok)){ alert("Çıkarılamadı: "+((r&&r.hata)||"bu işlem için yetkin yok")); return; }
+    }
+    takim.oyuncular=takim.oyuncular.filter(x=>x.id!==o.id); setKadroTik(x=>x+1);
+  };
   const [logoYuk,setLogoYuk]=useState(false); const [,setLogoTik]=useState(0);
   // Teknik Direktör (takıma bağlı rol — yönetici/admin atar)
   const [td,setTd]=useState(takim.td||null);
@@ -1369,7 +1382,17 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
   const [,setKapakTik]=useState(0); // kapak kaydedilince yeniden çiz
   const takimKapakKaydet=async(k)=>{ takim.kapak=k; setKapakTik(x=>x+1); if(sb && typeof takim.id==="string"){ const r=await Db.takimKapakYaz(takim.id, k); if(r&&r.hata) alert("Kapak kaydedilemedi: "+r.hata); } };
   const [tdAd,setTdAd]=useState("");
-  const tdKaydet=async(obj)=>{ takim.td=obj; setTd(obj); setTdModal(false); if(sb && typeof takim.id==="string"){ try{ await sb.from('takimlar').update({td:obj}).eq('id',takim.id); }catch(e){} } };
+  const tdKaydet=async(obj)=>{
+    takim.td=obj; setTd(obj); setTdModal(false);
+    // TD = takımın yetkilisi. Hesabı olan kişi seçilirse yönetim yetkisi ona geçer (öncekinin yetkisi kalkar);
+    // TD kaldırılırsa yetki de kalkar. (RLS: takim_yoneticim → admin / lig yön. / takım yön. yazabilir.)
+    if(sb && typeof takim.id==="string"){
+      const upd={td:obj};
+      if(obj===null){ upd.yonetici_id=null; takim.yonetici_id=null; }
+      else if(obj.user_id){ upd.yonetici_id=obj.user_id; takim.yonetici_id=obj.user_id; }
+      try{ await sb.from('takimlar').update(upd).eq('id',takim.id); }catch(e){}
+    }
+  };
   const logoDegistir=async(e)=>{
     const f=e.target.files&&e.target.files[0]; if(!f)return;
     setLogoYuk(true);
@@ -1463,16 +1486,16 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
         <div style={{minWidth:0}}>
           <div style={{fontSize:24,fontWeight:800,color:"#fff",fontFamily:T.fontDisplay,lineHeight:1.15,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",textShadow:"0 2px 10px rgba(0,0,0,.6)"}}>{takim.ad} <span style={{fontSize:11,background:"rgba(255,255,255,.18)",color:"#fff",fontWeight:700,borderRadius:6,padding:"2px 8px"}}>{guvNotu}</span></div>
           <div style={{fontSize:11,color:"#e4f2f6",marginTop:4,textShadow:"0 1px 6px rgba(0,0,0,.6)"}}>{takim.oyuncular.length} oyuncu · {takim.o} maç · ort. güç <b style={{color:"#fff",fontFamily:T.fontDisplay}}>{ortGuc}</b></div>
-          {(td||takimBenim) && <div style={{display:"flex",alignItems:"center",gap:6,marginTop:7,flexWrap:"wrap"}}>
+          {(td||tdYetkili) && <div style={{display:"flex",alignItems:"center",gap:6,marginTop:7,flexWrap:"wrap"}}>
             <span style={{fontSize:10.5,fontWeight:700,color:T.gold,background:T.gold+"1c",borderRadius:6,padding:"3px 9px"}}>🎯 TD: {td?td.ad:"atanmadı"}</span>
-            {takimBenim && <button onClick={()=>{setTdAd(td?td.ad:"");setTdModal(true);}} className="tap" style={{fontSize:10,fontWeight:700,color:T.accent,background:"none",border:"0.5px solid "+T.line,borderRadius:6,padding:"3px 9px"}}>{td?"Değiştir":"Ata"}</button>}
+            {tdYetkili && <button onClick={()=>{setTdAd(td?td.ad:"");setTdModal(true);}} className="tap" style={{fontSize:10,fontWeight:700,color:T.accent,background:"none",border:"0.5px solid "+T.line,borderRadius:6,padding:"3px 9px"}}>{td?"Değiştir":"Ata"}</button>}
           </div>}
         </div>
       </div>
       {tdModal && <div onClick={()=>setTdModal(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.62)",zIndex:1600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
         <div onClick={e=>e.stopPropagation()} className="fade-in" style={{width:"100%",maxWidth:460,maxHeight:"78vh",overflowY:"auto",background:T.bg1,borderRadius:"18px 18px 0 0",padding:"16px 16px calc(20px + env(safe-area-inset-bottom))",border:"0.5px solid "+T.line}}>
           <div style={{fontSize:15,fontWeight:800,color:T.text,marginBottom:4}}>🎯 Teknik Direktör Ata</div>
-          <div style={{fontSize:11.5,color:T.textMut,marginBottom:12,lineHeight:1.5}}>Ligdeki bir kişiyi seç ya da ismini yaz. (Üyelikte sorulmaz — takıma buradan atanır.)</div>
+          <div style={{fontSize:11.5,color:T.textMut,marginBottom:12,lineHeight:1.5}}>Seçtiğin kişi takımın <b style={{color:T.gold}}>teknik direktörü (yetkilisi)</b> olur; öncekinin yetkisi kalkar. <b style={{color:T.text}}>Hesabı olan</b> birini listeden seçersen oyuncu <b>ekleme/çıkarma</b> yetkisi ona geçer. Sadece isim yazarsan etiket olarak görünür.</div>
           <div style={{display:"flex",gap:7,marginBottom:12}}>
             <input value={tdAd} onChange={e=>setTdAd(e.target.value)} placeholder="Teknik direktör adı" style={{flex:1,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px 12px",color:T.text,fontSize:13.5,outline:"none",fontFamily:"inherit"}}/>
             <button onClick={()=>tdAd.trim()&&tdKaydet({ad:tdAd.trim()})} className="tap" style={{background:T.accent,color:T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,border:0,borderRadius:10,padding:"0 16px",fontSize:13,fontWeight:800}}>Kaydet</button>
@@ -1488,9 +1511,9 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
             [...kendi,...ligdekiler].forEach(x=>{ const k=String((x.o&&(x.o.id||x.o.player_id||x.o.ad))||""); if(k&&!gorulen.has(k)){ gorulen.add(k); hepsi.push(x); } });
             const suzulmus=(q ? hepsi.filter(x=>String((x.o&&x.o.ad)||"").toLocaleLowerCase("tr").includes(q)) : hepsi).slice(0,60);
             if(!suzulmus.length) return <div style={{fontSize:11.5,color:T.textMut,textAlign:"center",padding:"14px 0"}}>{q?"Eşleşen kişi yok — yukarıya adı yazıp Kaydet'e bas.":"Liste boş."}</div>;
-            return suzulmus.map(({o,tk})=><div key={(tk.id||"t")+"|"+(o.id||o.player_id||o.ad)} onClick={()=>tdKaydet({ad:o.ad,foto:o.foto||null})} className="tap" style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",borderRadius:9,borderBottom:"0.5px solid "+T.line}}>
+            return suzulmus.map(({o,tk})=><div key={(tk.id||"t")+"|"+(o.id||o.player_id||o.ad)} onClick={()=>tdKaydet({ad:o.ad,foto:o.foto||null,user_id:o.sahip_user_id||null,player_id:o.id||o.player_id||null})} className="tap" style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",borderRadius:9,borderBottom:"0.5px solid "+T.line}}>
               <div style={{width:30,height:30,borderRadius:"50%",overflow:"hidden",flexShrink:0,background:T.bg2}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,30,o.foto)}}/>
-              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div><div style={{fontSize:10,color:T.textMut}}>{(tk&&tk.id===takim.id)?"bu takım · kadro":(tk&&tk.ad)||""}</div></div>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div><div style={{fontSize:10,color:T.textMut}}>{(tk&&tk.id===takim.id)?"bu takım · kadro":(tk&&tk.ad)||""}{o.sahip_user_id?" · ✓ hesap (yetki geçer)":""}</div></div>
               <span style={{fontSize:11,color:T.accent,fontWeight:700}}>Seç</span>
             </div>);
           })()}
@@ -1639,7 +1662,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
         </div>
       </div>
       <div style={{padding:"6px 14px"}}>
-        <div style={{fontSize:11,color:T.accent,fontWeight:700,margin:"4px 2px 10px"}}>👥 KADRO ({takim.oyuncular.length})</div>
+        <div style={{fontSize:11,color:T.accent,fontWeight:700,margin:"4px 2px 10px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>👥 KADRO ({takim.oyuncular.length}){cikarabilir && typeof takim.id==="string" && <span style={{fontSize:9.5,fontWeight:600,color:T.textMut}}>· yetkili: <b style={{color:T.danger}}>✕</b> ile oyuncu çıkar</span>}</div>
         {sirali.map(o=>
           <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:{...o,takimAd:takim.ad,turnuva:turnuva.ad}})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:5}}>
             <span style={{width:24,fontSize:11,color:T.textMut,textAlign:"center"}}>{o.no}</span>
@@ -1651,6 +1674,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:11,color:T.accent}}>{o.gol}⚽</span>
               <span style={{width:28,height:28,borderRadius:7,background:o.ovr>=85?T.gold:T.bg2,color:o.ovr>=85?"#1A1505":T.textSoft,fontSize:12,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{o.ovr}</span>
+              {cikarabilir && typeof takim.id==="string" && <span onClick={(e)=>{e.stopPropagation();kadrodanCikarHizli(o);}} className="tap" title="Kadrodan çıkar" style={{fontSize:14,color:T.danger,fontWeight:700,padding:"2px 7px",borderRadius:7,background:T.danger+"14",border:"0.5px solid "+T.danger+"33",cursor:"pointer",lineHeight:1}}>✕</span>}
             </div>
           </div>
         )}
