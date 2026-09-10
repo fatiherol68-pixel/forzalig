@@ -980,6 +980,8 @@ const GUC_ROZET={yesil:"🟢 Yeşil", kirmizi:"🔴 Kırmızı", siyah:"⚫ Siya
 const gucAcikTema=(T)=>{ try{ const h=((T&&T.bg0)||'#000').replace('#',''); const r=parseInt(h.slice(0,2),16)||0,g=parseInt(h.slice(2,4),16)||0,b=parseInt(h.slice(4,6),16)||0; return (0.299*r+0.587*g+0.114*b)>145; }catch(e){ return false; } };
 const gucSiyahRenk=(T)=> gucAcikTema(T) ? "#22262f" : "#c7ccd6";
 const gucKatRenk=(kat,T)=> kat==='siyah' ? gucSiyahRenk(T) : (GUC_RENK[kat]||"#888");
+// SOL ÇUBUK rengi (arka plan/boxShadow) — siyah HER temada gerçekten koyu/siyah dursun (metin değil, çubuk)
+const gucBarRenk=(kat)=> kat==='siyah' ? "#191c24" : (GUC_RENK[kat]||"#888");
 const URL_FOR = (n)=>{ try{ const base=location.pathname; if(!n||!n.sayfa) return base;
   // OKUNAKLI LİNK: varlığın slug'ı varsa forzalig.com/<slug> (temiz yol). Yoksa eski parametrelere düşer (aynen çalışır).
   if(n.sayfa==='turnuva' && n.turnuva && n.turnuva.slug) return '/'+n.turnuva.slug;
@@ -5378,7 +5380,7 @@ function AnaSayfa({turnuvalar, T, git}){
             <span>#</span><span>TAKIM</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
           </div>
           {ilk5.map(t=>
-            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+gucKatRenk(t.kategori,T)):undefined}}>
+            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+(t.kalibre?"#9aa3b2":gucBarRenk(t.kategori))):undefined}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
               <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
@@ -5810,7 +5812,7 @@ function AnaSayfaV5({turnuvalar, T, git}){
             <span>#</span><span>TAKIM</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
           </div>
           {ilk5.map(t=>
-            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+gucKatRenk(t.kategori,T)):undefined}}>
+            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+(t.kalibre?"#9aa3b2":gucBarRenk(t.kategori))):undefined}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
               <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
@@ -6849,7 +6851,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
             <span>#</span><span>TAKIM</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
           </div>
           {ilk5.map(t=>
-            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+gucKatRenk(t.kategori,T)):undefined}}>
+            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+(t.kalibre?"#9aa3b2":gucBarRenk(t.kategori))):undefined}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
               <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
@@ -7110,7 +7112,7 @@ function LigGenel({turnuva, T, git}){
             <span>#</span><span>TAKIM</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
           </div>
           {ilk5.map(t=>
-            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+gucKatRenk(t.kategori,T)):undefined}}>
+            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+(t.kalibre?"#9aa3b2":gucBarRenk(t.kategori))):undefined}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
               <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
@@ -8605,7 +8607,7 @@ function PuanDurumuTekli({turnuva, T, git}){
         {takimlar.map(t=>{
           const samp=t.sira<=sampSinir, dusme=t.sira>dusmeSinir;
           const lider=t.sira===1; const acik=acikSet.has(t.id);
-          const seritRenk = gucMod ? (t.kalibre?"#8b95a6":gucKatRenk(t.kategori,T)) : (samp?T.gold : dusme?T.danger : "transparent");
+          const seritRenk = gucMod ? (t.kalibre? "repeating-linear-gradient(45deg, #9aa3b2 0 2px, "+(T.bg2||T.bg1||"#333")+" 2px 4px)" : gucBarRenk(t.kategori)) : (samp?T.gold : dusme?T.danger : "transparent");
           const av=t.ag-t.yg;
           return <React.Fragment key={t.id}>
             <div ref={el=>{ if(el) satirRef.current[t.id]=el; }} onClick={()=>acikToggle(t.id)} className={"tap prem-tap"+(lider&&!acik?" vav-hero":"")}
@@ -8668,8 +8670,8 @@ function PuanDurumuTekli({turnuva, T, git}){
       ? <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",margin:"8px 0 16px",fontSize:10,color:T.textMut}}>
           <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:GUC_RENK.yesil}}/>Yeşil (zayıf)</span>
           <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:GUC_RENK.kirmizi}}/>Kırmızı (orta)</span>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:gucSiyahRenk(T)}}/>Siyah (güçlü)</span>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:"#8b95a6"}}/>Kalibrasyon</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:gucBarRenk('siyah'),border:"1px solid rgba(255,255,255,.4)"}}/>Siyah (güçlü)</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:9,height:8,borderRadius:2,background:"repeating-linear-gradient(45deg,#9aa3b2 0 2px,transparent 2px 4px)"}}/>Kalibrasyon</span>
         </div>
       : <div style={{display:"flex",gap:14,justifyContent:"center",margin:"8px 0 16px",fontSize:10,color:T.textMut}}>
           <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:T.gold}}/>Şampiyonluk/Avrupa</span>
