@@ -8507,7 +8507,7 @@ function PuanDurumuTekli({turnuva, T, git}){
       }
       flipRef.current = {pos:yeniPos, sira:ids};
     }catch(e){}
-  });
+  },[takimlar]);   // PERF: sadece sıra/veri değişince ölç — accordion açılıp kapanınca çalışma (tıklama düşmesin)
   const n = takimlar.length;
   const lider = takimlar[0];
   const ikinci = takimlar[1]||lider;
@@ -8595,7 +8595,7 @@ function PuanDurumuTekli({turnuva, T, git}){
       <div>🔥 Bir ayda {gcfg.bonEs1}+ maç → +{gcfg.bonP1} bonus · {gcfg.bonEs2}+ maç → +{gcfg.bonP2} bonus</div>
     </div>}
     <div>
-        <div style={{display:"grid",gridTemplateColumns:"20px 1fr 16px 15px 15px 15px 22px 25px 56px 28px",gap:2,padding:"0 2px 6px",fontSize:8.5,color:T.textMut,fontWeight:800,letterSpacing:.2}}>
+        <div style={{display:"grid",gridTemplateColumns:"22px 1fr 20px 19px 19px 19px 28px 30px 54px 28px",gap:4,padding:"0 2px 6px",fontSize:9.5,color:T.textSoft,fontWeight:800,letterSpacing:.4}}>
           <span>#</span><span>TAKIM</span>
           <span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>G</span>
           <span style={{textAlign:"center"}}>B</span><span style={{textAlign:"center"}}>M</span>
@@ -8609,8 +8609,8 @@ function PuanDurumuTekli({turnuva, T, git}){
           const av=t.ag-t.yg;
           return <React.Fragment key={t.id}>
             <div ref={el=>{ if(el) satirRef.current[t.id]=el; }} onClick={()=>acikToggle(t.id)} className={"tap prem-tap"+(lider&&!acik?" vav-hero":"")}
-              style={{position:"relative",display:"grid",gridTemplateColumns:"20px 1fr 16px 15px 15px 15px 22px 25px 56px 28px",gap:2,alignItems:"center",userSelect:"none",WebkitUserSelect:"none",cursor:"pointer",
-                background:acik?(T.bg2||T.bg1):(lider?`linear-gradient(120deg, ${T.gold}3a, ${T.bg1} 42%, ${T.gold}22 70%, ${T.bg1})`:samp?T.gold+"12":dusme?T.danger+"10":T.bg1),borderRadius:acik?"9px 9px 0 0":9,padding:"9px 2px 9px 6px",marginBottom:acik?0:4,fontSize:11.5,overflow:"hidden",
+              style={{position:"relative",display:"grid",gridTemplateColumns:"22px 1fr 20px 19px 19px 19px 28px 30px 54px 28px",gap:4,alignItems:"center",userSelect:"none",WebkitUserSelect:"none",cursor:"pointer",
+                background:acik?(T.bg2||T.bg1):(lider?`linear-gradient(120deg, ${T.gold}3a, ${T.bg1} 42%, ${T.gold}22 70%, ${T.bg1})`:samp?T.gold+"12":dusme?T.danger+"10":T.bg1),borderRadius:acik?"9px 9px 0 0":9,padding:"10px 2px 10px 6px",marginBottom:acik?0:4,fontSize:12.5,overflow:"hidden",
                 boxShadow:lider&&!acik?`0 4px 20px ${T.gold}33`:"none"}}>
               {lider && !acik && <div className="vav-supurme"/>}
               <div style={{position:"absolute",left:0,top:0,bottom:0,width:lider?4:3,background:seritRenk,zIndex:1}}/>
@@ -8628,7 +8628,7 @@ function PuanDurumuTekli({turnuva, T, git}){
               <span style={{display:"flex",gap:2,justifyContent:"center",position:"relative"}}>
                 {son5(t).map((f,i)=><span key={i} style={{width:11,height:11,borderRadius:3,display:"grid",placeItems:"center",fontSize:7,fontWeight:800,color:"#fff",background:f==="G"?"#22b364":f==="M"?T.danger:T.gold}}>{f==="G"?"✓":f==="M"?"✕":"○"}</span>)}
               </span>
-              <span style={{display:"flex",justifyContent:"flex-end",alignItems:"center",paddingLeft:4,position:"relative"}}><span style={{width:22,height:22,borderRadius:7,display:"grid",placeItems:"center",background:acik?T.accent:T.accent+"22",color:acik?"#fff":T.accent,fontSize:15,fontWeight:900,lineHeight:1,transition:"transform .2s, background .2s",transform:acik?"rotate(180deg)":"none"}}>▾</span></span>
+              <span onClick={(e)=>{e.stopPropagation(); acikToggle(t.id);}} style={{display:"flex",justifyContent:"flex-end",alignItems:"center",paddingLeft:4,position:"relative",cursor:"pointer"}}><span style={{width:22,height:22,borderRadius:7,display:"grid",placeItems:"center",background:acik?T.accent:T.accent+"22",color:acik?"#fff":T.accent,fontSize:15,fontWeight:900,lineHeight:1,transition:"transform .2s, background .2s",transform:acik?"rotate(180deg)":"none"}}>▾</span></span>
             </div>
             {acik && <div style={{background:T.bg2||T.bg1,border:"0.5px solid "+T.line,borderTop:0,borderRadius:"0 0 9px 9px",padding:"2px 10px 9px",marginBottom:4}}>
               <div onClick={(e)=>{e.stopPropagation(); git({sayfa:"takim",takim:t,turnuva});}} className="tap" style={{display:"flex",alignItems:"center",gap:7,padding:"8px 3px",cursor:"pointer"}}>
