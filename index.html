@@ -973,15 +973,15 @@ let __sahneIlk=true; // PERFORMANS: sahne (dokulu) arka planı ilk yüklemede ge
 const GUC_VARSAYILAN={mod:"guc",isinma:5,galY:3,galK:4,galS:5,magY:3,magK:2,magS:1,ber:1,esKir:10,esSiy:40,bonEs1:6,bonP1:10,bonEs2:9,bonP2:14};
 const gucAktif=(t)=> !!(t && t.format==='serbest' && t.puanSistemi && t.puanSistemi.mod==='guc');
 const gucCfg=(t)=> Object.assign({}, GUC_VARSAYILAN, (t&&t.puanSistemi)||{});
-const gucKat=(p,c)=> p>=c.esSiy?'siyah': p>=c.esKir?'kirmizi':'yesil';
-const GUC_RENK={yesil:"#2BE07C", kirmizi:"#E5484D", siyah:"#c7ccd6"};
-const GUC_ROZET={yesil:"🟢 Yeşil", kirmizi:"🔴 Kırmızı", siyah:"⚫ Siyah"};
+const gucKat=(p,c)=> p<=0?'renksiz': p>=c.esSiy?'siyah': p>=c.esKir?'kirmizi':'yesil';   // 0 puan = renksiz (Rakipbul mantığı)
+const GUC_RENK={yesil:"#2BE07C", kirmizi:"#E5484D", siyah:"#c7ccd6", renksiz:"#c3c9d4"};
+const GUC_ROZET={yesil:"🟢 Yeşil", kirmizi:"🔴 Kırmızı", siyah:"⚫ Siyah", renksiz:"⚪ Renksiz (0)"};
 // Siyah kategori temaya duyarlı: AÇIK temada gerçek koyu/siyah, KOYU temada gümüş (görünür kalsın)
 const gucAcikTema=(T)=>{ try{ const h=((T&&T.bg0)||'#000').replace('#',''); const r=parseInt(h.slice(0,2),16)||0,g=parseInt(h.slice(2,4),16)||0,b=parseInt(h.slice(4,6),16)||0; return (0.299*r+0.587*g+0.114*b)>145; }catch(e){ return false; } };
 const gucSiyahRenk=(T)=> gucAcikTema(T) ? "#22262f" : "#c7ccd6";
-const gucKatRenk=(kat,T)=> kat==='siyah' ? gucSiyahRenk(T) : (GUC_RENK[kat]||"#888");
-// SOL ÇUBUK rengi (arka plan/boxShadow) — siyah HER temada gerçekten koyu/siyah dursun (metin değil, çubuk)
-const gucBarRenk=(kat)=> kat==='siyah' ? "#191c24" : (GUC_RENK[kat]||"#888");
+const gucKatRenk=(kat,T)=> kat==='siyah' ? gucSiyahRenk(T) : kat==='renksiz' ? "#9aa3b2" : (GUC_RENK[kat]||"#888");
+// SOL ÇUBUK rengi (arka plan/boxShadow) — siyah gerçekten koyu, renksiz (0 puan) çubuksuz
+const gucBarRenk=(kat)=> kat==='renksiz' ? "transparent" : kat==='siyah' ? "#191c24" : (GUC_RENK[kat]||"#888");
 const URL_FOR = (n)=>{ try{ const base=location.pathname; if(!n||!n.sayfa) return base;
   // OKUNAKLI LİNK: varlığın slug'ı varsa forzalig.com/<slug> (temiz yol). Yoksa eski parametrelere düşer (aynen çalışır).
   if(n.sayfa==='turnuva' && n.turnuva && n.turnuva.slug) return '/'+n.turnuva.slug;
@@ -5380,7 +5380,7 @@ function AnaSayfa({turnuvalar, T, git}){
             <span>#</span><span>TAKIM</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
           </div>
           {ilk5.map(t=>
-            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+(t.kalibre?"#9aa3b2":gucBarRenk(t.kategori))):undefined}}>
+            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori&&t.kategori!=='renksiz')?("inset 3px 0 0 "+gucBarRenk(t.kategori)):undefined}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
               <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
@@ -5812,7 +5812,7 @@ function AnaSayfaV5({turnuvalar, T, git}){
             <span>#</span><span>TAKIM</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
           </div>
           {ilk5.map(t=>
-            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+(t.kalibre?"#9aa3b2":gucBarRenk(t.kategori))):undefined}}>
+            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori&&t.kategori!=='renksiz')?("inset 3px 0 0 "+gucBarRenk(t.kategori)):undefined}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
               <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
@@ -6851,7 +6851,7 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
             <span>#</span><span>TAKIM</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
           </div>
           {ilk5.map(t=>
-            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+(t.kalibre?"#9aa3b2":gucBarRenk(t.kategori))):undefined}}>
+            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori&&t.kategori!=='renksiz')?("inset 3px 0 0 "+gucBarRenk(t.kategori)):undefined}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
               <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
@@ -7112,7 +7112,7 @@ function LigGenel({turnuva, T, git}){
             <span>#</span><span>TAKIM</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
           </div>
           {ilk5.map(t=>
-            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+(t.kalibre?"#9aa3b2":gucBarRenk(t.kategori))):undefined}}>
+            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori&&t.kategori!=='renksiz')?("inset 3px 0 0 "+gucBarRenk(t.kategori)):undefined}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
               <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
@@ -8587,7 +8587,7 @@ function PuanDurumuTekli({turnuva, T, git}){
     </div>
     {gucMod && gucNasil && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 13px",margin:"0 0 12px",fontSize:11,color:T.textSoft,lineHeight:1.6}}>
       <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:9}}>
-        <span style={{flex:1,minWidth:88,background:T.bg2,border:"0.5px solid "+GUC_RENK.yesil+"55",borderRadius:9,padding:"6px 8px"}}><b style={{color:GUC_RENK.yesil}}>🟢 Yeşil</b><br/><span style={{fontSize:9.5,color:T.textMut}}>0–{gcfg.esKir-1} puan</span></span>
+        <span style={{flex:1,minWidth:88,background:T.bg2,border:"0.5px solid "+GUC_RENK.yesil+"55",borderRadius:9,padding:"6px 8px"}}><b style={{color:GUC_RENK.yesil}}>🟢 Yeşil</b><br/><span style={{fontSize:9.5,color:T.textMut}}>1–{gcfg.esKir-1} puan · 0 renksiz</span></span>
         <span style={{flex:1,minWidth:88,background:T.bg2,border:"0.5px solid "+GUC_RENK.kirmizi+"55",borderRadius:9,padding:"6px 8px"}}><b style={{color:GUC_RENK.kirmizi}}>🔴 Kırmızı</b><br/><span style={{fontSize:9.5,color:T.textMut}}>{gcfg.esKir}–{gcfg.esSiy-1} puan</span></span>
         <span style={{flex:1,minWidth:88,background:T.bg2,border:"0.5px solid "+(gucAcikTema(T)?"rgba(0,0,0,.2)":"rgba(255,255,255,.22)"),borderRadius:9,padding:"6px 8px"}}><b style={{color:gucSiyahRenk(T)}}>⚫ Siyah</b><br/><span style={{fontSize:9.5,color:T.textMut}}>{gcfg.esSiy}+ puan</span></span>
       </div>
@@ -8607,7 +8607,7 @@ function PuanDurumuTekli({turnuva, T, git}){
         {takimlar.map(t=>{
           const samp=t.sira<=sampSinir, dusme=t.sira>dusmeSinir;
           const lider=t.sira===1; const acik=acikSet.has(t.id);
-          const seritRenk = gucMod ? (t.kalibre? "repeating-linear-gradient(45deg, #9aa3b2 0 2px, "+(T.bg2||T.bg1||"#333")+" 2px 4px)" : gucBarRenk(t.kategori)) : (samp?T.gold : dusme?T.danger : "transparent");
+          const seritRenk = gucMod ? gucBarRenk(t.kategori) : (samp?T.gold : dusme?T.danger : "transparent");
           const av=t.ag-t.yg;
           return <React.Fragment key={t.id}>
             <div ref={el=>{ if(el) satirRef.current[t.id]=el; }} onClick={()=>acikToggle(t.id)} className={"tap prem-tap"+(lider&&!acik?" vav-hero":"")}
@@ -8619,8 +8619,7 @@ function PuanDurumuTekli({turnuva, T, git}){
               <span style={{color:samp?T.gold:dusme?T.danger:T.textSoft,fontWeight:800,fontSize:13,position:"relative"}}>{lider?"🏆":t.sira}</span>
               <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0,position:"relative"}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={22}/>
                 <span style={{minWidth:0,display:"flex",flexDirection:"column",gap:1}}><span style={{color:T.text,fontWeight:lider?800:600,fontSize:12.5,lineHeight:1.12,wordBreak:"break-word"}}>{t.ad}</span>
-                  {gucMod && t.kalibre && <span style={{alignSelf:"flex-start",fontSize:8,fontWeight:800,color:"#8b95a6",background:"rgba(139,149,166,.18)",borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap"}}>⚪ {t._mc}/{gcfg.isinma}</span>}
-                  {gucMod && !t.kalibre && t.bonusTop>0 && <span style={{alignSelf:"flex-start",fontSize:8,fontWeight:800,color:T.gold,background:T.gold+"22",borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap"}}>🔥 +{t.bonusTop}</span>}</span></div>
+                  {gucMod && t.bonusTop>0 && <span style={{alignSelf:"flex-start",fontSize:8,fontWeight:800,color:T.gold,background:T.gold+"22",borderRadius:5,padding:"1px 5px",whiteSpace:"nowrap"}}>🔥 +{t.bonusTop}</span>}</span></div>
               <span style={{textAlign:"center",color:T.textSoft,position:"relative"}}>{t.o}</span>
               <span style={{textAlign:"center",color:"#34D399",fontWeight:700,position:"relative"}}>{t.g}</span>
               <span style={{textAlign:"center",color:T.gold,fontWeight:700,position:"relative"}}>{t.b}</span>
@@ -8668,10 +8667,10 @@ function PuanDurumuTekli({turnuva, T, git}){
     {/* BÖLGE / KATEGORİ AÇIKLAMA */}
     {gucMod
       ? <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",margin:"8px 0 16px",fontSize:10,color:T.textMut}}>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:GUC_RENK.yesil}}/>Yeşil (zayıf)</span>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:GUC_RENK.kirmizi}}/>Kırmızı (orta)</span>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:gucBarRenk('siyah'),border:"1px solid rgba(255,255,255,.4)"}}/>Siyah (güçlü)</span>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:9,height:8,borderRadius:2,background:"repeating-linear-gradient(45deg,#9aa3b2 0 2px,transparent 2px 4px)"}}/>Kalibrasyon</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:GUC_RENK.yesil}}/>Yeşil (1–9)</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:GUC_RENK.kirmizi}}/>Kırmızı (10–39)</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:gucBarRenk('siyah'),border:"1px solid rgba(255,255,255,.4)"}}/>Siyah (40+)</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:"transparent",border:"1px dashed #9aa3b2"}}/>Renksiz (0 puan)</span>
         </div>
       : <div style={{display:"flex",gap:14,justifyContent:"center",margin:"8px 0 16px",fontSize:10,color:T.textMut}}>
           <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:2,background:T.gold}}/>Şampiyonluk/Avrupa</span>

@@ -857,7 +857,7 @@ function LigGenel({turnuva, T, git}){
             <span>#</span><span>TAKIM</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>AV</span><span style={{textAlign:"center"}}>P</span>
           </div>
           {ilk5.map(t=>
-            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori)?("inset 3px 0 0 "+(t.kalibre?"#9aa3b2":gucBarRenk(t.kategori))):undefined}}>
+            <div key={t.id} onClick={()=>git({sayfa:"takim",takim:t,turnuva:tk})} className="tap" style={{display:"grid",gridTemplateColumns:"20px 1fr 26px 36px 30px",gap:4,alignItems:"center",background:t.sira===1?T.gold+"14":T.bg1,borderRadius:9,padding:"8px 10px",marginBottom:4,fontSize:12,boxShadow:(gucAktif(tk)&&t.kategori&&t.kategori!=='renksiz')?("inset 3px 0 0 "+gucBarRenk(t.kategori)):undefined}}>
               <span style={{color:t.sira===1?T.gold:T.textSoft,fontWeight:700}}>{t.sira}</span>
               <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}><Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={20}/><span style={{color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</span></div>
               <span style={{textAlign:"center",color:T.textSoft}}>{t.o}</span>
