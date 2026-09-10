@@ -19299,7 +19299,7 @@ function App(){
         karbon:`repeating-linear-gradient(45deg, ${b0} 0 3px, ${b1} 3px 6px), repeating-linear-gradient(-45deg, rgba(255,255,255,.015) 0 3px, transparent 3px 6px)`,
         prizma:`linear-gradient(125deg, ${A(.16)} 0 11%, transparent 11% 25%, ${B(.14)} 25% 35%, transparent 35% 52%, ${A(.10)} 52% 60%, transparent 60%), radial-gradient(120% 70% at 82% -8%, ${A(.20)}, transparent 55%), linear-gradient(160deg, ${b1}, ${b0})`,
         sinyal:`linear-gradient(0deg, ${A(.05)} 1px, transparent 1px) 0 0/48px 48px, linear-gradient(90deg, ${A(.05)} 1px, transparent 1px) 0 0/48px 48px, radial-gradient(85% 52% at 86% -12%, ${A(.11)}, transparent 55%), linear-gradient(160deg, ${b0}, ${b2})`,
-        sampiyon:`radial-gradient(120% 85% at 50% -18%, ${A(.30)}, transparent 52%), repeating-conic-gradient(from 0deg at 50% -12%, ${A(.06)} 0 5deg, transparent 5deg 11deg), linear-gradient(160deg, ${b1}, ${b0})`,
+        sampiyon:`radial-gradient(120% 85% at 50% -18%, ${A(.30)}, transparent 52%), radial-gradient(80% 55% at 50% -12%, ${A(.10)}, transparent 55%), linear-gradient(160deg, ${b1}, ${b0})`,
         oyun:`repeating-linear-gradient(135deg, ${A(.10)} 0 26px, transparent 26px 52px), radial-gradient(120% 80% at 50% 124%, ${A(.20)}, transparent 60%), linear-gradient(160deg, ${b1}, ${b0})`,
         kagit:`radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px) 0 0/9px 9px, radial-gradient(72% 50% at 82% -4%, ${A(.09)}, transparent 55%), linear-gradient(160deg, ${b0}, ${b2})`,
         siber:`linear-gradient(${A(.13)} 1px, transparent 1px) 0 0/100% 34px, linear-gradient(90deg, ${B(.11)} 1px, transparent 1px) 0 0/34px 100%, radial-gradient(105% 55% at 50% 122%, ${A(.30)}, transparent 60%), linear-gradient(160deg, ${b1}, ${b0})`,
@@ -19309,7 +19309,9 @@ function App(){
       };
       const grad = SAHNE[stilKey] || `radial-gradient(1200px 720px at 85% -10%, ${A(.28)}, transparent 55%), linear-gradient(160deg, ${b1}, ${b0})`;
       r.setProperty("--sahne-bg", grad);
-      document.body.style.background=grad;
+      // PERFORMANS: sahne gradyanı SABİT tek katmanda (aşağıda position:fixed div) çizilir.
+      // body'yi düz renk bırak → uzun sayfada dev gradyanı tekrar tekrar boyamaz (kasma biter).
+      document.body.style.background=T.bg0;
     }catch(e){ document.body.style.background=T.bg0; }
     // stil imzası → global CSS kancaları (büyük harf / neon / açık / cam)
     document.body.classList.toggle("stil-buyukharf", !!stil.buyukHarf);
@@ -19949,7 +19951,10 @@ function App(){
     }
     window.scrollTo(0,0); };
 
-  return <div style={{minHeight:"100vh",background:"var(--sahne-bg, "+T.bg0+")",fontFamily:T.fontBody}}>
+  return <div style={{minHeight:"100vh",background:"transparent",fontFamily:T.fontBody}}>
+    {/* PERFORMANS: sahne arka planı — SABİT, sadece ekran boyu (100vh). Kaydırınca yeniden boyanmaz,
+        sayfa uzadıkça büyümez → mobilde kasma biter. GPU'da tek seferde compose edilir. */}
+    <div aria-hidden="true" style={{position:"fixed",inset:0,zIndex:-1,background:"var(--sahne-bg, "+T.bg0+")",pointerEvents:"none"}}/>
     {/* 👁 DESTEK MODU ŞERİDİ — her zaman üstte, tek tık çıkış (sticky, içeriği iter) */}
     {destek && <div style={{position:"sticky",top:0,zIndex:2500,background:"linear-gradient(90deg,#7a5f1a,#b8901f)",color:"#fff",padding:"calc(8px + env(safe-area-inset-top)) 13px 8px",display:"flex",alignItems:"center",gap:10,boxShadow:"0 3px 14px rgba(0,0,0,.35)"}}>
       <span style={{fontSize:17,flexShrink:0}}>👁</span>
