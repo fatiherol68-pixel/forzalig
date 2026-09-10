@@ -1893,11 +1893,12 @@ const Db = {
       }
       const takimUuidByAd={}; (T.takimlar||[]).forEach(tk=>{ takimUuidByAd[tk.ad]=takimIdMap[tk.id]; });
       const cozPid=(takimAd,oyAd,oyId)=>{ if(oyId!=null && oyIdGlobal[String(oyId)]) return oyIdGlobal[String(oyId)]; const tu=takimUuidByAd[takimAd]; if(tu&&oyAdMap[tu+'|'+oyAd]) return oyAdMap[tu+'|'+oyAd]; return oyAdGlobal[oyAd]||null; };
-      for(const mc of (T.maclar||[])){
+      // MAÇLAR — TOPLU (batch) kayıt: 990 maç bile birkaç istekte gider (tek tek yerine → çok daha hızlı)
+      const _macPaket=(T.maclar||[]).map(mc=>{
         const evId=takimIdMap[mc.takimAId], depId=takimIdMap[mc.takimBId];
-        if(!evId||!depId) continue;
+        if(!evId||!depId) return null;
         const mvpPid=(mc.mvp||mc.mvpId)?cozPid(mc.mvpTakim,mc.mvp,mc.mvpId):null;
-        const {data:mRow,error:e5}=await sb.from('maclar').insert({
+        return { mc, mvpPid, row:{
           lig_id:ligId, ev_takim_id:evId, dep_takim_id:depId, hafta:(mc.hafta??null), tur:(mc.tur??null),
           grup:(mc.grup??null), bye:!!mc.bye, pen_galip:mc.penGalip||null, tarih:(mc.tarih||null),
           ev_skor:(mc.skorA==null?null:mc.skorA), dep_skor:(mc.skorB==null?null:mc.skorB),
@@ -1906,23 +1907,29 @@ const Db = {
           ratingler:mc.ratingler||null, olaylar:mc.olaylar||null, kaleciler:mc.kaleciler||null, medya:mc.medya||null,
           oduller:mc.oduller||null, mvp:mc.mvp||null, mvp_takim:mc.mvpTakim||null, mvp_player:mvpPid,
           stad:mc.stad||mc.stadyum||null, hakem:mc.hakem||null
-        }).select('id').single();
+        }};
+      }).filter(Boolean);
+      const _tumOlay=[], _tumOdul=[], _MB=200;
+      for(let i=0;i<_macPaket.length;i+=_MB){
+        const dilim=_macPaket.slice(i,i+_MB);
+        const {data:mRows,error:e5}=await sb.from('maclar').insert(dilim.map(x=>x.row)).select('id');
         if(e5) return {hata:e5.message};
-        const macId=mRow.id;
-        const olayK=[];
-        (mc.olaylar||[]).forEach(ol=>{ const tu=takimUuidByAd[ol.takim]||null;
-          if(ol.tip==='gol'){ const p=cozPid(ol.takim,ol.oyuncu,ol.oyuncuId); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:'gol',dakika:(ol.dk??null),adet:1});
-            if(ol.asist||ol.asistId){ const a=cozPid(ol.takim,ol.asist,ol.asistId); if(a) olayK.push({mac_id:macId,player_id:a,takim_id:tu,tip:'asist',dakika:(ol.dk??null),adet:1}); } }
-          else if(ol.tip==='sari'||ol.tip==='kirmizi'){ const p=cozPid(ol.takim,ol.oyuncu,ol.oyuncuId); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:ol.tip,dakika:(ol.dk??null),adet:1}); }
-          else if(ol.tip==='degisik'){ const p=cozPid(ol.takim,ol.giren,ol.girenId)||cozPid(ol.takim,ol.cikan,ol.cikanId); if(p) olayK.push({mac_id:macId,player_id:p,takim_id:tu,tip:'degisik',dakika:(ol.dk??null),adet:1,ekstra:{cikan:ol.cikan,giren:ol.giren}}); }
+        if(!mRows || mRows.length!==dilim.length) return {hata:"maç kaydı eşleşmedi"};
+        dilim.forEach((x,idx)=>{ const macId=mRows[idx].id, mc=x.mc, mvpPid=x.mvpPid;
+          (mc.olaylar||[]).forEach(ol=>{ const tu=takimUuidByAd[ol.takim]||null;
+            if(ol.tip==='gol'){ const p=cozPid(ol.takim,ol.oyuncu,ol.oyuncuId); if(p) _tumOlay.push({mac_id:macId,player_id:p,takim_id:tu,tip:'gol',dakika:(ol.dk??null),adet:1});
+              if(ol.asist||ol.asistId){ const a=cozPid(ol.takim,ol.asist,ol.asistId); if(a) _tumOlay.push({mac_id:macId,player_id:a,takim_id:tu,tip:'asist',dakika:(ol.dk??null),adet:1}); } }
+            else if(ol.tip==='sari'||ol.tip==='kirmizi'){ const p=cozPid(ol.takim,ol.oyuncu,ol.oyuncuId); if(p) _tumOlay.push({mac_id:macId,player_id:p,takim_id:tu,tip:ol.tip,dakika:(ol.dk??null),adet:1}); }
+            else if(ol.tip==='degisik'){ const p=cozPid(ol.takim,ol.giren,ol.girenId)||cozPid(ol.takim,ol.cikan,ol.cikanId); if(p) _tumOlay.push({mac_id:macId,player_id:p,takim_id:tu,tip:'degisik',dakika:(ol.dk??null),adet:1,ekstra:{cikan:ol.cikan,giren:ol.giren}}); }
+          });
+          (mc.kaleciler||[]).forEach(k=>{ const p=(k.id!=null&&oyIdGlobal[String(k.id)])||oyAdGlobal[k.ad]; if(p&&k.kurtaris) _tumOlay.push({mac_id:macId,player_id:p,takim_id:null,tip:'kurtaris',dakika:null,adet:k.kurtaris}); });
+          const od=mc.oduller||{};
+          ['forvet','ortasaha','defans','kaleci','altin','gumus','centilmen','enerjik','macinGolu'].forEach(k=>{ const oid=mc.odullerId&&mc.odullerId[k]; if(od[k]||oid){ const p=(oid!=null&&oyIdGlobal[String(oid)])||oyAdGlobal[od[k]]; if(p) _tumOdul.push({mac_id:macId,player_id:p,odul_tip:k}); } });
+          if(mvpPid) _tumOdul.push({mac_id:macId,player_id:mvpPid,odul_tip:'mvp'});
         });
-        (mc.kaleciler||[]).forEach(k=>{ const p=(k.id!=null&&oyIdGlobal[String(k.id)])||oyAdGlobal[k.ad]; if(p&&k.kurtaris) olayK.push({mac_id:macId,player_id:p,takim_id:null,tip:'kurtaris',dakika:null,adet:k.kurtaris}); });
-        if(olayK.length) await sb.from('mac_olaylari').insert(olayK);
-        const odulK=[]; const od=mc.oduller||{};
-        ['forvet','ortasaha','defans','kaleci','altin','gumus','centilmen','enerjik','macinGolu'].forEach(k=>{ const oid=mc.odullerId&&mc.odullerId[k]; if(od[k]||oid){ const p=(oid!=null&&oyIdGlobal[String(oid)])||oyAdGlobal[od[k]]; if(p) odulK.push({mac_id:macId,player_id:p,odul_tip:k}); } });
-        if(mvpPid) odulK.push({mac_id:macId,player_id:mvpPid,odul_tip:'mvp'});
-        if(odulK.length) await sb.from('mac_odulleri').insert(odulK);
       }
+      for(let i=0;i<_tumOlay.length;i+=500){ const {error:eo}=await sb.from('mac_olaylari').insert(_tumOlay.slice(i,i+500)); if(eo) return {hata:eo.message}; }
+      for(let i=0;i<_tumOdul.length;i+=500){ const {error:ed}=await sb.from('mac_odulleri').insert(_tumOdul.slice(i,i+500)); if(ed) return {hata:ed.message}; }
       return {ok:true, ligId};
     }catch(e){ return {hata:String(e&&e.message||e)}; }
   },
