@@ -1411,6 +1411,17 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
   const takimTakipte = takipTakim && takipTakim.includes(takim.id);
   const [fikGor,setFikGor]=useState("sonuc"); // fikstür/sonuç geçişi
   const sirali=[...takim.oyuncular].sort((a,b)=>b.ovr-a.ovr);
+  // KADRO accordion: açık satırlar + sıralama
+  const [kadroAcik,setKadroAcik]=useState(()=>new Set());
+  const kadroToggle=(id)=>setKadroAcik(s=>{ const n=new Set(s); n.has(id)?n.delete(id):n.add(id); return n; });
+  const [kadroSira,setKadroSira]=useState("ovr");
+  const kadroSirali=useMemo(()=>{ const arr=[...takim.oyuncular]; const k=kadroSira;
+    arr.sort((a,b)=> k==="deger"?((b.deger||0)-(a.deger||0)) : k==="gol"?((b.gol||0)-(a.gol||0)) : k==="isim"?String(a.ad||"").localeCompare(String(b.ad||""),"tr") : ((b.ovr||0)-(a.ovr||0)));
+    return arr;
+  },[takim.oyuncular, kadroSira]);
+  const ovrRenk=(v)=> v>=90?{bg:"linear-gradient(145deg,"+T.gold+",#c79a2f)",fg:"#1a1505"} : v>=80?{bg:T.accent+"2a",fg:T.accent} : v>=70?{bg:(T.accent2||T.accent)+"22",fg:T.accent2||T.accent} : {bg:T.bg2,fg:T.textSoft};
+  const degerFmt=(d)=>{ d=+d||0; if(!d) return "—"; return d>=1000000?(d/1000000).toFixed(1).replace(/\.0$/,"")+"M ₺": d>=1000?Math.round(d/1000)+"K ₺": d+" ₺"; };
+  const kadroMaclari=(takim.oyuncular&&turnuva&&turnuva.maclar)? turnuva.maclar.filter(m=>m.oynandi&&(m.takimAId===takim.id||m.takimBId===takim.id)).sort((a,b)=>(b.hafta||0)-(a.hafta||0)).slice(0,5) : [];
   const enGolcu=[...takim.oyuncular].sort((a,b)=>b.gol-a.gol)[0]||{};
   const enAsist=[...takim.oyuncular].sort((a,b)=>b.asist-a.asist)[0]||{};
   const enMvp=[...takim.oyuncular].sort((a,b)=>b.mvp-a.mvp)[0]||{};
@@ -1681,22 +1692,64 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
         </div>
       </div>
       <div style={{padding:"6px 14px"}}>
-        <div style={{fontSize:11,color:T.accent,fontWeight:700,margin:"4px 2px 10px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>👥 KADRO ({takim.oyuncular.length}){cikarabilir && typeof takim.id==="string" && <span style={{fontSize:9.5,fontWeight:600,color:T.textMut}}>· yetkili: <b style={{color:T.danger}}>✕</b> ile oyuncu çıkar</span>}</div>
-        {sirali.map(o=>
-          <div key={o.id} onClick={()=>git({sayfa:"oyuncu",oyuncu:{...o,takimAd:takim.ad,turnuva:turnuva.ad}})} className="tap" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,borderRadius:10,padding:"8px 12px",marginBottom:5}}>
-            <span style={{width:24,fontSize:11,color:T.textMut,textAlign:"center"}}>{o.no}</span>
-            <Avatar o={o} boy={32} T={T}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,color:T.text,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
-              <div style={{fontSize:10,color:T.textMut}}>{o.poz} · {o.yas} yaş</div>
+        <div style={{fontSize:11,color:T.accent,fontWeight:700,margin:"4px 2px 8px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>👥 KADRO ({takim.oyuncular.length}){cikarabilir && typeof takim.id==="string" && <span style={{fontSize:9.5,fontWeight:600,color:T.textMut}}>· yetkili: <b style={{color:T.danger}}>✕</b> ile çıkar</span>}</div>
+        <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+          {[["ovr","OVR"],["deger","Değer"],["gol","Gol"],["isim","İsim"]].map(([k,l])=>
+            <span key={k} onClick={()=>setKadroSira(k)} className="tap" style={{fontSize:10.5,fontWeight:700,padding:"5px 11px",borderRadius:14,background:kadroSira===k?T.accent:T.bg1,color:kadroSira===k?(T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut,border:"0.5px solid "+(kadroSira===k?T.accent:T.line)}}>{l}</span>
+          )}
+        </div>
+        {kadroSirali.map((o,idx)=>{
+          const acik=kadroAcik.has(o.id), oc=ovrRenk(o.ovr||0);
+          const nitler=[["HIZ",o.pac,T.accent],["ŞUT",o.sho,T.gold],["PAS",o.pas,"#3B9EFF"],["DRİ",o.dri,"#A855F7"],["DEF",o.def,"#5b8def"],["FİZ",o.phy,T.danger]].filter(n=>n[1]!=null);
+          const oduller=[["🥇","Altın",o.altin],["🥈","Gümüş",o.gumus],["⚽","Maçın Golü",o.macinGolu],["🎯","Forvet",o.forvet],["🎩","Orta",o.ortasaha],["🛡️","Defans",o.defans],["🧤","Kaleci",o.kaleci],["🤝","Centilmen",o.centilmen],["⚡","Enerjik",o.enerjik]].filter(x=>(x[2]||0)>0);
+          return <div key={o.id} style={{background:T.bg1,borderRadius:12,marginBottom:6,border:"0.5px solid "+(acik?T.accent+"55":T.line),overflow:"hidden"}}>
+            <div onClick={()=>kadroToggle(o.id)} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"9px 12px",cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}>
+              <span style={{width:18,fontSize:11,color:T.textMut,textAlign:"center",flexShrink:0}}>{idx+1}</span>
+              <div style={{flexShrink:0}}><Avatar o={o} boy={36} T={T}/></div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
+                <div style={{fontSize:10.5,color:T.textMut,marginTop:1,display:"flex",gap:7,flexWrap:"wrap"}}><span>{o.no!=null?"#"+o.no+" · ":""}{o.poz}{o.yas!=null?" · "+o.yas+" yaş":""}</span><span style={{color:T.gold,fontWeight:700}}>💰 {degerFmt(o.deger)}</span></div>
+              </div>
+              <span style={{width:34,height:34,borderRadius:9,background:oc.bg,color:oc.fg,fontSize:14,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:T.fontDisplay}}>{o.ovr}</span>
+              {cikarabilir && typeof takim.id==="string" && <span onClick={(e)=>{e.stopPropagation();kadrodanCikarHizli(o);}} className="tap" title="Kadrodan çıkar" style={{fontSize:13,color:T.danger,fontWeight:700,padding:"2px 6px",borderRadius:7,background:T.danger+"14",border:"0.5px solid "+T.danger+"33",cursor:"pointer",lineHeight:1,flexShrink:0}}>✕</span>}
+              <span style={{width:20,height:20,borderRadius:6,background:acik?T.accent+"22":"transparent",color:acik?T.accent:T.textMut,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transform:acik?"rotate(180deg)":"none",transition:"transform .18s"}}>▾</span>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:11,color:T.accent}}>{o.gol}⚽</span>
-              <span style={{width:28,height:28,borderRadius:7,background:o.ovr>=85?T.gold:T.bg2,color:o.ovr>=85?"#1A1505":T.textSoft,fontSize:12,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{o.ovr}</span>
-              {cikarabilir && typeof takim.id==="string" && <span onClick={(e)=>{e.stopPropagation();kadrodanCikarHizli(o);}} className="tap" title="Kadrodan çıkar" style={{fontSize:14,color:T.danger,fontWeight:700,padding:"2px 7px",borderRadius:7,background:T.danger+"14",border:"0.5px solid "+T.danger+"33",cursor:"pointer",lineHeight:1}}>✕</span>}
-            </div>
-          </div>
-        )}
+            {acik && <div className="fade-in" style={{padding:"2px 12px 14px"}}>
+              {nitler.length>0 && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"7px 16px",margin:"6px 0 2px"}}>
+                {nitler.map(([et,v,c])=>
+                  <div key={et}><div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textMut,marginBottom:3}}><span>{et}</span><b style={{color:T.text}}>{v}</b></div><div style={{height:5,background:T.bg2,borderRadius:3,overflow:"hidden"}}><div style={{width:Math.min(100,v)+"%",height:"100%",background:c,borderRadius:3}}/></div></div>
+                )}
+              </div>}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,margin:"12px 0 2px"}}>
+                {[["⚽",o.gol,"GOL",T.accent],["🅰️",o.asist,"ASİST","#3B9EFF"],["🧤",o.kurtaris,"KURT.",T.text],["⭐",o.mvp,"MVP",T.gold],["⏱️",o.mac,"MAÇ",T.text]].map(([ik,v,l,c])=>
+                  <div key={l} style={{background:T.bg2,borderRadius:9,padding:"7px 3px",textAlign:"center"}}><div style={{fontSize:15,fontWeight:800,color:c,fontFamily:T.fontDisplay}}>{v||0}</div><div style={{fontSize:8,color:T.textMut,marginTop:1}}>{ik} {l}</div></div>
+                )}
+              </div>
+              {kadroMaclari.length>0 && <>
+                <div style={{fontSize:9.5,fontWeight:700,color:T.textMut,letterSpacing:.5,margin:"12px 0 6px"}}>SON MAÇLAR</div>
+                {kadroMaclari.map(m=>{ const benA=m.takimAId===takim.id; const bizS=benA?m.skorA:m.skorB, rkS=benA?m.skorB:m.skorA; const rak=benA?m.takimB:m.takimA; const gl=bizS>rkS, br=bizS===rkS; const rt=m.ratingler&&(m.ratingler[o.id]||m.ratingler[o.ad]);
+                  return <div key={m.id} onClick={(e)=>{e.stopPropagation();git({sayfa:"mac",mac:m,turnuva});}} className="tap" style={{display:"flex",alignItems:"center",gap:9,background:T.bg2,borderRadius:8,padding:"6px 10px",marginBottom:4,cursor:"pointer"}}>
+                    <span style={{width:7,height:7,borderRadius:"50%",background:gl?T.accent:br?T.gold:T.danger,flexShrink:0}}/>
+                    <span style={{flex:1,fontSize:11.5,color:T.text,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{takim.ad} <b>{bizS}-{rkS}</b> <span style={{color:T.textMut}}>{rak}</span></span>
+                    {rt!=null && <span style={{fontSize:11,fontWeight:800,fontFamily:T.fontDisplay,color:rt>=7?T.accent:rt>=6?T.gold:T.danger,background:(rt>=7?T.accent:rt>=6?T.gold:T.danger)+"1c",borderRadius:6,padding:"1px 7px"}}>{(+rt).toFixed(1)}</span>}
+                  </div>;
+                })}
+              </>}
+              {oduller.length>0 && <>
+                <div style={{fontSize:9.5,fontWeight:700,color:T.textMut,letterSpacing:.5,margin:"12px 0 6px"}}>MADALYALAR</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{oduller.map(([ik,ad,n])=><span key={ad} style={{display:"flex",alignItems:"center",gap:4,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:14,padding:"4px 9px",fontSize:11,fontWeight:700,color:T.textSoft}}>{ik} {ad} <b style={{color:T.gold}}>×{n}</b></span>)}</div>
+              </>}
+              <div style={{display:"flex",flexWrap:"wrap",gap:"6px 14px",marginTop:12,paddingTop:10,borderTop:"1px dashed "+T.line,fontSize:11,color:T.textMut}}>
+                {o.boy!=null && <span>Boy <b style={{color:T.text}}>{o.boy} cm</b></span>}
+                {o.kilo!=null && <span>Kilo <b style={{color:T.text}}>{o.kilo} kg</b></span>}
+                {o.ayak && <span>Ayak <b style={{color:T.text}}>{o.ayak}</b></span>}
+                {o.uyruk && <span>Uyruk <b style={{color:T.text}}>{o.uyruk}</b></span>}
+                {o.saglik!=null && <span>Kondisyon <b style={{color:T.text}}>%{o.saglik}</b></span>}
+              </div>
+              <div onClick={(e)=>{e.stopPropagation();git({sayfa:"oyuncu",oyuncu:{...o,takimAd:takim.ad,turnuva:turnuva.ad}});}} className="tap" style={{marginTop:12,textAlign:"center",fontSize:11.5,fontWeight:700,color:T.accent,background:T.accent+"12",border:"0.5px solid "+T.accent+"33",borderRadius:9,padding:"8px",cursor:"pointer"}}>Oyuncu sayfası ›</div>
+            </div>}
+          </div>;
+        })}
       </div>
     </div>}
 
