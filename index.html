@@ -2948,6 +2948,9 @@ function yeniMac(id, A, B, hafta){
 function fmtEuro(n){ n=Math.round(n||0); var neg=n<0; n=Math.abs(n); var s;
   if(n<1000) s=n+" €"; else if(n<1000000) s=Math.round(n/1000)+" Bin €";
   else { var m=Math.round(n/100000)/10; s=(""+m).replace(".",",")+" Milyon €"; } return (neg?"−":"")+s; }
+/* ÜLKE → bayrak emoji + görünen ad (uyruk isimle saklanır). Bilinmeyen → beyaz bayrak + yazılan ad. */
+var ULKE_BAYRAK={"türkiye":"🇹🇷","turkiye":"🇹🇷","almanya":"🇩🇪","avusturya":"🇦🇹","azerbaycan":"🇦🇿","hollanda":"🇳🇱","fransa":"🇫🇷","ingiltere":"🇬🇧","i̇ngiltere":"🇬🇧","abd":"🇺🇸","amerika":"🇺🇸","belçika":"🇧🇪","belcika":"🇧🇪","italya":"🇮🇹","ispanya":"🇪🇸","portekiz":"🇵🇹","brezilya":"🇧🇷","arjantin":"🇦🇷","isviçre":"🇨🇭","isvicre":"🇨🇭","isveç":"🇸🇪","isvec":"🇸🇪","danimarka":"🇩🇰","norveç":"🇳🇴","norvec":"🇳🇴","polonya":"🇵🇱","rusya":"🇷🇺","ukrayna":"🇺🇦","yunanistan":"🇬🇷","hırvatistan":"🇭🇷","hirvatistan":"🇭🇷","sırbistan":"🇷🇸","sirbistan":"🇷🇸","bosna hersek":"🇧🇦","fas":"🇲🇦","cezayir":"🇩🇿","tunus":"🇹🇳","mısır":"🇪🇬","misir":"🇪🇬","nijerya":"🇳🇬","senegal":"🇸🇳","gana":"🇬🇭","kamerun":"🇨🇲","fildişi sahili":"🇨🇮","japonya":"🇯🇵","güney kore":"🇰🇷","guney kore":"🇰🇷","çin":"🇨🇳","cin":"🇨🇳","meksika":"🇲🇽","kanada":"🇨🇦","avustralya":"🇦🇺","irlanda":"🇮🇪","i̇rlanda":"🇮🇪","kolombiya":"🇨🇴","uruguay":"🇺🇾","şili":"🇨🇱","sili":"🇨🇱","kosova":"🇽🇰","arnavutluk":"🇦🇱","bulgaristan":"🇧🇬","romanya":"🇷🇴","gürcistan":"🇬🇪","gurcistan":"🇬🇪","kazakistan":"🇰🇿","özbekistan":"🇺🇿","ozbekistan":"🇺🇿","suriye":"🇸🇾","irak":"🇮🇶","iran":"🇮🇷","katar":"🇶🇦","suudi arabistan":"🇸🇦"};
+function ulkeBayrak(uyruk){ var ad=(uyruk&&String(uyruk).trim())||"Türkiye"; var k=ad.toLocaleLowerCase("tr").trim(); return {emoji:(ULKE_BAYRAK[k]||"🏳️"), ad:ad}; }
 function degerPozKat(poz){ var r=(posAd(poz)||"").toLocaleLowerCase("tr");
   if(r.indexOf("kale")>-1) return "KAL";
   if(r.indexOf("defans")>-1||r.indexOf("stoper")>-1||r.indexOf("bek")>-1) return "DEF";
@@ -2984,7 +2987,8 @@ function degerHesapla(o){ var t=degerTemelNorm(o); o.degerTemel=t; o.degerP=(o.d
    - Oynadıkça/gol/asist/kurtarış/ödül aldıkça artar; mevkiye göre kategori dağılımı (gol→ŞUT, asist→PAS, kurtarış→SAV). */
 function kartGuc(o){
   if(!o) return;
-  ['pac','sho','pas','dri','def','phy'].forEach(function(k){ var bk=k+'Baz'; if(o[bk]==null) o[bk]=(o[k]!=null && o[k]>0)?o[k]:65; });
+  var _nit=o.nitelik||{};   // bazı kaynaklar nitelikleri düz (o.pac) değil iç obje (o.nitelik.pac) verir → ikisini de oku
+  ['pac','sho','pas','dri','def','phy'].forEach(function(k){ var bk=k+'Baz'; if(o[bk]==null){ o[bk]=(o[k]!=null && o[k]>0)?o[k]:((_nit[k]!=null && _nit[k]>0)?_nit[k]:65); } });
   var poz=degerPozKat(o.poz);
   var perf=(o.gol||0)*1.4+(o.asist||0)*1.0+(o.mvp||0)*2.0+(o.altin||0)*1.6+(o.gumus||0)*0.9+(o.macinGolu||0)*1.0
     +((o.forvet||0)+(o.ortasaha||0)+(o.defans||0)+(o.kaleci||0))*0.7+(o.enerjik||0)*0.5+(o.centilmen||0)*0.3
@@ -3835,8 +3839,8 @@ function FifaKart({o, T}){
               <div style={{marginTop:5,fontSize:11,letterSpacing:1.5,lineHeight:1,whiteSpace:"nowrap"}}><span style={{color:"#F2C24E"}}>{"★".repeat(yildiz)}</span><span style={{color:"rgba(255,255,255,.28)"}}>{"★".repeat(5-yildiz)}</span></div>
             </div>
             <div style={{textAlign:"right"}}>
-              <svg viewBox="0 0 30 20" style={{width:28,height:19,borderRadius:3,display:"inline-block",boxShadow:"0 2px 6px rgba(0,0,0,.5)"}}><rect width="30" height="20" fill="#e30a17"/><circle cx="11" cy="10" r="5" fill="#fff"/><circle cx="12.5" cy="10" r="4" fill="#e30a17"/><path d="M17 10l4.7-1.5-2.9 4 0-5 2.9 4Z" fill="#fff"/></svg>
-              <div style={{fontSize:8,letterSpacing:.5,color:"#fff",fontWeight:700,marginTop:2}}>TÜRKİYE</div>
+              <div style={{fontSize:22,lineHeight:1,textShadow:"0 2px 6px rgba(0,0,0,.55)"}}>{ulkeBayrak(o.uyruk).emoji}</div>
+              <div style={{fontSize:8,letterSpacing:.5,color:"#fff",fontWeight:700,marginTop:2,textTransform:"uppercase"}}>{ulkeBayrak(o.uyruk).ad}</div>
             </div>
           </div>
           <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"14px 18px 16px"}}>
@@ -10713,8 +10717,8 @@ function StatDuzeltModal({o, d, setD, T, kaydet, kapat, otomatikYap}){
   const stat=(k,v)=> setD({...d,[k]:Math.max(30,Math.min(99,v))});
   const ovrHesap=Math.round((d.pac+d.sho+d.pas+d.dri+d.def+d.phy)/6);
   const yildizHesap=ovrHesap>=85?5:ovrHesap>=78?4:ovrHesap>=68?3:ovrHesap>=58?2:1;   // yıldız OVR'a göre canlı
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={kapat}>
-    <div onClick={e=>e.stopPropagation()} className="fade-in" style={{background:T.bg1,borderRadius:"20px 20px 0 0",width:"100%",maxWidth:480,maxHeight:"88vh",overflowY:"auto",padding:"18px 16px 24px",border:"0.5px solid "+T.line}}>
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:5000,display:"flex",alignItems:"center",justifyContent:"center",padding:"14px"}} onClick={kapat}>
+    <div onClick={e=>e.stopPropagation()} className="fade-in" style={{background:T.bg1,borderRadius:18,width:"100%",maxWidth:480,maxHeight:"88vh",overflowY:"auto",padding:"18px 16px calc(18px + env(safe-area-inset-bottom))",border:"0.5px solid "+T.line,boxShadow:"0 24px 60px rgba(0,0,0,.6)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
         <span style={{fontSize:16,fontWeight:700,color:T.text,fontFamily:T.fontDisplay}}>🎮 FIFA Kart Düzenle</span>
         <button onClick={kapat} className="tap" style={{fontSize:20,color:T.textMut}}>✕</button>
