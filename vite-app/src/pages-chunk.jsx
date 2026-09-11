@@ -2210,7 +2210,9 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
     </div>
 
     {(adminMod || adminMi || benimMi) && <div style={{padding:"10px 14px 0",display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
-      <button onClick={acDuzenle} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.bg1,border:"0.5px solid "+T.line,color:T.text,borderRadius:10,padding:"7px 14px",fontSize:11,fontWeight:600}}>⚙️ Statları Düzelt</button>
+      {/* Statları Düzelt = SADECE süper admin (gol/asist/MVP gibi istatistikleri kimse kendi kartında değiştiremesin) */}
+      {(adminMod || adminMi) && <button onClick={acDuzenle} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.bg1,border:"0.5px solid "+T.line,color:T.text,borderRadius:10,padding:"7px 14px",fontSize:11,fontWeight:600}}>⚙️ Statları Düzelt</button>}
+      {/* Bilgileri Düzenle = kart sahibi kendi bilgisini (ad/foto/fiziksel) düzenleyebilir + admin */}
       <button onClick={acBilgi} className="tap" style={{display:"flex",alignItems:"center",gap:6,background:T.bg1,border:"0.5px solid "+T.line,color:T.text,borderRadius:10,padding:"7px 14px",fontSize:11,fontWeight:600}}>✏️ Bilgileri Düzenle</button>
     </div>}
     {duzenle && d && <StatDuzeltModal o={o} d={d} setD={setD} T={T} kaydet={kaydet} kapat={()=>setDuzenle(false)} otomatikYap={otomatikYap}/>}
