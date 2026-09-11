@@ -19100,17 +19100,27 @@ function App(){
   },[oturum&&oturum.id, profil, turnuvalar]);
   // ===== SÜPER ADMIN — TÜM platform liglerini TAM yükle (Enler/Keşfet/anasayfa hepsini görsün, oyuncular+takımlar dahil).
   //   Arka planda çalışır → boot hızını etkilemez. Yeni/sonradan eklenen ligler de otomatik gelir. =====
-  useEffect(()=>{ if(!adminMi || !oturum || destek) return; let aktif=true;
-    // 4 sn geciktir → Realtime/radyo kanalı önce kurulsun (ağır yükleme bağlantıyı boğmasın)
-    const t=setTimeout(()=>{ Promise.all([Db.liglerYukle(null, true), Db.liglerEvrenHepsi(120)]).then(([hepsi, evrenL])=>{
-      if(!aktif) return;
-      // GERÇEK ligler + yayınlanan EVREN (demo) ligleri BİRLEŞTİR → evren ligi (takım+maç dolu) kaybolmasın.
-      let birlesik = Array.isArray(hepsi) ? hepsi.slice() : [];
-      if(Array.isArray(evrenL) && evrenL.length){ const varId=new Set(birlesik.map(x=>x&&x.id)); evrenL.forEach(l=>{ if(l && !varId.has(l.id)) birlesik.push(l); }); }
-      if(!birlesik.length) return;
-      birlesik.forEach(x=>{ try{ turnuvaHesapla(x); }catch(e){} });
-      setTurnuvalar(birlesik);
-    }).catch(()=>{}); }, 4000);
+  useEffect(()=>{ if(!oturum || destek || saltOkunur || DAVET_TOKEN) return; let aktif=true;
+    // 3 sn geciktir → Realtime/radyo kanalı önce kurulsun (ağır yükleme boot'u/bağlantıyı boğmasın; PageSpeed etkilenmez).
+    // AMAÇ: Keşfet'te lig/takım/oyuncu/maç TÜM ÜYELERDE tutarlı görünsün ve KAYBOLMASIN.
+    //   admin → tüm gerçek ligler + yayınlanan evren; normal üye → yayınlanan evren (demo vitrini).
+    //   KRİTİK: sonucu WHOLESALE REPLACE ETME → id ile BİRLEŞTİR (güncelle+ekle). Böylece hiçbir lig
+    //   yarış/timing yüzünden bir an bile düşmez (cihazdan cihaza "kayboluyor" hatası biter).
+    const t=setTimeout(()=>{
+      const isler = adminMi ? [Db.liglerYukle(null, true), Db.liglerEvrenHepsi(120)] : [Db.liglerEvrenHepsi(120)];
+      Promise.all(isler).then(sonuclar=>{
+        if(!aktif) return;
+        const gelen=[]; sonuclar.forEach(arr=>{ if(Array.isArray(arr)) arr.forEach(x=>{ if(x) gelen.push(x); }); });
+        if(!gelen.length) return;
+        gelen.forEach(x=>{ try{ turnuvaHesapla(x); }catch(e){} });
+        setTurnuvalar(p=>{
+          const idx={}; (p||[]).forEach((t,i)=>{ if(t && t.id!=null) idx[t.id]=i; });
+          const yeni=(p||[]).slice();
+          gelen.forEach(g=>{ if(!g || g.id==null) return; if(idx[g.id]!=null) yeni[idx[g.id]]=g; else { idx[g.id]=yeni.length; yeni.push(g); } });
+          return yeni;   // MERGE: mevcut korunur, yeni eklenir, hiçbir şey silinmez
+        });
+      }).catch(()=>{});
+    }, 3000);
     return ()=>{ aktif=false; clearTimeout(t); };
   },[adminMi, oturum && oturum.id, destek]);
   // 👁 DESTEK MODU — kullanıcı gözünden görüntüle. Oturum DEVRALINMAZ (admin kendi oturumunda kalır).
@@ -19566,9 +19576,11 @@ function App(){
       // İLK yüklemede önce UCUZ düz gradyan (LCP/Speed Index hızlansın), boşta kalınca tam sahneye geç.
       if(__sahneIlk){
         __sahneIlk=false;
-        r.setProperty("--sahne-bg", `linear-gradient(160deg, ${b1}, ${b0})`);
+        r.setProperty("--sahne-bg", `linear-gradient(160deg, ${b1}, ${b0})`);   // kritik İLK boyama UCUZ (Speed Index yüksek kalsın)
         const _uygulaSahne=()=>{ try{ r.setProperty("--sahne-bg", grad); }catch(e){} };
-        if("requestIdleCallback" in window) requestIdleCallback(_uygulaSahne,{timeout:1600}); else setTimeout(_uygulaSahne, 500);
+        // Zengin sahneye İLK KAREDEN hemen sonra geç (gözle anında = "vay be" geri gelir; sabit katman olduğu için ucuz).
+        // requestIdleCallback boot yükünde aç kalıp sahneyi geciktiriyordu → çift rAF ile garanti 2. karede uygulanır.
+        if("requestAnimationFrame" in window) requestAnimationFrame(()=>requestAnimationFrame(_uygulaSahne)); else setTimeout(_uygulaSahne, 32);
       } else {
         r.setProperty("--sahne-bg", grad);
       }
@@ -20216,7 +20228,7 @@ function App(){
   return <div style={{minHeight:"100vh",background:"transparent",fontFamily:T.fontBody}}>
     {/* PERFORMANS: sahne arka planı — SABİT, sadece ekran boyu (100vh). Kaydırınca yeniden boyanmaz,
         sayfa uzadıkça büyümez → mobilde kasma biter. GPU'da tek seferde compose edilir. */}
-    <div aria-hidden="true" style={{position:"fixed",inset:0,zIndex:-1,background:"var(--sahne-bg, "+T.bg0+")",pointerEvents:"none"}}/>
+    <div aria-hidden="true" style={{position:"fixed",inset:0,zIndex:-1,background:"var(--sahne-bg, "+T.bg0+")",pointerEvents:"none",transform:"translateZ(0)"}}/>
     {/* 👁 DESTEK MODU ŞERİDİ — her zaman üstte, tek tık çıkış (sticky, içeriği iter) */}
     {destek && <div style={{position:"sticky",top:0,zIndex:2500,background:"linear-gradient(90deg,#7a5f1a,#b8901f)",color:"#fff",padding:"calc(8px + env(safe-area-inset-top)) 13px 8px",display:"flex",alignItems:"center",gap:10,boxShadow:"0 3px 14px rgba(0,0,0,.35)"}}>
       <span style={{fontSize:17,flexShrink:0}}>👁</span>
