@@ -10657,8 +10657,8 @@ function BilgiDuzeltModal({o, bd, setBd, T, kaydet, kapat}){
   const lbl={fontSize:11,color:T.textMut,fontWeight:700,marginBottom:5};
   const pozlar=["Kaleci","Defans","OrtaSaha","Forvet"];
   const pozAd={Kaleci:"Kaleci",Defans:"Defans",OrtaSaha:"Orta Saha",Forvet:"Forvet"};
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={kapat}>
-    <div onClick={e=>e.stopPropagation()} className="fade-in" style={{background:T.bg1,borderRadius:"20px 20px 0 0",width:"100%",maxWidth:480,maxHeight:"88vh",overflowY:"auto",padding:"18px 16px 24px",border:"0.5px solid "+T.line}}>
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:5000,display:"flex",alignItems:"center",justifyContent:"center",padding:"14px"}} onClick={kapat}>
+    <div onClick={e=>e.stopPropagation()} className="fade-in" style={{background:T.bg1,borderRadius:18,width:"100%",maxWidth:480,maxHeight:"88vh",overflowY:"auto",padding:"18px 16px calc(18px + env(safe-area-inset-bottom))",border:"0.5px solid "+T.line,boxShadow:"0 24px 60px rgba(0,0,0,.6)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
         <span style={{fontSize:16,fontWeight:700,color:T.text,fontFamily:T.fontDisplay}}>✏️ Bilgileri Düzenle</span>
         <button onClick={kapat} className="tap" style={{fontSize:20,color:T.textMut,background:"none",border:0}}>✕</button>
