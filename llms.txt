@@ -1,20 +1,15 @@
 # ForzaLig
 
-> ForzaLig, halı saha (amatör futbol) liglerini yönetmek için ücretsiz bir web uygulamasıdır (PWA). Lig kur, fikstür ve puan durumu oluştur, gol krallığı ve kral listelerini takip et, FIFA tarzı oyuncu kartları ve OVR sistemiyle oyuncuları değerlendir, ligini link/QR ile paylaş.
+> ForzaLig, halı saha ve amatör futbol ligleri için dijital menajer uygulamasıdır (PWA). Lig kurma, takım ve oyuncu yönetimi, teknik direktör atama, davet linkleriyle katılım, fikstür, canlı maç, puan durumu (klasik ve Güç Puanı), oyuncu kartları ve istatistikleri, transfer pazarı, sohbet ve web push bildirimleri sunar.
 
-ForzaLig is a free progressive web app for running amateur football (five-a-side / halı saha) leagues: fixtures, standings, top-scorer charts, FIFA-style player cards with an OVR rating, live scores, and a transfer market. The interface is in Turkish.
+## Bağlantılar
 
-## Ana özellikler / Key features
-- Lig ve turnuva yönetimi: takımlar, oyuncular, fikstür, puan durumu, playoff/kupa.
-- FIFA tarzı oyuncu kartları ve OVR (genel puan) sistemi; her kullanıcı kendi kartını görür ve düzenler.
-- Gol kralı, asist kralı, haftanın 11'i ve lig istatistikleri.
-- Transfer pazarı: takım, rakip ve oyuncu ilanları.
-- Ligini herkese açık link veya QR kod ile paylaşma.
+- [ForzaLig Ana Sayfa](https://forzalig.com/): Ligler, takımlar, oyuncular ve maçların ana giriş noktası.
+- [Gizlilik ve KVKK](https://forzalig.com/gizlilik/): Gizlilik politikası ve KVKK aydınlatma metni.
 
-## Bağlantılar / Links
-- [Ana sayfa](https://forzalig.com/): Uygulamaya giriş ve lig keşfi.
-- [Ligleri Keşfet](https://forzalig.com/?p=ligler): Herkese açık ligler, takımlar ve oyuncular.
+## Hakkında
 
-## Notlar / Notes
-- Uygulama tek sayfalık (SPA) bir yapıya sahiptir; içerik giriş yaptıktan sonra kişiye göre yüklenir.
-- Kişisel oyuncu kartları kullanıcıya özeldir (her kullanıcı yalnızca kendi kartını düzenleyebilir).
+- ForzaLig bir Progressive Web App'tir; iOS ve Android'de tarayıcıdan "Ana ekrana ekle" ile uygulama gibi kurulur.
+- Kullanıcılar: lig yöneticileri, takım/teknik direktörler ve oyuncular. Süper admin platformu yönetir.
+- Özellikler: lig ve turnuva kurulumu, kadro yönetimi, teknik direktör (yetkili) atama, davet linkiyle takıma katılım, fikstür ve maç sonucu girişi, puan durumu tabloları, Güç Puanı (dinamik güç bazlı puanlama), oyuncu profilleri ve istatistikleri, transfer pazarı, takım/lig sohbeti ve bildirimler.
+- İçerik Türkçedir. Ana alan adı: forzalig.com
