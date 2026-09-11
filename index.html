@@ -10916,6 +10916,8 @@ function FotoSekmesi({mac, turnuva, T, oturum, fotoYetki}){
   const [yukleniyor,setYukleniyor]=React.useState(false);
   const [hata,setHata]=React.useState("");
   const [acik,setAcik]=React.useState(null); // açılan foto (modal)
+  const [compose,setCompose]=React.useState(null); // yükleme öncesi başlık ekranı {dosya, onizle}
+  const [caption,setCaption]=React.useState("");
   const dosyaRef=React.useRef(null);
   const uid=oturum&&oturum.id;
   const [benO,setBenO]=React.useState(null); // giriş yapanın oyuncu profili (avatar+takım için)
@@ -10930,16 +10932,24 @@ function FotoSekmesi({mac, turnuva, T, oturum, fotoYetki}){
   React.useEffect(()=>{ let a=true; if(uid){ Db.benimOyuncu(uid).then(o=>{ if(a) setBenO(o); }); } return ()=>{ a=false; }; },[uid]);
 
   const dosyaSec=()=>{ if(limitDoldu){ setHata("Bu maçta en fazla "+LIMIT+" fotoğraf olabilir. Yeni eklemek için birini silin."); return; } if(dosyaRef.current) dosyaRef.current.click(); };
-  const dosyaDegis=async(e)=>{
+  const dosyaDegis=(e)=>{
     const f=e.target.files&&e.target.files[0]; if(e.target) e.target.value="";
-    if(!f) return; if(limitDoldu){ setHata("Bu maçta en fazla "+LIMIT+" fotoğraf olabilir."); return; } setHata(""); setYukleniyor(true);
+    if(!f) return; if(limitDoldu){ setHata("Bu maçta en fazla "+LIMIT+" fotoğraf olabilir."); return; }
+    setHata(""); let onizle=null; try{ onizle=URL.createObjectURL(f); }catch(_e){}
+    setCaption(""); setCompose({dosya:f, onizle}); // başlık ekranını aç
+  };
+  const composeIptal=()=>{ try{ if(compose&&compose.onizle) URL.revokeObjectURL(compose.onizle); }catch(_e){} setCompose(null); setCaption(""); };
+  const paylas=async()=>{
+    if(!compose||yukleniyor) return; setHata(""); setYukleniyor(true);
     try{
-      const r=await fotoYukle(f,"macfoto",null,{kirpmaYok:true});
+      const r=await fotoYukle(compose.dosya,"macfoto",null,{kirpmaYok:true});
       if(r.hata){ setHata(r.hata); setYukleniyor(false); return; }
       const url=r.url; let yol=null; try{ yol=decodeURIComponent(String(url).split("/fotolar/")[1].split("?")[0]); }catch(_e){}
-      const ek=await Db.macFotoEkle(mac.id, turnuva&&turnuva.id, url, yol, benad, "", benfoto, benTakim);
+      const ek=await Db.macFotoEkle(mac.id, turnuva&&turnuva.id, url, yol, benad, caption, benfoto, benTakim);
       if(ek.hata){ setHata(ek.hata); setYukleniyor(false); return; }
       setFotolar(p=>[ek.foto,...p]);
+      try{ if(compose.onizle) URL.revokeObjectURL(compose.onizle); }catch(_e){}
+      setCompose(null); setCaption("");
     }catch(err){ setHata(String(err&&err.message||err)); }
     setYukleniyor(false);
   };
@@ -10992,6 +11002,27 @@ function FotoSekmesi({mac, turnuva, T, oturum, fotoYetki}){
     {acik && <FotoModal foto={acik} T={T} oturum={oturum} uid={uid} benad={benad} benfoto={benfoto} benTakim={benTakim} fotoYetki={fotoYetki}
       onKapat={()=>setAcik(null)} onBegen={()=>begenToggle(acik)} onSil={()=>fotoSil(acik)}
       onYorumSay={(d)=>{ setFotolar(p=>p.map(x=>x.id===acik.id?{...x, yorumSay:Math.max(0,(x.yorumSay||0)+d)}:x)); setAcik(a=>a?{...a, yorumSay:Math.max(0,(a.yorumSay||0)+d)}:a); }}/>}
+
+    {/* BAŞLIK + PAYLAŞ ekranı (fotoğraf yüklemeden önce) */}
+    {compose && <Portal><div onClick={()=>!yukleniyor&&composeIptal()} style={{position:"fixed",inset:0,zIndex:6000,background:"rgba(0,0,0,.82)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:460,maxHeight:"92dvh",display:"flex",flexDirection:"column",background:T.bg1,borderRadius:"20px 20px 0 0",border:"1px solid "+T.line,borderBottom:0,overflow:"hidden",boxShadow:"0 -10px 50px rgba(0,0,0,.55)"}}>
+        <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:9,padding:"12px 13px",borderBottom:"0.5px solid "+T.line}}>
+          <div style={{flex:1,fontSize:14,fontWeight:800,color:T.text,fontFamily:T.fontDisplay}}>📷 Yeni Fotoğraf</div>
+          <button onClick={composeIptal} disabled={yukleniyor} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:13,fontWeight:700,padding:"4px 8px"}}>İptal</button>
+        </div>
+        <div style={{flex:"1 1 auto",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+          {compose.onizle && <div style={{background:"#000",display:"flex",alignItems:"center",justifyContent:"center",maxHeight:"46dvh",overflow:"hidden"}}><img src={compose.onizle} alt="" style={{maxWidth:"100%",maxHeight:"46dvh",objectFit:"contain",display:"block"}}/></div>}
+          <div style={{padding:"12px 13px"}}>
+            <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Başlık ekle… (isteğe bağlı) örn. maç sonu 🏆" maxLength={300} rows={2} style={{width:"100%",boxSizing:"border-box",background:T.bg0,border:"0.5px solid "+T.line,borderRadius:12,padding:"11px 13px",color:T.text,fontSize:16,outline:"none",resize:"none",fontFamily:"inherit",lineHeight:1.4}}/>
+            <div style={{textAlign:"right",fontSize:9.5,color:T.textMut,marginTop:3}}>{caption.length}/300</div>
+          </div>
+        </div>
+        {hata && <div style={{flexShrink:0,background:T.danger+"18",color:T.danger,fontSize:11.5,padding:"8px 13px",textAlign:"center"}}>{hata}</div>}
+        <div style={{flexShrink:0,padding:"10px 13px",borderTop:"0.5px solid "+T.line,paddingBottom:"max(12px,env(safe-area-inset-bottom))",background:T.bg1}}>
+          <button onClick={paylas} disabled={yukleniyor} className="tap" style={{width:"100%",padding:"13px",borderRadius:13,border:0,background:T.accent,color:"#fff",fontSize:14,fontWeight:800,opacity:yukleniyor?.65:1}}>{yukleniyor?"⏳ Paylaşılıyor…":"Paylaş"}</button>
+        </div>
+      </div>
+    </div></Portal>}
   </div>;
 }
 
@@ -11036,10 +11067,12 @@ function FotoModal({foto, T, oturum, uid, benad, benfoto, benTakim, fotoYetki, o
     ? <img src={f} alt="" style={{width:boy,height:boy,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:"0.5px solid "+T.line}}/>
     : <span style={{width:boy,height:boy,borderRadius:"50%",background:T.accent+"22",color:T.accent,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(boy*0.45),fontWeight:800,flexShrink:0}}>{(ad||"?").slice(0,1).toUpperCase()}</span>;
 
-  return <div onClick={onKapat} style={{position:"fixed",inset:0,zIndex:6000,background:"rgba(0,0,0,.82)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-    <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:460,height:"88dvh",maxHeight:"88vh",display:"flex",flexDirection:"column",background:T.bg1,borderRadius:"20px 20px 0 0",border:"1px solid "+T.line,borderBottom:0,overflow:"hidden",boxShadow:"0 -10px 50px rgba(0,0,0,.55)"}}>
+  return <Portal><div onClick={onKapat} style={{position:"fixed",inset:0,zIndex:6000,background:"rgba(0,0,0,.82)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+    <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:460,maxHeight:"92dvh",display:"flex",flexDirection:"column",background:T.bg1,borderRadius:"20px 20px 0 0",border:"1px solid "+T.line,borderBottom:0,overflow:"hidden",boxShadow:"0 -10px 50px rgba(0,0,0,.55)"}}>
+      {/* çekme çubuğu — dokun/aşağı çek: kapat */}
+      <div onClick={onKapat} className="tap" style={{flexShrink:0,padding:"8px 0 5px",display:"flex",justifyContent:"center",cursor:"pointer"}}><div style={{width:42,height:5,borderRadius:3,background:T.line}}/></div>
       {/* başlık (üstte sabit): yükleyenin foto + ad + takım + tarih/saat */}
-      <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:9,padding:"11px 13px",borderBottom:"0.5px solid "+T.line}}>
+      <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:9,padding:"3px 13px 11px",borderBottom:"0.5px solid "+T.line}}>
         {Av(foto.yukleyen_foto, foto.yukleyen_ad, 34)}
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:12.5,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{foto.yukleyen_ad||"Kullanıcı"}{foto.yukleyen_takim?<span style={{color:T.textMut,fontWeight:600}}> · {foto.yukleyen_takim}</span>:null}</div>
@@ -11054,7 +11087,7 @@ function FotoModal({foto, T, oturum, uid, benad, benfoto, benTakim, fotoYetki, o
       </div>
       {foto.aciklama && <div style={{flexShrink:0,padding:"9px 13px 0",fontSize:12.5,color:T.textSoft}}><b style={{color:T.text}}>{foto.yukleyen_ad}</b> {foto.aciklama}</div>}
       {/* YORUMLAR (bağımsız kayan alan, en yeniye otomatik kayar) */}
-      <div ref={yorumRef} style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"10px 13px 14px",display:"flex",flexDirection:"column",gap:11,minHeight:70}}>
+      <div ref={yorumRef} style={{flex:"1 1 auto",overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"10px 13px 12px",display:"flex",flexDirection:"column",gap:11,minHeight:46,maxHeight:"32dvh"}}>
         {yuk ? <div style={{color:T.textMut,fontSize:11,textAlign:"center",padding:"12px 0"}}>Yorumlar yükleniyor…</div>
          : yorumlar.length===0 ? <div style={{color:T.textMut,fontSize:11.5,textAlign:"center",padding:"18px 0"}}>Henüz yorum yok. İlk yorumu sen yaz 💬</div>
          : yorumlar.map(y=><div key={y.id} style={{display:"flex",gap:9,alignItems:"flex-start"}}>
@@ -11078,7 +11111,7 @@ function FotoModal({foto, T, oturum, uid, benad, benfoto, benTakim, fotoYetki, o
         <button onClick={yorumEkle} disabled={gonder||!metin.trim()} className="tap" style={{background:metin.trim()?T.accent:T.bg0,color:metin.trim()?"#fff":T.textMut,border:0,borderRadius:20,padding:"10px 16px",fontSize:13,fontWeight:700,opacity:gonder?.6:1,flexShrink:0}}>Gönder</button>
       </div> : <div style={{flexShrink:0,padding:"11px 13px",borderTop:"0.5px solid "+T.line,fontSize:11.5,color:T.textMut,textAlign:"center",paddingBottom:"max(11px,env(safe-area-inset-bottom))"}}>Yorum yapmak için giriş yapın.</div>}
     </div>
-  </div>;
+  </div></Portal>;
 }
 
 function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
