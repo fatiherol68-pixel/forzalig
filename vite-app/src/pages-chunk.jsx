@@ -1,7 +1,7 @@
 import React from 'react';
 // ForzaLig sayfa kümesi — talep-üzerine (git ile gidilince). Bağımlılıklar main'den enjekte.
 export function make(D){
-  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FlSayac, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KapakDuzenle, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, flMotionAcik, fmtEuro, fotoYukle, gucAktif, gucBarRenk, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kapakCoz, kufurVar, macYorumUret, pick, posAd, pozKisa, pozRenk, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
+  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FlSayac, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KapakDuzenle, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, OyDetay, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, flMotionAcik, fmtEuro, fotoYukle, gucAktif, gucBarRenk, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kapakCoz, kufurVar, macYorumUret, pick, posAd, pozKisa, pozRenk, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
 
 function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi, bildirimListe}){
   const kariyereGit=()=>{
@@ -320,6 +320,8 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
   const [ara,setAra]=useState("");
   const [sira,setSira]=useState("gol"); // takım/oyuncu sıralama
   const [mevki,setMevki]=useState("hepsi");
+  const [acikOy,setAcikOy]=useState(()=>new Set());   // Oyuncular sekmesi accordion
+  const oyToggle=(id)=>setAcikOy(s=>{ const n=new Set(s); n.has(id)?n.delete(id):n.add(id); return n; });
   const q=ara.trim().toLocaleLowerCase("tr");
   const aktifTurnuvalar=turnuvalar.filter(t=>t&&(t.durum||'aktif')!=='arsiv'); // arşivlenen (bitmiş) sezonlar katalogda görünmez
   // FAZ 9 — herkese açık (paylaşılan) ligler
@@ -541,24 +543,28 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
     {/* OYUNCULAR */}
     {tab==="oyuncu" && <div style={{padding:"4px 14px"}}>
       {oyuncuSirali.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:24}}>Oyuncu bulunamadı</div>}
-      {oyuncuSirali.slice(0,200).map((o,i)=>
-        <div key={i} onClick={()=>git({sayfa:"oyuncu",oyuncu:{...o}})} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,background:T.bg1,borderRadius:11,padding:"9px 12px",marginBottom:5,border:"0.5px solid "+T.line}}>
-          <div style={{position:"relative",flexShrink:0}}>
-            <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34,o.foto)}}/>
-            {o.ovr>0 && <span style={{position:"absolute",bottom:-3,right:-4,fontSize:8,fontWeight:800,background:T.gold,color:"#06140d",borderRadius:6,padding:"0px 4px",fontFamily:T.fontDisplay}}>{o.ovr}</span>}
-          </div>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:5}}>
-              <span style={{fontSize:13,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</span>
-              {(o.mvp||0)>0 && <span style={{fontSize:8,color:T.gold,whiteSpace:"nowrap",flexShrink:0}}>⭐{o.mvp}</span>}
+      {oyuncuSirali.slice(0,200).map((o,i)=>{
+        const oid=o.id||o.player_id||("i"+i), acik=acikOy.has(oid);
+        return <div key={oid} style={{background:T.bg1,borderRadius:11,marginBottom:5,border:"0.5px solid "+(acik?T.accent+"55":T.line),overflow:"hidden"}}>
+          <div onClick={()=>oyToggle(oid)} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,padding:"9px 12px",cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}>
+            <div style={{position:"relative",flexShrink:0}}>
+              <div style={{width:34,height:34,borderRadius:"50%",overflow:"hidden"}} dangerouslySetInnerHTML={{__html:svgAvatar(o.ad,34,o.foto)}}/>
+              {o.ovr>0 && <span style={{position:"absolute",bottom:-3,right:-4,fontSize:8,fontWeight:800,background:T.gold,color:"#06140d",borderRadius:6,padding:"0px 4px",fontFamily:T.fontDisplay}}>{o.ovr}</span>}
             </div>
-            <div style={{fontSize:9,color:T.textMut}}>{o.takimAd} · {o.poz||""}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                <span style={{fontSize:13,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</span>
+                {(o.mvp||0)>0 && <span style={{fontSize:8,color:T.gold,whiteSpace:"nowrap",flexShrink:0}}>⭐{o.mvp}</span>}
+              </div>
+              <div style={{fontSize:9,color:T.textMut}}>{o.takimAd} · {o.poz||""}</div>
+            </div>
+            <div style={{textAlign:"right",marginRight:2}}><div style={{fontSize:13,color:T.accent,fontWeight:800,fontFamily:T.fontDisplay}}>{o.gol||0}</div><div style={{fontSize:8,color:T.textMut}}>gol</div></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:13,color:"#34D399",fontWeight:800,fontFamily:T.fontDisplay}}>{o.asist||0}</div><div style={{fontSize:8,color:T.textMut}}>asist</div></div>
+            <span style={{width:28,height:28,borderRadius:9,background:acik?T.accent:T.accent+"20",color:acik?(T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,fontSize:17,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transform:acik?"rotate(180deg)":"none",transition:"transform .18s",border:"1.5px solid "+T.accent+(acik?"":"55"),lineHeight:1}}>▾</span>
           </div>
-          <div style={{textAlign:"right",marginRight:2}}><div style={{fontSize:13,color:T.accent,fontWeight:800,fontFamily:T.fontDisplay}}>{o.gol||0}</div><div style={{fontSize:8,color:T.textMut}}>gol</div></div>
-          <div style={{textAlign:"right"}}><div style={{fontSize:13,color:"#34D399",fontWeight:800,fontFamily:T.fontDisplay}}>{o.asist||0}</div><div style={{fontSize:8,color:T.textMut}}>asist</div></div>
-          <span style={{fontSize:11,color:T.textMut}}>›</span>
-        </div>
-      )}
+          {acik && <OyDetay o={o} T={T} git={git} maclar={[]} takimAd={o.takimAd} turnuva={o.turnuva}/>}
+        </div>;
+      })}
       {oyuncuSirali.length>200 && <div style={{fontSize:10,color:T.textMut,textAlign:"center",padding:10}}>İlk 200 gösteriliyor · aramayla daralt</div>}
     </div>}
 
@@ -1712,7 +1718,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
               </div>
               <span style={{width:34,height:34,borderRadius:9,background:oc.bg,color:oc.fg,fontSize:14,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:T.fontDisplay}}>{o.ovr}</span>
               {cikarabilir && typeof takim.id==="string" && <span onClick={(e)=>{e.stopPropagation();kadrodanCikarHizli(o);}} className="tap" title="Kadrodan çıkar" style={{fontSize:13,color:T.danger,fontWeight:700,padding:"2px 6px",borderRadius:7,background:T.danger+"14",border:"0.5px solid "+T.danger+"33",cursor:"pointer",lineHeight:1,flexShrink:0}}>✕</span>}
-              <span style={{width:20,height:20,borderRadius:6,background:acik?T.accent+"22":"transparent",color:acik?T.accent:T.textMut,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transform:acik?"rotate(180deg)":"none",transition:"transform .18s"}}>▾</span>
+              <span style={{width:28,height:28,borderRadius:9,background:acik?T.accent:T.accent+"20",color:acik?(T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,fontSize:17,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transform:acik?"rotate(180deg)":"none",transition:"transform .18s",border:"1.5px solid "+T.accent+(acik?"":"55"),lineHeight:1}}>▾</span>
             </div>
             {acik && <div className="fade-in" style={{padding:"2px 12px 14px"}}>
               {nitler.length>0 && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"7px 16px",margin:"6px 0 2px"}}>
