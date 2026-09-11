@@ -1,7 +1,7 @@
 import React from 'react';
 // ForzaLig sayfa kümesi — talep-üzerine (git ile gidilince). Bağımlılıklar main'den enjekte.
 export function make(D){
-  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FlSayac, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KapakDuzenle, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, OyDetay, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, flMotionAcik, fmtEuro, fotoYukle, gucAktif, gucBarRenk, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kapakCoz, kufurVar, macYorumUret, pick, posAd, pozKisa, pozRenk, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
+  const { AnketKart, Avatar, BarGrafik, Baslik, BilgiAlan, BilgiDuzeltModal, BosPazar, BosUyari, CanliYayin, DAVET_URL, DIZILIS_SABLON, Db, Donut, FL_EMOJILER, FifaKart, FlSayac, FormRozet, FzImza, HAKEM_GOREVLER, Halka, ISTATISTIK_SATIRLAR, IlanVerModal, IlanYanitModal, KadroKolon, KapakArka, KapakDuzenle, KiyasBar, KiyasSatir, KpiMini, KralListe, KupaBracket, LiderMiniKart, LigIstatistik, LigKurallar, LisansKarti, Logo, MAC_ODUL_ETIKET, MacMedyaKart, MacSatir, MaclarSayfa, MiniIstatBanner, Motor, MvpOylama, OneCikan, OyDetay, PAYLASIM_URL, PAYLASIM_URL_TEMIZ, Paylas, Podyum, PuanDurumu, PushAyar, RENK_TEMA, Radar, STILLER, SahaDizilis, Sayac, SayacSayi, SezonSerisi, SihirbazDegisKutu, SihirbazGolKutu, SihirbazKartKutu, SihirbazOzetSatir, Sparkline, StatDuzeltModal, TAKIM_ADLARI, TakipLigIcerik, YardimciYonetim, YeniSezonPop, YonetimPaneli, flMotionAcik, fmtEuro, fotoYukle, gucAktif, gucBarRenk, hakemDurustur, hakemGorevSonraki, hakemParse, hash, kalanSure, kapakCoz, kartGuc, kufurVar, macYorumUret, pick, posAd, pozKisa, pozRenk, qrData, rnd, sb, sesYukle, slotlariUret, slugUret, svgAmblem, svgAvatar, tarihISO, trTarih, useEffect, useMemo, useRef, useState, yasHesap } = D;
 
 function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kapiAc, oturum, cikisYap, sahiplenme, onSahiplenmeBirak, adminMi, profil, destekBilgi, bildirimListe}){
   const kariyereGit=()=>{
@@ -1847,6 +1847,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
 }
 
 function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turnuvalar, oturum, sahiplenme, onSahiplen, onTransfer, saltOkunur, adminMi}){
+  try{ kartGuc(o); }catch(e){}   // kart: taban 65 (ya da manuel) + performans → OVR/nitelik boş/0 kalmaz, doğru gösterilir
   const [duzenle,setDuzenle]=useState(false);
   const [kapakAcik,setKapakAcik]=useState(false);
   const [,setKapakTik]=useState(0); // kapak kaydedilince yeniden çiz
@@ -1953,12 +1954,17 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   };
   const kaydet=()=>{
     const perf=(o.degerP||0); const eskiG=(o.degerG!=null?o.degerG:o.deger);
-    Object.assign(o,d); o.ovr=d.ovr||Math.round((d.pac+d.sho+d.pas+d.dri+d.def+d.phy)/6); o._manuel=true;
-    // DEĞER (Faz 1): admin GÜNCEL değeri belirler → temel = güncel − performans (İşlem 1). Supabase'e KALICI yazılır.
+    Object.assign(o,d);
+    // MANUEL = yeni TABAN: nitelik tabanlarını admin değerine sabitle, sonra kartGuc taban+performansı hesaplasın.
+    o.pacBaz=+d.pac; o.shoBaz=+d.sho; o.pasBaz=+d.pas; o.driBaz=+d.dri; o.defBaz=+d.def; o.phyBaz=+d.phy;
+    const bazOvr=Math.round((o.pacBaz+o.shoBaz+o.pasBaz+o.driBaz+o.defBaz+o.phyBaz)/6);
+    o._manuel=true;
+    try{ kartGuc(o); }catch(e){ o.ovr=bazOvr; }   // gösterilen o.ovr/o.pac.. taban+performans → kartta ANINDA yükselir
+    // DEĞER (Faz 1): admin GÜNCEL değeri belirler → temel = güncel − performans. Supabase'e KALICI yazılır.
     const hedef=Math.round(parseFloat(d.deger)||0); const yeniTemel=Math.max(0, hedef-perf);
     o.deger=yeniTemel; o.degerTemel=yeniTemel; o.degerP=perf; o.degerG=yeniTemel+perf;
     const spid=o.player_id||(typeof o.id==="string"?o.id:null);
-    if(spid && sb){ Db.oyuncuGuncelle(spid,{deger:yeniTemel, ovr:o.ovr, nitelik:{pac:d.pac,sho:d.sho,pas:d.pas,dri:d.dri,def:d.def,phy:d.phy}}); Db.degerLog(spid,{onceki:eskiG,yeni:o.degerG,temel:yeniTemel,kaynak:"manuel",aciklama:"Süper admin değer düzenledi"}); }
+    if(spid && sb){ Db.oyuncuGuncelle(spid,{deger:yeniTemel, ovr:bazOvr, nitelik:{pac:o.pacBaz,sho:o.shoBaz,pas:o.pasBaz,dri:o.driBaz,def:o.defBaz,phy:o.phyBaz}}); Db.degerLog(spid,{onceki:eskiG,yeni:o.degerG,temel:yeniTemel,kaynak:"manuel",aciklama:"Süper admin kart düzenledi"}); }
     setDuzenle(false);
   };
   const otomatikYap=()=>{

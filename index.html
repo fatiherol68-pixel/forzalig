@@ -2978,6 +2978,26 @@ function degerPerformans(o, temel){
   return Math.round(p);
 }
 function degerHesapla(o){ var t=degerTemelNorm(o); o.degerTemel=t; o.degerP=(o.degerKilit?0:degerPerformans(o,t)); o.degerG=t+o.degerP; return o.degerG; }
+/* KART GÜCÜ (FIFA nitelik + OVR): TABAN 65 (ya da admin manuel değeri) + PERFORMANS artışı.
+   - Taban her nitelik için *Baz alanında sabit tutulur (manuel edit bunu günceller) → tekrar tekrar
+     çağrılınca ŞİŞMEZ (idempotent). o.pac.. ve o.ovr = GÖSTERİLEN değer (taban + performans, 99 tavan).
+   - Oynadıkça/gol/asist/kurtarış/ödül aldıkça artar; mevkiye göre kategori dağılımı (gol→ŞUT, asist→PAS, kurtarış→SAV). */
+function kartGuc(o){
+  if(!o) return;
+  ['pac','sho','pas','dri','def','phy'].forEach(function(k){ var bk=k+'Baz'; if(o[bk]==null) o[bk]=(o[k]!=null && o[k]>0)?o[k]:65; });
+  var poz=degerPozKat(o.poz);
+  var perf=(o.gol||0)*1.4+(o.asist||0)*1.0+(o.mvp||0)*2.0+(o.altin||0)*1.6+(o.gumus||0)*0.9+(o.macinGolu||0)*1.0
+    +((o.forvet||0)+(o.ortasaha||0)+(o.defans||0)+(o.kaleci||0))*0.7+(o.enerjik||0)*0.5+(o.centilmen||0)*0.3
+    +(o.mac||0)*0.15+(o.kurtaris||0)*0.25-(o.kirmizi||0)*1.0-(o.sari||0)*0.3;
+  if(perf<0)perf=0;
+  var g=(o.gol||0),a=(o.asist||0),ku=(o.kurtaris||0),gen=perf*0.5;
+  var art={ sho:g*1.2+gen*0.4, pas:a*1.0+gen*0.4, def:ku*0.6+gen*0.3+((poz==='DEF'||poz==='KAL')?perf*0.3:0),
+    pac:gen*0.5+(o.mac||0)*0.05, dri:(g*0.4+a*0.4)+gen*0.4, phy:(o.mac||0)*0.1+gen*0.4 };
+  ['pac','sho','pas','dri','def','phy'].forEach(function(k){ o[k]=Math.max(1,Math.min(99, Math.round((o[k+'Baz']||65)+(art[k]||0)))); });
+  o.ovrTemel=Math.round((o.pacBaz+o.shoBaz+o.pasBaz+o.driBaz+o.defBaz+o.phyBaz)/6);
+  o.ovr=Math.min(99, Math.round((o.pac+o.sho+o.pas+o.dri+o.def+o.phy)/6));
+  return o.ovr;
+}
 function turnuvaHesapla(turnuva){
   if(!turnuva || turnuva._ozet || turnuva._cache || !turnuva.takimlar) return;   // özet/önbellek — istatistik zaten hazır (önbellekte pişmiş), sıfırlama/yeniden-hesaplama YAPMA
   // takım istatistik sıfırla
@@ -3087,7 +3107,7 @@ function turnuvaHesapla(turnuva){
     }
   }
   // —— PİYASA DEĞERİ —— her oyuncu için güncel = temel + performans (idempotent)
-  turnuva.takimlar.forEach(function(tk){ (tk.oyuncular||[]).forEach(function(o){ o.sezonOdul=[]; degerHesapla(o); }); });
+  turnuva.takimlar.forEach(function(tk){ (tk.oyuncular||[]).forEach(function(o){ o.sezonOdul=[]; degerHesapla(o); kartGuc(o); }); });
   // Faz 4: sezon lideri bonusu (gol kralı / asist kralı / en iyi kaleci) — tavan üstü, idempotent
   var _tumO=[]; turnuva.takimlar.forEach(function(tk){ (tk.oyuncular||[]).forEach(function(o){ _tumO.push(o); }); });
   var _lider=function(alan){ var mx=0,l=null; _tumO.forEach(function(o){ if((o[alan]||0)>mx){mx=o[alan];l=o;} }); return mx>0?l:null; };
@@ -9953,6 +9973,7 @@ function KartimEditor({oyuncu:o, T, git, adminMi, oturum, sahip}){
 }
 
 function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turnuvalar, oturum, sahiplenme, onSahiplen, onTransfer, saltOkunur, adminMi}){
+  try{ kartGuc(o); }catch(e){}   // kart: taban 65 (ya da manuel) + performans → OVR/nitelik boş/0 kalmaz, doğru gösterilir
   const [duzenle,setDuzenle]=useState(false);
   const [kapakAcik,setKapakAcik]=useState(false);
   const [,setKapakTik]=useState(0); // kapak kaydedilince yeniden çiz
@@ -10059,12 +10080,17 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   };
   const kaydet=()=>{
     const perf=(o.degerP||0); const eskiG=(o.degerG!=null?o.degerG:o.deger);
-    Object.assign(o,d); o.ovr=d.ovr||Math.round((d.pac+d.sho+d.pas+d.dri+d.def+d.phy)/6); o._manuel=true;
-    // DEĞER (Faz 1): admin GÜNCEL değeri belirler → temel = güncel − performans (İşlem 1). Supabase'e KALICI yazılır.
+    Object.assign(o,d);
+    // MANUEL = yeni TABAN: nitelik tabanlarını admin değerine sabitle, sonra kartGuc taban+performansı hesaplasın.
+    o.pacBaz=+d.pac; o.shoBaz=+d.sho; o.pasBaz=+d.pas; o.driBaz=+d.dri; o.defBaz=+d.def; o.phyBaz=+d.phy;
+    const bazOvr=Math.round((o.pacBaz+o.shoBaz+o.pasBaz+o.driBaz+o.defBaz+o.phyBaz)/6);
+    o._manuel=true;
+    try{ kartGuc(o); }catch(e){ o.ovr=bazOvr; }   // gösterilen o.ovr/o.pac.. taban+performans → kartta ANINDA yükselir
+    // DEĞER (Faz 1): admin GÜNCEL değeri belirler → temel = güncel − performans. Supabase'e KALICI yazılır.
     const hedef=Math.round(parseFloat(d.deger)||0); const yeniTemel=Math.max(0, hedef-perf);
     o.deger=yeniTemel; o.degerTemel=yeniTemel; o.degerP=perf; o.degerG=yeniTemel+perf;
     const spid=o.player_id||(typeof o.id==="string"?o.id:null);
-    if(spid && sb){ Db.oyuncuGuncelle(spid,{deger:yeniTemel, ovr:o.ovr, nitelik:{pac:d.pac,sho:d.sho,pas:d.pas,dri:d.dri,def:d.def,phy:d.phy}}); Db.degerLog(spid,{onceki:eskiG,yeni:o.degerG,temel:yeniTemel,kaynak:"manuel",aciklama:"Süper admin değer düzenledi"}); }
+    if(spid && sb){ Db.oyuncuGuncelle(spid,{deger:yeniTemel, ovr:bazOvr, nitelik:{pac:o.pacBaz,sho:o.shoBaz,pas:o.pasBaz,dri:o.driBaz,def:o.defBaz,phy:o.phyBaz}}); Db.degerLog(spid,{onceki:eskiG,yeni:o.degerG,temel:yeniTemel,kaynak:"manuel",aciklama:"Süper admin kart düzenledi"}); }
     setDuzenle(false);
   };
   const otomatikYap=()=>{
@@ -10686,6 +10712,7 @@ function BilgiDuzeltModal({o, bd, setBd, T, kaydet, kapat}){
 function StatDuzeltModal({o, d, setD, T, kaydet, kapat, otomatikYap}){
   const stat=(k,v)=> setD({...d,[k]:Math.max(30,Math.min(99,v))});
   const ovrHesap=Math.round((d.pac+d.sho+d.pas+d.dri+d.def+d.phy)/6);
+  const yildizHesap=ovrHesap>=85?5:ovrHesap>=78?4:ovrHesap>=68?3:ovrHesap>=58?2:1;   // yıldız OVR'a göre canlı
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={kapat}>
     <div onClick={e=>e.stopPropagation()} className="fade-in" style={{background:T.bg1,borderRadius:"20px 20px 0 0",width:"100%",maxWidth:480,maxHeight:"88vh",overflowY:"auto",padding:"18px 16px 24px",border:"0.5px solid "+T.line}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -10698,12 +10725,12 @@ function StatDuzeltModal({o, d, setD, T, kaydet, kapat, otomatikYap}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
         <div style={{background:T.bg2,borderRadius:10,padding:"10px",textAlign:"center"}}>
           <div style={{fontSize:9,color:T.textMut}}>OVR</div>
-          <div style={{fontSize:22,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>{d.ovr||ovrHesap}</div>
+          <div style={{fontSize:22,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>{ovrHesap}</div>
         </div>
         <div style={{background:T.bg2,borderRadius:10,padding:"10px",textAlign:"center"}}>
           <div style={{fontSize:9,color:T.textMut,marginBottom:4}}>YILDIZ</div>
           <div style={{display:"flex",justifyContent:"center",gap:2}}>
-            {[1,2,3,4,5].map(n=><span key={n} onClick={()=>setD({...d,yildizManuel:n})} style={{fontSize:16,cursor:"pointer",color:n<=(d.yildizManuel||0)?T.gold:T.line}}>★</span>)}
+            {[1,2,3,4,5].map(n=><span key={n} onClick={()=>setD({...d,yildizManuel:n})} style={{fontSize:16,cursor:"pointer",color:n<=(d.yildizManuel||yildizHesap)?T.gold:T.line}}>★</span>)}
           </div>
         </div>
         <div style={{background:T.bg2,borderRadius:10,padding:"10px",textAlign:"center"}}>
@@ -10732,7 +10759,7 @@ function StatDuzeltModal({o, d, setD, T, kaydet, kapat, otomatikYap}){
       {/* butonlar */}
       <div style={{display:"flex",gap:8,marginTop:18}}>
         <button onClick={otomatikYap} className="tap" style={{flex:1,background:T.bg2,color:T.textSoft,borderRadius:10,padding:"12px",fontSize:13,fontWeight:600}}>↻ Otomatik Yap</button>
-        <button onClick={()=>{ if(!d.ovr)setD({...d,ovr:ovrHesap}); kaydet(); }} className="tap" style={{flex:1,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,borderRadius:10,padding:"12px",fontSize:13,fontWeight:700}}>💾 Kaydet</button>
+        <button onClick={()=>kaydet()} className="tap" style={{flex:1,background:T.accent,color:T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0,borderRadius:10,padding:"12px",fontSize:13,fontWeight:700}}>💾 Kaydet</button>
       </div>
       <div style={{fontSize:10,color:T.textMut,textAlign:"center",marginTop:10}}>"Otomatik Yap": sistemin hesapladığı gerçek değerlere döner</div>
     </div>
