@@ -17336,11 +17336,18 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
               const topA=list.reduce((s,x)=>s+Number(x.adet||0),0);
               const mb=(b)=>{ b=Number(b||0); return b>=1048576?(b/1048576).toFixed(2)+" MB":(b/1024).toFixed(0)+" KB"; };
               if(!list.length) return <div style={{fontSize:11,color:T.textMut,padding:"6px 0"}}>Depoda görsel bulunamadı.</div>;
+              const KOTA_MB=1024; // Supabase ücretsiz plan = 1 GB
+              const kullMB=topB/1048576; const bosMB=Math.max(0,KOTA_MB-kullMB); const doluYuz=Math.min(100,(kullMB/KOTA_MB)*100);
               return <div>
-                {/* toplam */}
+                {/* toplam + boş alan */}
                 <div style={{display:"flex",gap:8,marginBottom:9}}>
-                  <div style={{flex:1,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 12px"}}><div style={{fontSize:8.5,color:T.textMut}}>TOPLAM DOSYA</div><div style={{fontSize:16,fontWeight:900,color:T.text}} className="tab">{topA}</div></div>
-                  <div style={{flex:1,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 12px"}}><div style={{fontSize:8.5,color:T.textMut}}>TOPLAM BOYUT</div><div style={{fontSize:16,fontWeight:900,color:T.accent}} className="tab">{mb(topB)}</div></div>
+                  <div style={{flex:1,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 12px"}}><div style={{fontSize:8.5,color:T.textMut}}>KULLANILAN</div><div style={{fontSize:16,fontWeight:900,color:T.accent}} className="tab">{mb(topB)}</div><div style={{fontSize:8.5,color:T.textMut,marginTop:1}}>{topA} dosya</div></div>
+                  <div style={{flex:1,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 12px"}}><div style={{fontSize:8.5,color:T.textMut}}>BOŞ ALAN</div><div style={{fontSize:16,fontWeight:900,color:"#2ec26a"}} className="tab">{bosMB>=1?bosMB.toFixed(0)+" MB":Math.round(bosMB*1024)+" KB"}</div><div style={{fontSize:8.5,color:T.textMut,marginTop:1}}>{KOTA_MB} MB'nin %{(100-doluYuz).toFixed(0)}'i boş</div></div>
+                </div>
+                {/* 1 GB doluluk çubuğu */}
+                <div style={{background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px 12px",marginBottom:9}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textMut,marginBottom:5}}><span>Toplam kota: 1 GB (1024 MB)</span><span className="tab">%{doluYuz.toFixed(1)} dolu</span></div>
+                  <div style={{height:8,background:T.bg1,borderRadius:5,overflow:"hidden"}}><div style={{height:"100%",width:Math.max(1.5,doluYuz)+"%",background:doluYuz>70?T.danger:doluYuz>40?T.gold:"#2ec26a",borderRadius:5,transition:"width .4s"}}/></div>
                 </div>
                 {/* kategoriler */}
                 <div style={{display:"flex",flexDirection:"column",gap:7}}>
