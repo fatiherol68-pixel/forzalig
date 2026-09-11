@@ -552,14 +552,15 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
               {o.ovr>0 && <span style={{position:"absolute",bottom:-3,right:-4,fontSize:8,fontWeight:800,background:T.gold,color:"#06140d",borderRadius:6,padding:"0px 4px",fontFamily:T.fontDisplay}}>{o.ovr}</span>}
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{display:"flex",alignItems:"center",gap:5}}>
-                <span style={{fontSize:13,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</span>
-                {(o.mvp||0)>0 && <span style={{fontSize:8,color:T.gold,whiteSpace:"nowrap",flexShrink:0}}>⭐{o.mvp}</span>}
-              </div>
+              <div style={{fontSize:13,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
               <div style={{fontSize:9,color:T.textMut}}>{o.takimAd} · {o.poz||""}</div>
             </div>
-            <div style={{textAlign:"right",marginRight:2}}><div style={{fontSize:13,color:T.accent,fontWeight:800,fontFamily:T.fontDisplay}}>{o.gol||0}</div><div style={{fontSize:8,color:T.textMut}}>gol</div></div>
-            <div style={{textAlign:"right"}}><div style={{fontSize:13,color:"#34D399",fontWeight:800,fontFamily:T.fontDisplay}}>{o.asist||0}</div><div style={{fontSize:8,color:T.textMut}}>asist</div></div>
+            <div style={{display:"flex",alignItems:"center",gap:9,flexShrink:0}}>
+              <div style={{textAlign:"center",minWidth:22}}><div style={{fontSize:13,color:T.accent,fontWeight:800,fontFamily:T.fontDisplay}}>{o.gol||0}</div><div style={{fontSize:8,color:T.textMut}}>gol</div></div>
+              <div style={{textAlign:"center",minWidth:22}}><div style={{fontSize:13,color:"#34D399",fontWeight:800,fontFamily:T.fontDisplay}}>{o.asist||0}</div><div style={{fontSize:8,color:T.textMut}}>asist</div></div>
+              {(o.kurtaris||0)>0 && <div style={{textAlign:"center",minWidth:22}}><div style={{fontSize:13,color:"#5b9cff",fontWeight:800,fontFamily:T.fontDisplay}}>{o.kurtaris}</div><div style={{fontSize:8,color:T.textMut}}>kurt.</div></div>}
+              {(o.mvp||0)>0 && <div style={{textAlign:"center",minWidth:22}}><div style={{fontSize:13,color:T.gold,fontWeight:800,fontFamily:T.fontDisplay}}>{o.mvp}</div><div style={{fontSize:8,color:T.textMut}}>⭐</div></div>}
+            </div>
             <span style={{width:28,height:28,borderRadius:9,background:acik?T.accent:T.accent+"20",color:acik?(T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,fontSize:17,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transform:acik?"rotate(180deg)":"none",transition:"transform .18s",border:"1.5px solid "+T.accent+(acik?"":"55"),lineHeight:1}}>▾</span>
           </div>
           {acik && <OyDetay o={o} T={T} git={git} maclar={[]} takimAd={o.takimAd} turnuva={o.turnuva}/>}
@@ -1426,7 +1427,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
     return arr;
   },[takim.oyuncular, kadroSira]);
   const ovrRenk=(v)=> v>=90?{bg:"linear-gradient(145deg,"+T.gold+",#c79a2f)",fg:"#1a1505"} : v>=80?{bg:T.accent+"2a",fg:T.accent} : v>=70?{bg:(T.accent2||T.accent)+"22",fg:T.accent2||T.accent} : {bg:T.bg2,fg:T.textSoft};
-  const degerFmt=(d)=>{ d=+d||0; if(!d) return "—"; return d>=1000000?(d/1000000).toFixed(1).replace(/\.0$/,"")+"M ₺": d>=1000?Math.round(d/1000)+"K ₺": d+" ₺"; };
+  const degerFmt=(p)=>fmtEuro((p&&p.degerG!=null)?p.degerG:((p&&p.deger!=null&&p.deger>=50000)?p.deger:750000));   // kart ile AYNI: Euro + Milyar
   const kadroMaclari=(takim.oyuncular&&turnuva&&turnuva.maclar)? turnuva.maclar.filter(m=>m.oynandi&&(m.takimAId===takim.id||m.takimBId===takim.id)).sort((a,b)=>(b.hafta||0)-(a.hafta||0)).slice(0,5) : [];
   const enGolcu=[...takim.oyuncular].sort((a,b)=>b.gol-a.gol)[0]||{};
   const enAsist=[...takim.oyuncular].sort((a,b)=>b.asist-a.asist)[0]||{};
@@ -1714,7 +1715,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
               <div style={{flexShrink:0}}><Avatar o={o} boy={36} T={T}/></div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
-                <div style={{fontSize:10.5,color:T.textMut,marginTop:1,display:"flex",gap:7,flexWrap:"wrap"}}><span>{o.no!=null?"#"+o.no+" · ":""}{o.poz}{o.yas!=null?" · "+o.yas+" yaş":""}</span><span style={{color:T.gold,fontWeight:700}}>💰 {degerFmt(o.deger)}</span></div>
+                <div style={{fontSize:10.5,color:T.textMut,marginTop:1,display:"flex",gap:7,flexWrap:"wrap"}}><span>{o.no!=null?"#"+o.no+" · ":""}{o.poz}{o.yas!=null?" · "+o.yas+" yaş":""}</span><span style={{color:T.gold,fontWeight:700}}>💰 {degerFmt(o)}</span></div>
               </div>
               <span style={{width:34,height:34,borderRadius:9,background:oc.bg,color:oc.fg,fontSize:14,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:T.fontDisplay}}>{o.ovr}</span>
               {cikarabilir && typeof takim.id==="string" && <span onClick={(e)=>{e.stopPropagation();kadrodanCikarHizli(o);}} className="tap" title="Kadrodan çıkar" style={{fontSize:13,color:T.danger,fontWeight:700,padding:"2px 6px",borderRadius:7,background:T.danger+"14",border:"0.5px solid "+T.danger+"33",cursor:"pointer",lineHeight:1,flexShrink:0}}>✕</span>}
