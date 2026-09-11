@@ -11012,40 +11012,41 @@ function FotoModal({foto, T, oturum, uid, benad, fotoYetki, onKapat, onBegen, on
   };
   const zaman=(s)=>{ try{ const d=new Date(s); const fark=(Date.now()-d.getTime())/1000; if(fark<60) return "az önce"; if(fark<3600) return Math.floor(fark/60)+" dk"; if(fark<86400) return Math.floor(fark/3600)+" sa"; return d.toLocaleDateString("tr-TR",{day:"numeric",month:"short"}); }catch(e){ return ""; } };
 
-  return <div onClick={onKapat} style={{position:"fixed",inset:0,zIndex:6000,background:"rgba(0,0,0,.78)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}}>
-    <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:440,maxHeight:"92vh",display:"flex",flexDirection:"column",background:T.bg1,borderRadius:18,border:"1px solid "+T.line,overflow:"hidden",boxShadow:"0 24px 60px rgba(0,0,0,.5)"}}>
-      {/* başlık */}
-      <div style={{display:"flex",alignItems:"center",gap:9,padding:"11px 13px",borderBottom:"0.5px solid "+T.line}}>
-        <span style={{width:30,height:30,borderRadius:"50%",background:T.accent+"22",color:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800}}>{(foto.yukleyen_ad||"?").slice(0,1).toUpperCase()}</span>
+  return <div onClick={onKapat} style={{position:"fixed",inset:0,zIndex:6000,background:"rgba(0,0,0,.82)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+    <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:460,height:"88dvh",maxHeight:"88vh",display:"flex",flexDirection:"column",background:T.bg1,borderRadius:"20px 20px 0 0",border:"1px solid "+T.line,borderBottom:0,overflow:"hidden",boxShadow:"0 -10px 50px rgba(0,0,0,.55)"}}>
+      {/* başlık (üstte sabit) */}
+      <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:9,padding:"11px 13px",borderBottom:"0.5px solid "+T.line}}>
+        <span style={{width:30,height:30,borderRadius:"50%",background:T.accent+"22",color:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,flexShrink:0}}>{(foto.yukleyen_ad||"?").slice(0,1).toUpperCase()}</span>
         <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{foto.yukleyen_ad||"Kullanıcı"}</div><div style={{fontSize:10,color:T.textMut}}>{zaman(foto.created)}</div></div>
-        {(sahibiyim||fotoYetki) && <button onClick={onSil} className="tap" style={{background:"none",border:0,color:T.danger,fontSize:12,fontWeight:700,padding:"4px 8px"}}>🗑 Sil</button>}
-        <button onClick={onKapat} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:20,lineHeight:1,padding:"0 4px"}}>×</button>
+        {(sahibiyim||fotoYetki) && <button onClick={onSil} className="tap" style={{background:"none",border:0,color:T.danger,fontSize:12,fontWeight:700,padding:"4px 8px",flexShrink:0}}>🗑 Sil</button>}
+        <button onClick={onKapat} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:22,lineHeight:1,padding:"0 4px",flexShrink:0}}>×</button>
       </div>
-      {/* görsel */}
-      <div style={{background:"#000",display:"flex",alignItems:"center",justifyContent:"center",maxHeight:"46vh",overflow:"hidden"}}>
-        <img src={foto.url} alt="" style={{maxWidth:"100%",maxHeight:"46vh",objectFit:"contain",display:"block"}}/>
+      {/* KAYAN ALAN: görsel + açıklama + yorumlar */}
+      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+        <div style={{background:"#000",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <img src={foto.url} alt="" style={{maxWidth:"100%",maxHeight:"42dvh",objectFit:"contain",display:"block"}}/>
+        </div>
+        {foto.aciklama && <div style={{padding:"9px 13px 0",fontSize:12.5,color:T.textSoft}}><b style={{color:T.text}}>{foto.yukleyen_ad}</b> {foto.aciklama}</div>}
+        <div style={{padding:"10px 13px 14px",display:"flex",flexDirection:"column",gap:9}}>
+          {yuk ? <div style={{color:T.textMut,fontSize:11,textAlign:"center",padding:"12px 0"}}>Yorumlar yükleniyor…</div>
+           : yorumlar.length===0 ? <div style={{color:T.textMut,fontSize:11.5,textAlign:"center",padding:"14px 0"}}>Henüz yorum yok. İlk yorumu sen yaz 💬</div>
+           : yorumlar.map(y=><div key={y.id} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+              <span style={{width:24,height:24,borderRadius:"50%",background:T.bg0,color:T.textSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0,border:"0.5px solid "+T.line}}>{(y.ad||"?").slice(0,1).toUpperCase()}</span>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:T.text}}><b style={{fontWeight:700}}>{y.ad||"Kullanıcı"}</b> <span style={{color:T.textSoft}}>{y.metin}</span></div><div style={{fontSize:9.5,color:T.textMut,marginTop:1}}>{zaman(y.created)}</div></div>
+              {uid&&y.user_id===uid && <button onClick={()=>yorumSil(y)} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:11,padding:"2px 4px"}}>🗑</button>}
+            </div>)}
+        </div>
       </div>
-      {/* aksiyon + açıklama */}
-      <div style={{padding:"10px 13px 6px",display:"flex",alignItems:"center",gap:14,borderBottom:"0.5px solid "+T.line}}>
-        <button onClick={onBegen} className="tap" style={{background:"none",border:0,display:"flex",alignItems:"center",gap:6,fontSize:15,color:foto.begendim?T.danger:T.text,fontWeight:700}}>{foto.begendim?"❤️":"🤍"} <span style={{fontSize:13}}>{foto.begeni||0}</span></button>
-        <span style={{display:"flex",alignItems:"center",gap:6,fontSize:15,color:T.textSoft,fontWeight:700}}>💬 <span style={{fontSize:13}}>{yorumlar.length}</span></span>
+      {/* AKSİYON (❤️ 💬) — her zaman görünür, sabit */}
+      <div style={{flexShrink:0,padding:"9px 15px",display:"flex",alignItems:"center",gap:18,borderTop:"0.5px solid "+T.line,background:T.bg1}}>
+        <button onClick={onBegen} className="tap" style={{background:"none",border:0,display:"flex",alignItems:"center",gap:7,fontSize:20,color:foto.begendim?T.danger:T.text,fontWeight:700,padding:0}}>{foto.begendim?"❤️":"🤍"} <span style={{fontSize:14}}>{foto.begeni||0}</span></button>
+        <span style={{display:"flex",alignItems:"center",gap:7,fontSize:20,color:T.textSoft,fontWeight:700}}>💬 <span style={{fontSize:14}}>{yorumlar.length}</span></span>
       </div>
-      {foto.aciklama && <div style={{padding:"8px 13px 0",fontSize:12.5,color:T.textSoft}}><b style={{color:T.text}}>{foto.yukleyen_ad}</b> {foto.aciklama}</div>}
-      {/* yorumlar */}
-      <div style={{flex:1,overflowY:"auto",padding:"10px 13px",display:"flex",flexDirection:"column",gap:9,minHeight:60}}>
-        {yuk ? <div style={{color:T.textMut,fontSize:11,textAlign:"center",padding:"12px 0"}}>Yorumlar yükleniyor…</div>
-         : yorumlar.length===0 ? <div style={{color:T.textMut,fontSize:11.5,textAlign:"center",padding:"14px 0"}}>Henüz yorum yok. İlk yorumu sen yaz 💬</div>
-         : yorumlar.map(y=><div key={y.id} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-            <span style={{width:24,height:24,borderRadius:"50%",background:T.bg0,color:T.textSoft,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0,border:"0.5px solid "+T.line}}>{(y.ad||"?").slice(0,1).toUpperCase()}</span>
-            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,color:T.text}}><b style={{fontWeight:700}}>{y.ad||"Kullanıcı"}</b> <span style={{color:T.textSoft}}>{y.metin}</span></div><div style={{fontSize:9.5,color:T.textMut,marginTop:1}}>{zaman(y.created)}</div></div>
-            {uid&&y.user_id===uid && <button onClick={()=>yorumSil(y)} className="tap" style={{background:"none",border:0,color:T.textMut,fontSize:11,padding:"2px 4px"}}>🗑</button>}
-          </div>)}
-      </div>
-      {/* yorum yaz */}
-      {oturum ? <div style={{display:"flex",gap:8,alignItems:"center",padding:"9px 11px",borderTop:"0.5px solid "+T.line,paddingBottom:"max(9px,env(safe-area-inset-bottom))"}}>
-        <input value={metin} onChange={e=>setMetin(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); yorumEkle(); } }} placeholder="Yorum yaz…" maxLength={500} style={{flex:1,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:20,padding:"9px 14px",color:T.text,fontSize:13,outline:"none"}}/>
-        <button onClick={yorumEkle} disabled={gonder||!metin.trim()} className="tap" style={{background:metin.trim()?T.accent:T.bg0,color:metin.trim()?"#fff":T.textMut,border:0,borderRadius:20,padding:"9px 15px",fontSize:12.5,fontWeight:700,opacity:gonder?.6:1}}>Gönder</button>
-      </div> : <div style={{padding:"11px 13px",borderTop:"0.5px solid "+T.line,fontSize:11.5,color:T.textMut,textAlign:"center"}}>Yorum yapmak için giriş yapın.</div>}
+      {/* yorum yaz (en altta sabit) */}
+      {oturum ? <div style={{flexShrink:0,display:"flex",gap:8,alignItems:"center",padding:"9px 11px",borderTop:"0.5px solid "+T.line,paddingBottom:"max(10px,env(safe-area-inset-bottom))",background:T.bg1}}>
+        <input value={metin} onChange={e=>setMetin(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); yorumEkle(); } }} placeholder="Yorum yaz…" maxLength={500} style={{flex:1,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:20,padding:"10px 14px",color:T.text,fontSize:16,outline:"none",minWidth:0}}/>
+        <button onClick={yorumEkle} disabled={gonder||!metin.trim()} className="tap" style={{background:metin.trim()?T.accent:T.bg0,color:metin.trim()?"#fff":T.textMut,border:0,borderRadius:20,padding:"10px 16px",fontSize:13,fontWeight:700,opacity:gonder?.6:1,flexShrink:0}}>Gönder</button>
+      </div> : <div style={{flexShrink:0,padding:"11px 13px",borderTop:"0.5px solid "+T.line,fontSize:11.5,color:T.textMut,textAlign:"center",paddingBottom:"max(11px,env(safe-area-inset-bottom))"}}>Yorum yapmak için giriş yapın.</div>}
     </div>
   </div>;
 }
