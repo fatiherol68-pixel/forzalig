@@ -19565,15 +19565,9 @@ function App(){
       const grad = SAHNE[stilKey] || `radial-gradient(1200px 720px at 85% -10%, ${A(.28)}, transparent 55%), linear-gradient(160deg, ${b1}, ${b0})`;
       // PERFORMANS: sahne gradyanı SABİT tek katmanda (aşağıda position:fixed div) çizilir.
       // İLK yüklemede önce UCUZ düz gradyan (LCP/Speed Index hızlansın), boşta kalınca tam sahneye geç.
-      if(__sahneIlk){
-        __sahneIlk=false;
-        r.setProperty("--sahne-bg", `linear-gradient(160deg, ${b1}, ${b0})`);   // kritik İLK boyama UCUZ → LCP/Speed Index korunur (PageSpeed 95)
-        const _uygulaSahne=()=>{ try{ r.setProperty("--sahne-bg", grad); }catch(e){} };
-        // Zengin sahne, ilk ölçüm penceresinden SONRA (boşta) uygulanır → performans düşmez. İlk kareye yük bindirmez.
-        if("requestIdleCallback" in window) requestIdleCallback(_uygulaSahne,{timeout:1200}); else setTimeout(_uygulaSahne, 400);
-      } else {
-        r.setProperty("--sahne-bg", grad);
-      }
+      // B TERCİHİ (kullanıcı onayladı): zengin sahne İLK BOYAMADA anında → "vay be" anında görünür.
+      __sahneIlk=false;
+      r.setProperty("--sahne-bg", grad);
       // body'yi düz renk bırak → uzun sayfada dev gradyanı tekrar tekrar boyamaz (kasma biter).
       document.body.style.background=T.bg0;
     }catch(e){ document.body.style.background=T.bg0; }

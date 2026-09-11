@@ -1,0 +1,15 @@
+# ForzaLig
+
+> ForzaLig, halı saha ve amatör futbol ligleri için dijital menajer uygulamasıdır (PWA). Lig kurma, takım ve oyuncu yönetimi, teknik direktör atama, davet linkleriyle katılım, fikstür, canlı maç, puan durumu (klasik ve Güç Puanı), oyuncu kartları ve istatistikleri, transfer pazarı, sohbet ve web push bildirimleri sunar.
+
+## Bağlantılar
+
+- [ForzaLig Ana Sayfa](https://forzalig.com/): Ligler, takımlar, oyuncular ve maçların ana giriş noktası.
+- [Gizlilik ve KVKK](https://forzalig.com/gizlilik/): Gizlilik politikası ve KVKK aydınlatma metni.
+
+## Hakkında
+
+- ForzaLig bir Progressive Web App'tir; iOS ve Android'de tarayıcıdan "Ana ekrana ekle" ile uygulama gibi kurulur.
+- Kullanıcılar: lig yöneticileri, takım/teknik direktörler ve oyuncular. Süper admin platformu yönetir.
+- Özellikler: lig ve turnuva kurulumu, kadro yönetimi, teknik direktör (yetkili) atama, davet linkiyle takıma katılım, fikstür ve maç sonucu girişi, puan durumu tabloları, Güç Puanı (dinamik güç bazlı puanlama), oyuncu profilleri ve istatistikleri, transfer pazarı, takım/lig sohbeti ve bildirimler.
+- İçerik Türkçedir. Ana alan adı: forzalig.com
