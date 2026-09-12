@@ -4510,12 +4510,20 @@ function DavetKatil({T, token, oturum, girisYap}){
     if(!(davet.tip==="oyuncu"||davet.tip==="kulup")) return;
     (async()=>{
       const kart=await Db.benimOyuncu(oturum.id);
-      if(!a || !kart) return;   // kartı yoksa (ilk kez) → boş form kalır
+      if(!a) return;
+      const meta=(oturum.user_metadata)||{};
+      const gAd=meta.ad||meta.full_name||meta.name||"";
+      const gFoto=meta.avatar_url||meta.picture||"";
+      if(!kart){   // Oyuncu kartı yok (ilk kez) → en azından Google profilinden ad + foto gelsin, gerisini kendi doldursun
+        if(gAd) setAd(prev=>prev||gAd);
+        if(gFoto) setFoto(prev=>prev||gFoto);
+        return;
+      }
       setOnDolduruldu(true);
-      setAd(prev=>prev||kart.ad_soyad||kart.takma_ad||"");
+      setAd(prev=>prev||kart.ad_soyad||kart.takma_ad||gAd||"");
       if(kart.poz) setPoz(kart.poz);
       if(kart.forma_no!=null) setNo(prev=>prev||String(kart.forma_no));
-      if(kart.foto) setFoto(prev=>prev||kart.foto);
+      setFoto(prev=>prev||kart.foto||gFoto||"");
       if(kart.dogum) setDogum(prev=>prev||String(kart.dogum).slice(0,10));
       if(kart.boy!=null) setBoy(prev=>prev||String(kart.boy));
       if(kart.kilo!=null) setKilo(prev=>prev||String(kart.kilo));
