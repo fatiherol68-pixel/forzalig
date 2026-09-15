@@ -1001,7 +1001,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   else if(oynanan>0){ durumYazi="DEVAM"; durumRenk=T.accent; }
 
   const lider=[...turnuva.takimlar].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
-  const formatAd={serbest:"Serbest",tek:"Tek Devre",cift:"Çift Devre",gruplu:"Gruplu",kupa:"🏆 Kupa"}[turnuva.format]||"Serbest";
+  const formatAd=turnuva.sahaEsnek?"🎯 Hazırlık":({serbest:"Serbest",tek:"Tek Devre",cift:"Çift Devre",gruplu:"Gruplu",kupa:"🏆 Kupa"}[turnuva.format]||"Serbest");
 
   // AKIŞ olayları (otomatik)
   const akisOlaylar=useMemo(()=>{
@@ -1022,9 +1022,10 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   const ist=useMemo(()=>Motor.ligIstatistik(turnuva),[turnuva.id, oynanan]);
 
   const kupaMi = turnuva.format==="kupa";
-  const sekmeler = kupaMi
+  const sekmeler = (kupaMi
     ? [["kupa","🏆 Kupa"],["genel","Genel"],["kadro","🏅 Kadro"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]]
-    : [["genel","Genel"],["akis","Akış"],["kadro","🏅 Kadro"],["puan","Puan Durumu"],["takimlar","🛡️ Takımlar"],["fikstur","Fikstür"],["kurallar","📋 Kurallar"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]];
+    : [["genel","Genel"],["akis","Akış"],["kadro","🏅 Kadro"],["puan","Puan Durumu"],["takimlar","🛡️ Takımlar"],["fikstur","Fikstür"],["kurallar","📋 Kurallar"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]]
+    ).filter(([k])=> !(k==="puan" && turnuva.puanGizli)); // hazırlık ligi: puan tablosu opsiyonel
   if(yonetim) sekmeler.push(["yonet","⚙️ Yönet"]);
   useEffect(()=>{ if(kupaMi) setTab("kupa"); },[]);
 
@@ -2660,14 +2661,15 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
         <div style={{fontSize:11,fontWeight:800,letterSpacing:5,color:T.text,opacity:.06,marginTop:4}}>FORZALIG.COM</div>
       </div>
       <div style={{textAlign:"center",fontSize:10,color:T.textSoft,fontWeight:600,letterSpacing:1,marginBottom:4}}>{turnuva?turnuva.ad+" · ":""}{m.hafta}. HAFTA</div>
-      {/* tarih · saat · stad */}
-      {(m.tarih||m.saat||m.stad||macHakemleri.length>0) && <div style={{textAlign:"center",fontSize:10,color:T.textMut,marginBottom:12,display:"flex",justifyContent:"center",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+      {/* tarih · saat · stad · (hazırlık: saha boyutu) */}
+      {(()=>{ const sahaK=(turnuva&&turnuva.sahaEsnek)?(m.kisiSayi||turnuva.kisi||null):null; const varMi=(m.tarih||m.saat||m.stad||macHakemleri.length>0||sahaK);
+        return varMi ? <div style={{textAlign:"center",fontSize:10,color:T.textMut,marginBottom:12,display:"flex",justifyContent:"center",alignItems:"center",gap:6,flexWrap:"wrap"}}>
         {m.tarih && <span>📅 {m.tarih.includes("-")?m.tarih.split("-").reverse().join("."):m.tarih}</span>}
         {m.saat && <><span style={{color:T.line}}>·</span><span>🕐 {m.saat}</span></>}
         {m.stad && <><span style={{color:T.line}}>·</span><span>📍 {m.stad}</span></>}
+        {sahaK && <><span style={{color:T.line}}>·</span><span style={{color:T.accent2,fontWeight:700}}>⚽ {sahaK} kişilik</span></>}
         {macHakemleri.length>0 && <><span style={{color:T.line}}>·</span><span title={macHakemleri.map(h=>h.ad+(h.gorev?" ("+h.gorev+")":"")).join(", ")}>🧑‍⚖️ {macHakemleri.length===1?macHakemleri[0].ad:macHakemleri.map(h=>h.ad).join(", ")}</span></>}
-      </div>}
-      {!(m.tarih||m.saat||m.stad||macHakemleri.length>0) && <div style={{marginBottom:12}}/>}
+      </div> : <div style={{marginBottom:12}}/>; })()}
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
         <div onClick={()=>{const tk=turnuva&&turnuva.takimlar.find(t=>t.ad===m.takimA); if(tk&&git)git({sayfa:"takim",takim:tk,turnuva});}} className={turnuva?"tap":""} style={{flex:1,textAlign:"center"}}><Logo renk={m.renkA} ad={m.takimA} boy={50}/><div style={{fontSize:12,fontWeight:700,color:aGalip?T.text:T.textSoft,marginTop:6}}>{m.takimA}</div></div>
         <div style={{padding:"0 12px",textAlign:"center"}}>
