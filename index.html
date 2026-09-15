@@ -16363,6 +16363,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const [depo,setDepo]=useState(null);             // depolama türe göre dağılım (null=taranmadı)
   const [depoYuk,setDepoYuk]=useState(false);
   const [bakimMsj,setBakimMsj]=useState("");
+  const [bakimAcik,setBakimAcik]=useState(false); // Bakım araçları (silme) varsayılan kapalı — yanlış tık koruması + kısa kaydırma
   const [basvurular,setBasvurular]=useState([]);   // lig kurma başvuruları (para/onay kapısı)
   const [hepYardimci,setHepYardimci]=useState([]); // YARDIMCI — tüm liglerin yardımcı yöneticileri
   const [tumLiglerY,setTumLiglerY]=useState([]);   // ekleme formu için lig listesi
@@ -17400,8 +17401,9 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             {acikTeshis===t.id && <pre style={{fontSize:9.5,color:T.textMut,background:T.bg1,borderRadius:7,padding:"8px",marginTop:6,overflowX:"auto",maxHeight:150,whiteSpace:"pre-wrap"}}>{JSON.stringify(t.teshis,null,1)}</pre>}
           </div>)}
         </div>; })()}
-        {/* ===== BAKIM MERKEZİ ===== */}
-        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+        {/* ===== BAKIM MERKEZİ (yıkıcı araçlar — varsayılan kapalı: yanlış tık koruması) ===== */}
+        <button onClick={()=>setBakimAcik(v=>!v)} className="tap" style={{width:"100%",display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+(bakimAcik?T.danger+"55":T.line),borderRadius:12,padding:"12px 14px",marginBottom:10,color:T.text,fontSize:12.5,fontWeight:700}}><span>🧹 Bakım Araçları</span><span style={{fontSize:10,color:T.textMut,fontWeight:600}}>temizlik & silme</span><span style={{marginLeft:"auto",fontSize:12,color:T.textMut,fontWeight:600}}>{bakimAcik?"▲ gizle":"▼ aç"}</span></button>
+        {bakimAcik && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
           <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:9}}>🧹 BAKIM MERKEZİ</div>
           {bakimMsj && <div style={{fontSize:11,color:bakimMsj[0]==="✓"?T.accent:T.gold,marginBottom:9}}>{bakimMsj}</div>}
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
@@ -17504,7 +17506,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
               </div>;
             })()}
           </div>
-        </div>
+        </div>}
         {/* ===== ÇÖP KUTUSU (soft-silinen ligler) ===== */}
         {copLigler.length>0 && <div style={{background:T.bg1,border:"0.5px solid "+T.gold+"44",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
           <div style={{display:"flex",alignItems:"center",marginBottom:6}}>
