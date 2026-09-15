@@ -1505,7 +1505,7 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
     return ev;
   },[takim.id]);
 
-  const SEKMELER=[["akis","Akış"],["genel","Genel"],["kadro","Kadro"],["fikstur","Fikstür"],["ist","İstatistik"]];
+  const SEKMELER=[["genel","Genel"],["kadro","Kadro"],["fikstur","Fikstür"],["ist","İstatistik"]];
 
   return <div className="fade-in" style={{paddingBottom:90,position:"relative"}}>
     {/* TAKIM RENGİ ATMOSFERİ */}
@@ -1598,8 +1598,9 @@ function TakimSayfa({takim, turnuva, T, git, takipTakim, takimTakip, oturum, adm
       )}
     </div>
 
-    {/* ===== AKIŞ ===== */}
-    {sekme==="akis" && <div className="fade-in" style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:9}}>
+    {/* ===== AKIŞ (Genel çatısı altında — son hareketler) ===== */}
+    {sekme==="genel" && akisOlaylar.length>0 && <div className="fade-in" style={{padding:"12px 14px 2px",display:"flex",flexDirection:"column",gap:9}}>
+      <div style={{fontSize:11,color:T.accent,fontWeight:700,margin:"0 2px 1px"}}>🕐 SON HAREKETLER</div>
       {akisOlaylar.map((e,i)=>
         <div key={i} onClick={()=>e.mac&&git({sayfa:"gazete",mac:e.mac,turnuva})} className={e.mac?"tap":""} style={{background:T.bg1,borderRadius:12,padding:"11px 12px",border:"0.5px solid "+T.line,borderLeft:"3px solid "+e.renk,cursor:e.mac?"pointer":"default"}}>
           <div style={{fontSize:9,color:e.renk,fontWeight:700,letterSpacing:.5}}>{e.et}</div>
@@ -2317,6 +2318,22 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
           )}
         </div>
       </div>
+      {/* SEZON ÖZETİ — paylaşılabilir kart (premium tipografi: üst-etiket + sade başlık) */}
+      {(o.mac||0)>0 && <div style={{padding:"10px 14px 0"}}>
+        <div style={{position:"relative",overflow:"hidden",borderRadius:16,padding:"15px 15px 14px",border:"1px solid #a78bfa55",background:"radial-gradient(120% 130% at 100% 0%, #a78bfa33, transparent 52%), radial-gradient(120% 130% at 0% 100%, "+T.accent+"22, transparent 46%), linear-gradient(160deg,#161235,#0d0b22)"}}>
+          <div style={{fontSize:9,fontWeight:800,letterSpacing:2,color:"#c9bafc"}}>SEZON ÖZETİ</div>
+          <div style={{fontSize:17,fontWeight:800,fontFamily:T.fontDisplay,color:"#fff",marginTop:1}}>{o.ad}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginTop:12}}>
+            {[[o.mac||0,"MAÇ"],[o.gol||0,"GOL"],[o.mvp||0,"MVP 🏆"]].map(([v,k])=>
+              <div key={k} style={{background:"rgba(255,255,255,.07)",borderRadius:10,padding:"9px 4px",textAlign:"center"}}>
+                <div style={{fontSize:20,fontWeight:800,fontFamily:T.fontDisplay,color:"#fff"}}>{v}</div>
+                <div style={{fontSize:8.5,color:"#c9bafc",marginTop:1}}>{k}</div>
+              </div>)}
+          </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:11,fontSize:12,fontWeight:700,color:"#e9e3ff"}}>Kart Gücü <span style={{fontFamily:T.fontDisplay,fontWeight:800,fontSize:16,background:T.gold,color:"#2a1c00",borderRadius:7,padding:"2px 10px"}}>{o.ovr||0}</span></div>
+          <button onClick={()=>{ const t=(o.ad||"Oyuncu")+" · Sezon Özeti\n⚽ "+(o.gol||0)+" gol · 🅰 "+(o.asist||0)+" asist · 🏅 "+(o.mvp||0)+" MVP · "+(o.mac||0)+" maç · 💪 Güç "+(o.ovr||0)+"\nForzaLig · forzalig.com"; try{ if(navigator.share){ navigator.share({title:"ForzaLig · Sezon Özeti",text:t}).catch(()=>{}); } else { navigator.clipboard.writeText(t); alert("📋 Panoya kopyalandı — ekran görüntüsü alıp paylaşabilirsin"); } }catch(e){} }} className="tap" style={{width:"100%",marginTop:13,background:"#fff",color:"#1a1030",border:0,borderRadius:11,padding:12,fontSize:13,fontWeight:800}}>📲 Paylaş</button>
+        </div>
+      </div>}
       <div style={{padding:"6px 14px"}}>
         <div style={{background:T.bg1,borderRadius:12,padding:"13px 12px",border:"0.5px solid "+T.line}}>
           <div style={{fontSize:11,color:T.gold,fontWeight:700,marginBottom:10}}>📊 SEZON İSTATİSTİKLERİ</div>
@@ -2666,7 +2683,7 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
 
   const fotoAcik = typeof m.id==="string"; // sadece gerçek (buluttaki) maçlarda foto sekmesi
   const fotoYetki = !!(yetkili || (oturum && (( takimA && takimA.yonetici_id && takimA.yonetici_id===oturum.id) || (takimB && takimB.yonetici_id && takimB.yonetici_id===oturum.id))));
-  const macSekmeler=[...(fotoAcik?[["foto","📷","Foto"]]:[]),["ozet","📋","Özet"],["ist","📊","İst."],["kadro","👥","Kadro"],["odul","🏅","Ödül"],["lig","🏆","Lig"]];
+  const macSekmeler=[...(fotoAcik?[["foto","📷","Foto"]]:[]),["ozet","📋","Özet"],["kadro","👥","Kadro"],["lig","🏆","Lig"]];
 
   return <div className="fade-in" style={{paddingBottom:90}}>
     {/* KAPAK + SKOR — premium çift-renk hero */}
@@ -2868,8 +2885,8 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
       </div>}
     </div>}
 
-    {/* ===== İSTATİSTİK ===== */}
-    {macTab==="ist" && <div className="fade-in">
+    {/* ===== İSTATİSTİK (Kadro sekmesi altında) ===== */}
+    {macTab==="kadro" && <div className="fade-in">
       <div style={{padding:"12px 14px 6px"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"0 4px 10px"}}>
           <span style={{fontSize:13,fontWeight:700,color:T.text}}>📊 İstatistikler {m.istatistik && <span style={{fontSize:10,color:T.accent,fontWeight:600}}>· kaydedildi</span>}</span>
@@ -3005,8 +3022,8 @@ function MacSayfa({mac:m, turnuva, T, git, oturum, sahiplenme, yetkili}){
       </div>
     </div>}
 
-    {/* ===== ÖDÜLLER ===== */}
-    {macTab==="odul" && <div className="fade-in" style={{padding:"12px 14px"}}>
+    {/* ===== ÖDÜLLER (Özet sekmesi altında) ===== */}
+    {macTab==="ozet" && <div className="fade-in" style={{padding:"12px 14px"}}>
       {oynandi && m.oduller && MAC_ODUL_ETIKET.filter(([k])=>m.oduller[k]).length>0 ? <>
         <div style={{fontSize:11,color:T.gold,fontWeight:700,margin:"0 2px 10px"}}>🏅 MAÇ ÖDÜLLERİ</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
