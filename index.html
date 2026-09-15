@@ -16376,10 +16376,13 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const undoRef=useRef(null);
   const undoluIslem=(mesaj, uygulaFn, geriAlFn)=>{
     if(undoRef.current){ clearTimeout(undoRef.current.t); try{ undoRef.current.uygula(); }catch(e){} } // önceki bekleyeni hemen işle
-    const t=setTimeout(()=>{ try{ uygulaFn(); }catch(e){} undoRef.current=null; setUndoBox(null); }, 5000);
+    const t=setTimeout(()=>{ try{ uygulaFn(); }catch(e){} undoRef.current=null; setUndoBox(null); }, 900000); // 15 dk "Geri Al" penceresi
     undoRef.current={t, uygula:uygulaFn};
     setUndoBox({mesaj, geriAl:()=>{ clearTimeout(t); undoRef.current=null; try{ geriAlFn&&geriAlFn(); }catch(e){} setUndoBox(null); }});
   };
+  // GÜVENLİ SİLME — yıkıcı işlemi 15 dk ertele + "Geri Al" göster. Bu sürede uygulamayı kapatırsan
+  // bekleyen silme HİÇ çalışmaz → veri korunur (güvenli yön). Geri Al'a basınca da hiçbir şey silinmez.
+  const geciktir=(etiket, islemFn)=>{ setBakimMsj("⏳ "+etiket+" — 15 dk içinde Geri Al'a basmazsan uygulanır"); undoluIslem(etiket+" · 15 dk içinde ↶ Geri Al", islemFn, ()=>setBakimMsj("↩ İptal edildi — hiçbir şey silinmedi")); };
   const sikayetKapat=async(s)=>{ setSikayetler(p=>p.filter(x=>x.id!==s.id)); await Db.sikayetKapat(s.id); };
   // Şikâyetli mesajı kaldır — Undo'lu (5 sn içinde geri alınabilir)
   const sikayetSil=(s)=>{
@@ -16430,10 +16433,11 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
     if(!yasli.length){ setBakimMsj("14 günden eski sahipsiz dosya yok."); return; }
     const bayt=yasli.reduce((s,x)=>s+(x.boyut||0),0);
     if(!confirm(yasli.length+" adet, 14 GÜNDEN ESKİ sahipsiz dosya KALICI silinsin mi?\n\n~"+(bayt/1048576).toFixed(2)+" MB alan açılacak.\nAktif kullanılan hiçbir dosya silinmez.")) return;
-    setBakimMsj("Siliniyor…");
-    const r=await Db.orphanTemizle(yasli.map(o=>o.yol));
-    if(r&&r.ok){ setOrphanlar(p=>(p||[]).filter(x=>!(x.yas_gun!=null&&x.yas_gun>=14))); Db.logla(oturum,"Sahipsiz dosya temizlik (14g+)",r.adet+" dosya · ~"+(bayt/1048576).toFixed(2)+" MB"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" dosya silindi · ~"+(bayt/1048576).toFixed(2)+" MB açıldı"); }
-    else setBakimMsj("Olmadı (güvenli durdu, dosya silinmedi): "+((r&&r.hata)||"")); };
+    geciktir("14 gün+ sahipsiz dosyalar silindi", async()=>{
+      setBakimMsj("Siliniyor…");
+      const r=await Db.orphanTemizle(yasli.map(o=>o.yol));
+      if(r&&r.ok){ setOrphanlar(p=>(p||[]).filter(x=>!(x.yas_gun!=null&&x.yas_gun>=14))); Db.logla(oturum,"Sahipsiz dosya temizlik (14g+)",r.adet+" dosya · ~"+(bayt/1048576).toFixed(2)+" MB"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" dosya silindi · ~"+(bayt/1048576).toFixed(2)+" MB açıldı"); }
+      else setBakimMsj("Olmadı (güvenli durdu, dosya silinmedi): "+((r&&r.hata)||"")); }); };
   // ANLIK FULL TEMİZLİK — taramadaki TÜM sahipsiz dosyalar (yaş farketmez). Güvenli tarama
   // sayesinde aktif dosyalar zaten listede değildir; yine de son dakikada yüklenmiş, henüz
   // bir kayda bağlanmamış dosya riski için güçlü uyarı gösterilir.
@@ -16441,21 +16445,23 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
     if(!orphanlar.some(x=>x.yas_gun!=null)){ setBakimMsj("⚠️ Güvenli silme için önce SQL güncellemesini (73) çalıştır — yaş bilgisi yok, silme durduruldu."); return; }
     const bayt=orphanlar.reduce((s,x)=>s+(x.boyut||0),0);
     if(!confirm(orphanlar.length+" adet sahipsiz dosyanın TAMAMI (yaş farketmeksizin) KALICI silinsin mi?\n\n~"+(bayt/1048576).toFixed(2)+" MB alan açılacak.\nAktif kullanılan dosyalar listede değildir; yalnız hiçbir kayda bağlı olmayanlar silinir.\n\nNOT: Son dakikalarda yüklenmiş ama henüz bir mesaja/kayda bağlanmamış bir dosya varsa o da silinebilir.")) return;
-    setBakimMsj("Siliniyor (full)…");
-    const r=await Db.orphanTemizle(orphanlar.map(o=>o.yol));
-    if(r&&r.ok){ setOrphanlar([]); Db.logla(oturum,"Sahipsiz dosya temizlik (FULL/anlık)",r.adet+" dosya · ~"+(bayt/1048576).toFixed(2)+" MB"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" dosya silindi · ~"+(bayt/1048576).toFixed(2)+" MB açıldı"); }
-    else setBakimMsj("Olmadı (güvenli durdu, dosya silinmedi): "+((r&&r.hata)||"")); };
+    geciktir("Tüm sahipsiz dosyalar silindi", async()=>{
+      setBakimMsj("Siliniyor (full)…");
+      const r=await Db.orphanTemizle(orphanlar.map(o=>o.yol));
+      if(r&&r.ok){ setOrphanlar([]); Db.logla(oturum,"Sahipsiz dosya temizlik (FULL/anlık)",r.adet+" dosya · ~"+(bayt/1048576).toFixed(2)+" MB"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" dosya silindi · ~"+(bayt/1048576).toFixed(2)+" MB açıldı"); }
+      else setBakimMsj("Olmadı (güvenli durdu, dosya silinmedi): "+((r&&r.hata)||"")); }); };
   // SOHBET MEDYASINI TEMİZLE — lig+takım+kulüp sohbetlerindeki TÜM foto/ses medyasını (maç
   // kartları ve yazı hariç) siler + dosyaları depodan kaldırır. Tarama gerektirmez, hep görünür.
   const sohbetMedyaTemizleYap=async()=>{
     if(!confirm("TÜM sohbet medyası (foto/ses) — lig + takım + kulüp — KALICI silinsin mi?\n\nMaç sonucu kartları ve yazılı mesajlar KALIR; yalnız foto/ses medyası ve depodaki dosyaları silinir.")) return;
-    setBakimMsj("Siliniyor…");
-    const r=await Db.sohbetMedyaSilRPC({hepsi:true});
-    if(r&&r.ok){ Db.logla(oturum,"Sohbet medyası temizlendi (tümü)",r.adet+" medya · "+r.dosya+" dosya"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj(r.adet?("✓ "+r.adet+" sohbet medyası silindi · "+r.dosya+" dosya depodan kaldırıldı"):"Sohbette silinecek foto/ses medyası yok."); }
-    else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
+    geciktir("Sohbet medyası silindi", async()=>{
+      setBakimMsj("Siliniyor…");
+      const r=await Db.sohbetMedyaSilRPC({hepsi:true});
+      if(r&&r.ok){ Db.logla(oturum,"Sohbet medyası temizlendi (tümü)",r.adet+" medya · "+r.dosya+" dosya"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj(r.adet?("✓ "+r.adet+" sohbet medyası silindi · "+r.dosya+" dosya depodan kaldırıldı"):"Sohbette silinecek foto/ses medyası yok."); }
+      else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); }); };
   const arsivleYap=async()=>{ if(!confirm("Kanal başına en yeni 5.000 mesaj aktif kalsın, gerisi arşive alınsın mı?")) return; setBakimMsj("Arşivleniyor…"); const r=await Db.sohbetArsivle(); if(r&&r.ok){ Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" mesaj arşive alındı"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   // Sohbetteki maç kartlarını manuel temizle (14 gün+). Sonuçlar maç sayfasında kalır — sadece sohbet kartı gider.
-  const macKartTemizleYap=async()=>{ if(!confirm("2 haftadan eski maç sonucu kartları sohbetten kalıcı silinsin mi?\n\n(Maç sonuçları ve istatistikler maç sayfasında KALIR — sadece sohbetteki bildirim kartı gider.)")) return; setBakimMsj("Temizleniyor…"); const r=await Db.macKartTemizle(14); if(r&&r.ok){ const oz=await Db.macKartOzet(); setMkOzet(oz||{adet:0,bayt:0,eski:null}); Db.logla(oturum,"Maç kartı temizlik",r.adet+" kart"); setBakimMsj("✓ "+r.adet+" maç kartı silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
+  const macKartTemizleYap=async()=>{ if(!confirm("2 haftadan eski maç sonucu kartları sohbetten kalıcı silinsin mi?\n\n(Maç sonuçları ve istatistikler maç sayfasında KALIR — sadece sohbetteki bildirim kartı gider.)")) return; geciktir("Eski maç kartları silindi", async()=>{ setBakimMsj("Temizleniyor…"); const r=await Db.macKartTemizle(14); if(r&&r.ok){ const oz=await Db.macKartOzet(); setMkOzet(oz||{adet:0,bayt:0,eski:null}); Db.logla(oturum,"Maç kartı temizlik",r.adet+" kart"); setBakimMsj("✓ "+r.adet+" maç kartı silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); }); };
   // DEPOLAMA DAĞILIMI — türe göre (kapak/oyuncu/logo/maç fotoğrafı/sohbet…) adet + boyut
   const depoTara=async()=>{ setDepoYuk(true); setBakimMsj("Depolama taranıyor…"); const d=await Db.depoOzet(); setDepo(d||[]); setDepoYuk(false); setBakimMsj(d?("✓ Depolama dağılımı güncellendi"):"Depolama okunamadı."); };
   const depoKategoriSil=async(klasor, etiket, temizleRef)=>{
@@ -16463,16 +16469,18 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
       ? ("TÜM "+etiket+" KALICI silinsin mi?\n\nİlgili görsel bağlantıları da temizlenir (kırık görsel kalmaz).\nBu işlem GERİ ALINAMAZ.")
       : ("TÜM "+etiket+" depodan KALICI silinsin mi?\n\nBu işlem GERİ ALINAMAZ.");
     if(!confirm(uyari)) return;
-    setDepoYuk(true); setBakimMsj(etiket+" siliniyor…");
-    const r=await Db.depoKategoriTemizle(klasor);
-    if(r&&r.ok){ Db.logla(oturum,"Depolama kategori temizlik",etiket+" · "+r.adet+" dosya"); const d=await Db.depoOzet(); setDepo(d||[]); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+etiket+": "+r.adet+" dosya silindi"); }
-    else setBakimMsj("Olmadı: "+((r&&r.hata)||""));
-    setDepoYuk(false);
+    geciktir(etiket+" silindi", async()=>{
+      setDepoYuk(true); setBakimMsj(etiket+" siliniyor…");
+      const r=await Db.depoKategoriTemizle(klasor);
+      if(r&&r.ok){ Db.logla(oturum,"Depolama kategori temizlik",etiket+" · "+r.adet+" dosya"); const d=await Db.depoOzet(); setDepo(d||[]); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+etiket+": "+r.adet+" dosya silindi"); }
+      else setBakimMsj("Olmadı: "+((r&&r.hata)||""));
+      setDepoYuk(false);
+    });
   };
   const copGeriAl=async(l)=>{ const r=await Db.ligGeriAl(l.id); if(r&&r.ok){ setCopLigler(p=>p.filter(x=>x.id!==l.id)); Db.logla(oturum,"Lig çöpten geri alındı",l.ad||""); setBakimMsj("✓ Geri alındı: "+(l.ad||"")); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
-  const copBosalt=async()=>{ if(!confirm("Çöp kutusundaki 90 GÜNDEN eski ligler KALICI silinsin mi? (Geri alınamaz)")) return; const r=await Db.ligPurge(); if(r&&r.ok){ Db.ligCopListe().then(c=>setCopLigler(c||[])); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" lig kalıcı silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
+  const copBosalt=async()=>{ if(!confirm("Çöp kutusundaki 90 GÜNDEN eski ligler KALICI silinsin mi? (Geri alınamaz)")) return; geciktir("Eski çöp ligleri kalıcı silindi", async()=>{ const r=await Db.ligPurge(); if(r&&r.ok){ Db.ligCopListe().then(c=>setCopLigler(c||[])); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ "+r.adet+" lig kalıcı silindi"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); }); };
   // Tek ligi HEMEN kalıcı sil (90 gün beklemeden) — tüm bağlı veri (takım/oyuncu/maç/istatistik/sohbet/bildirim)
-  const copKaliciSil=async(l)=>{ if(!confirm("\""+(l.ad||"Lig")+"\" ligini VE tüm bağlı verisini (takımlar, oyuncular, maçlar, istatistikler, sohbetler, bildirimler) KALICI sil?\n\n⚠️ Bu işlem GERİ ALINAMAZ.")) return; const r=await Db.ligKaliciSil(l.id); if(r&&r.ok){ setCopLigler(p=>p.filter(x=>x.id!==l.id)); Db.logla(oturum,"Lig KALICI silindi",l.ad||""); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ Kalıcı silindi: "+(l.ad||"")); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
+  const copKaliciSil=async(l)=>{ if(!confirm("\""+(l.ad||"Lig")+"\" ligini VE tüm bağlı verisini (takımlar, oyuncular, maçlar, istatistikler, sohbetler, bildirimler) KALICI sil?\n\n⚠️ Bu işlem GERİ ALINAMAZ.")) return; geciktir("\""+(l.ad||"Lig")+"\" kalıcı silindi", async()=>{ const r=await Db.ligKaliciSil(l.id); if(r&&r.ok){ setCopLigler(p=>p.filter(x=>x.id!==l.id)); Db.logla(oturum,"Lig KALICI silindi",l.ad||""); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ Kalıcı silindi: "+(l.ad||"")); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); }); };
   // 📢 Toplu mesaj/duyuru
   const [msgAcik,setMsgAcik]=useState(false);
   const [msgTip,setMsgTip]=useState("herkes");     // herkes | lig | takim | kisi
