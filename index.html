@@ -7449,6 +7449,8 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   const yayindanKaldir=async()=>{ await onPaylasKaldir(turnuva); setPaylasUrl(""); setPaylasAcik(false); };
   const [kralTab,setKralTab]=useState("gol");
   const [kralGrup,setKralGrup]=useState(-1); // -1 = tümü, 0,1,2.. grup
+  const [istAlt,setIstAlt]=useState("krallar");  // İstatistik çatısı alt-sekmesi: krallar/enler/grafik/kadro
+  const [puanAlt,setPuanAlt]=useState("puan");   // Puan çatısı alt-sekmesi: puan/takimlar
   const gruplu = turnuva.format==="gruplu";
   const grupSayisi = gruplu ? Math.max(1,...turnuva.takimlar.map(t=>(t.grup||0)+1)) : 0;
   const grupAd=(gi)=> String.fromCharCode(65+gi)+" Grubu";
@@ -7494,9 +7496,10 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   const ist=useMemo(()=>Motor.ligIstatistik(turnuva),[turnuva.id, oynanan]);
 
   const kupaMi = turnuva.format==="kupa";
+  // Sadeleştirilmiş 4-sekme yapısı: Genel(=genel+akış+kurallar) · Puan(=puan+takımlar) · Fikstür · İstatistik(=krallar+enler+grafik+kadro)
   const sekmeler = (kupaMi
-    ? [["kupa","🏆 Kupa"],["genel","Genel"],["kadro","🏅 Kadro"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]]
-    : [["genel","Genel"],["akis","Akış"],["kadro","🏅 Kadro"],["puan","Puan Durumu"],["takimlar","🛡️ Takımlar"],["fikstur","Fikstür"],["kurallar","📋 Kurallar"],["krallar","Krallar"],["enler","🏆 Enler"],["ist","İstatistik"]]
+    ? [["kupa","🏆 Kupa"],["genel","Genel"],["ist","İstatistik"]]
+    : [["genel","Genel"],["puan","Puan"],["fikstur","Fikstür"],["ist","İstatistik"]]
     ).filter(([k])=> !(k==="puan" && turnuva.puanGizli)); // hazırlık ligi: puan tablosu opsiyonel
   if(yonetim) sekmeler.push(["yonet","⚙️ Yönet"]);
   useEffect(()=>{ if(kupaMi) setTab("kupa"); },[]);
@@ -7580,12 +7583,19 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
     {tab==="genel" && <SezonSerisi turnuva={turnuva} T={T} git={git}/>}
     {tab==="genel" && (turnuva.takimlar.length>0 ? <LigGenel turnuva={turnuva} T={T} git={git}/> : <BosUyari T={T} metin="Henüz takım yok. Yönet sekmesinden takım ekle." />)}
 
-    {tab==="kadro" && (turnuva.takimlar.length>0 ? <KadroEkrani turnuva={turnuva} T={T} git={git}/> : <BosUyari T={T} metin="Henüz takım yok. Yönet sekmesinden takım ekle." />)}
+    {/* ===== İSTATİSTİK çatısı — alt-pill çubuğu (krallar/enler/grafik/kadro) ===== */}
+    {tab==="ist" && <div style={{display:"flex",gap:6,overflowX:"auto",padding:"11px 12px 2px",WebkitOverflowScrolling:"touch"}}>
+      {[["krallar","👑 Krallar"],["enler","🏆 Enler"],["grafik","📊 Grafikler"],["kadro","🏅 Haftanın 11'i"]].map(([k,l])=>
+        <button key={k} onClick={()=>setIstAlt(k)} className="tap" style={{flexShrink:0,fontSize:12,fontWeight:700,padding:"8px 13px",borderRadius:999,whiteSpace:"nowrap",background:istAlt===k?T.gold:T.bg1,color:istAlt===k?"#2a1c00":T.textSoft,border:"0.5px solid "+(istAlt===k?T.gold:T.line)}}>{l}</button>
+      )}
+    </div>}
 
-    {/* ===== AKIŞ ===== */}
-    {tab==="akis" && <div className="fade-in" style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:9}}>
-      {/* Haftanın Kadrosu — teaser (tam ekran Kadro sekmesinde) */}
-      <div onClick={()=>setTab("kadro")} className="tap" style={{cursor:"pointer",background:"linear-gradient(135deg,"+T.gold+"22,"+T.bg1+")",borderRadius:12,padding:13,border:"0.5px solid "+T.gold+"55",display:"flex",alignItems:"center",gap:12}}>
+    {tab==="ist" && istAlt==="kadro" && (turnuva.takimlar.length>0 ? <KadroEkrani turnuva={turnuva} T={T} git={git}/> : <BosUyari T={T} metin="Henüz takım yok. Yönet sekmesinden takım ekle." />)}
+
+    {/* ===== AKIŞ (Genel çatısı altında) ===== */}
+    {tab==="genel" && !kupaMi && <div className="fade-in" style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:9}}>
+      {/* Haftanın Kadrosu — teaser (İstatistik ▸ Haftanın 11'i) */}
+      <div onClick={()=>{setTab("ist");setIstAlt("kadro");}} className="tap" style={{cursor:"pointer",background:"linear-gradient(135deg,"+T.gold+"22,"+T.bg1+")",borderRadius:12,padding:13,border:"0.5px solid "+T.gold+"55",display:"flex",alignItems:"center",gap:12}}>
         <div style={{width:40,height:40,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,background:"radial-gradient(circle at 35% 30%,#F0CB6E,"+T.gold+" 60%,#6f531b)",boxShadow:"0 0 0 3px "+T.gold+"33"}}>🥇</div>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:9,fontWeight:800,letterSpacing:1.2,color:T.gold,textTransform:"uppercase"}}>{sonHafta?sonHafta+". HAFTA":"HAFTANIN"}</div>
@@ -7603,12 +7613,18 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
       )}
     </div>}
 
-    {tab==="puan" && (turnuva.takimlar.length>0 ? <PuanDurumu turnuva={turnuva} T={T} git={git}/> : <BosUyari T={T} metin="Henüz takım yok. Yönet sekmesinden takım ekle." />)}
+    {/* ===== PUAN çatısı — Puan Durumu + Takımlar ===== */}
+    {tab==="puan" && <div style={{display:"flex",gap:6,padding:"11px 12px 2px"}}>
+      {[["puan","📊 Puan Durumu"],["takimlar","🛡️ Takımlar"]].map(([k,l])=>
+        <button key={k} onClick={()=>setPuanAlt(k)} className="tap" style={{flex:1,fontSize:12,fontWeight:700,padding:"8px 6px",borderRadius:999,background:puanAlt===k?T.accent:T.bg1,color:puanAlt===k?"#fff":T.textSoft,border:"0.5px solid "+(puanAlt===k?T.accent:T.line)}}>{l}</button>
+      )}
+    </div>}
+    {tab==="puan" && puanAlt==="puan" && (turnuva.takimlar.length>0 ? <PuanDurumu turnuva={turnuva} T={T} git={git}/> : <BosUyari T={T} metin="Henüz takım yok. Yönet sekmesinden takım ekle." />)}
 
     {tab==="fikstur" && (turnuva.maclar.length>0 ? <MaclarSayfa turnuva={turnuva} T={T} git={git}/> : <BosUyari T={T} metin="Henüz maç yok. Yönet sekmesinden maç ekle." />)}
 
-    {/* ===== KRALLAR (alt geçişli) ===== */}
-    {tab==="krallar" && <div className="fade-in" style={{padding:"12px 14px"}}>
+    {/* ===== KRALLAR (İstatistik ▸ Krallar) ===== */}
+    {tab==="ist" && istAlt==="krallar" && <div className="fade-in" style={{padding:"12px 14px"}}>
       {gruplu && grupSayisi>1 && <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
         <span onClick={()=>setKralGrup(-1)} className="tap" style={{fontSize:10.5,padding:"5px 11px",borderRadius:13,background:kralGrup===-1?T.accent:T.bg2,color:kralGrup===-1?"#fff":T.textMut,fontWeight:kralGrup===-1?700:500}}>Tümü</span>
         {Array.from({length:grupSayisi}).map((_,gi)=>
@@ -7658,14 +7674,14 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
       })()}
     </div>}
 
-    {tab==="enler" && <div className="fade-in" style={{paddingTop:4}}>
+    {tab==="ist" && istAlt==="enler" && <div className="fade-in" style={{paddingTop:4}}>
       <TumEnler turnuvalar={[turnuva]} T={T} git={git} gomulu/>
     </div>}
 
-    {/* ===== İSTATİSTİK ===== */}
-    {tab==="ist" && <LigIstatistik turnuva={turnuva} ist={ist} T={T} git={git} onbirAltin={Motor.ideal11(turnuva,"altin")} pozKisa={pozKisa}/>}
+    {/* ===== GRAFİKLER (İstatistik ▸ Grafikler) ===== */}
+    {tab==="ist" && istAlt==="grafik" && <LigIstatistik turnuva={turnuva} ist={ist} T={T} git={git} onbirAltin={Motor.ideal11(turnuva,"altin")} pozKisa={pozKisa}/>}
 
-    {tab==="takimlar" && <div className="fade-in" style={{padding:"12px 14px"}}>
+    {tab==="puan" && puanAlt==="takimlar" && <div className="fade-in" style={{padding:"12px 14px"}}>
       {(turnuva.takimlar||[]).length===0
         ? <BosUyari T={T} metin="Henüz takım yok. Yönet sekmesinden takım ekle." />
         : <><div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:10}}>LİGDEKİ TAKIMLAR · {turnuva.takimlar.length}</div>
@@ -7682,7 +7698,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
           </div></>}
     </div>}
 
-    {tab==="kurallar" && <LigKurallar turnuva={turnuva} T={T} yonetim={yonetim}/>}
+    {tab==="genel" && <LigKurallar turnuva={turnuva} T={T} yonetim={yonetim}/>}
 
     {tab==="yonet" && yonetim && <><YonetimPaneli turnuva={turnuva} T={T} git={git} yonetim={yonetim} oturum={oturum} onPaylas={onPaylas}/><YardimciYonetim turnuva={turnuva} T={T} oturum={oturum} sahip={!!(oturum && ((turnuva.yonetici_id===oturum.id) || yonetim.adminMi))}/></>}
   </div>;
