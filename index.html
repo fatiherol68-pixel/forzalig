@@ -6617,14 +6617,19 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
     return ()=>{ a=false; };
   },[oturum && oturum.id, !!benimO]);
   const [onbirTip,setOnbirTip]=useState("altin"); // Haftanın 11'i: altın / gümüş
+  const [seciliLig,setSeciliLig]=useState(()=>{ try{ return localStorage.getItem("fl_secili_lig")||""; }catch(e){ return ""; } }); // kullanıcının seçtiği lig (kalıcı)
+  const ligSec=(id)=>{ setSeciliLig(id||""); try{ if(id) localStorage.setItem("fl_secili_lig",String(id)); else localStorage.removeItem("fl_secili_lig"); }catch(e){} };
+  const doluLigler = useMemo(()=>turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0),[turnuvalar]);
   const aktifTurnuva = useMemo(()=>{
-    const dolu = turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0);
+    const dolu = doluLigler;
     if(!dolu.length) return null;
-    // KİŞİYE GÖRE: kullanıcı bir takımda oyuncuysa, varsayılan lig ONUN ligi olsun
+    // 1) Kullanıcı bir lig SEÇTİYSE hep onu göster (kalıcı)
+    if(seciliLig){ const s=dolu.find(t=>String(t.id)===String(seciliLig)); if(s) return s; }
+    // 2) KİŞİYE GÖRE: kullanıcı bir takımda oyuncuysa, varsayılan lig ONUN ligi olsun
     const uid = oturum && oturum.id;
     if(uid){ for(const t of dolu){ for(const tk of (t.takimlar||[])){ if((tk.oyuncular||[]).some(o=>o.sahip_user_id&&o.sahip_user_id===uid)) return t; } } }
     return [...dolu].sort((a,b)=>b.maclar.length-a.maclar.length)[0];
-  },[turnuvalar, oturum]);
+  },[doluLigler, oturum, seciliLig]);
   const yukselenTakim = useMemo(()=>{
     if(!aktifTurnuva || !aktifTurnuva.takimlar) return null;
     const puanla=(t)=>(t.form||[]).slice(-5).reduce((s,f)=>s+(f==="G"?3:f==="B"?1:0),0);
@@ -6792,6 +6797,23 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
           <button onClick={()=>git({sayfa:"ligler"})} className="tap" style={{flex:"1 1 130px",background:T.accent,color:T.bg0,border:0,borderRadius:11,padding:"10px 12px",fontSize:12,fontWeight:800,cursor:"pointer"}}>🔍 Ligleri Keşfet</button>
           {takimKurYetki && <button onClick={()=>git({sayfa:"kuluplerim"})} className="tap" style={{flex:"1 1 130px",background:T.bg0+"aa",color:T.text,border:"0.5px solid "+T.line,borderRadius:11,padding:"10px 12px",fontSize:12,fontWeight:800,cursor:"pointer"}}>🛡️ Takımını Kur</button>}
         </div>}
+      </div>
+    </div>}
+
+    {/* ===== LİG SEÇİCİ — seçilen lig kalıcı, tüm anasayfa ona göre ===== */}
+    {doluLigler.length>1 && <div style={{padding:"14px 14px 2px"}}>
+      <div style={{fontSize:10,color:T.textMut,fontWeight:800,letterSpacing:.6,textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>🏆 Lig seç <span style={{color:T.textMut,fontWeight:600,opacity:.7,textTransform:"none",letterSpacing:0}}>· seçtiğin hep açılır</span></div>
+      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
+        {doluLigler.map(l=>{ const aktifMi=aktifTurnuva && String(aktifTurnuva.id)===String(l.id); return (
+          <div key={l.id} onClick={()=>ligSec(l.id)} className="tap" style={{flexShrink:0,display:"flex",alignItems:"center",gap:8,background:aktifMi?T.accent+"1e":T.bg1,border:"1px solid "+(aktifMi?T.accent+"77":T.line),borderRadius:12,padding:"8px 12px 8px 8px",cursor:"pointer",boxShadow:aktifMi?"0 0 14px "+T.accent+"22":"none"}}>
+            <Logo renk={l.renk||T.accent} ad={l.ad} logo={l.logo} renk2={l.renk2} boy={28}/>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:12.5,fontWeight:800,color:aktifMi?T.accent:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:150}}>{l.ad}</div>
+              <div style={{fontSize:8.5,color:T.textMut,whiteSpace:"nowrap"}}>{l.sehir?("📍 "+l.sehir+" · "):""}{(l.takimlar||[]).length} takım</div>
+            </div>
+            {aktifMi && <span style={{color:T.accent,fontSize:12,fontWeight:900,marginLeft:2}}>✓</span>}
+          </div>); })}
+        {git && <div onClick={()=>git({sayfa:"ligler"})} className="tap" style={{flexShrink:0,display:"flex",alignItems:"center",gap:7,background:T.bg1,border:"1px dashed "+T.line,borderRadius:12,padding:"8px 13px",cursor:"pointer",color:T.textMut,fontSize:11.5,fontWeight:700}}>🔍 Keşfet</div>}
       </div>
     </div>}
 
