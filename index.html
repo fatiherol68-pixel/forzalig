@@ -7498,8 +7498,8 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
   const kupaMi = turnuva.format==="kupa";
   // Sadeleştirilmiş 4-sekme yapısı: Genel(=genel+akış+kurallar) · Puan(=puan+takımlar) · Fikstür · İstatistik(=krallar+enler+grafik+kadro)
   const sekmeler = (kupaMi
-    ? [["kupa","🏆 Kupa"],["genel","Genel"],["ist","İstatistik"]]
-    : [["genel","Genel"],["puan","Puan"],["fikstur","Fikstür"],["ist","İstatistik"]]
+    ? [["kupa","🏆 Kupa"],["genel","Genel"],["ist","İstatistik"],["kurallar","📋 Kurallar"]]
+    : [["genel","Genel"],["puan","Puan"],["fikstur","Fikstür"],["ist","İstatistik"],["kurallar","📋 Kurallar"]]
     ).filter(([k])=> !(k==="puan" && turnuva.puanGizli)); // hazırlık ligi: puan tablosu opsiyonel
   if(yonetim) sekmeler.push(["yonet","⚙️ Yönet"]);
   useEffect(()=>{ if(kupaMi) setTab("kupa"); },[]);
@@ -7698,7 +7698,7 @@ function TurnuvaSayfa({turnuva, T, git, takipLig, ligTakip, yonetim, oturum, sal
           </div></>}
     </div>}
 
-    {tab==="genel" && <LigKurallar turnuva={turnuva} T={T} yonetim={yonetim}/>}
+    {tab==="kurallar" && <LigKurallar turnuva={turnuva} T={T} yonetim={yonetim}/>}
 
     {tab==="yonet" && yonetim && <><YonetimPaneli turnuva={turnuva} T={T} git={git} yonetim={yonetim} oturum={oturum} onPaylas={onPaylas}/><YardimciYonetim turnuva={turnuva} T={T} oturum={oturum} sahip={!!(oturum && ((turnuva.yonetici_id===oturum.id) || yonetim.adminMi))}/></>}
   </div>;
