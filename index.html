@@ -6969,9 +6969,10 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
     })()}
 
     {(()=>{ const onbir=Motor.ideal11(tk, onbirTip);
+      const onbirAltin = onbirTip==="altin"?onbir:Motor.ideal11(tk,"altin"); // görünürlük kararı hep Altın'a göre (Gümüş boş olsa da bölüm kaybolmasın)
       const oyuncuVar=(tk.takimlar||[]).some(t=>(t.oyuncular||[]).length>0);
-      if((!onbir||!onbir.length) && oyuncuVar) return null;   // oyuncular yüklü ama 11 çıkmadı → gizle
-      const yukleniyorOnbir=(!onbir||!onbir.length);          // oyuncular HENÜZ yüklenmedi (hafif aşama) → aynı yükseklikte iskelet: bölüm sonradan MOUNT olup altını itmesin (CLS)
+      if((!onbirAltin||!onbirAltin.length) && oyuncuVar) return null;   // ALTIN bile çıkmıyorsa (gerçekten oyuncu yok) → gizle
+      const yukleniyorOnbir=(!onbirAltin||!onbirAltin.length);          // oyuncular HENÜZ yüklenmedi → iskelet (CLS önlemi)
       const renk = onbirTip==="altin"?T.gold:"#cbd5e1"; const pk={Kaleci:"KL",Defans:"DF",OrtaSaha:"OS",Forvet:"FV"};
       const pozRenk=(p)=> p==="Kaleci"?"#FBBF24":p==="Defans"?"#5B8DEF":p==="OrtaSaha"?T.accent:"#F87171";
       const kaptan = (onbir&&onbir.length) ? onbir.reduce((a,b)=>((b.ovr||0)>(a?(a.ovr||0):-1)?b:a), null) : null;
@@ -6999,6 +7000,12 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
         </div>
         {yukleniyorOnbir
           ? <div className="skel" style={{height:360,borderRadius:16}}/>
+          : (!onbir||!onbir.length)
+          ? <div style={{background:T.bg1,border:"1px solid "+T.line,borderRadius:16,padding:"26px 18px",textAlign:"center"}}>
+              <div style={{fontSize:26}}>🥈</div>
+              <div style={{fontSize:13,fontWeight:800,color:T.text,marginTop:6}}>Gümüş 11 için yeterli derinlik yok</div>
+              <div style={{fontSize:11,color:T.textMut,marginTop:4,lineHeight:1.5}}>Her mevkide ikinci oyuncu oldukça ikinci kadro burada oluşur.<br/>Şimdilik <span style={{color:T.gold,fontWeight:700}}>🥇 Altın 11</span>'e göz at.</div>
+            </div>
           : <>
           {/* SAHA DİZİLİŞİ */}
           <div style={{position:"relative",borderRadius:16,padding:"18px 8px 12px",overflow:"hidden",background:"radial-gradient(ellipse at 50% 28%,#2a7a4e 0%,#16432b 58%,#0a2718 100%)",boxShadow:"inset 0 0 55px rgba(0,0,0,.4)",border:"1px solid "+renk+"44"}}>
