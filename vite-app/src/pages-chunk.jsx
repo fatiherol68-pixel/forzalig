@@ -5240,7 +5240,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
   </div>;
 }
 
-function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab}){
+function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab, adminMi}){
   const [tab,setTab]=useState(ilkTip==="eksik"?"eksik":ilkTip==="oyuncu"?"oyuncu":(["rakip","eksik","oyuncu"].includes(acilTab)?acilTab:"rakip"));
   const [vurgu,setVurgu]=useState(null); // derin-linkle açılan ilan → kısa süre parla
   const [sehir,setSehir]=useState("");
@@ -5263,6 +5263,7 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab}){
     setYuk(false);
   };
   const ilanlarimYenile=async()=>{ if(oturum) setIlanlarim(await Db.ilanlarim(oturum.id)); };
+  const ilanSilYap=async(il)=>{ if(!oturum){ alert("Silmek için giriş yap."); return; } const benim=il.user_id===oturum.id; if(!confirm(benim?"Bu ilanı kalıcı olarak silmek istiyor musun?":"Süper Admin: Bu ilanı kalıcı olarak sil?\n"+(il.takim_ad||"")+" · "+(il.tip==="rakip"?"rakip":il.tip==="oyuncu"?"maça katıl":"eksik oyuncu"))) return; const r=await Db.ilanSil(il.id); if(r&&r.ok){ ilanlarimYenile(); yenile(); } else alert("Silinemedi: "+((r&&r.hata)||"yetki yok")); };
   useEffect(()=>{ yenile(); },[tab]);
   useEffect(()=>{ ilanlarimYenile(); },[]);
   // Bildirimden gelindiyse (acilId) → liste dolunca o ilana kaydır ve kısa süre vurgula
@@ -5311,6 +5312,7 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab}){
           {oturum && il.user_id===oturum.id
             ? <div style={{flex:1,fontSize:11.5,color:T.textMut,textAlign:"center",padding:"11px",background:T.bg2||T.bg0,borderRadius:11}}>Senin ilanın · {zamanKisa(il.olusma)}</div>
             : <button onClick={()=>yanitla(il, null)} className="tap" style={{flex:1,background:anaRenk,color:acil?"#fff":(beyaz?"#fff":T.bg0),border:0,borderRadius:11,padding:12,fontSize:13.5,fontWeight:800}}>{btn}</button>}
+          {adminMi && oturum && il.user_id!==oturum.id && <button onClick={()=>ilanSilYap(il)} className="tap" title="Süper Admin: ilanı sil" style={{flexShrink:0,background:T.danger+"18",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:11,padding:"0 14px",fontSize:16,fontWeight:800}}>🗑</button>}
         </div>
       </div>
     </div>;
@@ -5342,6 +5344,7 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab}){
           <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i.takim_ad} · {i.tip==="rakip"?"rakip":i.tip==="oyuncu"?"maça katıl":i.pozisyon||"oyuncu"}</div><div style={{fontSize:10,color:i.durum==="aktif"?T.accent:T.textMut}}>{i.durum==="aktif"?"aktif":"kapandı"} · {zamanKisa(i.olusma)}</div></div>
           <button onClick={()=>setYonetIlan(i)} className="tap" style={{fontSize:11,color:T.accent2,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"5px 9px",fontWeight:700}}>Yanıtlar</button>
           {i.durum==="aktif" && <button onClick={async()=>{ if(confirm("İlanı kapat?")){ await Db.ilanKapat(i.id); ilanlarimYenile(); yenile(); } }} className="tap" style={{fontSize:11,color:T.textMut,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"5px 9px"}}>Kapat</button>}
+          <button onClick={()=>ilanSilYap(i)} className="tap" title="İlanı kalıcı sil" style={{fontSize:11,color:T.danger,background:"none",border:"0.5px solid "+T.danger+"55",borderRadius:8,padding:"5px 9px",fontWeight:700}}>🗑 Sil</button>
         </div>
       )}</div>}
     </div>}

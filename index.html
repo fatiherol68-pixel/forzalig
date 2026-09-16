@@ -1857,6 +1857,7 @@ const Db = {
   async ilanYanitlari(ilanId){ if(!sb) return []; try{ const {data}=await sb.from('ilan_yanitlari').select('*').eq('ilan_id',ilanId).order('olusma',{ascending:true}); return data||[]; }catch(e){ return []; } },
   async ilanKarar(yanitId, kabul){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.rpc('ilan_yanit_karar',{p_yanit:yanitId, p_kabul:!!kabul}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async ilanKapat(ilanId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('pazar_ilanlari').update({durum:'kapandi'}).eq('id',ilanId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
+  async ilanSil(ilanId){ if(!sb||!ilanId) return {hata:"yok"}; try{ const {error}=await sb.from('pazar_ilanlari').delete().eq('id',ilanId); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } }, // RLS: sahibi VEYA admin siler
   // ---- Maçlar + sonuç (madde 17/18: log otomatik) ----
   async macOlustur(m){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.from('maclar').insert(m).select('id').single(); return error?{hata:error.message}:{ok:true,id:data.id}; }catch(e){ return {hata:String(e)}; } },
   async macSonuc(id, evSkor, depSkor){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('maclar').update({ev_skor:evSkor, dep_skor:depSkor, oynandi:true}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
@@ -5252,10 +5253,30 @@ function FidanKart({T}){
   </div>;
 }
 
+/* KATLA — Süper Admin panellerini tek tek açılır/kapanır yapar. Açık/kapalı durumu
+   localStorage'da (fl_kat_<sk>) hatırlanır; varsayılan kapalı → panel kısa kalır, sadece
+   kullanılan menüler açılır. Başlık her zaman görünür, gövde tıklayınca açılır/kapanır. */
+function Katla({T, ik, baslik, sk, ozet, ozetRenk, vurgulu, varsayilanAcik, children}){
+  const anahtar="fl_kat_"+sk;
+  const [acik,setAcik]=useState(()=>{ try{ const v=localStorage.getItem(anahtar); if(v==="1")return true; if(v==="0")return false; }catch(e){} return !!varsayilanAcik; });
+  const cevir=()=>setAcik(a=>{ const n=!a; try{ localStorage.setItem(anahtar,n?"1":"0"); }catch(e){} return n; });
+  const bg=vurgulu?("linear-gradient(160deg,"+T.accent+"12,"+T.bg1+")"):("linear-gradient(160deg,"+T.bg2+","+T.bg1+")");
+  const kenar=vurgulu?(T.accent+"33"):T.line;
+  return <div style={{background:bg,border:"1px solid "+kenar,borderRadius:14,marginBottom:10,overflow:"hidden"}}>
+    <div onClick={cevir} className="tap" style={{display:"flex",alignItems:"center",gap:9,padding:acik?"13px 15px 10px":"13px 15px",cursor:"pointer"}}>
+      <span style={{fontSize:15,flexShrink:0}}>{ik}</span>
+      <div style={{fontSize:13.5,fontWeight:800,color:T.text,flex:1,minWidth:0}}>{baslik}</div>
+      {ozet!=null && ozet!=="" && <span style={{fontSize:10.5,fontWeight:700,color:ozetRenk||T.textMut,whiteSpace:"nowrap"}}>{ozet}</span>}
+      <span style={{fontSize:11,color:T.textMut,flexShrink:0,transition:"transform .2s",transform:acik?"rotate(180deg)":"none",display:"inline-block"}}>▾</span>
+    </div>
+    {acik && <div style={{padding:"0 15px 14px"}}>{children}</div>}
+  </div>;
+}
+
 /* FİDAN AYARI (Süper Admin) — oranı belirle: kaç golde kaç fidan. sistem_ayar'a yazar.
    kaydet = anahtarCevir (Db.ayarYaz + anahtarlar state günceller). */
 /* ANASAYFA VİTRİNİ YÖNETİMİ (Süper Admin) — sponsorlar/haberler/iletişim → sistem_ayar (JSON). */
-function IcerikYonetim({anahtarlar, kaydet, T}){
+function IcerikYonetim({anahtarlar, kaydet, T, gomulu}){
   const A=anahtarlar||{};
   const pl=(k)=>{ try{ const v=JSON.parse(A[k]||"[]"); return Array.isArray(v)?v:[]; }catch(e){ return []; } };
   const spInit=pl('sponsorlar').map(s=>[s.ad,s.url||"",s.renk||""].filter((x,i)=>i<1||x).join(" | ")).join("\n");
@@ -5277,8 +5298,8 @@ function IcerikYonetim({anahtarlar, kaydet, T}){
   const ta={width:"100%",minHeight:60,padding:"9px 10px",borderRadius:9,background:T.bg1,border:"1px solid "+T.line,color:T.text,fontSize:12.5,lineHeight:1.5,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"};
   const inp={flex:1,minWidth:120,padding:"8px 10px",borderRadius:9,background:T.bg1,border:"1px solid "+T.line,color:T.text,fontSize:13,boxSizing:"border-box"};
   const lbl={fontSize:11,fontWeight:800,color:T.textSoft,margin:"12px 0 5px",letterSpacing:.3};
-  return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
-    <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>🖼️</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Anasayfa Vitrini</div></div>
+  return <div style={gomulu?{}:{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
+    {!gomulu && <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>🖼️</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Anasayfa Vitrini</div></div>}
     <div style={{fontSize:10.5,color:T.textMut,marginBottom:6,lineHeight:1.5}}>Sponsorlar, haberler ve iletişim — anasayfada herkese görünür. Boş bırakırsan haberler otomatik gündemle dolar.</div>
     <div style={lbl}>Sponsorlar <span style={{fontWeight:500,color:T.textMut}}>(her satır: Ad | link | #renk)</span></div>
     <textarea value={sp} onChange={e=>setSp(e.target.value)} placeholder={"Kardeşler Halı Saha | https://... | #34D399"} style={ta}/>
@@ -5296,7 +5317,7 @@ function IcerikYonetim({anahtarlar, kaydet, T}){
     </div>
   </div>;
 }
-function FidanAyar({anahtarlar, kaydet, T}){
+function FidanAyar({anahtarlar, kaydet, T, gomulu}){
   const A=anahtarlar||{};
   const [gol,setGol]=useState(String(A.fidan_gol_birim||"20"));
   const [adet,setAdet]=useState(String(A.fidan_adet_birim||"1"));
@@ -5314,8 +5335,8 @@ function FidanAyar({anahtarlar, kaydet, T}){
     try{ localStorage.removeItem('fl_fidan_gol'); }catch(e){}
     setDurum("✓ Kaydedildi"); setTimeout(()=>setDurum(""),2200);
   };
-  return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
-    <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>🌱</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Fidan Sayacı</div></div>
+  return <div style={gomulu?{}:{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
+    {!gomulu && <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>🌱</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Fidan Sayacı</div></div>}
     <div style={{fontSize:10.5,color:T.textMut,marginBottom:11,lineHeight:1.5}}>Ana sayfada herkese görünür. Tüm liglerde atılan toplam gole göre otomatik hesaplanır.</div>
     <div onClick={()=>kaydet('fidan_acik',acik?"0":"1")} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"7px 0 11px",borderBottom:"1px solid "+T.line,cursor:"pointer"}}>
       <span style={{flex:1,fontSize:13,color:T.text}}>Fidan sayacı {acik?"açık":"kapalı"}</span>
@@ -17473,12 +17494,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
         {(()=>{ const durRenk=(d)=>d==="ok"?T.accent:d==="uyari"?T.gold:T.danger; const durIk=(d)=>d==="ok"?"✅":d==="uyari"?"⚠":"❌";
           const sayac=ozTest?{ok:ozTest.filter(x=>x.durum==="ok").length,uyari:ozTest.filter(x=>x.durum==="uyari").length,hata:ozTest.filter(x=>x.durum==="hata").length}:null;
           const genelRenk=!sayac?T.accent2:sayac.hata?T.danger:sayac.uyari?T.gold:T.accent;
-          return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
-            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:ozTest?12:4}}>
-              <span style={{width:9,height:9,borderRadius:"50%",background:genelRenk,display:"inline-block",flexShrink:0}}/>
-              <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>🩺 Sistem Öz-Testi</div>
-              {sayac && <span style={{marginLeft:"auto",fontSize:10.5,fontWeight:700,color:genelRenk}}>{sayac.hata?sayac.hata+" hata":sayac.uyari?sayac.uyari+" uyarı":"her şey yolunda"}</span>}
-            </div>
+          return <Katla T={T} ik="🩺" baslik="Sistem Öz-Testi" sk="oztest" ozet={sayac?(sayac.hata?sayac.hata+" hata":sayac.uyari?sayac.uyari+" uyarı":"yolunda"):null} ozetRenk={genelRenk}>
             {!ozTest && <div style={{fontSize:11.5,color:T.textMut,marginBottom:11,lineHeight:1.5}}>Veritabanı, giriş, güvenlik, depolama, hız ve sürümü canlı kontrol eder. Salt-okunur — hiçbir veriye dokunmaz.</div>}
             {ozTest && <div style={{marginBottom:11}}>
               {ozTest.map((s,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<ozTest.length-1?"1px solid "+T.line:"none"}}>
@@ -17489,18 +17505,13 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             </div>}
             {ozTest && ozTest.some(s=>s.durum==="uyari"&&/sürüm/i.test(s.ad)) && <button onClick={()=>{ try{sessionStorage.removeItem("fl_sw_reload_ts");}catch(e){} if(navigator.serviceWorker&&navigator.serviceWorker.getRegistration){ navigator.serviceWorker.getRegistration().then(function(reg){ if(reg){ if(reg.waiting)reg.waiting.postMessage("FL_SKIP_WAITING"); reg.update().catch(function(){}); } setTimeout(function(){location.reload();},700); }).catch(function(){ setTimeout(function(){location.reload();},300); }); } else setTimeout(function(){location.reload();},250); }} className="tap" style={{width:"100%",padding:"11px",borderRadius:11,background:T.gold,color:"#1A1505",fontSize:13,fontWeight:800,border:"none",marginBottom:8}}>⬆️ Yeni sürüme güncelle & yenile</button>}
             <button onClick={ozTestCalistir} disabled={ozTestYuk} className="tap" style={{width:"100%",padding:"11px",borderRadius:11,background:ozTestYuk?T.bg2:T.accent,color:ozTestYuk?T.textMut:(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0),fontSize:13,fontWeight:800,border:"none"}}>{ozTestYuk?"Kontrol ediliyor…":ozTest?"↻ Yeniden Test Et":"▶ Öz-Test Başlat"}</button>
-          </div>;
+          </Katla>;
         })()}
         {/* ===== FAZ 2 — VERİ SAĞLIK TARAMASI (Veri Doktoru) ===== */}
         {(()=>{ const v=veriSaglik; const hata=v&&v.hata; const say=v&&!hata?((v.takimsizLig||0)+(v.oksuzOyuncu||0)+(v.hayaletMac||0)):null;
           const sat=[["Takımsız lig",v&&v.takimsizLig||0],["Öksüz oyuncu (üyeliksiz)",v&&v.oksuzOyuncu||0],["Hayalet maç (skor var, oynanmadı)",v&&v.hayaletMac||0]];
           const renk=say===null?T.accent2:say===0?T.accent:T.gold;
-          return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
-            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:10}}>
-              <span style={{width:9,height:9,borderRadius:"50%",background:renk,flexShrink:0}}/>
-              <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>🩺 Veri Doktoru</div>
-              {say!==null && <span style={{marginLeft:"auto",fontSize:10.5,fontWeight:700,color:renk}}>{say===0?"temiz":say+" uyarı"}</span>}
-            </div>
+          return <Katla T={T} ik="🩺" baslik="Veri Doktoru" sk="veridoktoru" ozet={say!==null?(say===0?"temiz":say+" uyarı"):null} ozetRenk={renk}>
             {hata && <div style={{fontSize:11.5,color:T.textMut,marginBottom:10}}>Tarama yapılamadı ({v.hata}).</div>}
             {!hata && sat.map(([ad,n],i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<sat.length-1?"1px solid "+T.line:"none"}}>
               <span style={{fontSize:13}}>{n>0?"⚠":"✅"}</span><span style={{flex:1,fontSize:13,color:T.text}}>{ad}</span>
@@ -17508,20 +17519,19 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             </div>)}
             {v&&v.zaman && <div style={{fontSize:10,color:T.textMut,margin:"8px 0 0"}}>Son tarama: {new Date(v.zaman).toLocaleString("tr-TR")}</div>}
             <button onClick={veriTara} disabled={veriSaglikYuk} className="tap" style={{width:"100%",marginTop:11,padding:"10px",borderRadius:11,background:veriSaglikYuk?T.bg2:T.bg1,color:veriSaglikYuk?T.textMut:T.accent,fontSize:12.5,fontWeight:800,border:"1px solid "+T.accent+"55"}}>{veriSaglikYuk?"Taranıyor…":"↻ Şimdi Tara"}</button>
-          </div>;
+          </Katla>;
         })()}
         {/* ===== FAZ 3 — SİSTEM ANAHTARLARI (Bakım modu + özellik bayrakları) ===== */}
         {(()=>{ const A=anahtarlar||{}; const sw=(on)=>({width:36,height:20,borderRadius:11,position:"relative",flexShrink:0,background:on?T.accent:T.bg2,border:"1px solid "+(on?T.accent:T.line),transition:"background .2s"});
           const knob=(on)=>({position:"absolute",top:2,left:on?18:2,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"});
           const flags=[["bakim","🧯 Bakım modu (herkes salt-okunur)",A.bakim==="1"||A.bakim===true],["yeni_ozellik","🧪 Beta özellik anahtarı",A.yeni_ozellik==="1"||A.yeni_ozellik===true]];
-          return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
-            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:10}}><span style={{fontSize:15}}>🎛</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Sistem Anahtarları</div></div>
+          return <Katla T={T} ik="🎛" baslik="Sistem Anahtarları" sk="anahtarlar" ozet={(A.bakim==="1"||A.bakim===true)?"🧯 bakım açık":null} ozetRenk={T.gold}>
             {flags.map(([k,et,on])=><div key={k} onClick={()=>anahtarCevir(k,on?"0":"1")} className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"9px 0",borderBottom:"1px solid "+T.line,cursor:"pointer"}}>
               <span style={{flex:1,fontSize:13,color:T.text}}>{et}</span>
               <span style={sw(on)}><span style={knob(on)}/></span>
             </div>)}
             <div style={{fontSize:10.5,color:T.textMut,marginTop:9,lineHeight:1.5}}>Kapalı = kullanıcı görmez/etkilenmez · Bakım modu açıkken sadece sen düzenleyebilirsin. Anında etki eder, güncelleme beklemez.</div>
-          </div>;
+          </Katla>;
         })()}
         {/* ===== 🆕 ANASAYFA SÜRÜMÜ — tek tuş geri dönüş (radyo ayarları artık "Radyo" sekmesinde tek düğme) ===== */}
         {(()=>{ const A=anahtarlar||{};
@@ -17533,25 +17543,23 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,color:T.text,fontWeight:600}}>{et}</div>{alt&&<div style={{fontSize:10.5,color:T.textMut,marginTop:2}}>{alt}</div>}</div>
             <span style={sw(on)}><span style={knob(on)}/></span>
           </div>;
-          return <div style={{background:"linear-gradient(160deg,"+T.accent+"12,"+T.bg1+")",border:"1px solid "+T.accent+"33",borderRadius:14,padding:"14px 15px",marginBottom:10}}>
-            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>🆕</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>Anasayfa Sürümü — tek tuşla geri dönüş</div></div>
+          return <Katla T={T} ik="🆕" baslik="Anasayfa Sürümü — tek tuşla geri dönüş" sk="anasurum" vurgulu ozet={orbitalOn?"Orbital":anaV6?"V6":"V5"} ozetRenk={T.accent}>
             <div style={{fontSize:10.5,color:T.textMut,marginBottom:8,lineHeight:1.5}}>Yeni tasarımlar ESKİSİNE dokunmadan paralel durur. İstediğin an aç/kapat — <b>anında</b>, güncelleme beklemeden. Sorun olursa kapat, eskiye dönersin. <b style={{color:T.textSoft}}>Radyo</b> ayarları artık tek düğme: alttaki <b style={{color:T.accent}}>“Radyo”</b> sekmesinde.</div>
             {satir("🏠 Yeni anasayfa (V6 · Maç Merkezi + spotlight)", anaV6?"Açık — yeni anasayfa görünüyor":"Kapalı — eski anasayfa (V5) çalışıyor", anaV6, ()=>cevir("anasayfa_surum",anaV6?"v5":"v6"))}
             {satir("🛰️ Orbital anasayfa (tam tasarım · /orbital embed)", orbitalOn?"Açık — Orbital anasayfa görünüyor":"Kapalı — V6/klasik anasayfa çalışıyor", orbitalOn, ()=>cevir("anasayfa_surum",orbitalOn?"v6":"orbital"))}
-          </div>;
+          </Katla>;
         })()}
         {/* ===== FİDAN SAYACI AYARI — kaç golde kaç fidan (tüm liglere göre) ===== */}
-        <FidanAyar anahtarlar={anahtarlar} kaydet={anahtarCevir} T={T}/>
+        <Katla T={T} ik="🌱" baslik="Fidan Sayacı" sk="fidan"><FidanAyar anahtarlar={anahtarlar} kaydet={anahtarCevir} T={T} gomulu/></Katla>
         {/* ===== ANASAYFA VİTRİNİ — sponsorlar/haberler/iletişim ===== */}
-        <IcerikYonetim anahtarlar={anahtarlar} kaydet={anahtarCevir} T={T}/>
+        <Katla T={T} ik="🖼️" baslik="Anasayfa Vitrini" sk="vitrin"><IcerikYonetim anahtarlar={anahtarlar} kaydet={anahtarCevir} T={T} gomulu/></Katla>
         {/* ===== İZLEME PANELLERİ — tek dokunuşla dış servisler (Clarity/Sentry/UptimeRobot) ===== */}
         {(()=>{ const paneller=[
             ["🎬","Clarity","Isı haritası + kayıtlar","https://clarity.microsoft.com"],
             ["🐞","Sentry","Hata kayıtları","https://sentry.io"],
             ["📡","UptimeRobot","Kesinti izleme","https://uptimerobot.com/dashboard"],
           ];
-          return <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"14px 15px",marginBottom:10}}>
-            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}><span style={{fontSize:15}}>📊</span><div style={{fontSize:13.5,fontWeight:800,color:T.text}}>İzleme Panelleri</div></div>
+          return <Katla T={T} ik="📊" baslik="İzleme Panelleri" sk="izleme">
             <div style={{fontSize:10.5,color:T.textMut,marginBottom:11,lineHeight:1.5}}>Tek dokunuşla açılır. İlk girişten sonra servis seni hatırlar, tekrar şifre sormaz.</div>
             {paneller.map(([ik,ad,ac,url])=>
               <a key={ad} href={url} target="_blank" rel="noopener noreferrer" className="tap" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 11px",marginBottom:7,background:T.bg1,border:"1px solid "+T.line,borderRadius:11,textDecoration:"none",cursor:"pointer"}}>
@@ -17562,7 +17570,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
                 </span>
                 <span style={{fontSize:15,color:T.accent,flexShrink:0}}>↗</span>
               </a>)}
-          </div>;
+          </Katla>;
         })()}
         {/* ===== FAZ 4 — OPERASYON MERKEZİ (gerçek metrikler) ===== */}
         {metrik && (()=>{
@@ -17710,17 +17718,15 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           </>;
         })()}
         {/* ===== #6 LIG SAĞLIK HARİTASI ===== */}
-        {ligSaglik && ligSaglik.length>0 && (()=>{ const drenk={canli:T.accent,yavas:T.gold,uykuda:T.danger,yeni:T.textMut}; const det={canli:"canlı",yavas:"yavaş",uykuda:"uykuda",yeni:"yeni"}; const canliSay=ligSaglik.filter(l=>l.durum==="canli").length; const uykuSay=ligSaglik.filter(l=>l.durum==="uykuda").length; return <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:9}}><span style={{fontSize:11,color:T.textMut,fontWeight:700}}>🏟️ LİG SAĞLIK HARİTASI</span><span style={{marginLeft:"auto",fontSize:9.5,color:T.accent}}>{canliSay} canlı{uykuSay?" · "+uykuSay+" uykuda":""}</span></div>
+        {ligSaglik && ligSaglik.length>0 && (()=>{ const drenk={canli:T.accent,yavas:T.gold,uykuda:T.danger,yeni:T.textMut}; const det={canli:"canlı",yavas:"yavaş",uykuda:"uykuda",yeni:"yeni"}; const canliSay=ligSaglik.filter(l=>l.durum==="canli").length; const uykuSay=ligSaglik.filter(l=>l.durum==="uykuda").length; return <Katla T={T} ik="🏟️" baslik="Lig Sağlık Haritası" sk="ligsaglik" varsayilanAcik ozet={canliSay+" canlı"+(uykuSay?" · "+uykuSay+" uykuda":"")} ozetRenk={T.accent}>
           {ligSaglik.slice(0,12).map((l,i)=><div key={l.id||i} style={{display:"flex",alignItems:"center",gap:9,padding:"6px 0",borderBottom:i<Math.min(12,ligSaglik.length)-1?"0.5px solid "+T.line:"none"}}>
             <span style={{width:8,height:8,borderRadius:"50%",background:drenk[l.durum],flexShrink:0}}/>
             <span style={{flex:1,minWidth:0,fontSize:11.5,color:T.textSoft,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad||"—"}</span>
             <span style={{fontSize:9.5,color:drenk[l.durum],flexShrink:0}}>{det[l.durum]}{l.gun!=null?" · "+(l.gun<=0?"bugün":l.gun+"g"):" · maç yok"}</span>
           </div>)}
-        </div>; })()}
+        </Katla>; })()}
         {/* ===== #10 KAYIP RİSKİ RADARI ===== */}
-        {kayipUye && kayipUye.length>0 && <div style={{background:T.bg1,border:"0.5px solid "+T.danger+"33",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:9}}><span style={{fontSize:11,color:T.danger,fontWeight:800}}>🚨 KAYIP RİSKİ RADARI</span><span style={{marginLeft:"auto",fontSize:9.5,color:T.textMut}}>{kayipUye.length} üye uzaklaşıyor</span></div>
+        {kayipUye && kayipUye.length>0 && <Katla T={T} ik="🚨" baslik="Kayıp Riski Radarı" sk="kayip" varsayilanAcik ozet={kayipUye.length+" üye uzaklaşıyor"} ozetRenk={T.danger}>
           {kayipUye.slice(0,8).map((u,i)=>{ const oran=Math.min(100,Math.round((u.gun/30)*100)); const rk=u.gun>=21?T.danger:T.gold; return <div key={u.user_id||i} style={{display:"flex",alignItems:"center",gap:9,padding:"6px 0",borderBottom:i<Math.min(8,kayipUye.length)-1?"0.5px solid "+T.line:"none"}}>
             <span style={{width:26,height:26,borderRadius:"50%",flexShrink:0,display:"grid",placeItems:"center",fontSize:10,fontWeight:800,color:"#fff",background:u.foto?"transparent":"linear-gradient(135deg,#a78bfa,#3ea6ff)",backgroundImage:u.foto?("url("+u.foto+")"):undefined,backgroundSize:"cover"}}>{u.foto?"":((u.ad||u.email||"?").slice(0,1).toUpperCase())}</span>
             <span style={{flex:1,minWidth:0,fontSize:11.5,color:T.textSoft,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.ad||u.email||"Üye"}</span>
@@ -17728,26 +17734,23 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             <span style={{fontSize:9,color:T.textMut,width:34,textAlign:"right",flexShrink:0}} className="tab">{u.gun}g</span>
             <button onClick={()=>kayipGeriCagir(u)} className="tap" title="Seni özledik bildirimi gönder" style={{flexShrink:0,fontSize:10,fontWeight:700,color:T.accent,background:T.accent+"1c",border:"0.5px solid "+T.accent+"55",borderRadius:8,padding:"5px 8px"}}>🧲 Geri çağır</button>
           </div>; })}
-        </div>}
+        </Katla>}
         {/* ===== #14 DOĞUM GÜNÜ ===== */}
-        {dogumBugun && dogumBugun.length>0 && <div style={{background:T.bg1,border:"0.5px solid #f472b644",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-          <div style={{fontSize:11,color:"#f472b6",fontWeight:800,marginBottom:9}}>🎂 BUGÜN DOĞUM GÜNÜ · {dogumBugun.length}</div>
+        {dogumBugun && dogumBugun.length>0 && <Katla T={T} ik="🎂" baslik="Bugün Doğum Günü" sk="dogum" varsayilanAcik ozet={String(dogumBugun.length)} ozetRenk="#f472b6">
           {dogumBugun.map((u,i)=><div key={u.user_id||i} style={{display:"flex",alignItems:"center",gap:9,padding:"6px 0",borderBottom:i<dogumBugun.length-1?"0.5px solid "+T.line:"none"}}>
             <span style={{fontSize:16,flexShrink:0}}>🎉</span>
             <span style={{flex:1,minWidth:0,fontSize:12,color:T.textSoft,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.ad||u.email||"Üye"}{u.yas?(" · "+u.yas):""}</span>
             <button onClick={()=>dogumKutla(u)} className="tap" style={{flexShrink:0,fontSize:10,fontWeight:700,color:"#f472b6",background:"#f472b61c",border:"0.5px solid #f472b655",borderRadius:8,padding:"5px 9px"}}>🎂 Kutla</button>
           </div>)}
-        </div>}
+        </Katla>}
         {/* ===== #12 TÜRKİYE NABZI (şehir) ===== */}
-        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-          <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:9}}>🗺️ TÜRKİYE NABZI <span style={{fontSize:8.5,color:T.textMut,fontWeight:600}}>· şehir dağılımı</span></div>
+        <Katla T={T} ik="🗺️" baslik="Türkiye Nabzı" sk="sehir" varsayilanAcik ozet={sehirDag&&sehirDag.length?sehirDag.length+" şehir":null}>
           {(!sehirDag||sehirDag.length===0)
             ? <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:"10px 6px",lineHeight:1.5}}>Henüz şehir verisi yok.<br/><span style={{fontSize:10}}>Üyeler profiline şehir girdikçe burası dolar.</span></div>
             : <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{sehirDag.slice(0,14).map((s,i)=>{ const rk=i<2?T.accent:i<5?T.gold:T.accent2||T.accent; return <span key={i} style={{display:"flex",alignItems:"center",gap:6,fontSize:10.5,color:T.textSoft,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:20,padding:"4px 10px"}}><span style={{width:7,height:7,borderRadius:"50%",background:rk}}/>{s.sehir} <b style={{color:T.text}} className="tab">{s.adet}</b></span>; })}</div>}
-        </div>
+        </Katla>
         {/* ===== 🆘 DESTEK TALEPLERİ ===== */}
-        {destekTalep.length>0 && (()=>{ const btn={fontSize:10,fontWeight:700,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"5px 9px",color:T.textSoft,cursor:"pointer"}; return <div style={{background:T.bg1,border:"0.5px solid "+T.gold+"44",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-          <div style={{fontSize:11,color:T.gold,fontWeight:800,marginBottom:9}}>🆘 DESTEK TALEPLERİ · {destekTalep.filter(t=>t.durum!=='kapandi').length} açık</div>
+        {destekTalep.length>0 && (()=>{ const btn={fontSize:10,fontWeight:700,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:7,padding:"5px 9px",color:T.textSoft,cursor:"pointer"}; const acikSay=destekTalep.filter(t=>t.durum!=='kapandi').length; return <Katla T={T} ik="🆘" baslik="Destek Talepleri" sk="destek" varsayilanAcik ozet={acikSay+" açık"} ozetRenk={T.gold}>
           {destekTalep.slice(0,15).map(t=><div key={t.id} style={{background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"9px 11px",marginBottom:6,opacity:t.durum==='kapandi'?.55:1}}>
             <div style={{display:"flex",alignItems:"center",gap:7}}>
               <span style={{fontSize:12,fontWeight:700,color:T.text,flex:1,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad||t.email||'Kullanıcı'} <span style={{color:T.textMut,fontWeight:400}}>· {t.sayfa||'—'}</span></span>
@@ -17762,7 +17765,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             </div>
             {acikTeshis===t.id && <pre style={{fontSize:9.5,color:T.textMut,background:T.bg1,borderRadius:7,padding:"8px",marginTop:6,overflowX:"auto",maxHeight:150,whiteSpace:"pre-wrap"}}>{JSON.stringify(t.teshis,null,1)}</pre>}
           </div>)}
-        </div>; })()}
+        </Katla>; })()}
         {/* ===== BAKIM MERKEZİ (yıkıcı araçlar — varsayılan kapalı: yanlış tık koruması) ===== */}
         <button id="fl-bakim" onClick={()=>setBakimAcik(v=>!v)} className="tap" style={{width:"100%",display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"0.5px solid "+(bakimAcik?T.danger+"55":T.line),borderRadius:12,padding:"12px 14px",marginBottom:10,color:T.text,fontSize:12.5,fontWeight:700}}><span>🧹 Bakım Araçları</span><span style={{fontSize:10,color:T.textMut,fontWeight:600}}>temizlik & silme</span><span style={{marginLeft:"auto",fontSize:12,color:T.textMut,fontWeight:600}}>{bakimAcik?"▲ gizle":"▼ aç"}</span></button>
         {bakimAcik && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
@@ -18867,7 +18870,7 @@ function SohbetSayfa({T, git, geri, oturum, turnuva, takim, adminMi, turnuvalar,
 }
 
 // ==================== TRANSFER PAZARI (müsait oyuncular) ====================
-function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab}){
+function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab, adminMi}){
   const [tab,setTab]=useState(ilkTip==="eksik"?"eksik":ilkTip==="oyuncu"?"oyuncu":(["rakip","eksik","oyuncu"].includes(acilTab)?acilTab:"rakip"));
   const [vurgu,setVurgu]=useState(null); // derin-linkle açılan ilan → kısa süre parla
   const [sehir,setSehir]=useState("");
@@ -18890,6 +18893,7 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab}){
     setYuk(false);
   };
   const ilanlarimYenile=async()=>{ if(oturum) setIlanlarim(await Db.ilanlarim(oturum.id)); };
+  const ilanSilYap=async(il)=>{ if(!oturum){ alert("Silmek için giriş yap."); return; } const benim=il.user_id===oturum.id; if(!confirm(benim?"Bu ilanı kalıcı olarak silmek istiyor musun?":"Süper Admin: Bu ilanı kalıcı olarak sil?\n"+(il.takim_ad||"")+" · "+(il.tip==="rakip"?"rakip":il.tip==="oyuncu"?"maça katıl":"eksik oyuncu"))) return; const r=await Db.ilanSil(il.id); if(r&&r.ok){ ilanlarimYenile(); yenile(); } else alert("Silinemedi: "+((r&&r.hata)||"yetki yok")); };
   useEffect(()=>{ yenile(); },[tab]);
   useEffect(()=>{ ilanlarimYenile(); },[]);
   // Bildirimden gelindiyse (acilId) → liste dolunca o ilana kaydır ve kısa süre vurgula
@@ -18938,6 +18942,7 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab}){
           {oturum && il.user_id===oturum.id
             ? <div style={{flex:1,fontSize:11.5,color:T.textMut,textAlign:"center",padding:"11px",background:T.bg2||T.bg0,borderRadius:11}}>Senin ilanın · {zamanKisa(il.olusma)}</div>
             : <button onClick={()=>yanitla(il, null)} className="tap" style={{flex:1,background:anaRenk,color:acil?"#fff":(beyaz?"#fff":T.bg0),border:0,borderRadius:11,padding:12,fontSize:13.5,fontWeight:800}}>{btn}</button>}
+          {adminMi && oturum && il.user_id!==oturum.id && <button onClick={()=>ilanSilYap(il)} className="tap" title="Süper Admin: ilanı sil" style={{flexShrink:0,background:T.danger+"18",color:T.danger,border:"0.5px solid "+T.danger+"55",borderRadius:11,padding:"0 14px",fontSize:16,fontWeight:800}}>🗑</button>}
         </div>
       </div>
     </div>;
@@ -18969,6 +18974,7 @@ function PazarSayfa({T, git, oturum, turnuvalar, ilkTip, acilId, acilTab}){
           <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i.takim_ad} · {i.tip==="rakip"?"rakip":i.tip==="oyuncu"?"maça katıl":i.pozisyon||"oyuncu"}</div><div style={{fontSize:10,color:i.durum==="aktif"?T.accent:T.textMut}}>{i.durum==="aktif"?"aktif":"kapandı"} · {zamanKisa(i.olusma)}</div></div>
           <button onClick={()=>setYonetIlan(i)} className="tap" style={{fontSize:11,color:T.accent2,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"5px 9px",fontWeight:700}}>Yanıtlar</button>
           {i.durum==="aktif" && <button onClick={async()=>{ if(confirm("İlanı kapat?")){ await Db.ilanKapat(i.id); ilanlarimYenile(); yenile(); } }} className="tap" style={{fontSize:11,color:T.textMut,background:"none",border:"0.5px solid "+T.line,borderRadius:8,padding:"5px 9px"}}>Kapat</button>}
+          <button onClick={()=>ilanSilYap(i)} className="tap" title="İlanı kalıcı sil" style={{fontSize:11,color:T.danger,background:"none",border:"0.5px solid "+T.danger+"55",borderRadius:8,padding:"5px 9px",fontWeight:700}}>🗑 Sil</button>
         </div>
       )}</div>}
     </div>}
@@ -21127,7 +21133,7 @@ function App(){
       case "takip": icerik=<TakipSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} ligTakip={ligTakip} oyuncuTakip={oyuncuTakip} takimTakip={takimTakip} git={git}/>; break;
       case "bildirim": icerik=<BildirimSayfa T={T} git={git} oturum={oturum} liste={gercekBildirim} yenile={bildirimYenile} takipListe={bildirimler} turnuvalar={turnuvalar}/>; break;
       case "sohbet": icerik=<SohbetSayfa T={T} git={git} geri={geri} oturum={oturum} turnuva={nav.turnuva} takim={nav.takim} kulup={nav.kulup} adminMi={etkinAdminMi} turnuvalar={turnuvalar} saltOkunur={saltOkunur}/>; break;
-      case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni} acilId={nav.pazarAcil} acilTab={nav.pazarTab}/>; break;
+      case "pazar": icerik=<PazarSayfa T={T} git={git} oturum={oturum} turnuvalar={turnuvalar} ilkTip={nav.pazarYeni} acilId={nav.pazarAcil} acilTab={nav.pazarTab} adminMi={etkinAdminMi}/>; break;
       case "profil": icerik = <ProfilSayfa T={T} turnuvalar={turnuvalar} takipLig={takipLig} takipOyuncu={takipOyuncu} takipTakim={takipTakim} git={git} kapiAc={(m)=>setKapi(m||"tanitim")} oturum={oturum} cikisYap={cikisYap} sahiplenme={sahiplenme} onSahiplenmeBirak={sahiplenmeyiBirak} adminMi={adminMi} profil={profil} destekBilgi={destek?{uid:destek.uid, ad:destek.ad, profil:destekProfil, adminMi:destekAdminMi}:null} bildirimListe={gercekBildirim}/>; break;
       case "kuluplerim": icerik=<Kuluplerim T={T} oturum={oturum} git={git} turnuvalar={turnuvalar} adminMi={etkinAdminMi} takimKurabilir={etkinTakimKurYetkim}/>; break;
       case "sorun": icerik=<SorunBildir T={T} git={git} oturum={oturum} teshis={teshisUret()}/>; break;
