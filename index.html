@@ -6618,7 +6618,8 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
   },[oturum && oturum.id, !!benimO]);
   const [onbirTip,setOnbirTip]=useState("altin"); // Haftanın 11'i: altın / gümüş
   const [seciliLig,setSeciliLig]=useState(()=>{ try{ return localStorage.getItem("fl_secili_lig")||""; }catch(e){ return ""; } }); // kullanıcının seçtiği lig (kalıcı)
-  const ligSec=(id)=>{ setSeciliLig(id||""); try{ if(id) localStorage.setItem("fl_secili_lig",String(id)); else localStorage.removeItem("fl_secili_lig"); }catch(e){} };
+  const [ligMenuAcik,setLigMenuAcik]=useState(false);
+  const ligSec=(id)=>{ setSeciliLig(id||""); setLigMenuAcik(false); try{ if(id) localStorage.setItem("fl_secili_lig",String(id)); else localStorage.removeItem("fl_secili_lig"); }catch(e){} };
   const doluLigler = useMemo(()=>turnuvalar.filter(t=>t.takimlar && t.takimlar.length>0),[turnuvalar]);
   const aktifTurnuva = useMemo(()=>{
     const dolu = doluLigler;
@@ -6800,21 +6801,32 @@ function AnaSayfaV6({turnuvalar, T, git, oturum, ligKurYetki, takimKurYetki}){
       </div>
     </div>}
 
-    {/* ===== LİG SEÇİCİ — seçilen lig kalıcı, tüm anasayfa ona göre ===== */}
-    {doluLigler.length>1 && <div style={{padding:"14px 14px 2px"}}>
-      <div style={{fontSize:10,color:T.textMut,fontWeight:800,letterSpacing:.6,textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>🏆 Lig seç <span style={{color:T.textMut,fontWeight:600,opacity:.7,textTransform:"none",letterSpacing:0}}>· seçtiğin hep açılır</span></div>
-      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
-        {doluLigler.map(l=>{ const aktifMi=aktifTurnuva && String(aktifTurnuva.id)===String(l.id); return (
-          <div key={l.id} onClick={()=>ligSec(l.id)} className="tap" style={{flexShrink:0,display:"flex",alignItems:"center",gap:8,background:aktifMi?T.accent+"1e":T.bg1,border:"1px solid "+(aktifMi?T.accent+"77":T.line),borderRadius:12,padding:"8px 12px 8px 8px",cursor:"pointer",boxShadow:aktifMi?"0 0 14px "+T.accent+"22":"none"}}>
-            <Logo renk={l.renk||T.accent} ad={l.ad} logo={l.logo} renk2={l.renk2} boy={28}/>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:12.5,fontWeight:800,color:aktifMi?T.accent:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:150}}>{l.ad}</div>
-              <div style={{fontSize:8.5,color:T.textMut,whiteSpace:"nowrap"}}>{l.sehir?("📍 "+l.sehir+" · "):""}{(l.takimlar||[]).length} takım</div>
-            </div>
-            {aktifMi && <span style={{color:T.accent,fontSize:12,fontWeight:900,marginLeft:2}}>✓</span>}
-          </div>); })}
-        {git && <div onClick={()=>git({sayfa:"ligler"})} className="tap" style={{flexShrink:0,display:"flex",alignItems:"center",gap:7,background:T.bg1,border:"1px dashed "+T.line,borderRadius:12,padding:"8px 13px",cursor:"pointer",color:T.textMut,fontSize:11.5,fontWeight:700}}>🔍 Keşfet</div>}
-      </div>
+    {/* ===== LİG SEÇİCİ (dropdown) — seçilen lig kalıcı, tüm anasayfa ona göre ===== */}
+    {doluLigler.length>1 && <div style={{padding:"14px 14px 2px",position:"relative",zIndex:5}}>
+      <div style={{fontSize:10,color:T.textMut,fontWeight:800,letterSpacing:.6,textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>🏆 Lig <span style={{color:T.textMut,fontWeight:600,opacity:.7,textTransform:"none",letterSpacing:0}}>· seçtiğin hep açılır</span></div>
+      <button onClick={()=>setLigMenuAcik(v=>!v)} className="tap" style={{width:"100%",display:"flex",alignItems:"center",gap:10,background:T.bg1,border:"1px solid "+(ligMenuAcik?T.accent+"77":T.line),borderRadius:12,padding:"10px 12px",cursor:"pointer",fontFamily:"inherit",boxShadow:ligMenuAcik?"0 0 14px "+T.accent+"22":"none"}}>
+        {aktifTurnuva && <Logo renk={aktifTurnuva.renk||T.accent} ad={aktifTurnuva.ad} logo={aktifTurnuva.logo} renk2={aktifTurnuva.renk2} boy={28}/>}
+        <div style={{flex:1,minWidth:0,textAlign:"left"}}>
+          <div style={{fontSize:13,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{aktifTurnuva?aktifTurnuva.ad:"Lig seç"}</div>
+          <div style={{fontSize:9,color:T.textMut,whiteSpace:"nowrap"}}>{aktifTurnuva?((aktifTurnuva.sehir?("📍 "+aktifTurnuva.sehir+" · "):"")+(aktifTurnuva.takimlar||[]).length+" takım · dokun, değiştir"):"listeden seç"}</div>
+        </div>
+        <span style={{color:ligMenuAcik?T.accent:T.textMut,fontSize:14,flexShrink:0,transform:ligMenuAcik?"rotate(180deg)":"none",transition:"transform .2s"}}>▾</span>
+      </button>
+      {ligMenuAcik && <>
+        <div onClick={()=>setLigMenuAcik(false)} style={{position:"fixed",inset:0,zIndex:4}}/>
+        <div style={{position:"absolute",left:14,right:14,marginTop:6,background:T.bg1,border:"1px solid "+T.line,borderRadius:12,boxShadow:"0 14px 34px rgba(0,0,0,.55)",overflow:"hidden",zIndex:6,maxHeight:342,overflowY:"auto"}}>
+          {doluLigler.map(l=>{ const aktifMi=aktifTurnuva && String(aktifTurnuva.id)===String(l.id); return (
+            <div key={l.id} onClick={()=>ligSec(l.id)} className="tap" style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderBottom:"0.5px solid "+T.line,cursor:"pointer",background:aktifMi?T.accent+"14":"transparent"}}>
+              <Logo renk={l.renk||T.accent} ad={l.ad} logo={l.logo} renk2={l.renk2} boy={26}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12.5,fontWeight:700,color:aktifMi?T.accent:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.ad}</div>
+                <div style={{fontSize:8.5,color:T.textMut,whiteSpace:"nowrap"}}>{l.sehir?("📍 "+l.sehir+" · "):""}{(l.takimlar||[]).length} takım</div>
+              </div>
+              {aktifMi && <span style={{color:T.accent,fontSize:13,fontWeight:900}}>✓</span>}
+            </div>); })}
+          {git && <div onClick={()=>{ setLigMenuAcik(false); git({sayfa:"ligler"}); }} className="tap" style={{display:"flex",alignItems:"center",gap:8,padding:"11px 12px",cursor:"pointer",color:T.textMut,fontSize:12,fontWeight:700}}>🔍 Başka lig keşfet →</div>}
+        </div>
+      </>}
     </div>}
 
     {/* ===== V6 HERO (V5 + bu hafta nabzı) ===== */}
