@@ -17552,7 +17552,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           const GB=1073741824;
           const depoY=Math.min(100,(metrik.depo_bayt/GB)*100);
           const depoMB=metrik.depo_bayt/1048576;
-          const ortKB=metrik.depo_dosya?(metrik.depo_bayt/metrik.depo_dosya/1024):0;
+          const ortKB=metrik.foto_dosya?(metrik.foto_bayt/metrik.foto_dosya/1024):(metrik.depo_dosya?(metrik.depo_bayt/metrik.depo_dosya/1024):0); // SADECE fotoğraf ortalaması (ses/audio hariç — yanlış alarm önlemi)
+          const sesMB=(metrik.ses_bayt||0)/1048576;
           const puanDepo=Math.max(0,Math.round(100-depoY));
           const puanGuv=hatalar.length?74:92;
           const puanDb=Math.max(50,Math.round(100-(metrik.mac/5000)*100));
@@ -17564,7 +17565,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           if(depoY>70) uyari.push({ik:"🔴",tx:"Depolama %"+depoY.toFixed(0)+" dolu — sahipsiz dosyaları temizle.",sev:0,act:{et:"Bakım'a git",hedef:"bakim"},key:"depo"});
           else if(depoY<50) uyari.push({ik:"🟢",tx:"Depolama %"+depoY.toFixed(0)+" — ücretli plana geçmene gerek yok.",sev:2,key:"depo-ok"});
           if(metrik.mesaj>5000 && metrik.mesaj_arsiv===0) uyari.push({ik:"🟡",tx:"Aktif mesaj 5.000+ ama arşiv boş — sohbeti arşivle.",sev:1,act:{et:"Bakım'a git",hedef:"bakim"},key:"arsiv"});
-          if(ortKB>80) uyari.push({ik:"🟡",tx:"Fotoğraf ortalama boyutu ~"+ortKB.toFixed(0)+"KB, beklenenden yüksek.",sev:1,key:"ortkb"});
+          if(ortKB>150) uyari.push({ik:"🟡",tx:"Fotoğraf ortalama boyutu ~"+ortKB.toFixed(0)+"KB, beklenenden yüksek.",sev:1,key:"ortkb"});
+          if(sesMB>20) uyari.push({ik:"🟡",tx:"Sesli mesajlar ~"+sesMB.toFixed(0)+"MB yer kaplıyor — istersen Bakım'dan temizle.",sev:1,act:{et:"Bakım'a git",hedef:"bakim"},key:"ses"});
           if(hatalar.length>0) uyari.push({ik:"🔴",tx:hatalar.length+" çökme kaydı var.",sev:0,act:{et:"Log'a git",hedef:"hatalog"},key:"cokme"});
           if(metrik.lig_cop>0) uyari.push({ik:"🟡",tx:"Çöp kutusunda "+metrik.lig_cop+" lig var.",sev:1,act:{et:"Bakım'a git",hedef:"bakim"},key:"cop"});
           const uyariGoster=uyari.filter(u=>!uyariGizli.has(u.key)).sort((a,b)=>a.sev-b.sev);
