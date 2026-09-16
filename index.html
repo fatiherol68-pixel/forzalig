@@ -5256,10 +5256,22 @@ function FidanKart({T}){
 /* KATLA — Süper Admin panellerini tek tek açılır/kapanır yapar. Açık/kapalı durumu
    localStorage'da (fl_kat_<sk>) hatırlanır; varsayılan kapalı → panel kısa kalır, sadece
    kullanılan menüler açılır. Başlık her zaman görünür, gövde tıklayınca açılır/kapanır. */
-function Katla({T, ik, baslik, sk, ozet, ozetRenk, vurgulu, varsayilanAcik, children}){
+function Katla({T, ik, baslik, sk, ozet, ozetRenk, vurgulu, varsayilanAcik, sade, children}){
   const anahtar="fl_kat_"+sk;
   const [acik,setAcik]=useState(()=>{ try{ const v=localStorage.getItem(anahtar); if(v==="1")return true; if(v==="0")return false; }catch(e){} return !!varsayilanAcik; });
   const cevir=()=>setAcik(a=>{ const n=!a; try{ localStorage.setItem(anahtar,n?"1":"0"); }catch(e){} return n; });
+  const ok=<span style={{flexShrink:0,width:26,height:26,borderRadius:9,display:"grid",placeItems:"center",background:acik?(T.accent+"18"):T.bg2,border:"1px solid "+(acik?T.accent+"55":T.line),transition:"transform .25s, background .2s",transform:acik?"rotate(180deg)":"none"}}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{display:"block"}}><path d="M6 9l6 6 6-6" stroke={acik?T.accent:T.textSoft} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"/></svg></span>;
+  if(sade){ // çok-kartlı panolar için: kart çerçevesi yok, sadece başlık şeridi + gövde
+    return <div style={{marginBottom:10}}>
+      <div onClick={cevir} className="tap" style={{display:"flex",alignItems:"center",gap:9,padding:"6px 4px 10px",cursor:"pointer"}}>
+        <span style={{fontSize:14,flexShrink:0}}>{ik}</span>
+        <div style={{fontSize:12,fontWeight:800,color:T.textMut,letterSpacing:.4,textTransform:"uppercase",flex:1,minWidth:0}}>{baslik}</div>
+        {ozet!=null && ozet!=="" && <span style={{fontSize:10.5,fontWeight:700,color:ozetRenk||T.textMut,whiteSpace:"nowrap"}}>{ozet}</span>}
+        {ok}
+      </div>
+      {acik && <div>{children}</div>}
+    </div>;
+  }
   const bg=vurgulu?("linear-gradient(160deg,"+T.accent+"12,"+T.bg1+")"):("linear-gradient(160deg,"+T.bg2+","+T.bg1+")");
   const kenar=vurgulu?(T.accent+"33"):T.line;
   return <div style={{background:bg,border:"1px solid "+kenar,borderRadius:14,marginBottom:10,overflow:"hidden"}}>
@@ -5267,7 +5279,7 @@ function Katla({T, ik, baslik, sk, ozet, ozetRenk, vurgulu, varsayilanAcik, chil
       <span style={{fontSize:15,flexShrink:0}}>{ik}</span>
       <div style={{fontSize:13.5,fontWeight:800,color:T.text,flex:1,minWidth:0}}>{baslik}</div>
       {ozet!=null && ozet!=="" && <span style={{fontSize:10.5,fontWeight:700,color:ozetRenk||T.textMut,whiteSpace:"nowrap"}}>{ozet}</span>}
-      <span style={{fontSize:11,color:T.textMut,flexShrink:0,transition:"transform .2s",transform:acik?"rotate(180deg)":"none",display:"inline-block"}}>▾</span>
+      {ok}
     </div>
     {acik && <div style={{padding:"0 15px 14px"}}>{children}</div>}
   </div>;
@@ -17604,7 +17616,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           const nabizKritik=(hatalar?hatalar.length:0)+(depoY>70?1:0);
           const nabiz=[["🟢","Online",online||0,T.accent],["👤","Bugün aktif",nabizAktif,T.accent],["📥","Bekleyen iş",nabizBekleyen,nabizBekleyen>0?T.gold:T.textMut],["🔴","Kritik",nabizKritik,nabizKritik>0?T.danger:T.textMut]];
           const mtr=[["🏟️","Lig",metrik.lig],["👥","Üye",metrik.uye],["🟢","Aktif 30g",metrik.mau],["⚽","Oyuncu",metrik.oyuncu],["🛡️","Takım",metrik.takim],["📅","Maç",metrik.mac],["💬","Mesaj",metrik.mesaj],["🖼️","Foto+Logo",(metrik.foto+metrik.logo)]];
-          return <>
+          return <Katla T={T} ik="🎛️" baslik="Operasyon Merkezi" sk="operasyon" varsayilanAcik sade ozet={"sağlık "+genel} ozetRenk={renk}>
             {/* #3 BUGÜNÜN NABZI — panel üstü tek bakış */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7,marginBottom:10}}>
               {nabiz.map(([ik,ad,v,renk],i)=>
@@ -17660,7 +17672,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
                     <span onClick={()=>uyariKapat(u.key)} title="Kapat" style={{flexShrink:0,width:22,height:22,borderRadius:7,display:"grid",placeItems:"center",color:T.textMut,fontSize:14,cursor:"pointer",border:"0.5px solid "+T.line}}>×</span>
                   </div>)}
             </div>
-          </>;
+          </Katla>;
         })()}
         {/* ===== CANLI AKIŞ · TRAFİK · TREND ===== */}
         {(()=>{
@@ -17671,7 +17683,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           // #2 Büyüme: geçen haftayla kıyas + yapışkanlık (DAU/MAU)
           const bk=buyume||{}; const dkiyas=(bk.gecenHafta>0)?Math.round(((bk.buHafta-bk.gecenHafta)/bk.gecenHafta)*100):null;
           const mauSay=(metrik&&metrik.mau)||0; const yapiskan=(mauSay>0&&bk.dau!=null)?Math.round((bk.dau/mauSay)*100):null;
-          return <>
+          return <Katla T={T} ik="📈" baslik="Trafik & Trend · Canlı Akış" sk="trafik" varsayilanAcik sade>
             <div style={{background:"linear-gradient(160deg,"+T.bg2+","+T.bg1+")",border:"1px solid "+T.line,borderRadius:14,padding:"13px 15px",marginBottom:10}}>
               <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:7}}>📈 TRAFİK & TREND <span style={{fontSize:8.5,color:T.accent,background:T.accent+"18",borderRadius:6,padding:"1px 6px"}}>7 GÜN</span></div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:6}}>
@@ -17715,7 +17727,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
                   </div>)}
               </div>
             </div>
-          </>;
+          </Katla>;
         })()}
         {/* ===== #6 LIG SAĞLIK HARİTASI ===== */}
         {ligSaglik && ligSaglik.length>0 && (()=>{ const drenk={canli:T.accent,yavas:T.gold,uykuda:T.danger,yeni:T.textMut}; const det={canli:"canlı",yavas:"yavaş",uykuda:"uykuda",yeni:"yeni"}; const canliSay=ligSaglik.filter(l=>l.durum==="canli").length; const uykuSay=ligSaglik.filter(l=>l.durum==="uykuda").length; return <Katla T={T} ik="🏟️" baslik="Lig Sağlık Haritası" sk="ligsaglik" varsayilanAcik ozet={canliSay+" canlı"+(uykuSay?" · "+uykuSay+" uykuda":"")} ozetRenk={T.accent}>
@@ -17910,8 +17922,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             </div>)}
         </div>}
         {/* 15) SİSTEM SAĞLIĞI */}
-        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-          <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:8}}>💚 SİSTEM SAĞLIĞI</div>
+        <Katla T={T} ik="💚" baslik="Sistem Sağlığı" sk="sissaglik" varsayilanAcik>
           {[["Veritabanı",!!ozet],["Giriş (Auth)",!!oturum],["Kayıt/Okuma",ligler!=null]].map(([ad,ok],i)=>
             <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,padding:"3px 0"}}><span>{ok?"🟢":"🔴"}</span><span style={{flex:1,color:T.text}}>{ad}</span><span style={{fontSize:10,color:ok?T.accent:T.danger}}>{ok?"çalışıyor":"?"}</span></div>
           )}
@@ -17919,13 +17930,11 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           {[["⚡","API gecikmesi",opTek.api!=null?(opTek.api+" ms"):"ölçülüyor…",opTek.api!=null&&opTek.api<400],["🗄️","Otomatik yedek","haftalık · şifreli",true],["☁️","CDN / SSL",opTek.cf?(opTek.cf+" · aktif"):"aktif",true],["🚀","Yayın sürümü",opTek.deploy?String(opTek.deploy).split("-")[0]:"—",true]].map(([ik,ad,val,ok],i)=>
             <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,padding:"3px 0"}}><span>{ik}</span><span style={{flex:1,color:T.text}}>{ad}</span><span style={{fontSize:10,color:ok?T.accent:T.gold}}>{val}</span></div>
           )}
-        </div>
+        </Katla>
         {/* FAZ 4 — HATA / ÇÖKME LOG */}
-        <div id="fl-hatalog" style={{background:T.bg1,border:"0.5px solid "+(hatalar.length?T.danger+"44":T.line),borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-          <div style={{display:"flex",alignItems:"center",marginBottom:8}}>
-            <span style={{fontSize:11,color:hatalar.length?T.danger:T.textMut,fontWeight:700}}>🔴 HATA / ÇÖKME LOGU ({hatalar.length})</span>
-            {hatalar.length>0 && <button onClick={async()=>{ if(confirm("Tüm hata kayıtları silinsin mi?")){ await Db.hataTemizle(); setHatalar([]); } }} className="tap" style={{marginLeft:"auto",fontSize:10,color:T.textMut,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:7,padding:"4px 8px",fontWeight:700}}>Temizle</button>}
-          </div>
+        <span id="fl-hatalog"/>
+        <Katla T={T} ik="🔴" baslik="Hata / Çökme Logu" sk="hatalog" varsayilanAcik ozet={hatalar.length?(hatalar.length+" kayıt"):"temiz"} ozetRenk={hatalar.length?T.danger:T.accent}>
+          {hatalar.length>0 && <div style={{display:"flex",marginBottom:8}}><button onClick={async()=>{ if(confirm("Tüm hata kayıtları silinsin mi?")){ await Db.hataTemizle(); setHatalar([]); } }} className="tap" style={{marginLeft:"auto",fontSize:10,color:T.textMut,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:7,padding:"4px 8px",fontWeight:700}}>Temizle</button></div>}
           {hatalar.length===0
             ? <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:"10px 0"}}>✅ Kayıtlı çökme yok — site stabil</div>
             : hatalar.slice(0,20).map(h=>
@@ -17934,13 +17943,9 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
                   <div style={{fontSize:9.5,color:T.textMut,marginTop:4}}>{h.sayfa?("📄 "+h.sayfa+" · "):""}{rZaman(h.olusma)}{h.cihaz?(" · "+(/Mobile|iPhone|Android/.test(h.cihaz)?"📱 mobil":"💻 web")):""}</div>
                 </div>
               )}
-        </div>
+        </Katla>
         {/* KULLANIM — son 7 gün aktif kullanıcı trendi */}
-        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-            <div style={{fontSize:11,color:T.textMut,fontWeight:700}}>📈 SON 7 GÜN AKTİF KULLANICI</div>
-            <div style={{fontSize:10,color:T.accent}}>🟢 şu an {online} çevrimiçi</div>
-          </div>
+        <Katla T={T} ik="📈" baslik="Son 7 Gün Aktif Kullanıcı" sk="son7" varsayilanAcik ozet={"🟢 "+online+" çevrimiçi"} ozetRenk={T.accent}>
           {gunTrend.length===0 ? <div style={{fontSize:11,color:T.textMut}}>Veri birikiyor…</div>
             : (()=>{ const enb=Math.max(1,...gunTrend.map(g=>g.kisi)); return <div style={{display:"flex",alignItems:"flex-end",gap:6,height:80}}>
                 {gunTrend.map((g,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
@@ -17949,8 +17954,9 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
                   <div style={{fontSize:9,color:T.textMut}}>{g.etiket}</div>
                 </div>)}
               </div>; })()}
-        </div>
+        </Katla>
         {/* 4/8) ANALİTİK — en çok sayfa & arama */}
+        <Katla T={T} ik="📊" baslik="En Çok Sayfa & Arama" sk="analitik" varsayilanAcik sade>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px"}}>
             <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:8}}>📄 EN ÇOK SAYFA</div>
@@ -17961,19 +17967,18 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             {topArama.length===0 ? <div style={{fontSize:11,color:T.textMut}}>Henüz arama yok</div> : topArama.map((x,i)=><div key={i} style={{display:"flex",fontSize:12,color:T.text,padding:"2px 0"}}><span style={{flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{x.deger}</span><b style={{color:T.gold}}>{x.adet}</b></div>)}
           </div>
         </div>
+        </Katla>
         {/* 14) AUDIT LOG */}
-        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-          <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:8}}>📝 İŞLEM GEÇMİŞİ (son {audit.length})</div>
+        <Katla T={T} ik="📝" baslik="İşlem Geçmişi" sk="audit" ozet={audit.length?("son "+audit.length):null}>
           {audit.length===0 ? <div style={{fontSize:11,color:T.textMut}}>Henüz kayıt yok. Kritik işlemler (hak verme, silme, transfer onay) burada loglanır.</div>
             : <div style={{maxHeight:220,overflowY:"auto"}}>{audit.map(a=>
               <div key={a.id} style={{display:"flex",gap:8,fontSize:11,padding:"5px 0",borderTop:"0.5px solid "+T.line}}>
                 <span style={{color:T.textMut,whiteSpace:"nowrap"}}>{(a.created||"").slice(5,16).replace("T"," ")}</span>
                 <span style={{flex:1,color:T.text}}><b>{(a.kim||"?").split("@")[0]}</b> · {a.islem}{a.detay?" — "+a.detay:""}</span>
               </div>)}</div>}
-        </div>
-        <div style={{background:"linear-gradient(120deg,"+T.accent+"1e,"+T.bg1+")",border:"0.5px solid "+T.accent+"55",borderRadius:12,padding:14,marginBottom:10}}>
-          <b style={{color:T.text}}>🔍 Sistem Taraması</b>
-          <div style={{fontSize:11,color:T.textMut,margin:"5px 0 10px",lineHeight:1.6}}>Canlı veritabanını tarar: bağlantı, veri sayıları, KVKK gizliliği, yetkiler, tutarsızlıklar. Rapor çıkar → <b>Kopyala</b> ile bana yapıştır, birlikte bakalım.</div>
+        </Katla>
+        <Katla T={T} ik="🔍" baslik="Sistem Taraması" sk="tarama" vurgulu>
+          <div style={{fontSize:11,color:T.textMut,margin:"0 0 10px",lineHeight:1.6}}>Canlı veritabanını tarar: bağlantı, veri sayıları, KVKK gizliliği, yetkiler, tutarsızlıklar. Rapor çıkar → <b>Kopyala</b> ile bana yapıştır, birlikte bakalım.</div>
           <button onClick={sistemTaramasi} disabled={taramaYuk} className="tap" style={{width:"100%",background:taramaYuk?T.line:T.accent,color:taramaYuk?T.textMut:"#04070C",border:0,borderRadius:10,padding:"11px",fontSize:12.5,fontWeight:800}}>{taramaYuk?"⏳ Taranıyor…":"🔍 Sistemi Tara"}</button>
           {tarama && <div style={{marginTop:10}}>
             <div style={{maxHeight:280,overflowY:"auto",background:T.bg0,borderRadius:8,padding:"6px 10px"}}>
@@ -17985,10 +17990,9 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             </div>
             <button onClick={taramaKopyala} className="tap" style={{width:"100%",marginTop:8,background:taramaKopyalandi?T.accent:T.bg2,color:taramaKopyalandi?"#04070C":T.text,border:"0.5px solid "+T.line,borderRadius:10,padding:"9px",fontSize:12,fontWeight:800}}>{taramaKopyalandi?"✓ Kopyalandı — bana yapıştır":"📋 Raporu Kopyala"}</button>
           </div>}
-        </div>
-        <div style={{background:"linear-gradient(120deg,"+T.accent2+"18,"+T.bg1+")",border:"0.5px solid "+T.accent2+"44",borderRadius:12,padding:14,marginBottom:10}}>
-          <b style={{color:T.text}}>🌌 ForzaLig Evreni</b>
-          <div style={{fontSize:11,color:T.textMut,margin:"5px 0 10px",lineHeight:1.6}}>Gerçek bir sezon oynanmış gibi tüm modülleri doldurur: ligler, takımlar, oyuncular, TD, kaptan, hakem, fikstür, dakika-dakika olaylar, goller/asistler/kartlar/kurtarışlar, MVP, maç ödülleri, oyuncu puanları, puan durumu, krallıklar ve AI gazete. Sonuçlar <b style={{color:T.text}}>rastgele değil</b> — takım gücü, oyuncu gücü, mevki, form ve ev avantajına göre.</div>
+        </Katla>
+        <Katla T={T} ik="🌌" baslik="ForzaLig Evreni" sk="evren" vurgulu>
+          <div style={{fontSize:11,color:T.textMut,margin:"0 0 10px",lineHeight:1.6}}>Gerçek bir sezon oynanmış gibi tüm modülleri doldurur: ligler, takımlar, oyuncular, TD, kaptan, hakem, fikstür, dakika-dakika olaylar, goller/asistler/kartlar/kurtarışlar, MVP, maç ödülleri, oyuncu puanları, puan durumu, krallıklar ve AI gazete. Sonuçlar <b style={{color:T.text}}>rastgele değil</b> — takım gücü, oyuncu gücü, mevki, form ve ev avantajına göre.</div>
           {(()=>{ const Alan=({et,val,set,min,max})=><label style={{flex:"1 1 76px",fontSize:10,color:T.textMut}}>{et}<input type="number" min={min} max={max} value={val} onChange={e=>set(e.target.value)} style={{width:"100%",marginTop:3,background:T.bg0,border:"0.5px solid "+T.line,borderRadius:8,padding:"7px 8px",color:T.text,fontSize:13,fontWeight:700,boxSizing:"border-box"}}/></label>;
             const Chk=({et,val,set})=><label className="tap" style={{fontSize:10.5,color:val?T.text:T.textMut,display:"flex",alignItems:"center",gap:5,background:T.bg2,borderRadius:8,padding:"6px 9px"}}><input type="checkbox" checked={val} onChange={e=>set(e.target.checked)}/> {et}</label>;
             const takimTop=(parseInt(cfgLig)||0)*(parseInt(cfgTakim)||0), oyTop=takimTop*(parseInt(cfgOyuncu)||0);
@@ -18056,7 +18060,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             )}
           </div>
           {stresLog && <div style={{fontSize:11,color:T.text,marginTop:9,background:T.bg0,borderRadius:8,padding:"8px 10px",lineHeight:1.5}}>{stresLog}</div>}
-        </div>
+        </Katla>
+        <Katla T={T} ik="🚀" baslik="Yayın Durumu & Kontrol Listesi" sk="yayin" sade>
         <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:14,marginBottom:10}}>
           <b style={{color:T.text}}>Yayın durumu</b><br/>
           Mod: <b style={{color:HERKESE_ACIK?T.accent:T.gold}}>{HERKESE_ACIK?"🌍 HERKESE AÇIK":"🔒 TEST MODU"}</b><br/>
@@ -18066,6 +18071,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           <b style={{color:T.text}}>Yayın öncesi kontrol listesi</b><br/>
           <span style={{fontSize:11.5}}>• Google/Apple girişi ayarı<br/>• E-posta onayı aç (güvenlik)<br/>• Test e-posta kısıtını kaldır<br/>• Demo kupayı istersen gizle</span>
         </div>
+        </Katla>
       </div>}
     </div>
     {/* FAZ 2 — Geri Al (Undo) şeridi */}
