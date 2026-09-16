@@ -1,0 +1,51 @@
+/* ForzaLig — SEO landing sayfaları ortak stili (statik, uygulamadan bağımsız) */
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0a110d;color:#eaf3ee;line-height:1.7;-webkit-font-smoothing:antialiased}
+.w{max-width:760px;margin:0 auto;padding:0 20px}
+header{padding:18px 0;border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;background:rgba(10,17,13,.85);backdrop-filter:blur(8px);z-index:10}
+.logo{font-size:20px;font-weight:900;color:#22e07a;text-decoration:none;letter-spacing:-.5px}
+.nav{float:right;display:flex;gap:14px;font-size:13px;margin-top:3px}.nav a{color:#8ea298;text-decoration:none}
+.crumb{font-size:12.5px;color:#6b7d73;padding:14px 0 0}.crumb a{color:#8ea298;text-decoration:none}
+.hero{padding:46px 0 30px;text-align:center;background:radial-gradient(90% 60% at 50% 0%,rgba(34,224,122,.14),transparent 60%)}
+.pill{display:inline-block;font-size:12px;font-weight:700;color:#22e07a;background:rgba(34,224,122,.12);border:1px solid rgba(34,224,122,.3);padding:5px 13px;border-radius:20px;margin-bottom:18px}
+h1{font-size:clamp(28px,6vw,42px);font-weight:900;letter-spacing:-1px;line-height:1.08;text-wrap:balance}
+.lead{color:#b7c8bf;font-size:16.5px;margin-top:16px;max-width:56ch;margin-inline:auto}
+.cta{display:inline-block;margin-top:26px;background:#22e07a;color:#04140c;font-weight:800;font-size:16px;padding:15px 30px;border-radius:14px;text-decoration:none;box-shadow:0 8px 26px rgba(34,224,122,.32)}
+.cta.g{background:transparent;color:#22e07a;border:1px solid #22e07a55;margin-left:8px;box-shadow:none}
+.viz{margin:30px auto 0;max-width:440px}.viz svg{width:100%;height:auto;border-radius:16px}
+.trust{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-top:26px;color:#8ea298;font-size:13px}
+.trust b{color:#eaf3ee;font-size:19px;display:block;font-weight:900}
+section{padding:30px 0;border-top:1px solid rgba(255,255,255,.07)}
+h2{font-size:23px;font-weight:800;margin-bottom:14px;letter-spacing:-.4px}
+p{color:#c3d3cb;font-size:15.5px;margin-bottom:14px}
+.steps{display:grid;gap:12px}
+.step{display:flex;gap:14px;align-items:flex-start;background:#111d16;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px}
+.num{flex-shrink:0;width:34px;height:34px;border-radius:10px;background:#22e07a;color:#04140c;font-weight:900;display:grid;place-items:center;font-size:16px}
+.step b{color:#eaf3ee;font-size:15.5px}.step span{color:#9fb3a8;font-size:13.5px;display:block;margin-top:3px}
+.feat{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.feat{grid-template-columns:1fr}}
+.card{background:#111d16;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px}.card b{color:#eaf3ee;font-size:15px}.card span{color:#8ea298;font-size:13px;display:block;margin-top:4px}
+.faq details{background:#111d16;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-bottom:9px}
+.faq summary{font-weight:700;cursor:pointer;color:#eaf3ee;list-style:none}.faq summary::-webkit-details-marker{display:none}
+.faq summary::before{content:"＋ ";color:#22e07a}.faq details[open] summary::before{content:"− "}.faq p{margin:10px 0 0}
+.bant{text-align:center;background:linear-gradient(120deg,rgba(34,224,122,.14),rgba(34,224,122,.04));border:1px solid rgba(34,224,122,.28);border-radius:18px;padding:30px 20px;margin-top:8px}
+.bant h2{border:0;margin-bottom:8px}
+.links{display:flex;flex-wrap:wrap;gap:10px}.links a{color:#22e07a;font-size:14px;text-decoration:none;background:rgba(34,224,122,.1);border:1px solid rgba(34,224,122,.25);padding:8px 14px;border-radius:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}@media(max-width:560px){.grid{grid-template-columns:1fr}}
+.tile{display:block;background:#111d16;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px 16px;text-decoration:none;transition:border-color .15s}
+.tile:hover{border-color:#22e07a55}.tile b{color:#eaf3ee;font-size:15.5px;display:block}.tile span{color:#8ea298;font-size:12.5px;display:block;margin-top:3px}.tile .ic{font-size:22px}
+footer{padding:30px 0 48px;text-align:center;color:#5a6b78;font-size:13px;border-top:1px solid rgba(255,255,255,.07);margin-top:18px}footer a{color:#8ea298}
+/* çizim ortak */
+.svgbrk{width:100%;height:auto;display:block;margin-top:6px}
+/* puan durumu tablosu (gerçek HTML — SEO dostu) */
+.ptbl{width:100%;border-collapse:collapse;background:#111d16;border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;font-size:14px;margin-top:6px}
+.ptbl th{background:#0f1a14;color:#7fd6a2;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:10px 6px;text-align:center}
+.ptbl th:first-child,.ptbl td:first-child{text-align:left;padding-left:14px}
+.ptbl td{padding:10px 6px;text-align:center;border-top:1px solid rgba(255,255,255,.06);color:#dcefe3}
+.ptbl td b{color:#22e07a}
+.ptbl tr:first-child td b{color:#ffd95e}
+/* fikstür listesi */
+.fix{display:grid;gap:8px;margin-top:6px}
+.fx{display:flex;align-items:center;gap:10px;background:#111d16;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:11px 14px}
+.fx .d{font-size:11px;color:#8ea298;width:64px;flex-shrink:0}
+.fx .t{flex:1;color:#dcefe3;font-size:14px}
+.fx .s{font-weight:800;color:#22e07a;font-size:15px;font-variant-numeric:tabular-nums}
