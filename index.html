@@ -1072,7 +1072,7 @@ async function fotoYukle(dosya, klasor, eskiUrl, opts){
   opts=opts||{};
   if(!sb) return {hata:"Giriş gerekli (bulut kapalı)."};
   if(!dosya) return {hata:"Dosya yok."};
-  if(dosya.size>15*1024*1024) return {hata:"Fotoğraf çok büyük (max 15MB)."};
+  if(dosya.size>40*1024*1024) return {hata:"Fotoğraf çok büyük (max 40MB)."}; // otomatik küçültme her boyutu 512px'e indirir; sınır sadece bellek koruması
   try{
     let uid=null; try{ uid=((await sb.auth.getUser()).data.user||{}).id||null; }catch(e){}
     if(!uid) return {hata:"Giriş gerekli."};
@@ -1116,7 +1116,7 @@ function resimGenis(dosya, maxBoy=1400, kalite=0.84){
 async function kapakYukle(dosya, eskiUrl){
   if(!sb) return {hata:"Giriş gerekli (bulut kapalı)."};
   if(!dosya) return {hata:"Dosya yok."};
-  if(dosya.size>15*1024*1024) return {hata:"Fotoğraf çok büyük (max 15MB)."};
+  if(dosya.size>40*1024*1024) return {hata:"Fotoğraf çok büyük (max 40MB)."}; // otomatik küçültme uyguladığı için sınır yüksek
   try{
     let uid=null; try{ uid=((await sb.auth.getUser()).data.user||{}).id||null; }catch(e){}
     if(!uid) return {hata:"Giriş gerekli."};
@@ -1368,6 +1368,9 @@ const Db = {
   },
   async orphanBul(){ if(!sb) return []; try{ const {data}=await sb.rpc('depo_orphan_bul'); return data||[]; }catch(e){ return []; } },
   async orphanTemizle(yollar){ if(!sb||!yollar||!yollar.length) return {ok:true,adet:0}; try{ const {error}=await sb.storage.from('fotolar').remove(yollar); return error?{hata:error.message}:{ok:true,adet:yollar.length}; }catch(e){ return {hata:String(e)}; } },
+  // DEPO YÖNETİCİSİ (admin) — büyük dosyaları sahibiyle listele + tek tek sil
+  async depoDosyalar(n){ if(!sb) return []; try{ const {data,error}=await sb.rpc('depo_dosyalar',{p_limit:n||40}); return error?[]:(data||[]); }catch(e){ return []; } },
+  async depoDosyaSil(yol){ if(!sb||!yol) return {hata:"yok"}; try{ const {error}=await sb.storage.from('fotolar').remove([yol]); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   // Medyalı mesaj silinince: (1) DB'de medya referansını kaldır (dosya sahipsiz-takibe düşer),
   // (2) dosyayı depodan ANINDA sil. Silme başarısız olsa bile referans null olduğu için tarama yakalar.
   async medyaMesajTemizle(mesaj){ if(!sb) return {ok:false}; const url=mesaj&&mesaj.medya_url; if(!url) return {ok:true,dosya:false};
@@ -16573,6 +16576,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   const [orphanlar,setOrphanlar]=useState(null);   // FAZ 4 — sahipsiz dosyalar (null=taranmadı)
   const [depo,setDepo]=useState(null);             // depolama türe göre dağılım (null=taranmadı)
   const [depoYuk,setDepoYuk]=useState(false);
+  const [depoDosyaListe,setDepoDosyaListe]=useState(null); // DEPO YÖNETİCİSİ — büyük dosyalar (null=listelenmedi)
+  const [depoDosyaYuk,setDepoDosyaYuk]=useState(false);
   const [bakimMsj,setBakimMsj]=useState("");
   const [bakimAcik,setBakimAcik]=useState(false); // Bakım araçları (silme) varsayılan kapalı — yanlış tık koruması + kısa kaydırma
   const [basvurular,setBasvurular]=useState([]);   // lig kurma başvuruları (para/onay kapısı)
@@ -16634,6 +16639,9 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
   // YARDIMCI — admin panelden merkezi ekle/çıkar
   const ayEkle=async()=>{ const e=(ayMail||"").trim().toLowerCase(); if(!aySecLig){ setAyMesaj("⚠️ Önce lig seç"); return; } if(!e){ setAyMesaj("⚠️ E-posta yaz"); return; } setAyMesaj(""); const r=await Db.yardimciEkle(aySecLig, e); if(r&&r.ok){ const lig=tumLiglerY.find(x=>x.id===aySecLig); setHepYardimci(p=>[...p,{lig_id:aySecLig, ligAd:(lig&&lig.ad)||"(lig)", user_id:r.user_id, email:r.email||e, ad:r.ad||null, tarih:new Date().toISOString()}]); setAyMail(""); setAyMesaj("✓ Eklendi"); Db.logla(oturum,"Yardımcı yönetici eklendi",((lig&&lig.ad)||"")+" · "+e); } else setAyMesaj("⚠️ "+((r&&r.hata)||"olmadı")); };
   const ayCikar=async(y)=>{ if(!confirm((y.ad||y.email)+" — “"+y.ligAd+"” liginden yardımcı yöneticilikten çıkarılsın mı?")) return; const r=await Db.yardimciKaldir(y.lig_id, y.user_id); if(r&&r.ok){ setHepYardimci(p=>p.filter(x=>!(x.lig_id===y.lig_id && x.user_id===y.user_id))); Db.logla(oturum,"Yardımcı yönetici çıkarıldı",y.ligAd+" · "+(y.email||"")); } else setMesaj("Olmadı: "+((r&&r.hata)||"")); };
+  // DEPO YÖNETİCİSİ — büyük dosyaları sahibiyle listele + tek tek sil
+  const depoListele=async()=>{ setDepoDosyaYuk(true); const l=await Db.depoDosyalar(50); setDepoDosyaListe(l||[]); setDepoDosyaYuk(false); };
+  const depoDosyaSilYap=async(d)=>{ const ad=(d.ad||d.email||"bilinmeyen kullanıcı"); const kb=Math.round((d.boyut||0)/1024); if(!confirm((d.klasor||"dosya")+" · "+ad+" · "+(kb>1024?(kb/1024).toFixed(1)+"MB":kb+"KB")+"\n\nBu dosya KALICI silinsin mi? Geri alınamaz.")) return; const r=await Db.depoDosyaSil(d.yol); if(r&&r.ok){ setDepoDosyaListe(p=>(p||[]).filter(x=>x.yol!==d.yol)); Db.logla(oturum,"Depo dosyası silindi",(d.klasor||"")+" · "+ad+" · "+kb+"KB"); Db.panelMetrikler().then(m=>setMetrik(m)); setBakimMsj("✓ Dosya silindi ("+(kb>1024?(kb/1024).toFixed(1)+"MB":kb+"KB")+" açıldı)"); } else setBakimMsj("Olmadı: "+((r&&r.hata)||"")); };
   // FAZ 4 — Bakım Merkezi
   const orphanTara=async()=>{ setBakimMsj("Taranıyor…"); const o=(await Db.orphanBul())||[]; setOrphanlar(o);
     if(!o.length){ setBakimMsj("✓ Depo temiz — sahipsiz dosya yok. Silinecek dosya olmadığı için temizle butonları görünmez."); return; }
@@ -17751,6 +17759,29 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
         {bakimAcik && <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:12,padding:"12px 14px",marginBottom:10}}>
           <div style={{fontSize:11,color:T.textMut,fontWeight:700,marginBottom:9}}>🧹 BAKIM MERKEZİ</div>
           {bakimMsj && <div style={{fontSize:11,color:bakimMsj[0]==="✓"?T.accent:T.gold,marginBottom:9}}>{bakimMsj}</div>}
+          {/* DEPO YÖNETİCİSİ — büyük dosyaları sahibiyle listele + tek tek sil */}
+          <div style={{background:T.bg2,border:"0.5px solid "+T.line,borderRadius:10,padding:"11px 12px",marginBottom:11}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:depoDosyaListe?9:0}}>
+              <span style={{fontSize:11,color:T.text,fontWeight:800}}>🗂 Depo Yöneticisi</span>
+              <span style={{fontSize:9,color:T.textMut}}>büyük dosyalar · sahibi · sil</span>
+              <button onClick={depoListele} className="tap" style={{marginLeft:"auto",fontSize:10,fontWeight:700,color:T.accent,background:T.accent+"14",border:"0.5px solid "+T.accent+"44",borderRadius:8,padding:"5px 10px"}}>{depoDosyaYuk?"…":(depoDosyaListe?"↻ Yenile":"Listele")}</button>
+            </div>
+            {depoDosyaListe && (depoDosyaListe.length===0
+              ? <div style={{fontSize:11,color:T.textMut,textAlign:"center",padding:"8px 0"}}>Dosya yok.</div>
+              : <div style={{maxHeight:320,overflowY:"auto"}}>
+                {depoDosyaListe.map((d,i)=>{ const kb=Math.round((d.boyut||0)/1024); const ses=(d.tip||"").indexOf("audio")===0; const buyuk=kb>=500; return (
+                  <div key={d.yol||i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 0",borderBottom:i<depoDosyaListe.length-1?"0.5px solid "+T.line:"none"}}>
+                    <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0}}>{ses?"🎙️":"📷"}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:11.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.ad||d.email||"bilinmeyen kullanıcı"} <span style={{color:T.textMut,fontWeight:400,fontSize:9.5}}>· {d.klasor||"?"}</span></div>
+                      <div style={{fontSize:9,color:T.textMut}}>{d.olusma?rZaman(d.olusma):""}{d.tip?(" · "+String(d.tip).split("/")[1]):""}</div>
+                    </div>
+                    <span style={{fontSize:11,fontWeight:800,fontFamily:T.fontDisplay,color:buyuk?T.gold:T.textSoft,flexShrink:0}} className="tab">{kb>=1024?(kb/1024).toFixed(1)+"MB":kb+"KB"}</span>
+                    <button onClick={()=>depoDosyaSilYap(d)} className="tap" title="Bu dosyayı sil" style={{flexShrink:0,width:28,height:28,borderRadius:8,border:"0.5px solid "+T.danger+"55",background:T.danger+"14",color:T.danger,fontSize:13}}>🗑</button>
+                  </div>); })}
+              </div>)}
+            {depoDosyaListe && depoDosyaListe.length>0 && <div style={{fontSize:9,color:T.textMut,marginTop:8,lineHeight:1.5}}>🎙️ Sesli mesajlar en çok yer kaplar (küçültülemez, silinebilir). 📷 Fotoğraflar zaten küçük (~59KB, otomatik küçülüyor). En üsttekiler en büyükler.</div>}
+          </div>
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
             <button onClick={arsivleYap} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>💬 Sohbeti arşivle</button>
             <button onClick={orphanTara} className="tap" style={{fontSize:11,color:T.text,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:9,padding:"7px 11px",fontWeight:700}}>🔍 Sahipsiz dosyaları tara</button>
