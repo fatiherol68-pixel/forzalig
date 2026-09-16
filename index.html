@@ -3062,6 +3062,16 @@ function fmtEuro(n){ n=Math.round(n||0); var neg=n<0; n=Math.abs(n); var s;
 /* ÜLKE → bayrak emoji + görünen ad (uyruk isimle saklanır). Bilinmeyen → beyaz bayrak + yazılan ad. */
 var ULKE_BAYRAK={"türkiye":"🇹🇷","turkiye":"🇹🇷","almanya":"🇩🇪","avusturya":"🇦🇹","azerbaycan":"🇦🇿","hollanda":"🇳🇱","fransa":"🇫🇷","ingiltere":"🇬🇧","i̇ngiltere":"🇬🇧","abd":"🇺🇸","amerika":"🇺🇸","belçika":"🇧🇪","belcika":"🇧🇪","italya":"🇮🇹","ispanya":"🇪🇸","portekiz":"🇵🇹","brezilya":"🇧🇷","arjantin":"🇦🇷","isviçre":"🇨🇭","isvicre":"🇨🇭","isveç":"🇸🇪","isvec":"🇸🇪","danimarka":"🇩🇰","norveç":"🇳🇴","norvec":"🇳🇴","polonya":"🇵🇱","rusya":"🇷🇺","ukrayna":"🇺🇦","yunanistan":"🇬🇷","hırvatistan":"🇭🇷","hirvatistan":"🇭🇷","sırbistan":"🇷🇸","sirbistan":"🇷🇸","bosna hersek":"🇧🇦","fas":"🇲🇦","cezayir":"🇩🇿","tunus":"🇹🇳","mısır":"🇪🇬","misir":"🇪🇬","nijerya":"🇳🇬","senegal":"🇸🇳","gana":"🇬🇭","kamerun":"🇨🇲","fildişi sahili":"🇨🇮","japonya":"🇯🇵","güney kore":"🇰🇷","guney kore":"🇰🇷","çin":"🇨🇳","cin":"🇨🇳","meksika":"🇲🇽","kanada":"🇨🇦","avustralya":"🇦🇺","irlanda":"🇮🇪","i̇rlanda":"🇮🇪","kolombiya":"🇨🇴","uruguay":"🇺🇾","şili":"🇨🇱","sili":"🇨🇱","kosova":"🇽🇰","arnavutluk":"🇦🇱","bulgaristan":"🇧🇬","romanya":"🇷🇴","gürcistan":"🇬🇪","gurcistan":"🇬🇪","kazakistan":"🇰🇿","özbekistan":"🇺🇿","ozbekistan":"🇺🇿","suriye":"🇸🇾","irak":"🇮🇶","iran":"🇮🇷","katar":"🇶🇦","suudi arabistan":"🇸🇦"};
 function ulkeBayrak(uyruk){ var ad=(uyruk&&String(uyruk).trim())||"Türkiye"; var k=ad.toLocaleLowerCase("tr").trim(); return {emoji:(ULKE_BAYRAK[k]||"🏳️"), ad:ad}; }
+// Windows bayrak emojisini göstermez ("TR" harfleri çıkar) → önemli ülkeler için gerçek SVG bayrak (her platformda çalışır). Yoksa "" → emoji fallback.
+var _BAYRAK_SVG={
+  "türkiye":"<svg viewBox='0 0 30 20' preserveAspectRatio='none' style='display:block;width:100%;height:100%'><rect width='30' height='20' fill='#e30a17'/><circle cx='11' cy='10' r='5' fill='#fff'/><circle cx='12.5' cy='10' r='4' fill='#e30a17'/><path d='M17 10l4.7-1.5-2.9 4 0-5 2.9 4Z' fill='#fff'/></svg>",
+  "almanya":"<svg viewBox='0 0 30 20' preserveAspectRatio='none' style='display:block;width:100%;height:100%'><rect width='30' height='6.67' y='0' fill='#000'/><rect width='30' height='6.67' y='6.67' fill='#dd0000'/><rect width='30' height='6.67' y='13.33' fill='#ffce00'/></svg>",
+  "hollanda":"<svg viewBox='0 0 30 20' preserveAspectRatio='none' style='display:block;width:100%;height:100%'><rect width='30' height='6.67' y='0' fill='#ae1c28'/><rect width='30' height='6.67' y='6.67' fill='#fff'/><rect width='30' height='6.67' y='13.33' fill='#21468b'/></svg>",
+  "fransa":"<svg viewBox='0 0 30 20' preserveAspectRatio='none' style='display:block;width:100%;height:100%'><rect width='10' height='20' x='0' fill='#0055a4'/><rect width='10' height='20' x='10' fill='#fff'/><rect width='10' height='20' x='20' fill='#ef4135'/></svg>",
+  "belçika":"<svg viewBox='0 0 30 20' preserveAspectRatio='none' style='display:block;width:100%;height:100%'><rect width='10' height='20' x='0' fill='#000'/><rect width='10' height='20' x='10' fill='#fdda24'/><rect width='10' height='20' x='20' fill='#ef3340'/></svg>",
+  "azerbaycan":"<svg viewBox='0 0 30 20' preserveAspectRatio='none' style='display:block;width:100%;height:100%'><rect width='30' height='6.67' y='0' fill='#00b5e2'/><rect width='30' height='6.67' y='6.67' fill='#ef3340'/><rect width='30' height='6.67' y='13.33' fill='#509e2f'/><circle cx='15' cy='10' r='2.4' fill='#fff'/><circle cx='15.7' cy='10' r='1.9' fill='#ef3340'/></svg>"
+};
+function bayrakSVG(uyruk){ var ad=(uyruk&&String(uyruk).trim())||"Türkiye"; var k=ad.toLocaleLowerCase("tr").trim(); if(k==="tr"||k==="turkiye"||k==="türk"||k==="turkey") k="türkiye"; return _BAYRAK_SVG[k]||""; }
 function degerPozKat(poz){ var r=(posAd(poz)||"").toLocaleLowerCase("tr");
   if(r.indexOf("kale")>-1) return "KAL";
   if(r.indexOf("defans")>-1||r.indexOf("stoper")>-1||r.indexOf("bek")>-1) return "DEF";
@@ -3951,7 +3961,9 @@ function FifaKart({o, T}){
               <div style={{marginTop:5,fontSize:11,letterSpacing:1.5,lineHeight:1,whiteSpace:"nowrap"}}><span style={{color:"#F2C24E"}}>{"★".repeat(yildiz)}</span><span style={{color:"rgba(255,255,255,.28)"}}>{"★".repeat(5-yildiz)}</span></div>
             </div>
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",minWidth:40}}>
-              <div style={{fontSize:22,lineHeight:1,textShadow:"0 2px 6px rgba(0,0,0,.55)"}}>{ulkeBayrak(o.uyruk).emoji}</div>
+              {(()=>{ const _bsvg=bayrakSVG(o.uyruk); return _bsvg
+                ? <div style={{width:26,height:17,borderRadius:3,overflow:"hidden",boxShadow:"0 2px 6px rgba(0,0,0,.55)",border:"0.5px solid rgba(255,255,255,.25)"}} dangerouslySetInnerHTML={{__html:_bsvg}}/>
+                : <div style={{fontSize:22,lineHeight:1,textShadow:"0 2px 6px rgba(0,0,0,.55)"}}>{ulkeBayrak(o.uyruk).emoji}</div>; })()}
               <div style={{fontSize:8,letterSpacing:.5,color:"#fff",fontWeight:700,marginTop:2,textTransform:"uppercase",textAlign:"center"}}>{ulkeBayrak(o.uyruk).ad}</div>
             </div>
           </div>
