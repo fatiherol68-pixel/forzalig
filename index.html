@@ -1540,7 +1540,7 @@ const Db = {
   },
   // Tüm takımlar (keşfet/vitrin) — herkese açık, üyeler sistemin takımlarını görsün
   async tumTakimlar(){ if(!sb) return []; try{ const {data}=await sb.from('kulupler').select('id,ad,logo,renk,renk2,td,olusturma,sahip_user_id').is('evren',null).order('olusturma',{ascending:false}).limit(300); return data||[]; }catch(e){ return []; } },
-  async kulupKur(userId, obj){ if(!sb||!userId) return {hata:"yok"}; try{ const {data,error}=await sb.from('kulupler').insert({ad:(obj.ad||'').trim(), renk:obj.renk||null, renk2:obj.renk2||null, logo:obj.logo||null, sahip_user_id:userId}).select('id,ad,logo,renk,renk2').single(); if(error){ const m=(error.message||'')+ (error.code||''); if(error.code==='42501'||/row-level security|policy|permission|denied/i.test(m)) return {hata:'Yetkiniz bulunmuyor.'}; return {hata:error.message}; } return {ok:true,kulup:data}; }catch(e){ return {hata:String(e)}; } },
+  async kulupKur(userId, obj){ if(!sb||!userId) return {hata:"yok"}; try{ const {data,error}=await sb.from('kulupler').insert({ad:(obj.ad||'').trim(), renk:obj.renk||null, renk2:obj.renk2||null, logo:obj.logo||null, sahip_user_id:userId}).select('id,ad,logo,renk,renk2').single(); if(error){ const m=(error.message||'')+ (error.code||''); if(error.code==='42501'||/row-level security|policy|permission|denied/i.test(m)) return {hata:'Kulüp kurulamadı — en fazla 3 kulübün olabilir (yönetici/adminlerde sınır yok).'}; return {hata:error.message}; } return {ok:true,kulup:data}; }catch(e){ return {hata:String(e)}; } },
   async kulupKadro(kulupId){ if(!sb||!kulupId) return []; try{ const {data}=await sb.from('kulup_oyuncu').select('player_id,forma_no,mevki,aktif, oyuncular(ad_soyad,foto,poz,ovr)').eq('kulup_id',kulupId).eq('aktif',true); return (data||[]).map(x=>({player_id:x.player_id, forma_no:x.forma_no, mevki:x.mevki||(x.oyuncular&&x.oyuncular.poz)||null, ad:(x.oyuncular&&x.oyuncular.ad_soyad)||'Oyuncu', foto:(x.oyuncular&&x.oyuncular.foto)||null, ovr:(x.oyuncular&&x.oyuncular.ovr)||null})); }catch(e){ return []; } },
   async kulupOyuncuEkle(kulupId, ad, mevki, forma){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('kulup_oyuncu_ekle',{p_kulup:kulupId, p_ad:ad, p_mevki:mevki||null, p_forma:forma?parseInt(forma)||null:null}); return error?{hata:error.message}:{ok:true,player_id:data}; }catch(e){ return {hata:String(e)}; } },
   // Giriş yapanın KENDİ oyuncu profili (lig gerekmez) — kulüp kartı için. En son oluşturulan + aktif kulübü.
@@ -21193,9 +21193,10 @@ function App(){
   // 👁 Destek modunda menüler/yetkiler HEDEF kullanıcının perspektifini yansıtır (yoksa kendi değerlerin)
   const etkinAdminMi = destek ? destekAdminMi : adminMi;
   const etkinLigKurYetkim = destek ? destekLigKur : ligKurYetkim;
-  // Takım (kulüp) kurma yetkisi — MERKEZÎ: Süper Admin VEYA Lig hakkı olan VEYA bir lig yöneticisi.
-  // Backend (RLS p_kulup_ins → takim_kurabilir()) ile birebir aynı kural. Normal kullanıcı kuramaz.
-  const etkinTakimKurYetkim = !saltOkunur && !!(etkinAdminMi || etkinLigKurYetkim || (oturum && (turnuvalar||[]).some(t=>t&&(t.yonetici_id===oturum.id||t.yoneticiId===oturum.id))));
+  // Kulüp (bağımsız takım) kurma yetkisi — B politikası: HER giriş yapmış üye kendi kulübünü kurabilir.
+  // Backend (RLS p_kulup_ins → kulup_kurabilir()) limiti uygular: yetkili değilse en fazla 3 kulüp.
+  // NOT: Lig İÇİNE takım ekleme ayrıdır (yönetim paneli / lig yöneticisi) — bundan etkilenmez.
+  const etkinTakimKurYetkim = !saltOkunur && !!oturum;
   const etkinProfil = destek ? destekProfil : profil;
   // Oturuma bağlı ekranlar destek modunda yanlış bilgi göstermesin
   const destekKapali = <div style={{maxWidth:440,margin:"0 auto",padding:"60px 24px",textAlign:"center"}}>
