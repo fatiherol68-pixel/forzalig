@@ -4881,6 +4881,8 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
         const acik=acikSeri===t.id;
         const yetkili=!!(adminMi || (oturum && t.yonetici_id===oturum.id));
         const liste=cokSezon?(sezonMap[sid]||null):null;
+        const fmtAd=t.sahaEsnek?"🎯 Hazırlık":({serbest:"Serbest",tek:"Tek Devre",cift:"Çift Devre",gruplu:"Gruplu",kupa:"🏆 Kupa"}[t.format]||"Serbest");
+        const paylasimLink=t.slug?PAYLASIM_URL(t.slug):null;
         return <div key={t.id} style={{marginBottom:11}}>
          <div onClick={cokSezon?()=>sezonAcTikla(t,sid):()=>git({sayfa:"turnuva",turnuva:t})} className="tap kart-hover" style={{position:"relative",overflow:"hidden",background:T.bg1,borderRadius:acik?"18px 18px 0 0":18,padding:14,border:"0.5px solid "+(acik?t.renk+"55":T.line),borderBottom:acik?"0":("0.5px solid "+T.line),cursor:"pointer",transition:"border-radius .2s"}}>
           <div style={{position:"absolute",inset:0,left:"auto",width:"58%",background:"radial-gradient(90% 120% at 92% 35%,"+(t.renk||T.accent)+"26,transparent 62%)",pointerEvents:"none"}}/>
@@ -4888,6 +4890,11 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
             <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={54}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:16,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginTop:5}}>
+                <span style={{fontSize:9.5,fontWeight:700,color:T.textSoft,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:8,padding:"2px 7px"}}>⚽ {t.kisi} kişi</span>
+                <span style={{fontSize:9.5,fontWeight:700,color:T.textSoft,background:T.bg2,border:"0.5px solid "+T.line,borderRadius:8,padding:"2px 7px"}}>{fmtAd}</span>
+                {paylasimLink && <span onClick={e=>{ e.stopPropagation(); try{ navigator.clipboard && navigator.clipboard.writeText(paylasimLink); }catch(_){} try{ alert("🔗 Lig linki kopyalandı:\n"+paylasimLink); }catch(_){} }} className="tap" title="Lig paylaşım linkini kopyala" style={{fontSize:9.5,fontWeight:700,color:T.accent,background:T.accent+"14",border:"0.5px solid "+T.accent+"44",borderRadius:8,padding:"2px 8px",cursor:"pointer"}}>🔗 Link</span>}
+              </div>
               <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
                 {t.sehir && <span style={{fontSize:11,color:T.textMut}}>📍 {t.sehir}</span>}
                 <span style={{fontSize:11,color:T.textMut}}>👥 {takimGoster} takım</span>
