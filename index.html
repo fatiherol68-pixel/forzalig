@@ -9566,11 +9566,8 @@ function MaclarSayfa({turnuva, T, git}){
       )}
     </div>}
 
-    {/* hafta filtresi */}
-    <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:10}}>
-      <FiltreCip aktif={hafta==="hepsi"} onClick={()=>setHafta("hepsi")} T={T}>Tümü</FiltreCip>
-      {haftalar.map(h=><FiltreCip key={h} aktif={hafta===h} onClick={()=>setHafta(h)} T={T}>{h}. hafta</FiltreCip>)}
-    </div>
+    {/* hafta filtresi — açılır liste (uzun yatay şerit yerine) */}
+    <HaftaSecici hafta={hafta} setHafta={setHafta} haftalar={haftalar} T={T}/>
 
     {/* maçlar — gruplu + Tümü ise grup başlıklı, değilse düz */}
     {gruplu && fGrup<0 ? Array.from({length:grupSayisi}).map((_,gi)=>{
@@ -9598,6 +9595,39 @@ function MiniIstat({buyuk, etiket, renk, T}){
 function FiltreCip({aktif, onClick, T, children}){
   return <div onClick={onClick} className="tap" style={{whiteSpace:"nowrap",fontSize:11,fontWeight:600,padding:"6px 12px",borderRadius:18,cursor:"pointer",
     background:aktif?T.accent:T.bg1,color:aktif?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textSoft,border:"0.5px solid "+(aktif?T.accent:T.line)}}>{children}</div>;
+}
+
+/* HAFTA SEÇİCİ — fikstürde uzun yatay şerit yerine açılır liste (kalın/belirgin ok). hafta="hepsi" veya hafta numarası. */
+function HaftaSecici({hafta, setHafta, haftalar, T}){
+  const [ac,setAc]=useState(false);
+  const sirali=[...(haftalar||[])].sort((a,b)=>b-a);
+  const sonHafta=sirali.length?sirali[0]:null, ilkHafta=sirali.length?sirali[sirali.length-1]:null;
+  const secili = hafta==="hepsi" ? "Tümü" : (hafta+". hafta");
+  const sec=(h)=>{ setHafta(h); setAc(false); };
+  const beyaz=T.renkCifti&&T.renkCifti[1]==="#FFFFFF";
+  const qbtn=(on)=>({fontSize:11,fontWeight:800,border:"1px solid "+(on?T.accent:T.line),background:on?T.accent:T.bg2,color:on?(beyaz?"#fff":T.bg0):T.textSoft,borderRadius:8,padding:"6px 11px",cursor:"pointer",fontFamily:"inherit"});
+  const ok=<span style={{flexShrink:0,width:27,height:27,borderRadius:9,display:"grid",placeItems:"center",background:ac?T.accent+"1e":T.bg2,border:"1px solid "+(ac?T.accent+"66":T.line),transition:"transform .22s, background .2s",transform:ac?"rotate(180deg)":"none"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{display:"block"}}><path d="M6 9l6 6 6-6" stroke={ac?T.accent:T.textSoft} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"/></svg></span>;
+  return <div style={{position:"relative",marginBottom:10}}>
+    <div onClick={()=>setAc(v=>!v)} className="tap" style={{display:"flex",alignItems:"center",gap:9,background:T.bg1,border:"1.5px solid "+(ac?T.accent:T.line),borderRadius:12,padding:"10px 13px",cursor:"pointer"}}>
+      <span style={{fontSize:15,flexShrink:0}}>📅</span>
+      <span style={{flex:1,fontSize:13.5,fontWeight:800,color:T.text}}>Hafta: <span style={{color:T.accent}}>{secili}</span></span>
+      {ok}
+    </div>
+    {ac && <div style={{position:"absolute",left:0,right:0,zIndex:20,marginTop:7,background:T.bg1,border:"1px solid "+T.line,borderRadius:12,overflow:"hidden",boxShadow:"0 12px 30px rgba(0,0,0,.32)"}}>
+      <div style={{display:"flex",gap:6,padding:"9px",borderBottom:"1px solid "+T.line,flexWrap:"wrap"}}>
+        <button onClick={()=>sec("hepsi")} className="tap" style={qbtn(hafta==="hepsi")}>Tümü</button>
+        {sonHafta!=null && <button onClick={()=>sec(sonHafta)} className="tap" style={qbtn(hafta===sonHafta)}>Son ({sonHafta})</button>}
+        {ilkHafta!=null && ilkHafta!==sonHafta && <button onClick={()=>sec(ilkHafta)} className="tap" style={qbtn(hafta===ilkHafta)}>İlk ({ilkHafta})</button>}
+      </div>
+      <div style={{maxHeight:250,overflowY:"auto"}}>
+        {sirali.map(h=><div key={h} onClick={()=>sec(h)} className="tap" style={{display:"flex",alignItems:"center",gap:9,padding:"10px 14px",fontSize:13,cursor:"pointer",borderBottom:"0.5px solid "+T.line,background:hafta===h?T.accent+"14":"transparent",color:hafta===h?T.accent:T.text,fontWeight:hafta===h?800:500}}>
+          <span style={{flex:1}}>{h}. hafta</span>
+          {h===sonHafta && <span style={{fontSize:9,color:T.textMut,background:T.bg2,borderRadius:20,padding:"1px 7px"}}>son</span>}
+          {h===ilkHafta && h!==sonHafta && <span style={{fontSize:9,color:T.textMut,background:T.bg2,borderRadius:20,padding:"1px 7px"}}>ilk</span>}
+        </div>)}
+      </div>
+    </div>}
+  </div>;
 }
 
 /* OYUNCU ACCORDION DETAY — Kadro + Keşfet>Oyuncular ortak açılır içeriği (mevcut veriyle) */
