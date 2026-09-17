@@ -315,7 +315,7 @@ function ProfilSayfa({turnuvalar, T, takipLig, takipOyuncu, takipTakim, git, kap
   </div>;
 }
 
-function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniyor, oturum, takimKurabilir, adminMi, onYeniSezon}){
+function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniyor, oturum, takimKurabilir, adminMi, onYeniSezon, onArsivle}){
   const [tab,setTab]=useState("lig");
   const [ara,setAra]=useState("");
   const [sira,setSira]=useState("gol"); // takım/oyuncu sıralama
@@ -354,11 +354,14 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
     (turnuvalar||[]).forEach(t=>{ if(!t) return;
       const sid=seriByLig[t.id]||t.seriId;
       if(sid && seriSay[sid]>1){ (bySeri[sid]=bySeri[sid]||[]).push(t); }
-      else if((t.durum||'aktif')!=='arsiv'){ tekil.push(t); }
+      else { tekil.push(t); }   // arşiv olanlar da alınır → "Geçmiş Ligler" klasöründe gösterilir
     });
     const seriKart=Object.keys(bySeri).map(sid=>{ const s=[...bySeri[sid]].sort((a,b)=>(b.sezonNo||0)-(a.sezonNo||0)); return s.find(x=>(x.durum||'aktif')!=='arsiv')||s[0]; });
     return [...seriKart, ...tekil];
   },[turnuvalar, seriByLig, seriSay]);
+  const [gecmisAcik,setGecmisAcik]=useState(false);   // "Geçmiş Ligler" klasörü açık/kapalı
+  // En son kurulan üstte: oluşturma tarihine (yoksa id'ye) göre azalan
+  const enYeniSirala=(a,b)=>{ const da=a.olusturma?Date.parse(a.olusturma):0, db=b.olusturma?Date.parse(b.olusturma):0; if(db!==da) return (db||0)-(da||0); return (Number(b.id)||0)-(Number(a.id)||0); };
   // Kendi yayınladığın ligler zaten üstte canlı kart olarak var → 'AÇIK' kopyası olarak TEKRAR gösterme (katalog karışmasın)
   const acikGoster=useMemo(()=> (acikLigler||[]).filter(l=> !(oturum && l.sahip_id && l.sahip_id===oturum.id)), [acikLigler, oturum]);
 
@@ -466,7 +469,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
             <div style={{fontSize:12,color:T.textMut,marginTop:4}}>⏳ Ligler yükleniyor…</div>
           </div>
         : <div style={{fontSize:12.5,color:T.textMut,textAlign:"center",padding:"30px 20px",lineHeight:1.6}}>Henüz lig yok.<br/>{ligKurAc?"Yukarıdan kendi ligini kurabilirsin.":"Bir lige katıldığında burada görünür."}</div>)}
-      {gosterilecekLigler.filter(t=>!q||((t.ad||"")+" "+(t.sehir||"")).toLocaleLowerCase("tr").includes(q)).map(t=>{
+      {gosterilecekLigler.filter(t=>(!q||((t.ad||"")+" "+(t.sehir||"")).toLocaleLowerCase("tr").includes(q)) && (t.durum||'aktif')!=='arsiv').sort(enYeniSirala).map(t=>{
         const oynanan=t.maclar.filter(m=>m.oynandi).length;
         // Tembel (özet) ligler: takimlar/maclar dizileri boş gelir → sayıları özet alanlarından göster (0/0 görünmesin)
         const takimGoster=(t.takimSay!=null?t.takimSay:t.takimlar.length);
@@ -503,6 +506,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
             </div>
             {!cokSezon && yetkili && <button onClick={e=>{e.stopPropagation(); setYeniSezonHedef(t);}} className="tap" title="Bu ligde yeni sezon aç" style={{flexShrink:0,display:"flex",alignItems:"center",gap:5,background:t.renk+"1e",color:t.renk,border:"0.5px solid "+t.renk+"66",borderRadius:20,padding:"7px 12px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>➕ Sezon</button>}
             {!cokSezon && !yetkili && ilkTakimlar.length>0 && <div style={{display:"flex",flexShrink:0,paddingLeft:4}}>{ilkTakimlar.map((tk,i)=><div key={i} style={{marginLeft:i?-10:0,borderRadius:9,overflow:"hidden",border:"2px solid "+T.bg1}}><Logo renk={tk.renk} ad={tk.ad} logo={tk.logo} renk2={tk.renk2} boy={28}/></div>)}</div>}
+            {yetkili && onArsivle && <button onClick={e=>{ e.stopPropagation(); if(confirm("\""+t.ad+"\" ligini 📦 Geçmiş'e taşı?\n\nPuan/maç geçmişi korunur; istediğinde 'Aktif Et' ile geri alırsın.")) onArsivle(t,true); }} className="tap" title="Geçmiş'e taşı (arşivle)" style={{flexShrink:0,width:32,height:32,borderRadius:10,border:"0.5px solid "+T.line,background:T.bg2,color:T.textMut,fontSize:14,cursor:"pointer"}}>📦</button>}
             <span style={{fontSize:18,color:cokSezon&&acik?t.renk:T.textMut,flexShrink:0,transition:"transform .3s",transform:cokSezon&&acik?"rotate(90deg)":"none"}}>›</span>
           </div>
          </div>
@@ -540,6 +544,34 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
          </div>}
         </div>;
       })}
+      {/* 📦 GEÇMİŞ LİGLER — arşivlenenler burada, açılır klasör (kaybolmaz) */}
+      {(()=>{
+        const arsivL=gosterilecekLigler.filter(t=>(!q||((t.ad||"")+" "+(t.sehir||"")).toLocaleLowerCase("tr").includes(q)) && (t.durum||'aktif')==='arsiv').sort(enYeniSirala);
+        if(arsivL.length===0) return null;
+        return <div style={{marginTop:6}}>
+          <div onClick={()=>setGecmisAcik(v=>!v)} className="tap" style={{display:"flex",alignItems:"center",gap:10,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:14,padding:"12px 15px",cursor:"pointer",marginBottom:gecmisAcik?8:0}}>
+            <span style={{fontSize:17}}>📦</span>
+            <span style={{flex:1,fontSize:13.5,fontWeight:800,color:T.textSoft}}>Geçmiş Ligler</span>
+            <span style={{fontSize:11,color:T.textMut,fontWeight:700}}>{arsivL.length} lig</span>
+            <span style={{fontSize:13,color:T.textMut,transition:"transform .25s",transform:gecmisAcik?"rotate(180deg)":"none",display:"inline-block"}}>▾</span>
+          </div>
+          {gecmisAcik && arsivL.map(t=>{
+            const oyn=(t.maclar||[]).filter(m=>m.oynandi).length;
+            const takimGoster=(t.takimSay!=null?t.takimSay:((t.takimlar||[]).length));
+            const lider=[...(t.takimlar||[])].sort((a,b)=>(b.puan||0)-(a.puan||0))[0];
+            const yetkili=!!(adminMi || (oturum && t.yonetici_id===oturum.id));
+            return <div key={t.id} onClick={()=>git({sayfa:"turnuva",turnuva:t})} className="tap" style={{display:"flex",gap:11,alignItems:"center",background:T.bg1,border:"0.5px solid "+T.line,borderRadius:13,padding:"11px 12px",marginBottom:7,opacity:.82,cursor:"pointer"}}>
+              <Logo renk={t.renk} ad={t.ad} logo={t.logo} renk2={t.renk2} boy={40}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13.5,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.ad}</div>
+                <div style={{fontSize:10,color:T.textMut,marginTop:2}}>📦 Arşiv{lider&&oyn>0?" · 🏆 "+lider.ad:""} · 👥 {takimGoster} takım</div>
+              </div>
+              {yetkili && onArsivle && <button onClick={e=>{ e.stopPropagation(); onArsivle(t,false); }} className="tap" title="Tekrar aktif yap" style={{flexShrink:0,fontSize:10.5,fontWeight:800,color:T.accent,background:T.accent+"14",border:"0.5px solid "+T.accent+"55",borderRadius:9,padding:"6px 10px",cursor:"pointer"}}>Aktif Et</button>}
+              <span style={{fontSize:15,color:T.textMut,flexShrink:0}}>›</span>
+            </div>;
+          })}
+        </div>;
+      })()}
     </div>}
 
     {/* TAKIMLAR */}
