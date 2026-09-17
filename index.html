@@ -4779,6 +4779,18 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
     const eksik=(kulupOy||[]).filter(o=>o && !varId.has(o.id||o.player_id));
     return [...lig, ...eksik];
   },[turnuvalar, kulupOy]);
+  // Aynı oyuncu birden çok ligde olabilir → Keşfet Oyuncular listesinde TEK satır + tüm liglerin TOPLAMI (+ hangi takım/lig dökümü)
+  const oyuncuBirlesik=useMemo(()=>{
+    const m=new Map();
+    tumOyuncular.forEach(o=>{ const key=o.id||o.player_id||o.ad; if(key==null) return;
+      if(!m.has(key)) m.set(key,{...o, gol:0,asist:0,mac:0,dk:0,kurtaris:0,mvp:0, _ligler:[]});
+      const g=m.get(key);
+      g.gol+=(o.gol||0); g.asist+=(o.asist||0); g.mac+=(o.mac||0); g.dk+=(o.dk||0); g.kurtaris+=(o.kurtaris||0); g.mvp+=(o.mvp||0);
+      if(!g.ovr && o.ovr) g.ovr=o.ovr; if(!g.foto && o.foto) g.foto=o.foto;
+      if(o.turnuva) g._ligler.push({lig:o.turnuva, ligId:o.turnuvaId, takim:o.takimAd, gol:o.gol||0, asist:o.asist||0, mac:o.mac||0});
+    });
+    return [...m.values()];
+  },[tumOyuncular]);
   // tüm maçlar
   const tumMaclar=useMemo(()=>{ const arr=[]; turnuvalar.forEach(t=>t.maclar.forEach(m=>arr.push({...m,_lig:t.ad,_t:t}))); return arr; },[turnuvalar]);
   // takım durum (şampiyon/lider)
@@ -4795,7 +4807,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
 
   const takimFiltre=tumTakimlar.filter(tk=>!q||tk.ad.toLocaleLowerCase("tr").includes(q));
   const takimSirali=[...takimFiltre].sort((a,b)=> sira==="alfabe"?a.ad.localeCompare(b.ad,"tr") : sira==="mac"?(b.o||0)-(a.o||0) : (b.ag||0)-(a.ag||0));
-  const oyuncuFiltre=tumOyuncular.filter(o=>(!q||o.ad.toLocaleLowerCase("tr").includes(q)) && (mevki==="hepsi"||o.poz===mevki));
+  const oyuncuFiltre=oyuncuBirlesik.filter(o=>(!q||o.ad.toLocaleLowerCase("tr").includes(q)) && (mevki==="hepsi"||o.poz===mevki));
   const oyuncuSirali=[...oyuncuFiltre].sort((a,b)=> sira==="alfabe"?a.ad.localeCompare(b.ad,"tr") : sira==="mac"?(b.mac||0)-(a.mac||0) : sira==="asist"?(b.asist||0)-(a.asist||0) : (b.gol||0)-(a.gol||0));
   const oynananlar=tumMaclar.filter(m=>m.oynandi).sort((a,b)=>(b.hafta||0)-(a.hafta||0));
   const yaklasanlar=tumMaclar.filter(m=>!m.oynandi).sort((a,b)=>(a.hafta||0)-(b.hafta||0));
@@ -4987,6 +4999,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
       {oyuncuSirali.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:24}}>Oyuncu bulunamadı</div>}
       {oyuncuSirali.slice(0,200).map((o,i)=>{
         const oid=o.id||o.player_id||("i"+i), acik=acikOy.has(oid);
+        const ligSay=(o._ligler?o._ligler.length:0), prim=o._ligler&&o._ligler[0];
         return <div key={oid} style={{background:T.bg1,borderRadius:11,marginBottom:5,border:"0.5px solid "+(acik?T.accent+"55":T.line),overflow:"hidden"}}>
           <div onClick={()=>oyToggle(oid)} className="tap satir-hover" style={{display:"flex",alignItems:"center",gap:11,padding:"9px 12px",cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}>
             <div style={{position:"relative",flexShrink:0}}>
@@ -4994,8 +5007,8 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
               {o.ovr>0 && <span style={{position:"absolute",bottom:-3,right:-4,fontSize:8,fontWeight:800,background:T.gold,color:"#06140d",borderRadius:6,padding:"0px 4px",fontFamily:T.fontDisplay}}>{o.ovr}</span>}
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.ad}</div>
-              <div style={{fontSize:9,color:T.textMut}}>{o.takimAd} · {o.poz||""}</div>
+              <div style={{fontSize:13,color:T.text,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:6}}>{o.ad}{ligSay>1 && <span style={{fontSize:8,fontWeight:800,color:T.accent,background:T.accent+"1e",border:"0.5px solid "+T.accent+"44",borderRadius:20,padding:"1px 6px",flexShrink:0}}>🏆 {ligSay} lig</span>}</div>
+              <div style={{fontSize:9,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.poz||"Oyuncu"}{ligSay>1?" · "+ligSay+" ligde aktif":(prim?" · "+prim.takim+" · "+prim.lig:(o.takimAd?" · "+o.takimAd:""))}</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:9,flexShrink:0}}>
               <div style={{textAlign:"center",minWidth:22}}><div style={{fontSize:13,color:T.accent,fontWeight:800,fontFamily:T.fontDisplay}}>{o.gol||0}</div><div style={{fontSize:8,color:T.textMut}}>gol</div></div>
@@ -5005,6 +5018,15 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
             </div>
             <span style={{width:28,height:28,borderRadius:9,background:acik?T.accent:T.accent+"20",color:acik?(T.renkCifti&&T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.accent,fontSize:17,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transform:acik?"rotate(180deg)":"none",transition:"transform .18s",border:"1.5px solid "+T.accent+(acik?"":"55"),lineHeight:1}}>▾</span>
           </div>
+          {acik && ligSay>1 && <div style={{padding:"2px 12px 6px"}}>
+            <div style={{fontSize:8.5,letterSpacing:.5,fontWeight:800,color:T.textMut,margin:"4px 2px 4px"}}>🏆 LİG DAĞILIMI ({ligSay} lig)</div>
+            {o._ligler.map((L,li)=><div key={li} style={{display:"flex",alignItems:"center",gap:7,fontSize:11,color:T.textSoft,padding:"5px 0",borderBottom:li<o._ligler.length-1?"0.5px solid "+T.line:"none"}}>
+              <span style={{flex:1,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>🏟️ {L.lig} · {L.takim}</span>
+              <b style={{color:T.accent,fontFamily:T.fontDisplay}}>{L.gol}</b><span style={{fontSize:8,color:T.textMut}}>gol</span>
+              <b style={{color:"#34D399",fontFamily:T.fontDisplay}}>{L.asist}</b><span style={{fontSize:8,color:T.textMut}}>as</span>
+              <b style={{color:T.textSoft,fontFamily:T.fontDisplay}}>{L.mac}</b><span style={{fontSize:8,color:T.textMut}}>maç</span>
+            </div>)}
+          </div>}
           {acik && <OyDetay o={o} T={T} git={git} maclar={[]} takimAd={o.takimAd} turnuva={o.turnuva}/>}
         </div>;
       })}
@@ -10359,6 +10381,8 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   };
   const oyLig=(turnuvalar||[]).find(t=>t.takimlar.some(tk=>tk.oyuncular.some(p=>p.id===o.id)));
   const oyTakim=oyLig?oyLig.takimlar.find(tk=>tk.oyuncular.some(p=>p.id===o.id)):null;
+  // Bu oyuncu şu an HANGİ liglerde/takımlarda aktif — her birinde ne yaptı (çok lig desteği)
+  const aktifLigler=useMemo(()=>{ const arr=[]; (turnuvalar||[]).forEach(t=>{ (t.takimlar||[]).forEach(tk=>{ const p=(tk.oyuncular||[]).find(x=>x.id===o.id); if(p) arr.push({lig:t.ad, ligId:t.id, takim:tk.ad, renk:tk.renk||T.accent, gol:p.gol||0, asist:p.asist||0, mac:p.mac||0}); }); }); return arr; },[o&&o.id, turnuvalar]);
   const transferHedefler=oyLig?oyLig.takimlar.filter(tk=>tk.id!==(oyTakim&&oyTakim.id)):[];
   const benimLigim = !!(oturum && oyLig && oyLig.yonetici_id && oyLig.yonetici_id===oturum.id);
   const kaptanMi = !!(oturum && oyTakim && oyTakim.yonetici_id && oyTakim.yonetici_id===oturum.id);
@@ -10686,6 +10710,33 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
         )}
       </div>
     </div>
+
+    {/* ===== AKTİF LİGLER — oyuncu birden çok ligde oynuyorsa döküm + canlı toplam ===== */}
+    {aktifLigler.length>1 && (()=>{ const tG=aktifLigler.reduce((s,x)=>s+x.gol,0), tA=aktifLigler.reduce((s,x)=>s+x.asist,0), tM=aktifLigler.reduce((s,x)=>s+x.mac,0);
+      return <div style={{padding:"12px 14px 0"}}>
+        <div style={{background:T.bg1,border:"0.5px solid "+T.line,borderRadius:14,padding:"13px 14px"}}>
+          <div style={{fontSize:11.5,fontWeight:800,color:T.textSoft,marginBottom:3,display:"flex",alignItems:"center",gap:7}}>🏆 Aktif Ligler <span style={{fontSize:9,color:T.textMut,fontWeight:700,background:T.bg2,borderRadius:20,padding:"2px 8px"}}>{aktifLigler.length} lig</span></div>
+          <div style={{fontSize:10,color:T.textMut,marginBottom:9}}>Bu oyuncu şu an hangi liglerde oynuyor, her birinde ne yaptı:</div>
+          {aktifLigler.map((L,i)=><div key={i} onClick={()=>{ const t=(turnuvalar||[]).find(x=>x.id===L.ligId); if(t) git({sayfa:"turnuva",turnuva:t}); }} className="tap" style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:i<aktifLigler.length-1?"0.5px solid "+T.line:"none",cursor:"pointer"}}>
+            <span style={{width:30,height:30,borderRadius:9,background:L.renk,display:"grid",placeItems:"center",fontSize:13,flexShrink:0}}>🏟️</span>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{L.lig}</div><div style={{fontSize:10,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{L.takim}</div></div>
+            <div style={{display:"flex",gap:10,flexShrink:0}}>
+              <div style={{textAlign:"center"}}><div style={{fontSize:13,fontWeight:800,color:T.accent,fontFamily:T.fontDisplay}}>{L.gol}</div><div style={{fontSize:7.5,color:T.textMut}}>GOL</div></div>
+              <div style={{textAlign:"center"}}><div style={{fontSize:13,fontWeight:800,color:"#34D399",fontFamily:T.fontDisplay}}>{L.asist}</div><div style={{fontSize:7.5,color:T.textMut}}>AS</div></div>
+              <div style={{textAlign:"center"}}><div style={{fontSize:13,fontWeight:800,color:T.textSoft,fontFamily:T.fontDisplay}}>{L.mac}</div><div style={{fontSize:7.5,color:T.textMut}}>MAÇ</div></div>
+            </div>
+          </div>)}
+          <div style={{display:"flex",alignItems:"center",gap:10,marginTop:10,background:T.accent+"12",border:"0.5px solid "+T.accent+"44",borderRadius:11,padding:"10px 12px"}}>
+            <span style={{flex:1,fontSize:11.5,fontWeight:800,color:T.accent}}>📊 Toplam (canlı)</span>
+            <div style={{display:"flex",gap:13}}>
+              <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:900,color:T.text,fontFamily:T.fontDisplay}}>{tG}</div><div style={{fontSize:7.5,color:T.textMut}}>GOL</div></div>
+              <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:900,color:T.text,fontFamily:T.fontDisplay}}>{tA}</div><div style={{fontSize:7.5,color:T.textMut}}>ASİST</div></div>
+              <div style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:900,color:T.text,fontFamily:T.fontDisplay}}>{tM}</div><div style={{fontSize:7.5,color:T.textMut}}>MAÇ</div></div>
+            </div>
+          </div>
+        </div>
+      </div>;
+    })()}
 
     {/* SEKME ŞERİDİ */}
     <div style={{display:"flex",gap:0,padding:"8px 8px 0",borderBottom:"1px solid "+T.line,overflowX:"auto",position:"sticky",top:0,background:T.bg0,zIndex:5}}>
