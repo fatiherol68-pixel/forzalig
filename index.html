@@ -2225,13 +2225,13 @@ const Db = {
     }catch(e){ return 0; } },
   // DEMO EVREN — sadece bu evreni sil (gerçek liglere dokunmaz). evren=null → tüm demo.
   async evrenSil(evren){ if(!sb) return {hata:"yok"}; try{ const {data,error}=await sb.rpc('evren_sil',{p_evren:evren||null}); return error?{hata:error.message}:{ok:true,adet:data||0}; }catch(e){ return {hata:String(e)}; } },
-  // SUNUCUDAKİ TÜM lig id'leri (gerçek + evren, silinmemiş) — cihaz önbelleğini gerçekle hizalamak için.
-  // Ağ hatasında null döner (çevrimdışıyken yanlışlıkla lig silinmesin diye çağıran DOKUNMAZ).
-  async tumLigIdleri(){ if(!sb) return null; try{
-    let q=await sb.from('ligler').select('id,silindi').limit(3000);
-    if(q.error){ q=await sb.from('ligler').select('id').limit(3000); }
-    if(q.error) return null;
-    return (q.data||[]).filter(l=>!l.silindi).map(l=>l.id);
+  // Bu kullanıcının GÖREBİLECEĞİ tüm lig id'leri (evren vitrini + aktif + kendi ligleri) —
+  // cihaz önbelleğini gerçekle hizalamak için yetkili kaynak. Ağ hatasında null döner
+  // (çevrimdışıyken yanlışlıkla lig silinmesin diye çağıran DOKUNMAZ). ligler_ozet ile birebir görünürlük.
+  async gorunurLigIdleri(userId){ if(!sb) return null; try{
+    const {data,error}=await sb.rpc('ligler_ozet',{p_user:userId||null});
+    if(error) return null;
+    return (data||[]).map(L=>L.id);
   }catch(e){ return null; } },
 };
 /* Supabase hata mesajlarını Türkçeye çevir */
@@ -20233,10 +20233,11 @@ function App(){
       if(aktif && adminMi){ try{ const gr=await Db.liglerYukle(null, true); if(aktif && Array.isArray(gr)){ gr.forEach(l=>{ mergeOne(l); toplandi.push(l); }); } }catch(e){} }
       // Önbelleği HER ZAMAN gerçekle hizala (boşsa boş yaz) → sunucudan silinen ligler artık önbellekte kalmaz
       try{ localStorage.setItem(CACHE, JSON.stringify(toplandi)); }catch(e){}
-      // MUTABAKAT (süper admin): sunucuda ARTIK olmayan ligler her cihazdan düşsün ("her yerden silinsin").
-      //   tumLigIdleri null dönerse (ağ hatası/çevrimdışı) DOKUNMA — yanlışlıkla lig kaybolmasın.
-      if(aktif && adminMi){
-        const ids=await Db.tumLigIdleri();
+      // MUTABAKAT (HERKES için): sunucuda ARTIK görünmeyen ligler her cihazdan düşsün ("her yerden silinsin").
+      //   Yetkili görünürlük = ligler_ozet (evren vitrini + aktif + kendi ligleri). Silinen ligler bu sette olmaz.
+      //   null dönerse (ağ hatası/çevrimdışı) DOKUNMA — yanlışlıkla lig kaybolmasın.
+      if(aktif){
+        const ids=await Db.gorunurLigIdleri(oturum.id);
         if(ids && aktif){
           const gecerli=new Set(ids);
           const uuidMi=(x)=>typeof x==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(x); // DB ligi=UUID; yerel demo (990001) sayı → korunur
