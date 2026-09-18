@@ -1,6 +1,6 @@
 /* ForzaLig service worker — kabuk önbelleği + güncelleme bildirimi
-   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (e497e6a-1789722791). */
-const SURUM = "e497e6a-1789722791";
+   SÜRÜM: her deploy'da derle.js bu numarayı otomatik günceller (6846b63-1786290546). */
+const SURUM = "6846b63-1786290546";
 const KABUK = "forzalig-kabuk-" + SURUM;
 
 // Açılış için gereken çekirdek dosyalar (CDN dosyaları ilk kullanımda önbelleğe alınır)
@@ -10,8 +10,7 @@ self.addEventListener("install", (e) => {
   e.waitUntil(
     caches.open(KABUK).then((c) => c.addAll(CEKIRDEK)).catch(() => {})
   );
-  // Yeni sürüm BEKLEMEDEN aktive olsun → cihaz eski sürümde takılı kalmaz (kalıcı güncelleme).
-  self.skipWaiting();
+  // Yeni sürüm hemen "waiting" durumuna geçsin; sayfa toast ile kullanıcıya sorar.
 });
 
 self.addEventListener("activate", (e) => {
@@ -32,30 +31,24 @@ self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { baslik: "ForzaLig", metin: (e.data && e.data.text()) || "" }; }
   const baslik = d.baslik || "ForzaLig";
-  const secenek = {
-    body: d.metin || "",
-    icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
-    data: { link: d.link || "/" },
-    tag: d.tag || "forzalig",
-  };
-  // Büyük görsel (takım logosu / maç görseli) — varsa bildirim açılınca gösterilir
-  if (d.gorsel && /^https?:\/\//.test(d.gorsel)) secenek.image = d.gorsel;
-  e.waitUntil(self.registration.showNotification(baslik, secenek));
+  e.waitUntil(
+    self.registration.showNotification(baslik, {
+      body: d.metin || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { link: d.link || "/" },
+      tag: d.tag || "forzalig",
+    })
+  );
 });
 
-// Bildirime tıklanınca: açık uygulama varsa O SAYFAYA yönlendir + öne getir; yoksa hedef linkle aç
+// Bildirime tıklanınca uygulamayı aç / öne getir
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const hedef = (e.notification.data && e.notification.data.link) || "/";
   e.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((liste) => {
-      for (const c of liste) {
-        if ("focus" in c) {
-          try { c.postMessage({ fzGit: hedef }); } catch (x) {}
-          return c.focus();
-        }
-      }
+      for (const c of liste) { if ("focus" in c) return c.focus(); }
       if (self.clients.openWindow) return self.clients.openWindow(hedef);
     })
   );
@@ -71,20 +64,9 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(
       fetch(e.request, { cache: "no-store" })
         .then((r) => {
-          // 🎙️ İZİN POLİTİKASI KALICI DÜZELTMESİ: bazı CDN/host belge yanıtına
-          // 'Permissions-Policy: microphone=()' koyup canlı mikrofonu BELGE düzeyinde
-          // engelliyor (getUserMedia → NotAllowedError, tüm tarayıcılarda). SW belge
-          // yanıtını burada yeniden kurup mikrofon/kamera/autoplay'i (self) açık yapar
-          // → hiçbir tarayıcı/Windows ayarı gerektirmeden, kalıcı çalışır.
-          let yanit = r;
-          try {
-            const h = new Headers(r.headers);
-            h.set("Permissions-Policy", "microphone=(self), camera=(self), autoplay=(self), display-capture=(self), fullscreen=(self)");
-            h.delete("Feature-Policy");
-            yanit = new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
-          } catch (x) { yanit = r; }
-          try { const kopya = yanit.clone(); caches.open(KABUK).then((c) => c.put("/", kopya)).catch(() => {}); } catch (x) {}
-          return yanit;
+          const kopya = r.clone();
+          caches.open(KABUK).then((c) => c.put("/", kopya)).catch(() => {});
+          return r;
         })
         .catch(() => caches.match("/"))
     );
