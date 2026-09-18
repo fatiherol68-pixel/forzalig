@@ -1806,6 +1806,12 @@ const Db = {
   // ---- Oyuncu ↔ Takım (kadro) ----
   async kadroEkle(pid, takimId, ligId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('oyuncu_takim').insert({player_id:pid, takim_id:takimId, lig_id:ligId, aktif:true}); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async kadro(takimId){ if(!sb) return []; try{ const {data}=await sb.from('oyuncu_takim').select('*').eq('takim_id',takimId).eq('aktif',true); return data||[]; }catch(e){ return []; } },
+  // Bir takımda KULLANIMDA olan forma numaraları [{player_id,no,ad}] — davet formunda "başka numara seç" uyarısı için (public: oyuncu_takim + oyuncular_acik)
+  async takimFormaNolar(takimId){ if(!sb||!takimId) return []; try{
+    const kadro=await this.kadro(takimId); const pids=[...new Set(kadro.map(k=>k.player_id).filter(Boolean))]; if(!pids.length) return [];
+    const ac=await this.oyunculariAcik(pids);
+    return (ac||[]).filter(o=>o.forma_no!=null).map(o=>({player_id:o.player_id, no:o.forma_no, ad:o.gorunen_ad||'Oyuncu'}));
+  }catch(e){ return []; } },
   async kadrodanCikar(id){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('oyuncu_takim').update({aktif:false, ayrilma:new Date().toISOString()}).eq('id',id); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   async kadrodanCikarPid(playerId, takimId){ if(!sb) return {hata:"yok"}; try{ const {error}=await sb.from('oyuncu_takim').update({aktif:false, ayrilma:new Date().toISOString()}).eq('player_id',playerId).eq('takim_id',takimId).eq('aktif',true); return error?{hata:error.message}:{ok:true}; }catch(e){ return {hata:String(e)}; } },
   // ---- Transfer (madde 13: 3 adımlı zincir) ----
@@ -10476,6 +10482,17 @@ function OyuncuSayfa({oyuncu:o, T, takipOyuncu, oyuncuTakip, adminMod, git, turn
   const acDuzenle=()=>{ setD({...o, deger:Math.round(o.degerG!=null?o.degerG:(o.deger||750000)), yildizManuel: o.yildizManuel||0}); setDuzenle(true); };
   const acBilgi=()=>{ setBd({ad:o.ad,poz:o.poz,no:o.no,ayak:o.ayak||"Sağ",dogum:o.dogum||"",boy:o.boy||"",kilo:o.kilo||"",uyruk:o.uyruk||"",saglik:o.saglik||"Sağlam",foto:o.foto||null}); setBilgiAcik(true); };
   const kaydetBilgi=()=>{
+    // Forma no doğrulama: girildiyse 1–99 arası + aynı takımda benzersiz (başka oyuncuda yoksa)
+    const noStr=(bd.no==null?"":String(bd.no)).trim();
+    if(noStr!==""){
+      const ni=parseInt(noStr);
+      if(!(ni>=1 && ni<=99)){ alert("Forma no 1 ile 99 arasında olmalı."); return; }
+      const pid=o.player_id||(typeof o.id==="string"?o.id:null);
+      const lig=(turnuvalar||[]).find(t=>t.ad===o.turnuva);
+      const takim=lig&&lig.takimlar.find(tk=>(tk.oyuncular||[]).some(p=>(p.player_id||p.id)===(pid||o.id)));
+      if(takim){ const cakisan=(takim.oyuncular||[]).find(p=>(p.player_id||p.id)!==(pid||o.id) && Number(p.no)===ni);
+        if(cakisan){ alert(ni+" numara bu takımda "+(cakisan.ad||"başka bir oyuncu")+" tarafından kullanılıyor. Lütfen başka bir numara gir."); return; } }
+    }
     o.ad=bd.ad||o.ad; o.poz=bd.poz; o.no=parseInt(bd.no)||o.no; o.ayak=bd.ayak;
     o.dogum=bd.dogum; o.boy=parseInt(bd.boy)||o.boy; o.kilo=parseInt(bd.kilo)||o.kilo;
     o.uyruk=bd.uyruk||o.uyruk; o.saglik=bd.saglik; o.foto=bd.foto!==undefined?bd.foto:o.foto;
@@ -18247,7 +18264,20 @@ function DavetKatil({T, token, oturum, girisYap}){
   const [mesaj,setMesaj]=useState(""); const [yuk,setYuk]=useState(false); const [fotoYuk,setFotoYuk]=useState(false);
   const [oyuncuLink,setOyuncuLink]=useState(""); const [kopyalandi,setKopyalandi]=useState(false);
   const [onDolduruldu,setOnDolduruldu]=useState(false); // profildeki oyuncu kartından otomatik dolduruldu mu
+  const [doluNolar,setDoluNolar]=useState([]); // takımda kullanımdaki forma numaraları [{no,ad}] — çift no engeli
   useEffect(()=>{ let a=true; (async()=>{ const d=await Db.davetGetir(token); if(a) setDavet(d); })(); return ()=>{a=false;}; },[token]);
+  // Katılınacak takım/kulübün DOLU forma numaralarını çek → aynı no'yu iki kişi seçemesin (uyarı ver)
+  useEffect(()=>{ let a=true;
+    if(!davet || davet===undefined || !davet.aktif) return;
+    (async()=>{
+      let list=[];
+      if(davet.tip==="kulup" && davet.kulup_id){ const k=await Db.kulupKadro(davet.kulup_id); list=(k||[]).filter(x=>x.forma_no!=null).map(x=>({no:x.forma_no, ad:x.ad||'Oyuncu'})); }
+      else if(davet.tip==="oyuncu" && davet.takim_id){ list=await Db.takimFormaNolar(davet.takim_id); }
+      if(a) setDoluNolar(list||[]);
+    })();
+    return ()=>{a=false;};
+  },[davet]);
+  const noDolu=(n)=> doluNolar.some(x=>Number(x.no)===Number(n)); // n bu takımda dolu mu
   // Giriş yapmış + zaten oyuncu kartı olan kullanıcı → formu profilinden otomatik doldur (sıfırdan girmesin).
   useEffect(()=>{ let a=true;
     if(!oturum || !davet || davet===undefined || !davet.aktif) return;
@@ -18287,6 +18317,12 @@ function DavetKatil({T, token, oturum, girisYap}){
       if(!(parseInt(boy)>0)){ setMesaj("❌ Boy gir (zorunlu)."); return; }
       if(!(parseInt(kilo)>0)){ setMesaj("❌ Kilo gir (zorunlu)."); return; }
       if(!ayak){ setMesaj("❌ Tercih edilen ayağı seç (zorunlu)."); return; }
+      // Forma no: opsiyonel ama girildiyse 1–99 arası + takımda benzersiz olmalı
+      if(no.trim()!==""){
+        const ni=parseInt(no);
+        if(!(ni>=1 && ni<=99)){ setMesaj("❌ Forma no 1 ile 99 arasında olmalı."); return; }
+        if(noDolu(ni)){ const sh=doluNolar.find(x=>Number(x.no)===ni); setMesaj("❌ "+ni+" numara "+(sh&&sh.ad?"("+sh.ad+") ":"")+"bu takımda kullanılıyor. Lütfen başka bir numara gir."); return; }
+      }
     }
     setYuk(true); setMesaj("Kaydediliyor…");
     if(davet.tip==="takim"){
@@ -18375,7 +18411,13 @@ function DavetKatil({T, token, oturum, girisYap}){
             <div style={{display:"flex",gap:6,marginBottom:10}}>
               {POZLAR.map(([k,ik])=><span key={k} onClick={()=>setPoz(k)} className="tap" style={{flex:1,textAlign:"center",fontSize:10.5,padding:"8px 2px",borderRadius:10,background:poz===k?T.accent2:T.bg0,color:poz===k?"#04070C":T.textMut,fontWeight:poz===k?800:500,border:"0.5px solid "+(poz===k?T.accent2:T.line)}}>{ik}<br/>{k==="OrtaSaha"?"Orta":k}</span>)}
             </div>
-            <input value={no} onChange={e=>setNo(e.target.value)} placeholder="Forma no (opsiyonel)" type="number" style={inp}/>
+            {(()=>{ const ni=no.trim()===""?null:parseInt(no); const dolu=ni!=null&&noDolu(ni); const aralikDisi=ni!=null&&!(ni>=1&&ni<=99);
+              return <div style={{marginBottom:10}}>
+                <input value={no} onChange={e=>setNo(e.target.value)} placeholder="Forma no (opsiyonel, 1–99)" type="number" min="1" max="99" style={{...inp,marginBottom:0,border:"0.5px solid "+((dolu||aralikDisi)?T.danger:T.line)}}/>
+                {aralikDisi && <div style={{fontSize:10.5,color:T.danger,marginTop:4}}>⚠️ Forma no 1 ile 99 arasında olmalı.</div>}
+                {dolu && !aralikDisi && <div style={{fontSize:10.5,color:T.danger,marginTop:4}}>⚠️ {ni} numara bu takımda dolu — başka bir numara seç.</div>}
+                {!dolu && !aralikDisi && doluNolar.length>0 && <div style={{fontSize:10,color:T.textMut,marginTop:4}}>Takımda dolu: {[...new Set(doluNolar.map(x=>Number(x.no)))].sort((a,b)=>a-b).map(n=>"#"+n).join(" · ")}</div>}
+              </div>; })()}
             <div style={{marginBottom:6}}>
               <label style={{fontSize:10,color:T.textMut}}>Doğum tarihi <span style={{color:T.accent2}}>*</span><input type="date" value={dogum} onChange={e=>setDogum(e.target.value)} style={{...inp,marginTop:3}}/></label>
               <div style={{display:"flex",gap:8}}>
