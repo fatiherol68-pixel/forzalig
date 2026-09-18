@@ -19429,10 +19429,8 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
 
     {!sec ? <>
       {liste===null ? <div style={{color:T.textMut,fontSize:13,padding:20,textAlign:"center"}}>Yükleniyor…</div> : <>
-        {birlesikTakimlar.length>0 && <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.5,margin:"2px 2px 8px",textTransform:"uppercase"}}>Takımlar · {birlesikTakimlar.length}</div>}
-        {birlesikTakimlar.length===0 && !kur && <div style={{textAlign:"center",padding:"18px 10px 4px",color:T.textMut}}><div style={{fontSize:32,marginBottom:6}}>🛡️</div><div style={{fontSize:13,color:T.textSoft,lineHeight:1.6}}>{yetkili?"Henüz takım yok — aşağıdan kur.":"Henüz takım yok. Yetkili biri kurunca burada görünür."}</div></div>}
-        {birlesikTakimlar.map(KART2)}
-        {kur ? <div style={{background:T.bg1,border:"1px solid "+T.line,borderRadius:14,padding:14,marginTop:6}}>
+        {/* ＋ Takım Kur — üstte (61 takımda dibe düşmesin) */}
+        {kur ? <div style={{background:T.bg1,border:"1px solid "+T.line,borderRadius:14,padding:14,marginBottom:12}}>
           <input value={ad} onChange={e=>setAd(e.target.value)} placeholder="Takım adı · örn. Şimşekler FC" style={IN}/>
           <div style={{display:"flex",alignItems:"center",gap:10,margin:"11px 0"}}>
             <span style={{fontSize:12,color:T.textMut,fontWeight:700}}>Renk</span>
@@ -19443,8 +19441,11 @@ function Kuluplerim({T, oturum, git, turnuvalar, embedded, takimKurabilir, admin
             <button onClick={()=>{setKur(false);setMesaj("");}} style={{background:T.bg2,color:T.textSoft,border:"1px solid "+T.line,borderRadius:11,padding:"11px 15px",fontSize:13,fontWeight:700}}>İptal</button>
           </div>
         </div> : (yetkili
-          ? <button onClick={()=>{setKur(true);setMesaj("");}} className="tap" style={{...BTN,width:"100%",marginTop:6}}>＋ Takım Kur</button>
-          : <button title="Takım oluşturma yetkiniz bulunmuyor." aria-disabled="true" onClick={e=>{e.preventDefault();e.stopPropagation();}} style={{...BTN,width:"100%",marginTop:6,opacity:.4,cursor:"not-allowed"}}>＋ Takım Kur</button>)}
+          ? <button onClick={()=>{setKur(true);setMesaj("");}} className="tap" style={{...BTN,width:"100%",marginBottom:12}}>＋ Takım Kur</button>
+          : <button title="Takım oluşturma yetkiniz bulunmuyor." aria-disabled="true" onClick={e=>{e.preventDefault();e.stopPropagation();}} style={{...BTN,width:"100%",marginBottom:12,opacity:.4,cursor:"not-allowed"}}>＋ Takım Kur</button>)}
+        {birlesikTakimlar.length>0 && <div style={{fontSize:11,color:T.textMut,fontWeight:700,letterSpacing:.5,margin:"2px 2px 8px",textTransform:"uppercase"}}>Takımlar · {birlesikTakimlar.length}</div>}
+        {birlesikTakimlar.length===0 && !kur && <div style={{textAlign:"center",padding:"18px 10px 4px",color:T.textMut}}><div style={{fontSize:32,marginBottom:6}}>🛡️</div><div style={{fontSize:13,color:T.textSoft,lineHeight:1.6}}>{yetkili?"Henüz takım yok — yukarıdan kur.":"Henüz takım yok. Yetkili biri kurunca burada görünür."}</div></div>}
+        {birlesikTakimlar.map(KART2)}
       </>}
     </> : <>
       {/* DÜZENLE (ad/renk/logo) — süper admin/yönetici */}
