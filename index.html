@@ -2233,6 +2233,8 @@ const Db = {
     if(error) return null;
     return (data||[]).map(L=>L.id);
   }catch(e){ return null; } },
+  // Aktiflik damgası — girişli kullanıcı "son görülme"sini günceller (Üyeler panelinde aktiflik için).
+  async gorulmeDokun(){ if(!sb) return; try{ await sb.rpc('gorulme_dokun'); }catch(e){} },
 };
 /* Supabase hata mesajlarını Türkçeye çevir */
 const authHata = (m)=>{ m=(m||"").toLowerCase();
@@ -17319,6 +17321,8 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
       {!yuk && sekme==="uyeler" && <div>
         {(()=>{ const yetkili=uyeler.filter(u=>u.hak&&u.hak.toplam>0); const normal=uyeler.filter(u=>!(u.hak&&u.hak.toplam>0)&&!u.admin);
           const yeniSay=uyeler.filter(u=>{ try{ return (Date.now()-new Date(u.created).getTime())<7*86400000; }catch(e){ return false; } }).length;
+          const bugunYeni=uyeler.filter(u=>{ try{ return (Date.now()-new Date(u.created).getTime())<86400000; }catch(e){ return false; } }).length;
+          const aktif24=uyeler.filter(u=>{ try{ return u.son_gorulme && (Date.now()-new Date(u.son_gorulme).getTime())<86400000; }catch(e){ return false; } }).length;
           const askiSay=uyeler.filter(u=>yasakliMi(u.user_id)).length;
           const futbolcuSay=uyeler.filter(u=>u.roller&&u.roller.futbolcu).length;
           const hakemSay=uyeler.filter(u=>u.roller&&u.roller.hakem).length;
@@ -17330,6 +17334,7 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             else if(uyeSeg==="askida"){ if(!yasakliMi(u.user_id)) return false; }
             else if(uyeSeg==="futbolcu"){ if(!(u.roller&&u.roller.futbolcu)) return false; }
             else if(uyeSeg==="hakem"){ if(!(u.roller&&u.roller.hakem)) return false; }
+            else if(uyeSeg==="aktif"){ try{ if(!(u.son_gorulme && (Date.now()-new Date(u.son_gorulme).getTime())<86400000)) return false; }catch(e){ return false; } }
             if(q && !((u.ad||"").toLowerCase().indexOf(q)>-1 || (u.email||"").toLowerCase().indexOf(q)>-1)) return false;
             return true;
           });
@@ -17339,9 +17344,10 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
             <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"11px 8px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:T.gold,fontFamily:T.fontDisplay}}>{yetkili.length}</div><div style={{fontSize:9.5,color:T.textMut}}>lig yetkisi olan</div></div>
             <div style={{flex:1,background:T.bg1,border:"0.5px solid "+T.line,borderRadius:11,padding:"11px 8px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:T.textSoft,fontFamily:T.fontDisplay}}>{normal.length}</div><div style={{fontSize:9.5,color:T.textMut}}>normal üye</div></div>
           </div>
+          <div style={{fontSize:10.5,color:T.textMut,margin:"-4px 2px 10px",textAlign:"center"}}>📅 Bugün <b style={{color:T.accent}}>{bugunYeni}</b> yeni üye · 🟢 Son 24s <b style={{color:T.accent}}>{aktif24}</b> aktif</div>
           {/* FAZ 5 — segment çipleri + arama */}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-            {[["hepsi","Tümü",uyeler.length],["futbolcu","⚽ Futbolcu",futbolcuSay],["hakem","🧑‍⚖️ Hakem",hakemSay],["yeni","Yeni 7g",yeniSay],["yetkili","Yetkili",yetkili.length],["normal","Normal",normal.length],["askida","Askıda",askiSay]].map(x=>
+            {[["hepsi","Tümü",uyeler.length],["aktif","🟢 Aktif 24s",aktif24],["futbolcu","⚽ Futbolcu",futbolcuSay],["hakem","🧑‍⚖️ Hakem",hakemSay],["yeni","Yeni 7g",yeniSay],["yetkili","Yetkili",yetkili.length],["normal","Normal",normal.length],["askida","Askıda",askiSay]].map(x=>
               <button key={x[0]} onClick={()=>setUyeSeg(x[0])} className="tap" style={{fontSize:11,fontWeight:700,padding:"6px 11px",borderRadius:20,border:"0.5px solid "+(uyeSeg===x[0]?T.accent:T.line),background:uyeSeg===x[0]?T.accent:T.bg1,color:uyeSeg===x[0]?(T.renkCifti[1]==="#FFFFFF"?"#fff":T.bg0):T.textMut}}>{x[1]}{x[2]>0?" · "+x[2]:""}</button>
             )}
           </div>
@@ -17349,12 +17355,13 @@ function AdminPanel({T, git, oturum, turnuvalar, onIliskiselYukle, onGercegeDon,
           {oturum && uyeler.length>1 && <button onClick={uyeleriTemizle} className="tap" style={{width:"100%",boxSizing:"border-box",background:T.danger+"14",color:T.danger,border:"0.5px solid "+T.danger+"44",borderRadius:10,padding:"9px",fontSize:11.5,fontWeight:800,marginBottom:10}}>🧹 Test/anonim üyeleri toplu temizle (adminler korunur)</button>}
           {uyeler.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Henüz üye yok. İnsanlar üye oldukça burada görünür.</div>}
           {uyeler.length>0 && gosterilen.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:16}}>Bu filtreye uyan üye yok.</div>}
-          {gosterilen.map(u=>{ const yetki=u.hak&&u.hak.toplam>0; const kalan=yetki?Math.max(0,(u.hak.toplam||0)-(u.hak.kullanilan||0)):0; const ikon=u.admin?"👑":yetki?"🎟️":"👤"; const kenar=u.admin?T.danger+"55":yetki?T.gold+"44":T.line; return (
+          {gosterilen.map(u=>{ const yetki=u.hak&&u.hak.toplam>0; const kalan=yetki?Math.max(0,(u.hak.toplam||0)-(u.hak.kullanilan||0)):0; const ikon=u.admin?"👑":yetki?"🎟️":"👤"; const kenar=u.admin?T.danger+"55":yetki?T.gold+"44":T.line; const yeniUye=(()=>{ try{ return (Date.now()-new Date(u.created).getTime())<7*86400000; }catch(e){ return false; } })(); const online=!!(u.son_gorulme && (Date.now()-new Date(u.son_gorulme).getTime())<300000); return (
             <div key={u.user_id} style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:10,background:T.bg1,border:"0.5px solid "+kenar,borderRadius:11,padding:"10px 12px",marginBottom:6}}>
               <div style={{width:34,height:34,borderRadius:"50%",background:(u.admin?T.danger:yetki?T.gold:T.accent2)+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{ikon}</div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.ad||u.email}</div>
+                <div style={{fontSize:12.5,color:T.text,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:6}}><span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{u.ad||u.email}</span>{yeniUye && <span style={{flexShrink:0,fontSize:8,fontWeight:900,color:"#04140c",background:T.accent,borderRadius:20,padding:"1px 6px"}}>YENİ</span>}</div>
                 <div style={{fontSize:9.5,color:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
+                <div style={{fontSize:9,color:online?T.accent:T.textMut,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>{online?"● çevrimiçi":(u.son_gorulme?("son görülme "+rZaman(u.son_gorulme)):"henüz giriş yok")}</div>
               </div>
               {u.admin
                 ? <span style={{fontSize:9.5,fontWeight:800,color:T.danger,background:T.danger+"1f",borderRadius:6,padding:"4px 8px",whiteSpace:"nowrap"}}>👑 Süper Admin</span>
@@ -18449,9 +18456,9 @@ function DavetKatil({T, token, oturum, girisYap}){
 // ==================== BİLDİRİM MERKEZİ ====================
 function BildirimSayfa({T, git, oturum, liste, yenile, takipListe, turnuvalar}){
   const [yuk,setYuk]=useState(false);
-  const ikonlar={transfer_istek:"🔄",transfer_onay:"✅",transfer_ret:"🚫",mac:"⚽",sohbet:"💬",duyuru:"📢",katilim:"🙋",rakip_yanit:"🆚",eksik_yanit:"🙋",oyuncu_yanit:"🏃",rakip_karar:"✅",eksik_karar:"✅",oyuncu_karar:"✅"};
+  const ikonlar={transfer_istek:"🔄",transfer_onay:"✅",transfer_ret:"🚫",mac:"⚽",sohbet:"💬",duyuru:"📢",katilim:"🙋",rakip_yanit:"🆚",eksik_yanit:"🙋",oyuncu_yanit:"🏃",rakip_karar:"✅",eksik_karar:"✅",oyuncu_karar:"✅",yeni_uye:"🙋"};
   const zamanKisa=(iso)=>{ try{ const d=new Date(iso), fark=(Date.now()-d.getTime())/1000; if(fark<60) return "az önce"; if(fark<3600) return Math.floor(fark/60)+" dk"; if(fark<86400) return Math.floor(fark/3600)+" sa"; return d.toLocaleDateString("tr-TR"); }catch(e){ return ""; } };
-  const ac=async(b)=>{ if(!b.okundu){ await Db.bildirimOku(b.id); yenile&&yenile(); } if(b.link_tip==="pazar"){ const _p=PAZAR_COZ(b.link_id); git({sayfa:"pazar", pazarTab:(_p&&_p.tip)||null, pazarAcil:(_p&&_p.id)||null}); return; } if(b.link_tip==="turnuva"&&b.link_id){ const t=(turnuvalar||[]).find(x=>x.id===b.link_id); if(t){ const yonetimeGit=["transfer_istek","katilim"].includes(b.tip); git({sayfa:"turnuva",turnuva:t,tab:yonetimeGit?"yonet":undefined}); return; } } git({sayfa:"ana"}); };
+  const ac=async(b)=>{ if(!b.okundu){ await Db.bildirimOku(b.id); yenile&&yenile(); } if(b.link_tip==="pazar"){ const _p=PAZAR_COZ(b.link_id); git({sayfa:"pazar", pazarTab:(_p&&_p.tip)||null, pazarAcil:(_p&&_p.id)||null}); return; } if(b.link_tip==="turnuva"&&b.link_id){ const t=(turnuvalar||[]).find(x=>x.id===b.link_id); if(t){ const yonetimeGit=["transfer_istek","katilim"].includes(b.tip); git({sayfa:"turnuva",turnuva:t,tab:yonetimeGit?"yonet":undefined}); return; } } if(b.link_tip==="uye"){ git({sayfa:"admin", adminSekme:"uyeler"}); return; } git({sayfa:"ana"}); };
   const hepsiOku=async()=>{ setYuk(true); await Db.bildirimHepsiOku(); await (yenile&&yenile()); setYuk(false); };
   const sil=async(b)=>{ await Db.bildirimSil(b.id); yenile&&yenile(); };
   const varmi=(liste&&liste.length>0);
@@ -20436,7 +20443,7 @@ function App(){
     (async()=>{
       const aktEv = (()=>{ try{ return oturum ? localStorage.getItem('fz_aktif_evren') : null; }catch(e){ return null; } })();
       // Yan yüklemeler (admin/hak/profil) — akıştan bağımsız
-      if(oturum){ window.__FL_UID=oturum.id; Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); Db.yasakliMi(oturum.id).then(y=>{ if(aktif && y) setYasakli(true); }); Db.yardimciLiglerim(oturum.id).then(ids=>{ if(aktif) setYardimciLigler(new Set(ids)); }); Db.profilGetir(oturum.id).then(p=>{ if(!aktif) return; setProfil(p||{}); }); } else { window.__FL_UID=null; setAdminMi(false); setLigKurYetkim(false); setYasakli(null); setYardimciLigler(new Set()); setProfil(null); setRolSor(false); }
+      if(oturum){ window.__FL_UID=oturum.id; Db.gorulmeDokun(); Db.adminMi(oturum.id).then(a=>{ if(aktif) setAdminMi(!!a); }); Promise.all([Db.adminMi(oturum.id),Db.hakGetir(oturum.id)]).then(([a,h])=>{ if(aktif) setLigKurYetkim(!!a || (h && h.kalan>0)); }); Db.yasakliMi(oturum.id).then(y=>{ if(aktif && y) setYasakli(true); }); Db.yardimciLiglerim(oturum.id).then(ids=>{ if(aktif) setYardimciLigler(new Set(ids)); }); Db.profilGetir(oturum.id).then(p=>{ if(!aktif) return; setProfil(p||{}); }); } else { window.__FL_UID=null; setAdminMi(false); setLigKurYetkim(false); setYasakli(null); setYardimciLigler(new Set()); setProfil(null); setRolSor(false); }
       setEvrenAktif(!!(oturum && aktEv));
       setIliskiselModu(true);            // blob otomatik kaydı/yeniden yayını KAPALI
       bulutHazir.current=true;
