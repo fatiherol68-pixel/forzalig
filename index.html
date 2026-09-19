@@ -4739,6 +4739,7 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
   const [ara,setAra]=useState("");
   const [sira,setSira]=useState("gol"); // takım/oyuncu sıralama
   const [mevki,setMevki]=useState("hepsi");
+  const [macHafta,setMacHafta]=useState("hepsi"); // Keşfet Maçlar hafta filtresi
   const [acikOy,setAcikOy]=useState(()=>new Set());   // Oyuncular sekmesi accordion
   const oyToggle=(id)=>setAcikOy(s=>{ const n=new Set(s); n.has(id)?n.delete(id):n.add(id); return n; });
   const q=ara.trim().toLocaleLowerCase("tr");
@@ -4825,15 +4826,17 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
   const takimSirali=[...takimFiltre].sort((a,b)=> sira==="alfabe"?a.ad.localeCompare(b.ad,"tr") : sira==="mac"?(b.o||0)-(a.o||0) : (b.ag||0)-(a.ag||0));
   const oyuncuFiltre=oyuncuBirlesik.filter(o=>(!q||o.ad.toLocaleLowerCase("tr").includes(q)) && (mevki==="hepsi"||o.poz===mevki));
   const oyuncuSirali=[...oyuncuFiltre].sort((a,b)=> sira==="alfabe"?a.ad.localeCompare(b.ad,"tr") : sira==="mac"?(b.mac||0)-(a.mac||0) : sira==="asist"?(b.asist||0)-(a.asist||0) : (b.gol||0)-(a.gol||0));
-  const oynananlar=tumMaclar.filter(m=>m.oynandi).sort((a,b)=>(b.hafta||0)-(a.hafta||0));
-  const yaklasanlar=tumMaclar.filter(m=>!m.oynandi).sort((a,b)=>(a.hafta||0)-(b.hafta||0));
+  const maclarHaftalar=[...new Set(tumMaclar.map(m=>m.hafta).filter(h=>h!=null))];
+  const macHaftaUygun=(m)=> macHafta==="hepsi" || (m.hafta||0)===macHafta;
+  const oynananlar=tumMaclar.filter(m=>m.oynandi && macHaftaUygun(m)).sort((a,b)=>(b.hafta||0)-(a.hafta||0));
+  const yaklasanlar=tumMaclar.filter(m=>!m.oynandi && macHaftaUygun(m)).sort((a,b)=>(a.hafta||0)-(b.hafta||0));
 
   const SiraBtn=({k,etiket})=> <span onClick={()=>setSira(k)} className="tap" style={{fontSize:10,padding:"4px 9px",borderRadius:12,background:sira===k?T.accent:T.bg2,color:sira===k?"#fff":T.textMut,fontWeight:sira===k?700:500}}>{etiket}</span>;
   const MevkiBtn=({k,etiket})=> <span onClick={()=>setMevki(k)} className="tap" style={{fontSize:10,padding:"4px 9px",borderRadius:12,background:mevki===k?"#34D399":T.bg2,color:mevki===k?"#06140d":T.textMut,fontWeight:mevki===k?700:500}}>{etiket}</span>;
 
   return <div className="fade-in main-area" style={{paddingBottom:90}}>
     {/* sekmeler */}
-    <div style={{display:"flex",background:T.bg1,borderBottom:"0.5px solid "+T.line,position:"sticky",top:0,zIndex:5}}>
+    <div style={{display:"flex",background:T.bg1,borderBottom:"0.5px solid "+T.line,position:"sticky",top:"var(--fz-hdr, 52px)",zIndex:6,boxShadow:"0 4px 12px -6px rgba(0,0,0,.4)"}}>
       {[["lig","🏆 Ligler"],["takim","👥 Takımlar"],["oyuncu","⚽ Oyuncular"],["mac","📅 Maçlar"]].map(([k,l])=>
         <button key={k} onClick={()=>{setTab(k);setAra("");setSira("gol");setMevki("hepsi");}} className="tap sekme" style={{flex:1,background:"none",border:0,padding:"12px 0",fontSize:11,color:tab===k?T.accent:T.textMut,borderBottom:"2px solid "+(tab===k?T.accent:"transparent"),fontWeight:tab===k?700:500}}>{l}</button>
       )}
@@ -5052,14 +5055,16 @@ function Kesfet({turnuvalar, T, git, ligKurAc, ligKurYetki, saltOkunur, yukleniy
     {/* MAÇLAR */}
     {tab==="mac" && <div style={{padding:"10px 14px"}}>
       {tumMaclar.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:24}}>Henüz maç yok</div>}
+      {maclarHaftalar.length>0 && <HaftaSecici hafta={macHafta} setHafta={setMacHafta} haftalar={maclarHaftalar} T={T}/>}
       {yaklasanlar.length>0 && <>
         <div style={{fontSize:11,fontWeight:800,color:"#34D399",margin:"4px 2px 7px"}}>📅 YAKLAŞAN ({yaklasanlar.length})</div>
-        {yaklasanlar.slice(0,15).map((m,i)=> <MacSatir key={"y"+i} m={m} T={T} git={git}/>)}
+        {(macHafta==="hepsi"?yaklasanlar.slice(0,15):yaklasanlar).map((m,i)=> <MacSatir key={"y"+i} m={m} T={T} git={git}/>)}
       </>}
       {oynananlar.length>0 && <>
-        <div style={{fontSize:11,fontWeight:800,color:T.accent,margin:"14px 2px 7px"}}>⚽ SON OYNANANLAR ({oynananlar.length})</div>
-        {oynananlar.slice(0,30).map((m,i)=> <MacSatir key={"o"+i} m={m} T={T} git={git}/>)}
+        <div style={{fontSize:11,fontWeight:800,color:T.accent,margin:"14px 2px 7px"}}>⚽ {macHafta==="hepsi"?"SON OYNANANLAR":(macHafta+". HAFTA")} ({oynananlar.length})</div>
+        {(macHafta==="hepsi"?oynananlar.slice(0,30):oynananlar).map((m,i)=> <MacSatir key={"o"+i} m={m} T={T} git={git}/>)}
       </>}
+      {tumMaclar.length>0 && macHafta!=="hepsi" && oynananlar.length===0 && yaklasanlar.length===0 && <div style={{fontSize:12,color:T.textMut,textAlign:"center",padding:24}}>{macHafta}. haftada maç yok. Başka bir hafta seç.</div>}
     </div>}
 
     {yeniSezonHedef && <YeniSezonPop turnuva={yeniSezonHedef} T={T} onKapat={()=>setYeniSezonHedef(null)} onBaslat={(kimlik)=>sezonBaslatKatalog(yeniSezonHedef, kimlik)}/>}
