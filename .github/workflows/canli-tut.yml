@@ -1,0 +1,16 @@
+name: Depoyu Canli Tut
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Her Pazar gece yarısı otomatik çalışır
+  workflow_dispatch: # İstediğiniz zaman elle çalıştırma butonu ekler
+
+jobs:
+  keep_alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Canli Tutma Aksiyonu
+        uses: gautamkrishnar/keepalive-workflow@v1
