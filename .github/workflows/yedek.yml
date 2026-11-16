@@ -1,25 +1,25 @@
 name: Otomatik Yedekleme (şifreli, tam pg_dump)
 
-# Supabase veritabanının TAM yedeğini alır (şema + TÜM satırlar), ŞİFRELER,
-# indirilebilir dosya yapar. Repo herkese açık olsa bile yedek şifreli → güvenli.
-# (Eski sürüm REST ile sadece ilk 1000 satırı alıyor ve şifresizdi — düzeltildi.)
-#
-# GEREKLİ 2 SECRET (GitHub → Settings → Secrets and variables → Actions → New repository secret):
-#   SUPABASE_DB_URL    → Supabase → Project Settings → Database → "Connection string"
-#                        → "Session pooler" sekmesi → URI'yi kopyala, [YOUR-PASSWORD] yerine
-#                        veritabanı şifreni yaz. Örn:
-#                        postgresql://postgres.xxxx:SIFREN@aws-0-...pooler.supabase.com:5432/postgres
-#   BACKUP_PASSPHRASE  → yedeği açmak için KENDİ belirlediğin bir parola (güvenli sakla!)
-# Secret'lar yoksa iş sessizce atlanır (hata vermez).
-#
-# GERİ YÜKLEME: yedeği indir → bir terminalde:
-#   gpg -d yedek.sql.gz.gpg | gunzip > yedek.sql   (parolayı sorar)
+# Supabase veritabanının TAM yedeğini alir (sema + TÜM satirlar), SİFRELER,
+# İndirilebilir dosya yapar. Repo herkese acik olsa bile yedek sifreli = güvenli.
+# (Eski sürüm REST ile sadece ilk 1000 satiri aliyor ve sifresizdi - düzeltildi.)
+
+# GEREKLİ 2 SECRET (GitHub -> Settings -> Secrets and variables -> Actions -> New repository secret):
+#   SUPABASE_DB_URL   -> Supabase -> Project Settings -> Database -> "Connection string"
+#                        -> "Session pooler" sekmesi -> URI'yi kopyala, [YOUR-PASSWORD] yerine
+#                        veritabanı sifreni yaz. Örn:
+#                        postgresql://postgres.xxxx:SİFREN@://
+#   BACKUP_PASSPHRASE -> yedegi acmak icin KENDİ belirledigin bir parola (güvenli sakla!)
+# Secret'lar yoksa is sessizce atlanir (hata vermez).
+
+# GERİ YÜKLEME: yedegi indir - bir terminalde:
+#   gpg -d yedek.sql.gz.gpg | gunzip > yedek.sql  (parolayi sorar)
 #   psql "SUPABASE_DB_URL" < yedek.sql
 
 on:
   schedule:
-    - cron: "0 3 * * 0"   # her Pazar 03:00 UTC (haftalık)
-  workflow_dispatch:        # istersen elle de çalıştır
+    - cron: "0 3 * * 0"   # Her Pazar 03:00 UTC (Haftalık)
+  workflow_dispatch:      # İstersen elle de calistir
 
 jobs:
   yedek:
@@ -32,7 +32,7 @@ jobs:
             echo "hazir=evet" >> "$GITHUB_OUTPUT"
           else
             echo "hazir=hayir" >> "$GITHUB_OUTPUT"
-            echo "::notice::SUPABASE_DB_URL / BACKUP_PASSPHRASE girilmemis - yedek atlandi."
+            echo "::notice::SUPABASE_DB_URL / BACKUP_PASSPHRASE girilmemiş - yedek atlandı."
           fi
 
       - name: Tam yedek (pg_dump v16) + AES256 sifrele
@@ -42,23 +42,21 @@ jobs:
           PASS: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
           set -e
-          # postgres:16 imaji -> surum-uyumlu pg_dump. URL container'a env ile girer (argv'de gorunmez).
-          docker run --rm -e PGURL="$DB_URL" postgres:16 \
-            sh -c 'pg_dump "$PGURL" --no-owner --no-privileges' | gzip > yedek.sql.gz
+          # postgres:16 imaji -> sunucu-uyumlu pg_dump. URL container'a env ile girer (arg'da görünmez).
+          docker run --rm -v "$PWD:/db_url" postgres:16 \
+            sh -c 'pg_dump "$DB_URL" --no-owner --no-privileges' | gzip > yedek.sql.gz
           gpg --batch --yes --passphrase "$PASS" --cipher-algo AES256 \
             --symmetric -o yedek.sql.gz.gpg yedek.sql.gz
           rm -f yedek.sql.gz
           echo "Sifreli yedek boyutu: $(du -h yedek.sql.gz.gpg | cut -f1)"
 
-      - name: Indirilebilir yap (sifreli - public olsa bile guvenli)
+      - name: İndirilebilir yap (sifreli - public olsa bile güvenli)
         if: steps.k.outputs.hazir == 'evet'
         uses: actions/upload-artifact@v4
         with:
           name: forzalig-yedek-${{ github.run_number }}
           path: yedek.sql.gz.gpg
           retention-days: 90
-                - name: Keep active
+
+      - name: Keep active
         uses: gautamkrishnar/keepalive-workflow@v1
-
-
-    
