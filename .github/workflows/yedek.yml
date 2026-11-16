@@ -57,6 +57,3 @@ jobs:
           name: forzalig-yedek-${{ github.run_number }}
           path: yedek.sql.gz.gpg
           retention-days: 90
-
-      - name: Keep active
-        uses: gautamkrishnar/keepalive-workflow@v1
